@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Nextra abstract mark">
+  <defs>
+    <linearGradient id="nxA" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#111827"/>
+      <stop offset="100%" stop-color="#0b1220"/>
+    </linearGradient>
+    <linearGradient id="nxB" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <!-- Abstract dark card with neon guide line; not the official mark -->
+  <rect width="256" height="256" rx="28" fill="url(#nxA)"/>
+  <rect x="36" y="56" width="184" height="112" rx="18" fill="none" stroke="#1f2937" stroke-width="8"/>
+  <path d="M56 120 H200" stroke="url(#nxB)" stroke-width="8" stroke-linecap="round"/>
+</svg>
+

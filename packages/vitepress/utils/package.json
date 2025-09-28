@@ -1,0 +1,9 @@
+{
+  "name": "@docs-islands/vitepress-utils",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./logger": "./logger.ts"
+  }
+}

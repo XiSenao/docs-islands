@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discord Chat
+    url: https://chat.vrite.cn
+    about: Ask questions and discuss with other VitePress Rendering Strategies users in real time.
+  - name: Questions & Discussions
+    url: https://github.com/XiSenao/vitepress-rendering-strategies/discussions
+    about: Use GitHub discussions for message-board style questions and discussions.

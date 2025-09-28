@@ -1,0 +1,11 @@
+.DS_Store
+dist
+coverage
+node_modules
+.eslintcache
+.temp
+cache
+# ignore the temporary config.ts build output, 
+# when vitepress fails to build config.ts, 
+# it will remain in the workspace.
+packages/vitepress/docs/.vitepress/config.ts.timestamp-*.mjs

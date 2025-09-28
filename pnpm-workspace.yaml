@@ -1,0 +1,22 @@
+packages:
+  - 'packages/**'
+  - 'docs'
+  - 'utils'
+
+onlyBuiltDependencies:
+  - playwright-chromium
+
+autoInstallPeers: false
+
+dedupeInjectedDeps: false
+
+hoist: false
+
+loglevel: info
+
+patchedDependencies:
+  vite: patches/vite@5.4.20.patch
+
+shellEmulator: true
+
+strictPeerDependencies: true

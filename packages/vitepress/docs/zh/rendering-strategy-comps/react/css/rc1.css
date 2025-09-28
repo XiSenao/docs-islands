@@ -1,0 +1,9 @@
+.rc1-button {
+  padding: 5px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-right: 8px;
+  background-color: #ff6d0563;
+  color: #0f3923;
+  border: none;
+}

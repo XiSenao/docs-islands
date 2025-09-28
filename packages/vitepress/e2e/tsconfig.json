@@ -1,0 +1,8 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["vitest/globals"],
+    "jsx": "preserve"
+  },
+  "include": ["**/*.ts", "**/*.tsx", "./types/client.d.ts"]
+}

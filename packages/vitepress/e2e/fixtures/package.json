@@ -1,0 +1,25 @@
+{
+  "name": "@docs-islands/vitepress-fixtures",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "DEBUG=1 vitest",
+    "site:dev": "vitepress dev",
+    "site:build": "vitepress build",
+    "site:preview": "vitepress preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@docs-islands/vitepress": "link:../../dist",
+    "vitepress": "^1.6.3",
+    "@vitejs/plugin-react-swc": "^3.9.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "vitest": "^3.2.4",
+    "playwright-chromium": "^1.55.0",
+    "@playwright/test": "^1.55.0",
+    "get-port": "^7.1.0",
+    "vue": "^3.5.21"
+  }
+}

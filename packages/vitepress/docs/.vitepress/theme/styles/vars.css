@@ -1,0 +1,161 @@
+/**
+ * Colors: Palette
+ *
+ * The primitive colors used for accent colors. These colors are referenced
+ * by functional colors such as "Text", "Background", or "Brand".
+ *
+ * Each colors have exact same color scale system with 3 levels of solid
+ * colors with different brightness, and 1 soft color.
+ *
+ * - `XXX-1`: The most solid color used mainly for colored text. It must
+ *   satisfy the contrast ratio against when used on top of `XXX-soft`.
+ *
+ * - `XXX-2`: The color used mainly for hover state of the button.
+ *
+ * - `XXX-3`: The color for solid background, such as bg color of the button.
+ *    It must satisfy the contrast ratio with pure white (#ffffff) text on
+ *    top of it.
+ *
+ * - `XXX-soft`: The color used for subtle background such as custom container
+ *    or badges. It must satisfy the contrast ratio when putting `XXX-1` colors
+ *    on top of it.
+ *
+ *    The soft color must be semi transparent alpha channel. This is crucial
+ *    because it allows adding multiple "soft" colors on top of each other
+ *    to create a accent, such as when having inline code block inside
+ *    custom containers.
+ * -------------------------------------------------------------------------- */
+
+:root {
+  --vp-c-sky-1: #2196f3;
+  --vp-c-sky-2: #49a1d4;
+  --vp-c-sky-3: #49a1d4;
+  --vp-c-sky-soft: rgba(73, 161, 212, 0.84);
+  --vp-c-gutter: #e9e9e9;
+  --vp-c-blockquote-text: #2771a7;
+  --vp-c-preview-link-color: #94b6c0;
+  --vp-c-preview-link-color-hover: #67acc0;
+}
+
+.dark {
+  --vp-c-sky-1: #49a3d7;
+  --vp-c-sky-2: #58b1e5;
+  --vp-c-sky-3: #58b1e5;
+  --vp-c-sky-soft: #58b1e5;
+  --vp-c-gutter: #2a2c33;
+  --vp-c-blockquote-text: #3d9add;
+  --vp-c-preview-link-color: #2999bc;
+  --vp-c-preview-link-color-hover: #09bbf2;
+}
+
+/**
+ * Colors: Function
+ *
+ * - `default`: The color used purely for subtle indication without any
+ *   special meanings attched to it such as bg color for menu hover state.
+ *
+ * - `brand`: Used for primary brand colors, such as link text, button with
+ *   brand theme, etc.
+ *
+ * - `tip`: Used to indicate useful information. The default theme uses the
+ *   brand color for this by default.
+ *
+ * - `warning`: Used to indicate warning to the users. Used in custom
+ *   container, badges, etc.
+ *
+ * - `danger`: Used to show error, or dangerous message to the users. Used
+ *   in custom container, badges, etc.
+ *
+ * To understand the scaling system, refer to "Colors: Palette" section.
+ * -------------------------------------------------------------------------- */
+
+:root {
+  /* Main color */
+  --vp-c-brand-1: var(--vp-c-sky-1);
+  --vp-c-brand-2: var(--vp-c-sky-2);
+  --vp-c-brand-3: var(--vp-c-sky-3);
+  --vp-c-brand-soft: var(--vp-c-sky-soft);
+}
+
+/**
+ * Component: Home
+ * -------------------------------------------------------------------------- */
+
+:root {
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: -webkit-linear-gradient(
+    -45deg,
+    rgb(64 188 234) 40%,
+    rgb(48, 129, 158)
+  );
+  --vp-home-hero-image-background-image: linear-gradient(-45deg, rgb(0 174 230) 50%, #1dc9f1 50%);
+  --vp-home-hero-image-filter: blur(30px);
+}
+
+.dark:root {
+  --vp-home-hero-name-background: -webkit-linear-gradient(-45deg, rgb(66, 205, 255) 40%, #2f5eb9);
+  --vp-home-hero-image-background-image: linear-gradient(
+    -45deg,
+    rgb(16 114 190) 50%,
+    rgb(24 91 197) 50%
+  );
+}
+
+@media (min-width: 640px) {
+  :root {
+    --vp-home-hero-image-filter: blur(56px);
+  }
+}
+
+@media (min-width: 960px) {
+  :root {
+    --vp-home-hero-image-filter: blur(72px);
+  }
+}
+
+/**
+ * Component: Badge
+ * -------------------------------------------------------------------------- */
+:root {
+  /* Configure the color of the custom block of tips to be non-default product color, to avoid incompatibility with text and cause readability to decrease */
+  --vp-custom-block-tip-bg: #def4f4;
+  --vp-custom-block-tip-code-bg: #99daed7d;
+  --landing-community-section-linear-background: var(--vp-c-text-1);
+  --vp-c-divider: #e2e2e3;
+}
+
+.dark:root {
+  /* Configure the color of the custom block of tips to be non-default product color in dark mode, to avoid incompatibility with text and cause readability to decrease */
+  --vp-custom-block-tip-bg: #162f33;
+  --vp-custom-block-tip-code-bg: #1b54549c;
+  --landing-community-section-linear-background: linear-gradient(0deg, #fff, #ffffffc2);
+  --vp-c-divider: #5c5c60;
+}
+
+:root {
+  --vp-nolebase-highlight-targeted-heading-bg: rgba(253, 216, 95, 0.31);
+}
+
+/**
+ * Component: WorkInProgress
+ * -------------------------------------------------------------------------- */
+
+:root {
+  --status-text-color: #666;
+}
+
+.dark:root {
+  --status-text-color: #c3be74;
+}
+
+/**
+ * Component: ContactForm
+ * -------------------------------------------------------------------------- */
+
+:root {
+  --contact-form-background-color: #e2e2e3;
+}
+
+.dark:root {
+  --contact-form-background-color: rgb(9 9 11 / 1);
+}

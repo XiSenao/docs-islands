@@ -1,0 +1,124 @@
+{
+  "name": "@docs-islands/vitepress",
+  "version": "0.0.1",
+  "type": "module",
+  "license": "MIT",
+  "author": "Senao Xi",
+  "description": "Cross-framework Islands Architecture for VitePress with multi-UI framework component rendering",
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "vitepress",
+    "react",
+    "islands-architecture",
+    "cross-framework",
+    "ssr",
+    "hydration",
+    "frontend"
+  ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/XiSenao/docs-islands",
+    "directory": "packages/vitepress"
+  },
+  "bugs": {
+    "url": "https://github.com/XiSenao/docs-islands/issues"
+  },
+  "homepage": "https://docs.senao.me/docs-islands/vitepress",
+  "scripts": {
+    "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
+    "format": "prettier --write --cache .",
+    "typecheck": "tsc --noEmit && pnpm -F=@docs-islands/vitepress-fixtures typecheck",
+    "build": "rolldown --config rolldown.config.ts",
+    "build:watch": "enableClientRuntimeSourcemap=1 rolldown --config rolldown.config.ts --watch",
+    "changelog": "tsx scripts/changelog.ts",
+    "changelog:preview": "tsx scripts/changelog.ts --dry-run",
+    "release": "tsx scripts/release.ts",
+    "release:patch": "tsx scripts/release.ts --type patch",
+    "release:minor": "tsx scripts/release.ts --type minor",
+    "release:major": "tsx scripts/release.ts --type major",
+    "release:beta": "tsx scripts/release.ts --type prerelease --preid beta",
+    "release:alpha": "tsx scripts/release.ts --type prerelease --preid alpha",
+    "release:dry": "tsx scripts/release.ts --dry-run --type patch",
+    "docs": "pnpm --stream '/^(docs:)?dev$/'",
+    "docs:dev-prepare": "pnpm -F=@docs-islands/vitepress-docs link:dev",
+    "docs:prod-prepare": "pnpm -F=@docs-islands/vitepress-docs link:prod",
+    "docs:dev": "wait-on -d 100 dist/node/index.js && pnpm -F=@docs-islands/vitepress-docs dev",
+    "docs:build": "pnpm build && pnpm docs:build:only",
+    "docs:build:only": "wait-on -d 100 dist/node/index.js && pnpm -F=@docs-islands/vitepress-docs build",
+    "docs:build:release": "pnpm build && RELEASE=1 pnpm docs:build:only",
+    "docs:preview": "pnpm -F=@docs-islands/vitepress-docs preview",
+    "test": "pnpm build && pnpm --aggregate-output --reporter=append-only '/^test:(unit|e2e)$/'",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:e2e": "pnpm test:e2e-dev && pnpm test:e2e-build",
+    "test:e2e:site:dev": "pnpm -F=@docs-islands/vitepress-fixtures site:dev",
+    "test:e2e:site:build": "pnpm -F=@docs-islands/vitepress-fixtures site:build",
+    "test:e2e:site:preview": "pnpm -F=@docs-islands/vitepress-fixtures site:preview",
+    "test:e2e-dev": "pnpm -F=@docs-islands/vitepress-fixtures test",
+    "test:e2e-dev:watch": "pnpm -F=@docs-islands/vitepress-fixtures test:watch",
+    "test:e2e-build": "VITE_TEST_BUILD=1 pnpm -F=@docs-islands/vitepress-fixtures test:e2e-dev",
+    "test:e2e-build:watch": "VITE_TEST_BUILD=1 pnpm -F=@docs-islands/vitepress-fixtures test:e2e-dev:watch",
+    "clean": "pnpm clean:dist && pnpm clean:deps",
+    "clean:dist": "del-cli coverage dist docs/dist docs/.vitepress/dist docs/.vitepress/cache || true",
+    "clean:deps": "del-cli node_modules docs/node_modules \"docs/.vitepress/config.ts.timestamp-*.mjs\" || true",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "cheerio": "^1.1.0",
+    "vite": "^5.4.20"
+  },
+  "devDependencies": {
+    "del-cli": "^6.0.0",
+    "rolldown": "1.0.0-beta.31",
+    "rolldown-plugin-dts": "^0.15.5",
+    "vitepress": "^1.6.3",
+    "@vitejs/plugin-react-swc": "^3.9.0",
+    "@docs-islands/vitepress-shared": "link:./src/shared",
+    "@docs-islands/vitepress-types": "link:./src/types",
+    "@docs-islands/vitepress-utils": "link:./utils"
+  },
+  "peerDependencies": {
+    "@vitejs/plugin-react-swc": "^3.9.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "vitepress": "^1.6.3"
+  },
+  "peerDependenciesMeta": {
+    "@vitejs/plugin-react-swc": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "vitepress": {
+      "optional": false
+    }
+  },
+  "lint-staged": {
+    "*.js|*.ts|*.jsx|*.tsx": [
+      "eslint --cache --fix ."
+    ],
+    "*": [
+      "prettier --write --cache --ignore-unknown"
+    ]
+  },
+  "exports": {
+    ".": "./src/node/index.ts",
+    "./client": "./src/client/index.ts",
+    "./react": "./src/node/react/index.ts",
+    "./react/client": "./src/client/react/index.ts",
+    "./client/types": "./types/client.d.ts",
+    "./package.json": "./package.json",
+    "./utils/client/logger": "./utils/logger.ts",
+    "./shared/client/runtime": "./src/shared/client-runtime.ts",
+    "./shared/client/runtime-dev": "./dist/shared/client-runtime.js"
+  }
+}

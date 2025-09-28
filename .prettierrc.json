@@ -1,0 +1,49 @@
+{
+  "arrowParens": "avoid",
+  "semi": true,
+  "tabWidth": 2,
+  "singleQuote": true,
+  "printWidth": 100,
+  "useTabs": false,
+  "trailingComma": "none",
+  "endOfLine": "auto",
+  "overrides": [
+    {
+      "files": "**/*.md",
+      "options": {
+        "printWidth": 76,
+        "tabWidth": 2,
+        "proseWrap": "never"
+      }
+    },
+    {
+      "files": "*.json",
+      "options": {
+        "singleQuote": false,
+        "quoteProps": "preserve",
+        "printWidth": 100,
+        "bracketSpacing": false
+      }
+    },
+    {
+      "files": ["*.json5", "tsconfig.json"],
+      "options": {
+        "parser": "json5",
+        "printWidth": 100,
+        "bracketSpacing": false,
+        "singleQuote": false,
+        "trailingComma": "none",
+        "quoteProps": "preserve",
+        "bracketSameLine": true,
+        "singleAttributePerLine": false
+      }
+    },
+    {
+      "files": ["*.yml"],
+      "options": {
+        "singleQuote": false
+      }
+    }
+  ],
+  "plugins": ["prettier-plugin-organize-imports"]
+}

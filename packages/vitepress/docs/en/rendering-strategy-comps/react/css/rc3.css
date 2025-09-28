@@ -1,0 +1,9 @@
+.rc3-button {
+  padding: 5px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-right: 8px;
+  background-color: #9ceaca63;
+  color: #1dd270;
+  border: none;
+}

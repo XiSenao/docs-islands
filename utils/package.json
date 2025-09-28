@@ -1,0 +1,16 @@
+{
+  "name": "@docs-islands/utils",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./logger": "./logger.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "picocolors": "1.1.1",
+    "typescript": "~5.8.3"
+  }
+}

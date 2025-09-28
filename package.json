@@ -1,0 +1,125 @@
+{
+  "name": "docs-islands-monorepo",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0",
+    "pnpm": ">=10.17.0"
+  },
+  "workspaces": [
+    "packages/**",
+    "docs",
+    "utils"
+  ],
+  "homepage": "https://docs.senao.me/docs-islands",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/XiSenao/docs-islands.git"
+  },
+  "description": "Cross-framework Islands Architecture for documentation sites",
+  "keywords": [
+    "docs-islands",
+    "vitepress",
+    "react",
+    "islands-architecture",
+    "cross-framework",
+    "ssr",
+    "hydration",
+    "frontend"
+  ],
+  "scripts": {
+    "build": "pnpm run _run build",
+    "docs:dev": "sh -c 'pnpm --filter \"@docs-islands/$0-docs\" docs:dev'",
+    "docs:build": "pnpm run _run docs:build && tsx scripts/merge-docs.ts",
+    "test": "pnpm run _run test",
+    "test:unit": "pnpm run _run test:unit",
+    "test:e2e": "pnpm run _run test:e2e",
+    "lint": "eslint . --fix --cache --config ./eslint.config.mjs && pnpm -r --parallel run lint",
+    "format": "prettier --write --cache .",
+    "typecheck": "pnpm -r --parallel run typecheck",
+    "release": "sh -c 'pnpm --filter \"@docs-islands/$0\" release'",
+    "changelog": "sh -c 'pnpm --filter \"@docs-islands/$0\" changelog'",
+    "clean": "pnpm run _run clean && del-cli node_modules",
+    "_run": "sh -c 'SCRIPT=$1; shift; if [ $# -eq 0 ]; then pnpm -r --parallel --if-present run $SCRIPT; else pnpm --filter \"@docs-islands/$1\" $SCRIPT; fi' _",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "vite": "^5.4.20",
+    "tinyglobby": "^0.2.15"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.34.0",
+    "eslint": "^9.34.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-html": "^8.1.3",
+    "eslint-plugin-markdown": "^5.1.0",
+    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-unicorn": "^60.0.0",
+    "@html-eslint/eslint-plugin": "^0.24.0",
+    "@html-eslint/parser": "^0.24.0",
+    "eslint-plugin-vue": "^10.4.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.5",
+    "prettier": "~3.5.3",
+    "prettier-plugin-organize-imports": "^4.2.0",
+    "vue-eslint-parser": "^10.2.0",
+    "@typescript-eslint/parser": "^8.42.0",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.40.0",
+    "vue-tsc": "~3.0.3",
+    "@types/babel__generator": "^7.27.0",
+    "@types/babel__traverse": "^7.20.7",
+    "@types/estree": "^1.0.8",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^24.3.0",
+    "@types/parse5": "^7.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "del-cli": "^6.0.0",
+    "tsx": "^4.20.5",
+    "wait-on": "^8.0.4",
+    "@playwright/test": "^1.55.0",
+    "get-port": "^7.1.0",
+    "globals": "^16.3.0",
+    "jsdom": "^25.0.0",
+    "playwright-chromium": "^1.55.0",
+    "vitest": "^3.2.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "es-module-lexer": "^1.7.0",
+    "magic-string": "^0.30.17",
+    "markdown-it": "^14.1.0",
+    "parse5": "7.2.1",
+    "pathe": "^2.0.3",
+    "picocolors": "1.1.1",
+    "@babel/generator": "^7.28.0",
+    "@babel/parser": "^7.28.0",
+    "@babel/traverse": "^7.28.0",
+    "@babel/types": "^7.28.2",
+    "@docs-islands/eslint-config": "workspace:*",
+    "@docs-islands/utils": "workspace:*"
+  },
+  "lint-staged": {
+    "*.js|*.ts|*.jsx|*.tsx": [
+      "eslint --cache --fix ."
+    ],
+    "*": [
+      "prettier --write --cache --ignore-unknown"
+    ]
+  },
+  "packageManager": "pnpm@10.17.0",
+  "pnpm": {
+    "//": "Vite isn't updating esbuild to 0.25.0 in v5, and since the project doesn't use esbuild dev server, this can be ignored.",
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-67mh-4wv8-2f99"
+      ]
+    },
+    "overrides": {
+      "axios@<1.12.0": ">=1.12.0"
+    },
+    "patchedDependencies": {
+      "vite@5.4.20": "patches/vite@5.4.20.patch"
+    }
+  }
+}

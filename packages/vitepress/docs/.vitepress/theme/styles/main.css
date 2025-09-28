@@ -1,0 +1,287 @@
+@import 'kbd.css';
+
+html,
+body {
+  -webkit-tap-highlight-color: transparent; /* Avoid highlighting on touch */
+}
+
+/* Reference Vitest */
+/* fix height ~ 2 lines of text: 3 or more cards per row */
+.VPTeamMembersItem.small .profile .data .affiliation {
+  min-height: 3rem;
+}
+
+.VPTeamMembersItem.small .profile .data .desc {
+  min-height: 3rem;
+}
+
+/* fix height ~ 3 lines of text: 4 cards per row */
+@media (min-width: 1064px) and (max-width: 1143px) {
+  .VPTeamMembersItem.small .profile .data .affiliation {
+    min-height: 4rem;
+  }
+
+  .VPTeamMembersItem.small .profile .data .desc {
+    min-height: 4rem;
+  }
+}
+
+/* fix height ~ 3 lines of text: 3 cards per row */
+@media (min-width: 815px) and (max-width: 875px) {
+  .VPTeamMembersItem.small .profile .data .affiliation {
+    min-height: 4rem;
+  }
+
+  .VPTeamMembersItem.small .profile .data .desc {
+    min-height: 4rem;
+  }
+}
+
+/* fix height ~ 3 lines of text: 2 cards per row */
+@media (max-width: 612px) {
+  .VPTeamMembersItem.small .profile .data .affiliation {
+    min-height: 4rem;
+  }
+
+  .VPTeamMembersItem.small .profile .data .desc {
+    min-height: 4rem;
+  }
+}
+
+/* fix height: one card per row */
+@media (max-width: 568px) {
+  .VPTeamMembersItem.small .profile .data .affiliation {
+    min-height: unset;
+  }
+
+  .VPTeamMembersItem.small .profile .data .desc {
+    min-height: unset;
+  }
+}
+
+/* Fix the problem that the sub-element contains a specific max-width style processed by the VPTeamMembers component, causing the element width to be inconsistent with the main text */
+.vp-doc .VPTeamMembers.small.count-2 .container,
+.vp-doc .VPTeamMembers.small.count-3 .container {
+  max-width: 1152px !important;
+}
+
+.VPTeamMembers.medium.count-2 .container {
+  max-width: unset;
+}
+
+.VPTeamMembers.small.count-2 .container {
+  max-width: unset;
+}
+
+/* Home sub-title style */
+.VPHomeHero > .container > .main > .text {
+  padding-top: 45px;
+  font-size: 4rem;
+}
+
+/* Home introduction style */
+.VPHomeHero > .container > .main > .tagline {
+  padding-top: 24px;
+}
+
+/* Adaptive style */
+@media (max-width: 1024px) {
+  /* Home title style */
+  .VPHomeHero > .container > .main > h1 {
+    font-size: 3.5rem;
+  }
+
+  /* Home sub-title style */
+  .VPHomeHero > .container > .main > .text {
+    padding-top: 30px;
+    font-size: 3rem;
+  }
+
+  /* Home introduction style */
+  .VPHomeHero > .container > .main > .tagline {
+    padding-top: 20px;
+  }
+}
+
+/* Adaptive style */
+@media (max-width: 640px) {
+  /* Home title style */
+  .VPHomeHero > .container > .main > h1 {
+    font-size: 2.5rem;
+  }
+
+  /* Home sub-title style */
+  .VPHomeHero > .container > .main > .text {
+    padding-top: 20px;
+    font-size: 2rem;
+  }
+
+  /* Home introduction style */
+  .VPHomeHero > .container > .main > .tagline {
+    padding-top: 20px;
+  }
+}
+
+/* Home footer opacity */
+.VPFooter {
+  opacity: 0.8;
+}
+
+/* Main text footer CC protocol link basic style */
+.footer-cc-link {
+  color: var(--vp-c-text-2);
+  transition: all 0.3s ease;
+  text-decoration: underline;
+  text-decoration-color: rgb(114, 114, 114);
+}
+
+/* Main text footer CC protocol link mouse hover style */
+.footer-cc-link:hover {
+  color: var(--vp-c-text-1);
+}
+
+/* Main text footer CC protocol link dark mode mouse hover style */
+.dark .footer-cc-link:hover {
+  color: var(--vp-c-text-1);
+}
+
+/* Adjust the distance between the document page footer and the main text footer */
+.VPDoc .VPDocFooter {
+  margin-top: 32px;
+}
+
+/* Footnotes */
+.footnotes > .footnotes-list {
+  margin-top: 32px;
+  opacity: 0.9;
+  font-size: 12px;
+  /* Ensure the return link symbol ↩ on the footnote is not covered by the Emoji font of the body and rendered as ↩️ */
+  font-family: sans-serif;
+}
+
+.footnotes > .footnotes-list > .footnote-item > p {
+  line-height: 18px;
+}
+
+/* Override the h1 title style of the main text */
+.vp-doc > div > h1 {
+  margin-bottom: 16px;
+}
+
+.vp-doc a {
+  text-decoration: none;
+  font-weight: 700;
+  transition: all 0.3s ease;
+}
+
+.vp-doc a:hover {
+  text-decoration: underline;
+}
+
+/* Override the quote block style in the main text */
+
+.vp-doc blockquote {
+  color: var(--vp-c-blockquote-text);
+  font-size: 14px;
+}
+
+.vp-doc blockquote p {
+  font-size: 14px;
+}
+
+.vp-doc ol,
+.vp-doc ul {
+  font-size: 14px;
+}
+
+/**
+  Discord link button style
+*/
+
+.VPHero.VPHomeHero .actions a[href="https://discord.gg/XuNFDcDZGj"]
+{
+  color: #6972d4;
+  border: 2px #6972d4 solid;
+  background-color: transparent;
+}
+
+.VPHero.VPHomeHero .actions a[href="https://discord.gg/XuNFDcDZGj"]:hover
+{
+  color: white;
+  background-color: #6975f2;
+}
+
+.VPHero.VPHomeHero .actions a[href="https://discord.gg/XuNFDcDZGj"]:active
+{
+  color: white;
+  background-color: #404eed;
+}
+
+/**
+  Dark mode Discord link button style
+*/
+
+.dark .VPHero.VPHomeHero .actions a[href="https://discord.gg/XuNFDcDZGj"]
+{
+  color: #898fcf;
+  border: 2px #898fcf solid;
+  background-color: transparent;
+}
+
+.dark .VPHero.VPHomeHero .actions a[href="https://discord.gg/XuNFDcDZGj"]:hover
+{
+  color: white;
+  background-color: #404eed;
+}
+
+.dark .VPHero.VPHomeHero .actions a[href="https://discord.gg/XuNFDcDZGj"]:active
+{
+  color: white;
+  background-color: #444c9e;
+}
+
+/**
+  GitHub link button style
+*/
+
+.VPHero.VPHomeHero .actions a[href="https://github.com/nolebase/nolebase"]
+{
+  color: #616161;
+  border: 2px #616161 solid;
+  background-color: transparent;
+}
+
+.VPHero.VPHomeHero .actions a[href="https://github.com/nolebase/nolebase"]:hover
+{
+  color: white;
+  background-color: #4b4b4b;
+}
+
+.VPHero.VPHomeHero .actions a[href="https://github.com/nolebase/nolebase"]:active
+{
+  color: white;
+  background-color: #000;
+}
+
+/**
+  Dark mode GitHub link button style
+*/
+
+.dark .VPHero.VPHomeHero .actions a[href="https://github.com/nolebase/nolebase"]
+{
+  color: #a4a4a4;
+  border: 2px #a4a4a4 solid;
+  background-color: transparent;
+}
+
+.dark .VPHero.VPHomeHero .actions a[href="https://github.com/nolebase/nolebase"]:hover
+{
+  color: white;
+  background-color: #252525;
+}
+
+.dark .VPHero.VPHomeHero .actions a[href="https://github.com/nolebase/nolebase"]:active
+{
+  color: white;
+  background-color: #4b4b4b;
+}

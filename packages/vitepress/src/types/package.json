@@ -1,0 +1,8 @@
+{
+  "name": "@docs-islands/vitepress-types",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  }
+}

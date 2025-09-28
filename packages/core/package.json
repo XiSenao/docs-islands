@@ -1,0 +1,10 @@
+{
+  "name": "@docs-islands/core",
+  "private": true,
+  "type": "module",
+  "scripts": {},
+  "keywords": [],
+  "author": "Senao Xi",
+  "license": "MIT",
+  "packageManager": "pnpm@10.7.0"
+}
