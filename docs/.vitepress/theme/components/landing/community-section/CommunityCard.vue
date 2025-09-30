@@ -35,9 +35,18 @@ defineProps<{
 </script>
 
 <template>
-  <a class="community-card" :href="testimonial.link" target="_blank">
+  <a
+    class="community-card"
+    :href="testimonial.link"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
     <div class="card__header">
-      <img :src="testimonial.avatar" :alt="testimonial.name" class="card__avatar" />
+      <img
+        :src="testimonial.avatar"
+        :alt="testimonial.name"
+        class="card__avatar"
+      />
       <div class="card__meta">
         <span class="card__name">
           {{ testimonial.name }}
@@ -48,7 +57,7 @@ defineProps<{
       </div>
     </div>
     <div class="card__content">
-      <p v-for="p of testimonial.comment">{{ p }}</p>
+      <p v-for="p in testimonial.comment">{{ p }}</p>
     </div>
   </a>
 </template>

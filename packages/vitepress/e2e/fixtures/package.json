@@ -8,7 +8,9 @@
     "site:dev": "vitepress dev",
     "site:build": "vitepress build",
     "site:preview": "vitepress preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
+    "clean": "del-cli node_modules .eslintcache"
   },
   "devDependencies": {
     "@docs-islands/vitepress": "link:../../dist",
@@ -20,6 +22,8 @@
     "playwright-chromium": "^1.55.0",
     "@playwright/test": "^1.55.0",
     "get-port": "^7.1.0",
-    "vue": "^3.5.21"
+    "vue": "^3.5.21",
+    "del-cli": "^6.0.0",
+    "eslint": "^9.34.0"
   }
 }

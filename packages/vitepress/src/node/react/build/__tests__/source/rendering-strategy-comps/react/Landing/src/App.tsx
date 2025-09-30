@@ -9,10 +9,10 @@ function App() {
   return (
     <div className="landing">
       <div className="logo-container">
-        <a href="https://vitepress.dev" target="_blank">
+        <a href="https://vitepress.dev" target="_blank" rel="noreferrer">
           <img src={vitepressLogo} className="logo" alt="VitePress logo" />
         </a>
-        <a href="https://react.dev" target="_blank">
+        <a href="https://react.dev" target="_blank" rel="noreferrer">
           <img src={reactLogo} className="logo react" alt="React logo" />
         </a>
       </div>

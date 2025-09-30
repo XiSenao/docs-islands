@@ -1,11 +1,9 @@
-import tsParser from '@typescript-eslint/parser';
-import pluginVue from 'eslint-plugin-vue';
+import typescriptESlintParser from '@typescript-eslint/parser';
 import { defineConfig } from 'eslint/config';
 import { eslintConfigBase } from '../base.mjs';
 
 export default defineConfig([
   ...eslintConfigBase,
-  ...pluginVue.configs['flat/recommended'],
 
   // Docs examples - relax non-critical rules
   {
@@ -45,77 +43,14 @@ export default defineConfig([
     }
   },
 
-  // Vue files
-  {
-    files: ['**/*.vue'],
-    languageOptions: {
-      parserOptions: {
-        parser: '@typescript-eslint/parser',
-        extraFileExtensions: ['.vue'],
-        ecmaFeatures: {
-          jsx: true
-        }
-      }
-    },
-    rules: {
-      // Vue-specific rules
-      'vue/block-order': ['error', { order: ['script', 'template', 'style'] }],
-      'vue/component-api-style': ['error', ['script-setup']],
-      'vue/component-name-in-template-casing': ['error', 'PascalCase'],
-      'vue/custom-event-name-casing': ['error', 'camelCase'],
-      'vue/define-emits-declaration': ['error', 'type-based'],
-      'vue/define-props-declaration': ['error', 'type-based'],
-      'vue/html-button-has-type': 'error',
-      'vue/html-comment-content-spacing': 'error',
-      'vue/no-boolean-default': 'error',
-      'vue/no-duplicate-attr-inheritance': 'error',
-      'vue/no-empty-component-block': 'error',
-      'vue/no-multiple-objects-in-class': 'error',
-      'vue/no-potential-component-option-typo': 'error',
-      'vue/no-required-prop-with-default': 'error',
-      'vue/no-static-inline-styles': 'error',
-      'vue/no-template-target-blank': 'error',
-      'vue/no-this-in-before-route-enter': 'error',
-      'vue/no-undef-components': 'error',
-      'vue/no-undef-properties': 'error',
-      'vue/no-unused-properties': 'error',
-      'vue/no-unused-refs': 'error',
-      'vue/no-use-v-else-with-v-for': 'error',
-      'vue/no-useless-mustaches': 'error',
-      'vue/no-useless-v-bind': 'error',
-      'vue/no-v-text-v-html-on-component': 'error',
-      'vue/padding-line-between-blocks': 'error',
-      'vue/prefer-define-options': 'error',
-      'vue/prefer-separate-static-class': 'error',
-      'vue/prefer-true-attribute-shorthand': 'error',
-      'vue/require-macro-variable-name': 'error',
-      'vue/static-class-names-order': 'error',
-      'vue/v-for-delimiter-style': ['error', 'in'],
-      'vue/valid-define-options': 'error',
-
-      // Relaxed rules for Vue
-      'vue/no-v-html': 'off',
-      'vue/require-v-for-key': 'off',
-
-      // TypeScript rules adjustments for Vue
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
-      'no-return-await': 'off',
-      'require-await': 'off'
-    }
-  },
-
   // Tooling config files - disable typed linting
   {
     files: ['vitest.config.ts', 'rolldown.config.ts', 'packagePlugin.ts'],
     languageOptions: {
       // Tooling config files - parse TS, no type info
-      parser: tsParser,
+      parser: typescriptESlintParser,
       parserOptions: {
-        project: false,
+        project: true,
         ecmaVersion: 'latest',
         sourceType: 'module'
       }

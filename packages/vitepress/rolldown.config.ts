@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath, resolve } from 'node:url';
 import type { PreRenderedChunk } from 'rolldown';
-import { defineConfig } from 'rolldown';
+import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
 import pkg from './package.json' with { type: 'json' };
 import generatePackageJson from './packagePlugin';
@@ -132,4 +132,6 @@ const clientRuntimeConfig = defineConfig({
   }
 });
 
-export default [nodeConfig, clientConfig, clientRuntimeConfig];
+const configs: RolldownOptions[] = [nodeConfig, clientConfig, clientRuntimeConfig];
+
+export default configs;

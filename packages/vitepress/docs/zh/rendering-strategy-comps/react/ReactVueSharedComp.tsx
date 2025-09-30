@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { type JSX, useState } from 'react';
 import type { CompProps } from '../type';
 
 interface ReactVueSharedCompProps extends CompProps {
   'vue-info': string;
 }
 
-export default function ReactVueSharedComp(props: ReactVueSharedCompProps) {
+export default function ReactVueSharedComp(props: ReactVueSharedCompProps): JSX.Element {
   const [count, setCount] = useState(0);
   return (
     <div className="react-vue-shared-comp">

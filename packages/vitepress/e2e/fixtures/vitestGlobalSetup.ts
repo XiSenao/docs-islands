@@ -20,7 +20,7 @@ export async function setup(): Promise<void> {
 
   if (process.env.VITE_TEST_BUILD) {
     await build(root);
-    server = (await serve({ root, port })).server;
+    ({ server } = await serve({ root, port }));
   } else {
     server = await createServer(root, { port });
     await server.listen();

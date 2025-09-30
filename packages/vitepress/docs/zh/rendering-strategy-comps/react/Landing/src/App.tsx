@@ -1,18 +1,18 @@
-import { useState } from 'react';
+import { type JSX, useState } from 'react';
 import vitepressLogo from '../public/vitepress.svg';
 import './App.css';
 import reactLogo from './assets/react.svg';
 
-function App() {
+function App(): JSX.Element {
   const [count, setCount] = useState(0);
 
   return (
     <div className="landing">
       <div className="logo-container">
-        <a href="https://vitepress.dev" target="_blank">
+        <a href="https://vitepress.dev" target="_blank" rel="noreferrer">
           <img src={vitepressLogo} className="logo" alt="VitePress logo" />
         </a>
-        <a href="https://react.dev" target="_blank">
+        <a href="https://react.dev" target="_blank" rel="noreferrer">
           <img src={reactLogo} className="logo react" alt="React logo" />
         </a>
       </div>

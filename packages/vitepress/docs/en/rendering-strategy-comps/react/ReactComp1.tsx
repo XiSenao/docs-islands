@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { type JSX, useState } from 'react';
 import type { CompProps } from '../type';
 import './css/rc1.css';
 import { renderSharedLicense } from './shared/renderSharedLicense';
 
-export default function ReactComp1(props: CompProps) {
+export default function ReactComp1(props: CompProps): JSX.Element {
   const [count, setCount] = useState(0);
   return (
     <div className="react-comp1-demo">

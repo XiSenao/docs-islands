@@ -39,7 +39,7 @@
     "typecheck": "pnpm -r --parallel run typecheck",
     "release": "sh -c 'pnpm --filter \"@docs-islands/$0\" release'",
     "changelog": "sh -c 'pnpm --filter \"@docs-islands/$0\" changelog'",
-    "clean": "pnpm run _run clean && del-cli node_modules",
+    "clean": "pnpm run _run clean && del-cli node_modules .eslintcache",
     "_run": "sh -c 'SCRIPT=$1; shift; if [ $# -eq 0 ]; then pnpm -r --parallel --if-present run $SCRIPT; else pnpm --filter \"@docs-islands/$1\" $SCRIPT; fi' _",
     "prepare": "husky"
   },
@@ -100,8 +100,8 @@
     "@docs-islands/utils": "workspace:*"
   },
   "lint-staged": {
-    "*.js|*.ts|*.jsx|*.tsx": [
-      "eslint --cache --fix ."
+    "*.{js,jsx,ts,tsx,vue,mjs,cjs}": [
+      "eslint --cache --fix"
     ],
     "*": [
       "prettier --write --cache --ignore-unknown"

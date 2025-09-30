@@ -1,5 +1,8 @@
 {
   "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "jsx": "preserve"
+  },
   "include": [
     ".vitepress/**/*.ts",
     ".vitepress/**/*.vue",

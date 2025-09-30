@@ -65,7 +65,7 @@
     "test:e2e-build:watch": "VITE_TEST_BUILD=1 pnpm -F=@docs-islands/vitepress-fixtures test:e2e-dev:watch",
     "clean": "pnpm clean:dist && pnpm clean:deps",
     "clean:dist": "del-cli coverage dist docs/dist docs/.vitepress/dist docs/.vitepress/cache || true",
-    "clean:deps": "del-cli node_modules docs/node_modules \"docs/.vitepress/config.ts.timestamp-*.mjs\" || true",
+    "clean:deps": "del-cli node_modules .eslintcache docs/node_modules \"docs/.vitepress/config.ts.timestamp-*.mjs\" || true",
     "prepare": "husky"
   },
   "dependencies": {

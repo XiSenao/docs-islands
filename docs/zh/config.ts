@@ -11,8 +11,9 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
   themeConfig: {
     nav: [
       {
-        text: 'vitepress',
-        link: '/vitepress'
+        text: 'VitePress',
+        target: '_blank',
+        link: '/vitepress/'
       },
       {
         text: '参与贡献',

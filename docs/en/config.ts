@@ -11,25 +11,19 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
   themeConfig: {
     nav: [
       {
-        text: 'vitepress',
+        text: 'VitePress',
         target: '_blank',
         link: '/vitepress/'
       },
       {
-        text: 'contributing',
+        text: 'Contributing',
         link: 'https://github.com/XiSenao/docs-islands/blob/main/.github/CONTRIBUTING.md'
       }
     ],
     footer: {
       message: 'Released under the MIT License.',
       copyright: `Copyright © 2025-present Senao Xi`
-    },
-    socialLinks: [
-      {
-        icon: 'github',
-        link: 'https://github.com/XiSenao/docs-islands'
-      }
-    ]
+    }
   }
 };
 

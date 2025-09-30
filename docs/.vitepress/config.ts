@@ -1,4 +1,4 @@
-import { join } from 'pathe';
+import type { DefaultTheme, UserConfig } from 'vitepress';
 import { defineConfig } from 'vitepress';
 import { groupIconMdPlugin, groupIconVitePlugin } from 'vitepress-plugin-group-icons';
 import llmstxt from 'vitepress-plugin-llms';
@@ -10,7 +10,7 @@ const release = Boolean(process.env.RELEASE);
 
 const base = '/docs-islands/';
 
-const vitepressConfig = defineConfig({
+const vitepressConfig: UserConfig<DefaultTheme.Config> = defineConfig({
   base,
   title: 'Docs Islands',
 
@@ -51,25 +51,6 @@ const vitepressConfig = defineConfig({
   vite: {
     plugins: [
       dynamicProxyPlugin(),
-      {
-        name: 'vite-plugin-environment-api-dependency-module-hot-update',
-        apply: 'serve',
-        async handleHotUpdate(ctx) {
-          const { file, server, modules } = ctx;
-
-          if (file.includes('local-data.json')) {
-            const updateModuleEntryPath = join(file, '../', 'ReactComp2.tsx');
-            const updateModuleEntry =
-              await server.moduleGraph.getModuleByUrl(updateModuleEntryPath);
-            if (updateModuleEntry) {
-              server.moduleGraph.invalidateModule(updateModuleEntry, new Set(), Date.now(), true);
-              return [updateModuleEntry];
-            }
-          }
-
-          return modules;
-        }
-      },
       groupIconVitePlugin(),
       release &&
         llmstxt({
@@ -84,7 +65,7 @@ const vitepressConfig = defineConfig({
     socialLinks: [
       {
         icon: 'github',
-        link: 'https://github.com/XiSenao/docs-islands/tree/main/packages/vitepress'
+        link: 'https://github.com/XiSenao/docs-islands'
       }
     ]
   }

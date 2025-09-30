@@ -2,9 +2,6 @@
 
 import type { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/vitepress-shared/constants';
 import type { PageMetafile } from '@docs-islands/vitepress-types';
-import 'react';
-import 'react-dom/client';
-import 'vite';
 import type { DefaultTheme, SiteConfig } from 'vitepress';
 import type { ReactComponentManager, ReactInjectComponent } from '../src/client/react';
 
@@ -19,7 +16,7 @@ declare module 'vite' {
 }
 
 declare global {
-  // Define-time global constant injected via bundler `define`
+  // Define-time global constant injected via bundler `define`.
   const __BASE__: string | undefined;
   interface Window {
     __VP_SITE_DATA__?: {

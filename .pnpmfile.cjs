@@ -19,7 +19,7 @@ function readPackage(pkg) {
   if (pkg.name.startsWith('vitepress')) {
     pkg.dependencies = {
       ...pkg.dependencies,
-      'search-insights': '>= 1 < 3'
+      'search-insights': '>= 1 < 3',
     };
   }
 
@@ -28,6 +28,6 @@ function readPackage(pkg) {
 
 module.exports = {
   hooks: {
-    readPackage
-  }
+    readPackage,
+  },
 };

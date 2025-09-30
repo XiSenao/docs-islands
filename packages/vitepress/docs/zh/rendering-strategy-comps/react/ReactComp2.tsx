@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'pathe';
-import { useState } from 'react';
+import { type JSX, useState } from 'react';
 import type { CompProps } from '../type';
 import './css/rc2.css';
 import { renderSharedLicense } from './shared/renderSharedLicense';
@@ -15,7 +15,7 @@ interface LocalData {
 
 const targetPath = join(import.meta.dirname, 'local-data.json');
 
-export function ReactComp2(props: CompProps) {
+export function ReactComp2(props: CompProps): JSX.Element {
   const [count, setCount] = useState(0);
   const data = JSON.parse(readFileSync(targetPath, 'utf8')) as LocalData;
 

@@ -743,7 +743,7 @@ This library supports nested usage of `vue` components and `react` components. D
 
 > **The initial snapshot of the rendering root container is first processed by the `vue` rendering engine, then completed by the corresponding `UI` framework's rendering work, so the rendering component's `props` can access the root container snapshot properties.**
 
-```vue [playground.md]
+```md [playground.md]
 <script setup>
 import VueComp1 from './rendering-strategy-comps/vue/VueComp1.vue';
 const page = {
@@ -756,15 +756,12 @@ const vueUniqueId = 'vue-unique-id';
 import ReactVueSharedComp from './rendering-strategy-comps/react/ReactVueSharedComp';
 </script>
 
-<VueComp1
-  :unique-id="vueUniqueId"
-  render-strategy="client:only"
-  component-name="VueComp1"
-  :page-title="page.title"
-  :render-count="6"
->
-  <template #default="{ vueInfo }">
+<VueComp1 :unique-id="vueUniqueId" render-strategy="client:only" component-name="VueComp1" :page-title="page.title" :render-count="6"
+
+> <template #default="{ vueInfo }">
+
     <ReactVueSharedComp client:only render-strategy="client:only" component-name="ReactVueSharedComp" :page-title="page.title" render-count="3-7" :vue-info="vueInfo" />
+
   </template>
 </VueComp1>
 ```

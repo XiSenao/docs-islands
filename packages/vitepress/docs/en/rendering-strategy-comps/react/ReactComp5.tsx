@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { CompProps } from '../type';
 
-export function ReactComp5(props: CompProps) {
+export function ReactComp5(props: CompProps): JSX.Element {
   const [count, setCount] = useState(0);
   return (
     <div className="react-comp5-demo">

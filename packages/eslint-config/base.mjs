@@ -1,17 +1,22 @@
 import eslint from '@eslint/js';
-import htmlRules from '@html-eslint/eslint-plugin';
-import htmlParser from '@html-eslint/parser';
-import tsParser from '@typescript-eslint/parser';
-import html from 'eslint-plugin-html';
-import markdown from 'eslint-plugin-markdown';
+import htmlESlintRules from '@html-eslint/eslint-plugin';
+import htmlESlintParser from '@html-eslint/parser';
+import typescriptESlintParser from '@typescript-eslint/parser';
+import eslintPluginHtml from 'eslint-plugin-html';
+import eslintPluginJsxA11y from 'eslint-plugin-jsx-a11y';
+import eslintPluginMarkdown from 'eslint-plugin-markdown';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
-import unicorn from 'eslint-plugin-unicorn';
+import eslintPluginReact from 'eslint-plugin-react';
+import eslintPluginReactHooks from 'eslint-plugin-react-hooks';
+import eslintPluginUnicorn from 'eslint-plugin-unicorn';
+import eslintPluginVue from 'eslint-plugin-vue';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
-import tseslint from 'typescript-eslint';
+import typescriptESlint from 'typescript-eslint';
 
 export const eslintConfigBase = defineConfig([
   eslint.configs.recommended,
+  ...eslintPluginVue.configs['flat/recommended'],
   globalIgnores([
     '**/node_modules/**',
     '**/cache/**',
@@ -22,7 +27,7 @@ export const eslintConfigBase = defineConfig([
     '**/coverage/**'
   ]),
 
-  // 通用语言配置
+  // Global language configuration
   {
     languageOptions: {
       globals: {
@@ -31,14 +36,17 @@ export const eslintConfigBase = defineConfig([
       }
     },
     plugins: {
-      unicorn,
-      '@typescript-eslint': tseslint.plugin
+      unicorn: eslintPluginUnicorn,
+      '@typescript-eslint': typescriptESlint.plugin,
+      react: eslintPluginReact,
+      'react-hooks': eslintPluginReactHooks,
+      'jsx-a11y': eslintPluginJsxA11y
     },
     linterOptions: {
       reportUnusedDisableDirectives: 'error'
     },
     rules: {
-      // 核心 ESLint 规则 - 代码质量和实用性平衡
+      // Core ESLint rules - Balance between code quality and practicality
       'array-callback-return': ['error', { allowImplicit: true }],
       'block-scoped-var': 'error',
       complexity: ['warn', { max: 20 }],
@@ -130,7 +138,7 @@ export const eslintConfigBase = defineConfig([
       'spaced-comment': ['error', 'always', { markers: ['/'] }],
       yoda: 'error',
 
-      // Unicorn 规则 - 现代 JavaScript 最佳实践
+      // Unicorn rules
       'unicorn/better-regex': 'error',
       'unicorn/catch-error-name': 'error',
       'unicorn/consistent-destructuring': 'error',
@@ -238,13 +246,13 @@ export const eslintConfigBase = defineConfig([
     }
   },
 
-  // TypeScript 文件通用配置
+  // TypeScript files - Common configuration
   {
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
-      parser: tsParser,
+      parser: typescriptESlintParser,
       parserOptions: {
-        project: false,
+        project: true,
         ecmaVersion: 'latest',
         sourceType: 'module'
       },
@@ -266,46 +274,9 @@ export const eslintConfigBase = defineConfig([
     }
   },
 
-  // 根目录 TypeScript 脚本文件
+  // JavaScript files - Common configuration
   {
-    files: ['scripts/*.ts'],
-    languageOptions: {
-      parser: tsParser,
-      parserOptions: {
-        project: false,
-        ecmaVersion: 'latest',
-        sourceType: 'module'
-      },
-      globals: {
-        ...globals.node
-      }
-    },
-    rules: {
-      // 脚本文件允许使用 console 和 process.exit
-      'no-console': 'off',
-      'unicorn/no-process-exit': 'off',
-      // 脚本文件可以有更高的复杂度
-      complexity: ['warn', { max: 30 }],
-      'max-lines': ['warn', { max: 800, skipBlankLines: true, skipComments: true }],
-      'max-lines-per-function': ['warn', { max: 200, skipBlankLines: true, skipComments: true }],
-      // TypeScript 规则放宽
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/explicit-module-boundary-types': 'off',
-      '@typescript-eslint/no-floating-promises': 'off',
-      '@typescript-eslint/no-misused-promises': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
-      'no-return-await': 'off',
-      'require-await': 'off'
-    }
-  },
-
-  // JavaScript 文件通用配置
-  {
-    files: ['**/*.js', '**/*.cjs', '**/*.mjs'],
+    files: ['**/*.js', '**/*.mjs'],
     languageOptions: {},
     rules: {
       '@typescript-eslint/explicit-function-return-type': 'off',
@@ -323,25 +294,34 @@ export const eslintConfigBase = defineConfig([
     }
   },
 
-  // Markdown 文件通用配置
+  // Markdown files - Common configuration
   {
     files: ['**/*.md'],
     plugins: {
-      markdown
+      markdown: eslintPluginMarkdown
     },
     processor: 'markdown/markdown',
     rules: {
       eqeqeq: 'off',
       semi: 'off',
       'no-return-await': 'off',
-      'require-await': 'off'
+      'require-await': 'off',
+      'no-unused-vars': 'off'
     }
   },
 
-  // Markdown 代码块通用配置
+  // Markdown code blocks - Common configuration
   {
-    files: ['**/*.md/*.{js,ts,jsx,tsx,vue}'],
-    languageOptions: {},
+    files: ['**/*.md/*.{js,ts,jsx,tsx}'],
+    languageOptions: {
+      parser: typescriptESlintParser,
+      parserOptions: {
+        // Markdown code blocks are virtual files, don't require tsconfig.json.
+        project: false,
+        ecmaVersion: 'latest',
+        sourceType: 'module'
+      }
+    },
     rules: {
       '@typescript-eslint/await-thenable': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
@@ -394,6 +374,7 @@ export const eslintConfigBase = defineConfig([
       '@typescript-eslint/return-await': 'off',
       '@typescript-eslint/switch-exhaustiveness-check': 'off',
       '@typescript-eslint/unbound-method': 'off',
+      'no-unused-vars': 'off',
       'unicorn/text-encoding-identifier-case': 'off',
       'no-unused-expressions': 'off',
       'dot-notation': 'off',
@@ -415,12 +396,12 @@ export const eslintConfigBase = defineConfig([
     }
   },
 
-  // HTML 文件通用配置
+  // HTML files - Common configuration
   {
     files: ['**/*.html'],
-    plugins: { html, '@html-eslint': htmlRules },
+    plugins: { html: eslintPluginHtml, '@html-eslint': htmlESlintRules },
     languageOptions: {
-      parser: htmlParser
+      parser: htmlESlintParser
     },
     settings: {
       'html/javascript-mime-types': ['text/javascript', 'text/jsx']
@@ -442,7 +423,7 @@ export const eslintConfigBase = defineConfig([
     }
   },
 
-  // 声明文件通用配置
+  // Declaration files - Common configuration
   {
     files: ['**/*.d.ts', '**/*.d.mts', '**/*.d.cts'],
     languageOptions: {
@@ -460,20 +441,20 @@ export const eslintConfigBase = defineConfig([
     }
   },
 
-  // Test files configuration - relaxed rules for testing
+  // Test files configuration - Relaxed rules for testing
   {
     files: [
       '**/*.test.{js,ts,jsx,tsx}',
       '**/*.spec.{js,ts,jsx,tsx}',
       '**/tests/**/*',
       '**/__tests__/**/*',
-      'e2e/**/*.{ts,tsx}'
+      '**/e2e/**/*.{ts,tsx}'
     ],
     languageOptions: {
-      // Tests - parse TS, provide common globals
-      parser: tsParser,
+      // Tests - Parse TypeScript and provide common globals
+      parser: typescriptESlintParser,
       parserOptions: {
-        project: false,
+        project: true,
         ecmaVersion: 'latest',
         sourceType: 'module'
       },
@@ -530,13 +511,175 @@ export const eslintConfigBase = defineConfig([
       'max-lines-per-function': 'off', // Tests can be very long
       'max-lines': ['warn', { max: 800, skipBlankLines: true, skipComments: true }], // Allow longer test files
       'max-nested-callbacks': 'off',
-      complexity: 'off', // Test complexity is different from production code
+      complexity: 'off', // Test complexity differs from production code
       'max-depth': 'off', // Test nesting can be deep
       'no-console': 'off',
       'unicorn/consistent-function-scoping': 'off',
       'unicorn/no-useless-undefined': 'off',
       'no-return-await': 'off',
       'require-await': 'off'
+    }
+  },
+
+  // Vue-specific configuration
+  {
+    files: ['**/*.vue'],
+    languageOptions: {
+      parserOptions: {
+        parser: '@typescript-eslint/parser',
+        extraFileExtensions: ['.vue'],
+        ecmaFeatures: {
+          jsx: true
+        }
+      }
+    },
+    rules: {
+      // Vue-specific quality rules (non-formatting)
+      'vue/block-order': ['error', { order: ['script', 'template', 'style'] }],
+      'vue/component-api-style': ['error', ['script-setup']],
+      'vue/component-name-in-template-casing': ['error', 'PascalCase'],
+      'vue/custom-event-name-casing': ['error', 'camelCase'],
+      'vue/define-emits-declaration': ['error', 'type-based'],
+      'vue/define-props-declaration': ['error', 'type-based'],
+      'vue/html-button-has-type': 'error',
+      'vue/html-comment-content-spacing': 'error',
+      'vue/no-boolean-default': 'error',
+      'vue/no-duplicate-attr-inheritance': 'error',
+      'vue/no-empty-component-block': 'error',
+      'vue/no-multiple-objects-in-class': 'error',
+      'vue/no-potential-component-option-typo': 'error',
+      'vue/no-required-prop-with-default': 'error',
+      'vue/no-static-inline-styles': 'error',
+      'vue/no-template-target-blank': 'error',
+      'vue/no-this-in-before-route-enter': 'error',
+      'vue/no-undef-components': 'error',
+      'vue/no-undef-properties': 'error',
+      'vue/no-unused-properties': 'error',
+      'vue/no-unused-refs': 'error',
+      'vue/no-use-v-else-with-v-for': 'error',
+      'vue/no-useless-mustaches': 'error',
+      'vue/no-useless-v-bind': 'error',
+      'vue/no-v-text-v-html-on-component': 'error',
+      'vue/padding-line-between-blocks': 'error',
+      'vue/prefer-define-options': 'error',
+      'vue/prefer-separate-static-class': 'error',
+      'vue/prefer-true-attribute-shorthand': 'error',
+      'vue/require-macro-variable-name': 'error',
+      'vue/static-class-names-order': 'error',
+      'vue/v-for-delimiter-style': ['error', 'in'],
+      'vue/valid-define-options': 'error',
+
+      // Disable formatting rules - let Prettier handle these
+      'vue/html-indent': 'off',
+      'vue/max-attributes-per-line': 'off',
+      'vue/first-attribute-linebreak': 'off',
+      'vue/html-closing-bracket-newline': 'off',
+      'vue/html-closing-bracket-spacing': 'off',
+      'vue/html-self-closing': 'off',
+      'vue/multiline-html-element-content-newline': 'off',
+      'vue/singleline-html-element-content-newline': 'off',
+
+      // Relaxed rules for Vue
+      'vue/no-v-html': 'off',
+      'vue/require-v-for-key': 'off',
+
+      // TypeScript rules adjustments for Vue
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      'no-return-await': 'off',
+      'require-await': 'off'
+    }
+  },
+
+  // React-specific configuration
+  {
+    files: ['**/*.{jsx,tsx}'],
+    settings: {
+      react: {
+        version: 'detect' // Automatically detect React version
+      }
+    },
+    languageOptions: {
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true
+        }
+      }
+    },
+    rules: {
+      // Security rules
+      'react/jsx-no-target-blank': 'error', // Prevent tabnabbing attacks
+      'react/no-danger': 'warn', // Warn when using dangerouslySetInnerHTML
+      'react/no-danger-with-children': 'error', // Disallow using dangerouslySetInnerHTML with children
+
+      'react/jsx-key': ['error', { checkFragmentShorthand: true }], // Require keys in list rendering
+      'react/no-array-index-key': 'warn', // Avoid using array index as key
+      'react/no-children-prop': 'error', // Disallow passing children via props
+      'react/no-deprecated': 'error', // Disallow deprecated APIs
+      'react/no-direct-mutation-state': 'error', // Disallow direct state mutation
+      'react/no-find-dom-node': 'error', // Disallow findDOMNode
+      'react/no-is-mounted': 'error', // Disallow isMounted
+      'react/no-render-return-value': 'error', // Disallow using ReactDOM.render return value
+      'react/no-string-refs': 'error', // Disallow string refs
+      'react/no-unescaped-entities': 'error', // Disallow unescaped HTML entities
+      'react/no-unknown-property': 'error', // Disallow unknown DOM properties
+      'react/no-unsafe': 'warn', // Warn when using UNSAFE_ lifecycles
+      'react/prop-types': 'off', // Disable PropTypes (TypeScript project)
+      'react/react-in-jsx-scope': 'off', // React 17+ doesn't require importing React
+      'react/require-render-return': 'error', // Require return value in render method
+      'react/self-closing-comp': 'error', // Use self-closing tags for components without children
+      'react/style-prop-object': 'error', // Require style prop to be an object
+      'react/void-dom-elements-no-children': 'error', // Void elements cannot have children
+      'react/jsx-no-duplicate-props': 'error', // Disallow duplicate props
+      'react/jsx-no-undef': 'error', // Disallow undefined components
+      'react/jsx-uses-react': 'off', // Not needed in React 17+
+      'react/jsx-uses-vars': 'error', // Prevent components from being marked as unused
+
+      // Hook rules
+      'react/hook-use-state': 'error', // useState destructuring naming convention
+      'react-hooks/rules-of-hooks': 'error', // Enforce Hook rules
+      'react-hooks/exhaustive-deps': 'warn', // Check effect dependencies
+
+      // Accessibility rules
+      'jsx-a11y/alt-text': 'error', // Require alt text for img
+      'jsx-a11y/anchor-has-content': 'error', // Require anchor content
+      'jsx-a11y/anchor-is-valid': 'error', // Require valid anchor
+      'jsx-a11y/aria-props': 'error', // Require valid ARIA props
+      'jsx-a11y/aria-proptypes': 'error', // Require correct ARIA prop types
+      'jsx-a11y/aria-unsupported-elements': 'error', // Disallow ARIA on unsupported elements
+      'jsx-a11y/heading-has-content': 'error', // Require heading content
+      'jsx-a11y/html-has-lang': 'error', // Require lang attribute on html
+      'jsx-a11y/iframe-has-title': 'error', // Require title on iframe
+      'jsx-a11y/no-distracting-elements': 'error', // Disallow distracting elements
+      'jsx-a11y/role-has-required-aria-props': 'error', // Require required ARIA props for roles
+      'jsx-a11y/role-supports-aria-props': 'error', // Require role to support ARIA props
+      'jsx-a11y/scope': 'error', // Require scope attribute only on th elements
+      'jsx-a11y/click-events-have-key-events': 'warn', // Require keyboard events for click events
+      'jsx-a11y/img-redundant-alt': 'warn', // Avoid "image", "picture" in img alt
+      'jsx-a11y/no-access-key': 'warn', // Avoid using accessKey
+      'jsx-a11y/no-autofocus': 'warn', // Avoid using autoFocus
+      'jsx-a11y/no-redundant-roles': 'warn', // Avoid redundant role attributes
+
+      // Disable all formatting rules (Prettier handles these)
+      'react/jsx-child-element-spacing': 'off',
+      'react/jsx-closing-bracket-location': 'off',
+      'react/jsx-closing-tag-location': 'off',
+      'react/jsx-curly-brace-presence': 'off',
+      'react/jsx-curly-newline': 'off',
+      'react/jsx-curly-spacing': 'off',
+      'react/jsx-equals-spacing': 'off',
+      'react/jsx-first-prop-new-line': 'off',
+      'react/jsx-indent': 'off',
+      'react/jsx-indent-props': 'off',
+      'react/jsx-max-props-per-line': 'off',
+      'react/jsx-newline': 'off',
+      'react/jsx-one-expression-per-line': 'off',
+      'react/jsx-props-no-multi-spaces': 'off',
+      'react/jsx-tag-spacing': 'off',
+      'react/jsx-wrap-multilines': 'off'
     }
   },
 

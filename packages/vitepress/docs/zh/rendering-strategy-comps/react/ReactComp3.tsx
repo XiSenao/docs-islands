@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { CompProps } from '../type';
 import './css/rc3.css';
 
-export default function ReactComp3(props: CompProps) {
+export default function ReactComp3(props: CompProps): JSX.Element {
   const [count, setCount] = useState(0);
   return (
     <div className="react-comp3-demo">

@@ -727,7 +727,7 @@ export function ReactComp5(props: CompProps) {
 
 > **渲染根容器首次快照会先经 `vue` 渲染引擎处理，再完成对应 `UI` 框架的渲染工作，因此渲染组件的 `props` 可访问到根容器快照的属性。**
 
-```vue [playground.md]
+```md [playground.md]
 <script setup>
 import VueComp1 from './rendering-strategy-comps/vue/VueComp1.vue';
 const page = {
@@ -740,15 +740,12 @@ const vueUniqueId = 'vue-unique-id';
 import ReactVueSharedComp from './rendering-strategy-comps/react/ReactVueSharedComp';
 </script>
 
-<VueComp1
-  :unique-id="vueUniqueId"
-  render-strategy="client:only"
-  component-name="VueComp1"
-  :page-title="page.title"
-  :render-count="6"
->
-  <template #default="{ vueInfo }">
+<VueComp1 :unique-id="vueUniqueId" render-strategy="client:only" component-name="VueComp1" :page-title="page.title" :render-count="6"
+
+> <template #default="{ vueInfo }">
+
     <ReactVueSharedComp client:only render-strategy="client:only" component-name="ReactVueSharedComp" :page-title="page.title" render-count="3-7" :vue-info="vueInfo" />
+
   </template>
 </VueComp1>
 ```

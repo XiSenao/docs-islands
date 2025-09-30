@@ -5,7 +5,9 @@
     "docs:dev": "vitepress dev",
     "docs:build": "vitepress build",
     "docs:preview": "vitepress preview",
-    "clean": "del-cli node_modules"
+    "clean": "del-cli node_modules",
+    "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
+    "typecheck": "tsc --noEmit"
   },
   "packageManager": "pnpm@10.7.0",
   "dependencies": {
@@ -18,6 +20,7 @@
     "vitepress-plugin-group-icons": "^1.6.3",
     "vitepress-plugin-llms": "^1.7.3",
     "http-proxy": "^1.18.1",
-    "del-cli": "^6.0.0"
+    "del-cli": "^6.0.0",
+    "typescript": "~5.8.3"
   }
 }

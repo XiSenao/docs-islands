@@ -1,7 +1,7 @@
 import vitepressRenderingStrategiesPackageJson from '@docs-islands/vitepress/package.json' with { type: 'json' };
 import vitepressReactRenderingStrategies from '@docs-islands/vitepress/react';
 import { join } from 'pathe';
-import { defineConfig } from 'vitepress';
+import { type DefaultTheme, defineConfig, type UserConfig } from 'vitepress';
 import { groupIconMdPlugin, groupIconVitePlugin } from 'vitepress-plugin-group-icons';
 import llmstxt from 'vitepress-plugin-llms';
 import enConfig from '../en/config';
@@ -11,7 +11,7 @@ const release = Boolean(process.env.RELEASE);
 
 const base = `/${vitepressRenderingStrategiesPackageJson.name.replace('@', '')}/`;
 
-const vitepressConfig = defineConfig({
+const vitepressConfig: UserConfig<DefaultTheme.Config> = defineConfig({
   base,
   title: '@docs-islands/vitepress',
 

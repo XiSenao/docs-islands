@@ -1,7 +1,7 @@
 import vitepressReactRenderingStrategies from '@docs-islands/vitepress/react';
-import { defineConfig } from 'vitepress';
+import { type DefaultTheme, defineConfig, type UserConfig } from 'vitepress';
 
-const config = defineConfig({
+const config: UserConfig<DefaultTheme.Config> = defineConfig({
   title: 'E2E Test Site',
   description: 'VitePress Rendering Strategies E2E Test Site',
   cleanUrls: true,

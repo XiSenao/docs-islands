@@ -3,36 +3,39 @@
 layout: home
 
 hero:
-  name: '@docs-islands/vitepress'
-  tagline: Cross-framework Islands Architecture for VitePress
+  name: 'Docs Islands'
+  tagline: 面向文档站点的跨框架 Islands 架构
   image:
     src: /favicon.svg
-    alt: \@docs-islands/vitepress
+    alt: Docs Islands
   actions:
-    - theme: brand
-      text: Get Started
-      link: /concept
     - theme: alt
-      text: View on GitHub
-      link: https://github.com/XiSenao/docs-islands/tree/main/packages/vitepress
+      text: 在 GitHub 上查看
+      link: https://github.com/XiSenao/docs-islands
 
 features:
-  - title: Islands Architecture
-    details: Inspired by Astro's Islands Architecture. Each component container completes hydration independently with framework isolation, avoiding global state conflicts.
+  - title: 群岛架构
+    details: 受 Astro 群岛架构启发。每个组件容器独立完成水合工作，实现框架隔离，避免全局状态冲突。
     icon: '🏝️'
-  - title: Flexible Rendering Strategies
-    details: Four rendering modes - ssr:only (default), client:only, client:load, and client:visible. Optimize for performance and user experience based on component criticality.
+  - title: 灵活的渲染策略
+    details: 四种渲染模式 - ssr:only (默认)、client:only、client:load 和 client:visible。根据组件重要性优化性能和用户体验。
     icon: '🎯'
-  - title: SPA Navigation Optimization
-    details: spa:sync-render directive eliminates component flicker during route transitions by synchronizing pre-rendered HTML injection with Vue's rendering cycle.
+  - title: SPA 导航优化
+    details: spa:sync-render 指令通过与 Vue 渲染周期同步预渲染 HTML 注入，消除路由切换时的组件闪烁。
     icon: '⚡'
-  - title: Static-First with Progressive Enhancement
-    details: SSG-first architecture with build-time pre-rendering. Components are pre-rendered at build time, with selective client-side hydration only where interaction is needed.
+  - title: 静态优先，渐进增强
+    details: SSG 优先架构，构建时预渲染。组件在构建时预渲染，仅在需要交互的地方进行选择性客户端水合。
     icon: '🚀'
-  - title: Development Excellence
-    details: Full HMR support, consistent dev/prod behavior, and TypeScript integration. Environment consistency prevents production surprises.
+  - title: 开发体验卓越
+    details: 完整的 HMR 支持、开发生产环境行为一致、TypeScript 集成。环境一致性避免生产环境意外。
     icon: '🛠️'
-  - title: Production Ready
-    details: Full MPA mode compatibility and Vue-to-React prop initialization via rendering container. Seamless integration with VitePress production builds.
+  - title: 生产就绪
+    details: 完整的 MPA 模式兼容性，通过渲染容器实现 Vue 到 React 的 props 初始化。与 VitePress 生产构建无缝集成。
     icon: '📦'
 ---
+
+<script setup>
+import CommunitySection from '../.vitepress/theme/components/landing/community-section/CommunitySection.vue'
+</script>
+
+<CommunitySection />

@@ -5,9 +5,11 @@ import DefaultTheme from 'vitepress/theme';
 import { h } from 'vue';
 import './styles/index.css';
 
-export default {
+const theme: Theme = {
   extends: DefaultTheme,
   Layout: () => {
     return h(DefaultTheme.Layout, null);
   }
-} satisfies Theme;
+};
+
+export default theme;

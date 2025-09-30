@@ -1,20 +1,37 @@
-import tsParser from '@typescript-eslint/parser';
+import typescriptESlintParser from '@typescript-eslint/parser';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
 import { eslintConfigBase } from './base.mjs';
 
+/**
+ * Root Directory ESLint Configuration
+ *
+ * IMPORTANT: CommonJS Module Policy
+ * ==================================
+ * This project does NOT promote the use of CommonJS modules.
+ * CommonJS configuration is restricted to the monorepo root directory only.
+ *
+ * Rationale:
+ * - The project follows modern ESM (ES Modules) standards throughout
+ * - CommonJS is only retained for legacy tooling compatibility at the root level
+ * - Root-level build scripts and configuration files may still require CommonJS
+ * - All workspace packages and application code should use ESM exclusively
+ *
+ * If you need to write new configuration or scripts, prefer ESM (.mjs) over CommonJS (.cjs).
+ */
+
 export default defineConfig([
   ...eslintConfigBase,
 
-  globalIgnores(['.pnpmfile.cjs', 'packages/**']),
+  globalIgnores(['packages/**', 'docs', 'utils']),
 
-  // 根目录配置文件
+  // Root directory TypeScript script files
   {
-    files: ['eslint.config.mjs', 'prettier.config.mjs'],
+    files: ['scripts/*.ts'],
     languageOptions: {
-      parser: tsParser,
+      parser: typescriptESlintParser,
       parserOptions: {
-        project: false,
+        project: true,
         ecmaVersion: 'latest',
         sourceType: 'module'
       },
@@ -23,9 +40,14 @@ export default defineConfig([
       }
     },
     rules: {
-      // 配置文件允许 console 输出
+      // Script files are allowed to use console and process.exit
       'no-console': 'off',
-      // TypeScript 规则放宽
+      'unicorn/no-process-exit': 'off',
+      // Script files can have higher complexity
+      complexity: ['warn', { max: 30 }],
+      'max-lines': ['warn', { max: 800, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['warn', { max: 200, skipBlankLines: true, skipComments: true }],
+      // Relaxed TypeScript rules
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-floating-promises': 'off',
@@ -40,33 +62,87 @@ export default defineConfig([
     }
   },
 
+  // CommonJS files configuration (Root directory only)
   {
-    files: ['./*.ts'],
+    files: ['*.cjs'],
     languageOptions: {
-      parser: tsParser,
+      // CommonJS uses default Espree parser (not TypeScript parser)
       parserOptions: {
-        project: false,
         ecmaVersion: 'latest',
-        sourceType: 'module'
+        sourceType: 'script' // CommonJS modules
       },
       globals: {
-        ...globals.node
+        ...globals.node,
+        module: 'readonly',
+        require: 'readonly',
+        exports: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        process: 'readonly',
+        global: 'readonly',
+        Buffer: 'readonly'
       }
     },
     rules: {
-      'no-console': 'off',
-      'unicorn/no-process-exit': 'off',
+      // CommonJS-appropriate styles
+      'no-console': 'off', // CommonJS files typically used for build scripts/config
+      'unicorn/prefer-module': 'off', // .cjs files using CommonJS is expected
+
+      // Code quality rules
+      'consistent-return': 'error', // Ensure consistent return values
+      'no-param-reassign': ['error', { props: false }], // Allow modifying parameter properties
+      'no-prototype-builtins': 'error', // Avoid direct use of Object.prototype methods
+      'prefer-object-spread': 'error', // Use object spread
+      'object-shorthand': 'error', // Use object shorthand
+
+      // Security rules
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-new-func': 'error',
+
+      // Complexity controls (moderately relaxed)
+      complexity: ['warn', { max: 20 }],
+      'max-lines-per-function': ['warn', { max: 150, skipBlankLines: true, skipComments: true }],
+      'max-lines': ['warn', { max: 800, skipBlankLines: true, skipComments: true }],
+      'max-depth': ['warn', 5],
+
+      // Naming conventions
+      camelcase: [
+        'warn',
+        {
+          properties: 'never',
+          ignoreDestructuring: true,
+          allow: ['^npm_', '^PNPM_', '^NODE_']
+        }
+      ],
+
+      // Comment conventions
+      'spaced-comment': ['error', 'always', { markers: ['/'] }],
+
+      // Relaxed TypeScript rules
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
-      '@typescript-eslint/no-floating-promises': 'off',
-      '@typescript-eslint/no-misused-promises': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
-      'no-return-await': 'off',
-      'require-await': 'off'
+      '@typescript-eslint/no-unsafe-return': 'off'
+    }
+  },
+
+  // .pnpmfile.cjs specific rules (Supplement general .cjs rules)
+  {
+    files: ['.pnpmfile.cjs'],
+    rules: {
+      // pnpm hooks specific: Allow modifying pkg parameter properties
+      'no-param-reassign': [
+        'error',
+        {
+          props: true,
+          ignorePropertyModificationsFor: ['pkg'] // Required for pnpm readPackage hook
+        }
+      ]
     }
   }
 ]);
