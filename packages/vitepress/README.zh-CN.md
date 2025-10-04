@@ -1,8 +1,8 @@
 # @docs-islands/vitepress
 
 <p align="center">
-  <a href="https://docs.senao.me/docs-islands/vitepress/zh/concept" target="_blank" rel="noopener noreferrer">  
-    <img width="180" src="https://docs.senao.me/docs-islands/vitepress/favicon.svg" alt="logo">
+  <a href="https://docs.senao.me/docs-islands/vitepress/zh/core-concepts" target="_blank" rel="noopener noreferrer">  
+    <img width="180" src="https://docs.senao.me/docs-islands/vitepress/islands-vitepress.svg" alt="logo">
   </a>
 </p>
 <br/>
@@ -26,7 +26,7 @@
 - **HMR 支持**: 跨框架边界的完整热模块替换，保持状态，维护开发速度。
 - **MPA 模式兼容**: 兼容 VitePress MPA 模式。
 
-> 更完整的策略设计、动机与示例，见文档 [VitePress Cross-Framework Rendering Strategy](https://docs.senao.me/docs-islands/vitepress/zh/concept)。
+> 更完整的策略设计、动机与示例，见文档 [VitePress Cross-Framework Rendering Strategy](https://docs.senao.me/docs-islands/vitepress/zh/core-concepts)。
 
 ## 快速上手
 
