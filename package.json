@@ -29,8 +29,11 @@
   ],
   "scripts": {
     "build": "pnpm run _run build",
-    "docs:dev": "sh -c 'pnpm --filter \"@docs-islands/$0-docs\" docs:dev'",
+    "docs:dev": "sh -c 'pnpm --filter \"@docs-islands/${1:-monorepo}-docs\" docs:dev' --",
     "docs:build": "pnpm run _run docs:build && tsx scripts/merge-docs.ts",
+    "docs:preview": "pnpm --filter @docs-islands/monorepo-docs docs:preview",
+    "docs:link:dev": "pnpm run _run link:dev",
+    "docs:link:prod": "pnpm run _run link:prod",
     "test": "pnpm run _run test",
     "test:unit": "pnpm run _run test:unit",
     "test:e2e": "pnpm run _run test:e2e",

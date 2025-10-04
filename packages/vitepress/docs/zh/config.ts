@@ -15,8 +15,8 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
   themeConfig: {
     nav: [
       {
-        text: '概念',
-        link: '/zh/concept'
+        text: '核心概念',
+        link: '/zh/core-concepts'
       },
       {
         text: '快速开始',

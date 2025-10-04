@@ -1,8 +1,8 @@
 <!-- markdownlint-disable MD014 MD034 -->
 
-# VitePress Rendering Strategies Contributing Guide
+# Docs Islands Contributing Guide
 
-Hi! We're really excited that you are interested in contributing to VitePress Rendering Strategies. Before submitting your contribution, please make sure to take a moment and read through the following guidelines:
+Hi! We're really excited that you are interested in contributing to Docs Islands. Before submitting your contribution, please make sure to take a moment and read through the following guidelines:
 
 - [Types of Contributions](#types-of-contributions)
 - [How to Report Issues](#how-to-report-issues)
@@ -69,7 +69,7 @@ When reporting bugs or requesting features, please:
 
 ## Pull Request Guidelines
 
-- Checkout a topic branch from the `master` branch and merge back against that branch.
+- Checkout a topic branch from the `main` branch and merge back against that branch.
 
 - If adding a new feature:
 
@@ -90,16 +90,16 @@ When reporting bugs or requesting features, please:
 
 - It's OK to have multiple small commits as you work on the PR - GitHub can automatically squash them before merging.
 
-- Before submitting, make sure to follow the following commands:
+- This is a monorepo project. Before submitting, make sure to run the following commands in the root directory:
 
   ```sh
   pnpm format
-  pnpm typecheck
   pnpm lint
+  pnpm typecheck
   pnpm test
   ```
 
-- No need to worry about code style as long as you have installed the dev dependencies. Modified files are automatically formatted with Prettier on commit.
+- No need to worry about code style as long as you have installed the dev dependencies. Modified files are automatically formatted with Prettier on commit and checked by ESLint.
 
 - PR title must follow the [commit message convention](https://github.com/XiSenao/docs-islands/blob/main/.github/commit-convention.md) so that changelogs can be automatically generated.
 
@@ -127,7 +127,7 @@ Rules:
 
 ## Development Setup
 
-You will need [Node.js](https://nodejs.org) v20.19.0+ or v22.12.0+ and [pnpm](https://pnpm.io).
+You will need [Node.js](https://nodejs.org) v20.19.0+ or v22.12.0+ and [pnpm](https://pnpm.io) 10.17.0+.
 
 Clone the repository:
 
@@ -151,43 +151,53 @@ pnpm install
 
 The easiest way to test your changes is to run the documentation site locally.
 
-This repo provides an optimized DX to develop `docs-islands` while previewing changes live in the docs, with breakpoints via a JavaScript Debug Terminal and no manual server restarts.
+This repository provides an optimized development experience where you can develop the `Docs Islands` source code while setting breakpoints through a JavaScript Debug Terminal and previewing changes live in the documentation, without needing to manually restart the service.
 
-1. Prepare the docs to consume the local package:
+1. Prepare the documentation to use the local package:
 
    ```bash
    pnpm install
-   pnpm build          # one‑time build to generate dist/* for dev runtime build
-   pnpm docs:dev-prepare
+   pnpm build          # one-time build to generate dist/* files for development runtime build
+   pnpm docs:link:dev
    ```
 
-2. Start the docs in a JavaScript Debug Terminal:
+2. Start the documentation in a JavaScript Debug Terminal:
 
    - **In VS Code**: Terminal → New `JavaScript Debug Terminal`
-   - Then run:
+   - Start the documentation for a specific project with
 
    ```bash
    pnpm docs:dev
    ```
 
-   The command waits for `dist/node/index.js`, then launches the VitePress dev server. You can place `debugger;` in the library source (e.g. `src/node/**`, `src/node/react/**`) to pause execution in the attached debugger when those code paths run.
+   This enables the default `@docs-islands/monorepo-docs` documentation project. You can start other projects by specifying the project name:
 
-   After executing the above command, visit http://localhost:5173/vitepress-rendering-strategies/ and try modifying the source code. You'll get live updates as you develop.
+   For example:
+
+   ```bash
+   pnpm docs:dev vitepress
+   ```
+
+   This enables the `@docs-islands/vitepress-docs` documentation project.
+
+   You can place `debugger;` statements in the library source code (e.g., `packages/vitepress/src/node/**`, `packages/vitepress/src/client/**`), and when the code path runs, execution will pause in the attached debugger.
+
+   After executing the above command, visit http://localhost:5173/docs-islands/vitepress/ and try modifying the source code. You'll get live updates as you develop.
 
 3. Edit, save, continue:
 
-   - For **client** and **server** source code debugging, we recommend using the `JavaScript Debug` Terminal with `debugger;` statements for debugging. Client code changes will automatically trigger a full browser refresh, while server source code changes will trigger Vite server to rebuild configuration modules and automatically restart the service.
-   - For **build-time injected client runtime** source code debugging, such as all modules included in `src/shared/runtime`, these are build-time runtime artifacts optimized for the client during the build process and do not support Hot Module Replacement (HMR). For development of such source code, we recommend enabling `pnpm build:watch` mode. Set `debugger;` breakpoints and manually execute `pnpm docs:build:only` to complete the build work for runtime artifacts, then debug in the browser through the `pnpm docs:preview` environment. This process is quite cumbersome and will be further optimized for developer experience in the future. Fortunately, **build-time injected client runtime** source code typically does not change frequently.
+   - For **client** and **server** source code debugging, we recommend using the `JavaScript Debug` Terminal with `debugger;` statements for debugging. Client code changes will automatically trigger a full browser refresh, while server source code changes will trigger the Vite server to rebuild configuration modules and automatically restart the service.
+   - For **build-time injected client runtime** source code debugging, such as all modules included in `packages/vitepress/src/shared/runtime`, these are build-time runtime artifacts optimized for the client during the build process and do not support Hot Module Replacement (HMR). For development of such source code, we recommend enabling `pnpm build:watch` mode. Set `debugger;` breakpoints and manually execute the build to complete the build work for runtime artifacts, then debug in the browser through the preview environment. This process is quite cumbersome and will be further optimized for developer experience in the future. Fortunately, **build-time injected client runtime** source code typically does not change frequently.
 
-Tip: To switch docs back to the built package(default), run:
+Tip: To switch documentation back to the built package (default), run:
 
 ```bash
-pnpm docs:prod-prepare
+pnpm docs:link:prod
 ```
 
 ## License
 
-By contributing to VitePress Rendering Strategies, you agree that your contributions will be licensed under the [MIT License](https://github.com/XiSenao/vitepress-rendering-strategies/blob/master/LICENSE).
+By contributing to Docs Islands, you agree that your contributions will be licensed under the [MIT License](https://github.com/XiSenao/docs-islands/blob/main/LICENSE).
 
 This means:
 
@@ -198,4 +208,4 @@ This means:
 
 ---
 
-Thank you for contributing to VitePress Rendering Strategies! 🚀
+Thank you for contributing to Docs Islands! 🚀

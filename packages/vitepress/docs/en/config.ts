@@ -16,8 +16,8 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
   themeConfig: {
     nav: [
       {
-        text: 'Concept',
-        link: '/concept'
+        text: 'Core Concepts',
+        link: '/core-concepts'
       },
       {
         text: 'Quick Start',

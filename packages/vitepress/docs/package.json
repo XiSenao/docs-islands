@@ -2,13 +2,13 @@
   "name": "@docs-islands/vitepress-docs",
   "type": "module",
   "scripts": {
-    "dev": "vitepress dev",
-    "build": "wait-on -d 100 ../dist/node/index.js && vitepress build",
-    "preview": "vitepress preview",
+    "docs:dev": "vitepress dev",
+    "docs:build": "wait-on -d 100 ../dist/node/index.js && vitepress build",
+    "docs:preview": "vitepress preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
-    "link:dev": "npm pkg set devDependencies.@docs-islands/vitepress='link:../' && pnpm install && pnpm set:default-link",
-    "link:prod": "pnpm set:default-link && pnpm install",
+    "link:dev": "del-cli ../dist --force && npm pkg set devDependencies.@docs-islands/vitepress='link:../' && pnpm install && pnpm set:default-link",
+    "link:prod": "del-cli ../dist --force && pnpm set:default-link && pnpm --filter @docs-islands/vitepress build && pnpm install",
     "set:default-link": "npm pkg set devDependencies.@docs-islands/vitepress='link:../dist'",
     "clean": "del-cli node_modules .vitepress/dist .vitepress/cache .eslintcache"
   },
@@ -19,14 +19,14 @@
     "vue": "^3.5.21"
   },
   "devDependencies": {
-    "eslint": "^9.34.0",
     "@docs-islands/vitepress": "link:../dist",
     "@nolebase/vitepress-plugin-enhanced-mark": "^2.18.2",
     "@vitejs/plugin-react-swc": "^3.9.0",
+    "del-cli": "^6.0.0",
+    "eslint": "^9.34.0",
     "vitepress": "^1.6.3",
     "vitepress-plugin-group-icons": "^1.6.3",
     "vitepress-plugin-llms": "^1.7.3",
-    "wait-on": "^8.0.4",
-    "del-cli": "^6.0.0"
+    "wait-on": "^8.0.4"
   }
 }

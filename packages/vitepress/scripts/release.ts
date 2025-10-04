@@ -387,7 +387,7 @@ class ReleaseSystemManager {
       if (!existsSync(distPkgPath)) {
         throw new Error('dist/package.json not found. Did you run build?');
       }
-      const publishArgs = ['npm', 'publish'];
+      const publishArgs = ['pnpm', 'publish', '--no-git-checks'];
       const resolvedNpmTag =
         this.options.npmTag ||
         (this.pkg.version.includes('-') && (this.options.preId?.split('.')[0] || 'next')) ||

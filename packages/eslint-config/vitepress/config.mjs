@@ -50,7 +50,7 @@ export default defineConfig([
       // Tooling config files - parse TS, no type info
       parser: typescriptESlintParser,
       parserOptions: {
-        project: true,
+        projectService: true,
         ecmaVersion: 'latest',
         sourceType: 'module'
       }

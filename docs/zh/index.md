@@ -14,23 +14,28 @@ hero:
       link: https://github.com/XiSenao/docs-islands
 
 features:
-  - title: 群岛架构
-    details: 受 Astro 群岛架构启发。每个组件容器独立完成水合工作，实现框架隔离，避免全局状态冲突。
+  - title: Islands 架构
+    details: 静态优先，选择性与懒加载注水。按组件隔离，避免全局状态冲突，渐进式增强交互能力。
     icon: '🏝️'
+
   - title: 灵活的渲染策略
-    details: 四种渲染模式 - ssr:only (默认)、client:only、client:load 和 client:visible。根据组件重要性优化性能和用户体验。
+    details: 目前支持四种渲染模式 — ssr:only（默认）、client:load、client:visible、client:only — 可扩展更多策略。
     icon: '🎯'
-  - title: SPA 导航优化
-    details: spa:sync-render 指令通过与 Vue 渲染周期同步预渲染 HTML 注入，消除路由切换时的组件闪烁。
-    icon: '⚡'
-  - title: 静态优先，渐进增强
-    details: SSG 优先架构，构建时预渲染。组件在构建时预渲染，仅在需要交互的地方进行选择性客户端水合。
-    icon: '🚀'
-  - title: 开发体验卓越
-    details: 完整的 HMR 支持、开发生产环境行为一致、TypeScript 集成。环境一致性避免生产环境意外。
-    icon: '🛠️'
-  - title: 生产就绪
-    details: 完整的 MPA 模式兼容性，通过渲染容器实现 Vue 到 React 的 props 初始化。与 VitePress 生产构建无缝集成。
+
+  - title: 框架无关设计
+    details: 基于适配器模型，可扩展到其他文档框架（如 Docusaurus、Nextra、Rspress 等）和构建工具链，无锁定。
+    icon: '🧩'
+
+  - title: 跨框架 UI 支持
+    details: 生产就绪的 React 集成，可扩展到 Solid、Svelte、Preact、Angular 等主流 UI 框架。
+    icon: '⚛️'
+
+  - title: 零摩擦集成
+    details: 最小化配置，开箱即用。通过适配器无缝接入现有文档项目，不破坏原有工作流。
+    icon: '🔌'
+
+  - title: 完整的开发体验
+    details: 开发环境 HMR、开发/生产一致性、MPA 兼容。针对特定场景提供性能优化选项（如 SPA 导航）。
     icon: '📦'
 ---
 

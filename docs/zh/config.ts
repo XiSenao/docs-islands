@@ -13,11 +13,11 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
       {
         text: 'VitePress',
         target: '_blank',
-        link: '/vitepress/'
+        link: '/vitepress/zh/'
       },
       {
         text: '参与贡献',
-        link: 'https://github.com/XiSenao/docs-islands/blob/main/.github/CONTRIBUTING.md'
+        link: 'https://github.com/XiSenao/docs-islands/blob/main/.github/CONTRIBUTING.zh-CN.md'
       }
     ],
     footer: {

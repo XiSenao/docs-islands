@@ -1,8 +1,8 @@
 <!-- markdownlint-disable MD014 MD034 -->
 
-# VitePress Rendering Strategies 贡献指南
+# Docs Islands 贡献指南
 
-你好！我们非常高兴你对为 VitePress Rendering Strategies 做出贡献感兴趣。在提交你的贡献之前，请花些时间阅读以下指南：
+你好！我们非常高兴你对为 Docs Islands 做出贡献感兴趣。在提交你的贡献之前，请花些时间阅读以下指南：
 
 - [贡献类型](#贡献类型)
 - [如何报告问题](#如何报告问题)
@@ -69,7 +69,7 @@
 
 ## Pull Request 指南
 
-- 从 `master` 分支创建一个主题分支，开发完成后再合并回 `master` 分支。
+- 从 `main` 分支创建一个主题分支，开发完成后再合并回 `main` 分支。
 
 - 如果添加新功能：
 
@@ -90,16 +90,16 @@
 
 - 在开发 PR 的过程中，可以有多个小的提交 —— GitHub 可以在合并前自动将它们压缩为一个。
 
-- 在提交之前，请确保执行以下命令：
+- 这是一个 monorepo 项目，在提交之前，请确保在根目录执行以下命令：
 
   ```sh
   pnpm format
-  pnpm typecheck
   pnpm lint
+  pnpm typecheck
   pnpm test
   ```
 
-- 只要安装了开发依赖项，就不需要担心代码风格。修改的文件会在提交时自动使用 Prettier 格式化。
+- 只要安装了开发依赖项，就不需要担心代码风格。修改的文件会在提交时自动使用 Prettier 格式化，并经过 ESLint 检查。
 
 - PR 标题必须遵循 [提交信息约定](./commit-convention.md)，以便自动生成变更日志。
 
@@ -127,7 +127,7 @@
 
 ## 开发环境配置
 
-你需要 [Node.js](https://nodejs.org) v20.19.0+ 或 v22.12.0+ 以及 [pnpm](https://pnpm.io)。
+你需要 [Node.js](https://nodejs.org) v20.19.0+ 或 v22.12.0+ 以及 [pnpm](https://pnpm.io) 10.17.0+。
 
 克隆仓库：
 
@@ -151,43 +151,53 @@ pnpm install
 
 测试你所做更改的最简单方法是在本地运行文档站点。
 
-本仓库提供了一个优化的开发体验（DX），你可以在开发 `docs-islands` 的同时，在文档中实时预览更改，并通过 JavaScript 调试终端设置断点，无需手动重启服务。
+本仓库提供了一个优化的开发体验，你可以在开发 `Docs Islands` 源代码的同时，通过 JavaScript 调试终端设置断点，在文档中实时预览更改，无需手动重启服务。
 
 1. 准备文档以使用本地包：
 
    ```bash
    pnpm install
-   pnpm build          # 一次性构建，为开发时运行时构建生成 dist/*
-   pnpm docs:dev-prepare
+   pnpm build          # 一次性构建，为开发时运行时构建生成 dist/* 文件
+   pnpm docs:link:dev
    ```
 
 2. 在 JavaScript 调试终端中启动文档：
 
    - **在 VS Code 中**：终端 → 新建 `JavaScript 调试终端`
-   - 然后运行：
+   - 为指定项目启动文档，通过
 
    ```bash
    pnpm docs:dev
    ```
 
-   该命令会等待 `dist/node/index.js` 文件生成，然后启动 VitePress 开发服务器。你可以在库的源代码中（例如 `src/node/**`、`src/node/react/**`）放置 `debugger;` 语句，当代码路径运行时，执行将在附加的调试器中暂停。
+   启用的是默认 `@docs-islands/monorepo-docs` 文档项目，你可以通过指定项目名称来启动其他项目：
 
-   执行上述命令后，访问 http://localhost:5173/docs-islands/ 并尝试修改源代码，你将在开发过程中获得实时更新。
+   例如：
+
+   ```bash
+   pnpm docs:dev vitepress
+   ```
+
+   启用的是 `@docs-islands/vitepress-docs` 文档项目。
+
+   你可以在库的源代码中（例如 `packages/vitepress/src/node/**`、`packages/vitepress/src/client/**`）放置 `debugger;` 语句，当代码路径运行时，执行将在附加的调试器中暂停。
+
+   执行上述命令后，访问 http://localhost:5173/docs-islands/vitepress/ 并尝试修改源代码，你将在开发过程中获得实时更新。
 
 3. 编辑、保存、继续：
 
-   - 针对 **客户端**、**服务端** 的源码调试，建议通过 `JavaScript 调试` 终端，并结合 `debugger;` 命令语句进行调试。客户端代码变更会自动触发浏览器全量刷新，而服务端源码变更则会触发 `Vite` 服务器重建配置模块，并自动重启服务。
-   - 针对 **构建阶段注入客户端运行时** 的源码调试，例如所有包含在 `src/shared/runtime` 中的模块都是在构建过程中为客户端优化的构建阶段运行时产物，并不支持热模块替换（HMR）。若需开发源码，建议开启 `pnpm build:watch` 模式。设置 `debugger;` 断点，手动执行 `pnpm docs:build:only` 来完成运行时产物的构建工作，通过 `pnpm docs:preview` 环境在浏览器中调试。这是十分繁琐的，后续会进一步优化开发体验，幸运的是，**构建阶段注入客户端运行时** 源码通常并不会频繁变化。
+   - 对于 **客户端** 和 **服务端** 源代码调试，推荐使用 `JavaScript Debug` 终端配合 `debugger;` 语句进行调试。客户端代码更改将自动触发完整的浏览器刷新，而服务端源代码更改将触发 Vite 服务器重新构建配置模块并自动重启服务。
+   - 对于 **构建时注入的客户端运行时** 源代码调试，例如 `packages/vitepress/src/shared/runtime` 中包含的所有模块，这些是在构建过程中为客户端优化的构建时运行时产物，不支持热模块替换（HMR）。对于此类源代码的开发，建议启用 `pnpm build:watch` 模式。设置 `debugger;` 断点并手动执行构建来完成运行时产物的构建工作，然后通过预览环境在浏览器中进行调试。这个过程相当繁琐，未来将进一步优化开发体验。幸运的是，**构建时注入的客户端运行时** 源代码通常不会频繁更改。
 
-提示：要将文档切换回使用已构建的包（默认），请运行：
+提示：要将文档切换回已构建的包（默认），请运行：
 
 ```bash
-pnpm docs:prod-prepare
+pnpm docs:link:prod
 ```
 
 ## 许可证
 
-通过为 VitePress Rendering Strategies 做出贡献，你同意你的贡献将在 [MIT 许可证](https://github.com/XiSenao/vitepress-rendering-strategies/blob/master/LICENSE) 下许可。
+通过为 Docs Islands 做出贡献，你同意你的贡献将在 [MIT 许可证](https://github.com/XiSenao/docs-islands/blob/main/LICENSE) 下许可。
 
 这意味着：
 
@@ -198,4 +208,4 @@ pnpm docs:prod-prepare
 
 ---
 
-感谢你为 VitePress Rendering Strategies 做出贡献！🚀
+感谢你为 Docs Islands 做出贡献！🚀

@@ -31,7 +31,7 @@ export default defineConfig([
     languageOptions: {
       parser: typescriptESlintParser,
       parserOptions: {
-        project: true,
+        projectService: true,
         ecmaVersion: 'latest',
         sourceType: 'module'
       },

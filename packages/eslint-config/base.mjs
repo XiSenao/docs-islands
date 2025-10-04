@@ -252,7 +252,7 @@ export const eslintConfigBase = defineConfig([
     languageOptions: {
       parser: typescriptESlintParser,
       parserOptions: {
-        project: true,
+        projectService: true,
         ecmaVersion: 'latest',
         sourceType: 'module'
       },
@@ -317,7 +317,7 @@ export const eslintConfigBase = defineConfig([
       parser: typescriptESlintParser,
       parserOptions: {
         // Markdown code blocks are virtual files, don't require tsconfig.json.
-        project: false,
+        projectService: false,
         ecmaVersion: 'latest',
         sourceType: 'module'
       }
@@ -454,7 +454,7 @@ export const eslintConfigBase = defineConfig([
       // Tests - Parse TypeScript and provide common globals
       parser: typescriptESlintParser,
       parserOptions: {
-        project: true,
+        projectService: true,
         ecmaVersion: 'latest',
         sourceType: 'module'
       },

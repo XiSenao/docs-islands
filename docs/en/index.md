@@ -15,27 +15,27 @@ hero:
 
 features:
   - title: Islands Architecture
-    details: Static‑first with selective and lazy hydration; per‑component isolation avoids global state conflicts.
+    details: Static-first with selective and lazy hydration. Per-component isolation avoids global state conflicts and enables progressive enhancement.
     icon: '🏝️'
 
   - title: Flexible Rendering Strategies
-    details: Four modes — ssr:only (default), client:load, client:visible, client:only — choose per component.
+    details: Currently supports four rendering modes — ssr:only (default), client:load, client:visible, client:only — with extensible architecture for additional strategies.
     icon: '🎯'
 
-  - title: SPA Navigation Optimization
-    details: spa:sync-render merges critical pre‑rendered HTML into page client scripts to eliminate flicker.
-    icon: '⚡'
-
-  - title: Cross‑framework UI
-    details: React supported today; the design accommodates Solid/Svelte/Preact/Angular adapters.
+  - title: Framework-Agnostic Design
+    details: Built on adapter model, extensible to other documentation frameworks (e.g., Docusaurus, Nextra, Rspress, etc.) and build toolchains with no lock-in.
     icon: '🧩'
 
-  - title: Build‑tool Integration
-    details: Unplugin‑style adapter model; plug into host docs systems without lock‑in.
+  - title: Cross-Framework UI Support
+    details: Production-ready React integration, extensible to Solid, Svelte, Preact, Angular and other mainstream UI frameworks.
+    icon: '⚛️'
+
+  - title: Zero-Friction Integration
+    details: Minimal configuration, works out of the box. Seamlessly integrates into existing documentation projects through adapters without disrupting workflows.
     icon: '🔌'
 
-  - title: Production Ready
-    details: HMR in dev, SSG build parity, MPA compatibility, and consistent dev/prod behavior.
+  - title: Complete Developer Experience
+    details: Dev HMR, dev/prod consistency, MPA compatibility. Performance optimization options available for specific scenarios (e.g., SPA navigation).
     icon: '📦'
 ---
 
