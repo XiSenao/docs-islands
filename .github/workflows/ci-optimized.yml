@@ -164,7 +164,7 @@ jobs:
       # 收集测试覆盖率
       - name: Upload Coverage
         if: matrix.coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: unit
