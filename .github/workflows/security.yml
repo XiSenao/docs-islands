@@ -388,14 +388,23 @@ jobs:
           node-version: 22
           frozen-lockfile: true
 
-      - name: Generate SBOM
+      # 先构建项目，确保所有本地依赖可用
+      - name: Build Packages
+        run: pnpm build
+        env:
+          NODE_ENV: production
+
+      - name: Generate SBOM with Syft
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          output-file: sbom.json
+          format: cyclonedx-json
+          upload-artifact: false # 我们自己手动上传
+
+      - name: Validate and Report SBOM
         run: |
           set -euo pipefail
-
-          # ✅ 使用 npx 代替全局安装
-          npx --yes @cyclonedx/cyclonedx-npm@latest \
-            --output-format json \
-            --output-file sbom.json
 
           echo "✅ SBOM generated successfully"
 
@@ -408,6 +417,11 @@ jobs:
           # 输出统计信息
           COMPONENT_COUNT=$(jq '.components | length' sbom.json 2>/dev/null || echo "0")
           echo "📊 SBOM contains $COMPONENT_COUNT components"
+
+          # 显示前几个组件
+          echo ""
+          echo "📦 Top components:"
+          jq -r '.components[:5] | .[] | "  - \(.name)@\(.version)"' sbom.json || true
 
       - name: Upload SBOM
         uses: actions/upload-artifact@v4

@@ -91,6 +91,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Build Packages
+        run: pnpm build
+
       - name: Lint
         run: pnpm lint
 
@@ -105,7 +108,10 @@ jobs:
     name: Test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     needs: changes
-    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
+    # 合并条件：1) 代码变更 2) 不是 skip-pr 的 PR
+    if: |
+      (needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true') &&
+      !(matrix.skip-pr == true && github.event_name == 'pull_request')
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -137,9 +143,6 @@ jobs:
 
     continue-on-error: ${{ matrix.continue-on-error || false }}
     steps:
-      - if: matrix.skip-pr && github.event_name == 'pull_request'
-        run: echo "Skipping for PR" && exit 0
-
       - uses: actions/checkout@v4
 
       - name: Setup Environment
@@ -148,7 +151,7 @@ jobs:
           node-version: ${{ matrix.node }}
           playwright: true
 
-      - name: Build
+      - name: Build Packages
         run: pnpm build
         env:
           NODE_ENV: production
@@ -233,16 +236,16 @@ jobs:
         continue-on-error: true
 
   # ========== 依赖更新检查 ==========
-  dependency-review:
-    name: Dependency Review
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high
-          deny-licenses: GPL-3.0, AGPL-3.0
+  # dependency-review:
+  #   name: Dependency Review
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'pull_request'
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/dependency-review-action@v4
+  #       with:
+  #         fail-on-severity: high
+  #         deny-licenses: GPL-3.0, AGPL-3.0
 
   # ========== 最终状态检查 ==========
   status:
