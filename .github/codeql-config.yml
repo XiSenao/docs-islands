@@ -1,0 +1,33 @@
+name: "CodeQL Security Configuration"
+
+# 排除不需要扫描的路径
+paths-ignore:
+  - "**/node_modules/**"
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/*.test.ts"
+  - "**/*.test.js"
+  - "**/*.spec.ts"
+  - "**/*.spec.js"
+  - "**/coverage/**"
+  - "**/.vitepress/cache/**"
+  - "**/.vitepress/dist/**"
+  - "**/fixtures/**"
+  - "**/e2e/**/*.html"
+  - "**/e2e/**/*.md"
+
+# 包含的查询套件
+queries:
+  - uses: security-extended
+  - uses: security-and-quality
+
+# 自定义查询（如果有）
+# query-filters:
+#   - exclude:
+#       id: js/unused-local-variable
+
+# 配置分析选项
+packs:
+  javascript:
+    - codeql/javascript-queries:AlertSuppression.ql
+    - codeql/javascript-queries:Security

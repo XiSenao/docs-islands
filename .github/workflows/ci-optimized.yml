@@ -1,0 +1,284 @@
+name: CI
+
+env:
+  # 降低内存使用，4GB 通常足够
+  NODE_OPTIONS: --max-old-space-size=4096
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+  # 添加 CI 环境变量优化
+  CI: true
+  FORCE_COLOR: 1
+
+# 明确声明最小权限
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  actions: read
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+  # 添加定时检查
+  schedule:
+    - cron: "0 0 * * 1" # 每周一检查
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # ========== 第一阶段：快速检查 ==========
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      src: ${{ steps.filter.outputs.src }}
+      docs: ${{ steps.filter.outputs.docs }}
+      deps: ${{ steps.filter.outputs.deps }}
+      ci: ${{ steps.filter.outputs.ci }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # 优化：PR 通常只需要 2 个 commits
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            src:
+              - 'packages/**'
+              - 'utils/**'
+              - '*.config.*'
+            docs:
+              - 'docs/**'
+              - '**/*.md'
+            deps:
+              - 'pnpm-lock.yaml'
+              - '**/package.json'
+            ci:
+              - '.github/**'
+
+  # ========== 提交信息验证 ==========
+  commit-check:
+    name: Validate Commits
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Need full history for commit validation
+
+      - name: Validate Commit Messages
+        uses: ./.github/actions/validate-commits
+        with:
+          strict_mode: false # Can be set to true for stricter validation
+
+  # ========== 并行执行：Lint & Format ==========
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.ci == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: 22
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format Check
+        run: pnpm prettier --check .
+
+      - name: Type Check
+        run: pnpm typecheck
+
+  # ========== 优化的测试矩阵 ==========
+  test:
+    name: Test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    needs: changes
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 主要测试环境
+          - name: "Linux / Node 22"
+            os: ubuntu-latest
+            node: 22
+            coverage: true
+          # LTS 版本
+          - name: "Linux / Node 20"
+            os: ubuntu-latest
+            node: 20
+          # 跨平台测试（仅在 main 分支）
+          - name: "macOS / Node 22"
+            os: macos-latest
+            node: 22
+            skip-pr: true
+          - name: "Windows / Node 22"
+            os: windows-latest
+            node: 22
+            skip-pr: true
+          # 最新 Node（允许失败）
+          - name: "Linux / Node Latest"
+            os: ubuntu-latest
+            node: 24
+            continue-on-error: true
+
+    continue-on-error: ${{ matrix.continue-on-error || false }}
+    steps:
+      - if: matrix.skip-pr && github.event_name == 'pull_request'
+        run: echo "Skipping for PR" && exit 0
+
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: ${{ matrix.node }}
+          playwright: true
+
+      - name: Build
+        run: pnpm build
+        env:
+          NODE_ENV: production
+
+      - name: Unit Tests
+        run: pnpm test:unit --coverage=${{ matrix.coverage || false }}
+
+      - name: E2E Tests
+        run: pnpm test:e2e
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ~/.cache/playwright
+
+      # 收集测试覆盖率
+      - name: Upload Coverage
+        if: matrix.coverage
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: unit
+          fail_ci_if_error: false
+
+      # 上传测试失败的 artifacts
+      - name: Upload Test Results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.name }}
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+
+  # ========== 构建验证 ==========
+  build:
+    name: Build Validation
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.docs == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: 22
+
+      - name: Build Packages
+        run: pnpm build
+
+      - name: Build Docs
+        run: pnpm docs:build
+
+      # 缓存构建产物供后续使用
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            packages/*/dist
+            docs/.vitepress/dist
+          retention-days: 1
+
+  # ========== 安全扫描 ==========
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: 22
+
+      - name: Audit Dependencies
+        run: pnpm audit --audit-level=high
+        continue-on-error: true
+
+      - name: License Check
+        run: pnpm licenses list --prod
+        continue-on-error: true
+
+  # ========== 依赖更新检查 ==========
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-3.0, AGPL-3.0
+
+  # ========== 最终状态检查 ==========
+  status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs: [quality, test, build]
+    if: always()
+    steps:
+      - name: Check Status
+        run: |
+          if [[ "${{ needs.quality.result }}" == "failure" || \
+                "${{ needs.test.result }}" == "failure" || \
+                "${{ needs.build.result }}" == "failure" ]]; then
+            echo "❌ CI Failed"
+            exit 1
+          else
+            echo "✅ CI Passed"
+          fi
+
+  # ========== 发布准备（仅 main 分支）==========
+  release-ready:
+    name: Release Readiness
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [status]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Version
+        run: |
+          echo "Checking for version changes..."
+          git diff HEAD~1 HEAD -- '**/package.json' | grep -E '^\+.*"version"' || echo "No version changes"
+
+      - name: Generate Release Notes
+        run: |
+          echo "## Recent Changes" > release-notes.md
+          git log --oneline -10 >> release-notes.md

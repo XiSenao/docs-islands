@@ -1,0 +1,241 @@
+name: PR Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+env:
+  CI: true
+  FORCE_COLOR: 1
+
+jobs:
+  # 快速质量检查
+  quick-check:
+    name: Quick Quality Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 需要完整历史以进行 diff
+
+      - name: Check PR Size
+        run: |
+          FILES_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}..HEAD | wc -l)
+          LINES_CHANGED=$(git diff --stat origin/${{ github.base_ref }}..HEAD | tail -1 | awk '{print $4}')
+
+          echo "📊 PR Statistics:"
+          echo "- Files changed: $FILES_CHANGED"
+          echo "- Lines changed: $LINES_CHANGED"
+
+          if [ $FILES_CHANGED -gt 50 ]; then
+            echo "⚠️ Warning: Large PR detected (>50 files)"
+            echo "Consider breaking this into smaller PRs"
+          fi
+
+      - name: Validate Commit Messages
+        uses: ./.github/actions/validate-commits
+        with:
+          strict_mode: false # Set to true to fail on style warnings
+
+  # 并行运行的轻量级检查
+  parallel-checks:
+    name: ${{ matrix.check }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        check:
+          - "Lint"
+          - "Type Check"
+          - "Format"
+          - "Unit Tests"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: 22
+          playwright: ${{ matrix.check == 'Unit Tests' }}
+
+      - name: Run ${{ matrix.check }}
+        run: |
+          case "${{ matrix.check }}" in
+            "Lint")
+              pnpm lint --max-warnings 0
+              ;;
+            "Type Check")
+              pnpm typecheck
+              ;;
+            "Format")
+              pnpm prettier --check .
+              ;;
+            "Unit Tests")
+              pnpm test:unit --reporter=github-actions
+              ;;
+          esac
+
+      # 为失败的检查提供修复建议
+      - name: Provide Fix Suggestions
+        if: failure()
+        run: |
+          case "${{ matrix.check }}" in
+            "Lint")
+              echo "💡 To fix lint issues, run: pnpm lint --fix"
+              ;;
+            "Format")
+              echo "💡 To fix format issues, run: pnpm format"
+              ;;
+            "Type Check")
+              echo "💡 Review TypeScript errors and update type definitions"
+              ;;
+          esac
+
+  # PR 评论和标签
+  pr-feedback:
+    name: PR Feedback
+    runs-on: ubuntu-latest
+    needs: [quick-check, parallel-checks]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: 22
+
+      # 运行轻量级分析
+      - name: Bundle Size Analysis
+        id: bundle
+        run: |
+          pnpm build
+          echo "## 📦 Bundle Size Report" > bundle-report.md
+          echo "| Package | Size | Gzip |" >> bundle-report.md
+          echo "|---------|------|------|" >> bundle-report.md
+
+          # 分析各个包的大小
+          for pkg in packages/*/dist; do
+            if [ -d "$pkg" ]; then
+              PKG_NAME=$(basename $(dirname $pkg))
+              SIZE=$(du -sh $pkg | awk '{print $1}')
+              echo "| $PKG_NAME | $SIZE | - |" >> bundle-report.md
+            fi
+          done
+        continue-on-error: true
+
+      - name: Test Coverage Report
+        id: coverage
+        run: |
+          pnpm test:unit --coverage --silent > coverage.txt 2>&1 || true
+          if grep -q "Coverage summary" coverage.txt; then
+            echo "## ☂️ Coverage Report" > coverage-report.md
+            sed -n '/Coverage summary/,/^$/p' coverage.txt >> coverage-report.md
+          fi
+        continue-on-error: true
+
+      # 创建 PR 评论
+      - name: Comment PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let comment = '## 🤖 Automated PR Review\n\n';
+
+            // 添加检查状态
+            comment += '### ✅ Checks Status\n';
+            comment += `- Quick Check: ${{ needs.quick-check.result == 'success' && '✅' || '❌' }}\n`;
+            comment += `- Parallel Checks: ${{ needs.parallel-checks.result == 'success' && '✅' || '❌' }}\n\n`;
+
+            // 添加 bundle 报告
+            if (fs.existsSync('bundle-report.md')) {
+              comment += fs.readFileSync('bundle-report.md', 'utf8') + '\n';
+            }
+
+            // 添加覆盖率报告
+            if (fs.existsSync('coverage-report.md')) {
+              comment += fs.readFileSync('coverage-report.md', 'utf8') + '\n';
+            }
+
+            // 添加建议
+            comment += '### 💡 Next Steps\n';
+            if ('${{ needs.parallel-checks.result }}' !== 'success') {
+              comment += '- Fix failing checks by running `pnpm lint --fix` and `pnpm format`\n';
+            }
+            comment += '- Ensure all tests pass locally with `pnpm test`\n';
+            comment += '- Review the changes in the Files tab\n';
+
+            // 查找并更新现有评论，或创建新评论
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('🤖 Automated PR Review')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+
+      # 自动添加标签
+      - name: Add Labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = [];
+
+            // 根据文件变化添加标签
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const hasDocsChanges = files.some(f => f.filename.startsWith('docs/'));
+            const hasTestChanges = files.some(f => f.filename.includes('test'));
+            const hasCIChanges = files.some(f => f.filename.startsWith('.github/'));
+
+            if (hasDocsChanges) labels.push('documentation');
+            if (hasTestChanges) labels.push('testing');
+            if (hasCIChanges) labels.push('ci/cd');
+
+            // 根据 PR 大小添加标签
+            if (files.length < 5) {
+              labels.push('size/small');
+            } else if (files.length < 15) {
+              labels.push('size/medium');
+            } else {
+              labels.push('size/large');
+            }
+
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: labels
+              });
+            }

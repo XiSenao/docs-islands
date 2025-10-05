@@ -1,6 +1,84 @@
+# Dependabot 自动依赖更新配置
+# 文档: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
 version: 2
 updates:
+  # NPM 依赖更新
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    # 分组更新策略
+    groups:
+      # 开发工具一起更新
+      dev-tools:
+        patterns:
+          - "eslint*"
+          - "prettier*"
+          - "typescript*"
+          - "@typescript-eslint/*"
+        update-types:
+          - "minor"
+          - "patch"
+
+      # 测试工具一起更新
+      test-tools:
+        patterns:
+          - "vitest*"
+          - "@playwright/*"
+          - "playwright-*"
+        update-types:
+          - "minor"
+          - "patch"
+
+      # Vue 生态一起更新
+      vue-ecosystem:
+        patterns:
+          - "vue*"
+          - "vitepress*"
+          - "@vueuse/*"
+        update-types:
+          - "patch"
+
+      # 构建工具一起更新
+      build-tools:
+        patterns:
+          - "vite*"
+          - "rolldown*"
+          - "@vitejs/*"
+        update-types:
+          - "patch"
+
+    # 忽略特定依赖的更新
+    ignore:
+      # 锁定的特定版本
+      - dependency-name: "parse5"
+        versions: [">= 8.0.0"] # 保持在 7.x
+      - dependency-name: "picocolors"
+        update-types: ["version-update:semver-major"] # 只接受小版本更新
+
+  # GitHub Actions 更新
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "02:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
