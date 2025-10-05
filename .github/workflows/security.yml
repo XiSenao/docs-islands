@@ -32,7 +32,7 @@ jobs:
       critical_count: ${{ steps.audit.outputs.critical_count }}
       high_count: ${{ steps.audit.outputs.high_count }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -166,7 +166,7 @@ jobs:
       matrix:
         language: [javascript-typescript]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -190,7 +190,7 @@ jobs:
     outputs:
       updates_available: ${{ steps.outdated.outputs.updates_available }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -305,7 +305,7 @@ jobs:
     outputs:
       has_incompatible: ${{ steps.license.outputs.has_incompatible }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -380,7 +380,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env

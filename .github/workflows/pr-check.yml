@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # 需要完整历史以进行 diff
 
@@ -57,7 +57,7 @@ jobs:
           - "Format"
           - "Unit Tests"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -105,7 +105,7 @@ jobs:
     needs: [quick-check, parallel-checks]
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env

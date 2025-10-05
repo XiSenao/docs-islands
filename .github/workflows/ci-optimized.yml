@@ -41,7 +41,7 @@ jobs:
       deps: ${{ steps.filter.outputs.deps }}
       ci: ${{ steps.filter.outputs.ci }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 2 # 优化：PR 通常只需要 2 个 commits
 
@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # Need full history for commit validation
 
@@ -84,7 +84,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.src == 'true' || needs.changes.outputs.ci == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -140,7 +140,7 @@ jobs:
       - if: matrix.skip-pr && github.event_name == 'pull_request'
         run: echo "Skipping for PR" && exit 0
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -188,7 +188,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.src == 'true' || needs.changes.outputs.docs == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -217,7 +217,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -238,7 +238,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
@@ -269,7 +269,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: [status]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
