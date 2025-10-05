@@ -1,84 +1,90 @@
-# Dependabot 自动依赖更新配置
-# 文档: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
-
 version: 2
 updates:
-  # NPM 依赖更新
+  # npm/pnpm 依赖更新
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "02:00"
-      timezone: "UTC"
+      time: "09:00"
     open-pull-requests-limit: 10
+    # 将相关更新分组
+    groups:
+      # 安全更新（高优先级）
+      security:
+        patterns:
+          - "*"
+        update-types:
+          - "security"
+      # 生产依赖
+      production:
+        patterns:
+          - "*"
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      # 开发依赖
+      development:
+        patterns:
+          - "*"
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+    # 自动审查规则
+    reviewers:
+      - "XiSenao" # 替换为您的用户名
     labels:
       - "dependencies"
       - "automated"
     commit-message:
-      prefix: "chore(deps)"
+      prefix: "chore"
       include: "scope"
-    # 分组更新策略
+
+  # 子包依赖
+  - package-ecosystem: "npm"
+    directory: "/packages/vitepress"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
     groups:
-      # 开发工具一起更新
-      dev-tools:
+      all-dependencies:
         patterns:
-          - "eslint*"
-          - "prettier*"
-          - "typescript*"
-          - "@typescript-eslint/*"
-        update-types:
-          - "minor"
-          - "patch"
+          - "*"
 
-      # 测试工具一起更新
-      test-tools:
+  - package-ecosystem: "npm"
+    directory: "/packages/core"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      all-dependencies:
         patterns:
-          - "vitest*"
-          - "@playwright/*"
-          - "playwright-*"
-        update-types:
-          - "minor"
-          - "patch"
+          - "*"
 
-      # Vue 生态一起更新
-      vue-ecosystem:
-        patterns:
-          - "vue*"
-          - "vitepress*"
-          - "@vueuse/*"
-        update-types:
-          - "patch"
-
-      # 构建工具一起更新
-      build-tools:
-        patterns:
-          - "vite*"
-          - "rolldown*"
-          - "@vitejs/*"
-        update-types:
-          - "patch"
-
-    # 忽略特定依赖的更新
-    ignore:
-      # 锁定的特定版本
-      - dependency-name: "parse5"
-        versions: [">= 8.0.0"] # 保持在 7.x
-      - dependency-name: "picocolors"
-        update-types: ["version-update:semver-major"] # 只接受小版本更新
-
-  # GitHub Actions 更新
+  # GitHub Actions 更新（安全关键）
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "monday"
-      time: "02:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 5
+      day: "tuesday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
     labels:
       - "dependencies"
-      - "ci"
+      - "github-actions"
+      - "automated"
     commit-message:
       prefix: "ci"
       include: "scope"
+    # 自动 PR 审查
+    reviewers:
+      - "XiSenao"

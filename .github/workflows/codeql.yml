@@ -1,0 +1,70 @@
+name: CodeQL Security Analysis
+
+env:
+  NODE_VERSION: "22" # Unified Node.js version management
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly on Monday at 06:00 UTC
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: Analyze Code
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["javascript-typescript"]
+        # Supported languages: javascript-typescript, python, java, csharp, go, ruby
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # Use enhanced query set (security + quality)
+          queries: security-and-quality
+          # Custom configuration (optional)
+          # config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          frozen-lockfile: true
+
+      # CodeQL will automatically build the project
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      # If autobuild fails, use manual build
+      # - name: Manual Build
+      #   run: |
+      #     npm ci
+      #     npm run build
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+          # Upload results to GitHub Security tab
+          upload: true

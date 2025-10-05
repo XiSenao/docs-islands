@@ -10,11 +10,16 @@ permissions:
   checks: write
 
 env:
+  NODE_VERSION: "22" # Unified Node.js version management
   CI: true
   FORCE_COLOR: 1
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
-  # 快速质量检查
+  # Fast quality checks
   quick-check:
     name: Quick Quality Check
     runs-on: ubuntu-latest
@@ -22,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 需要完整历史以进行 diff
+          fetch-depth: 0 # Need full history for diff analysis
 
       - name: Check PR Size
         run: |
@@ -38,74 +43,10 @@ jobs:
             echo "Consider breaking this into smaller PRs"
           fi
 
-      - name: Validate Commit Messages
-        uses: ./.github/actions/validate-commits
-        with:
-          strict_mode: false # Set to true to fail on style warnings
-
-  # 并行运行的轻量级检查
-  parallel-checks:
-    name: ${{ matrix.check }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        check:
-          - "Lint"
-          - "Type Check"
-          - "Format"
-          - "Unit Tests"
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Environment
-        uses: ./.github/actions/setup-env
-        with:
-          node-version: 22
-          playwright: ${{ matrix.check == 'Unit Tests' }}
-
-      - name: Build Packages
-        run: pnpm build
-
-      - name: Run ${{ matrix.check }}
-        run: |
-          case "${{ matrix.check }}" in
-            "Lint")
-              pnpm lint --max-warnings 0
-              ;;
-            "Type Check")
-              pnpm typecheck
-              ;;
-            "Format")
-              pnpm prettier --check .
-              ;;
-            "Unit Tests")
-              pnpm test:unit --reporter=github-actions
-              ;;
-          esac
-
-      # 为失败的检查提供修复建议
-      - name: Provide Fix Suggestions
-        if: failure()
-        run: |
-          case "${{ matrix.check }}" in
-            "Lint")
-              echo "💡 To fix lint issues, run: pnpm lint --fix"
-              ;;
-            "Format")
-              echo "💡 To fix format issues, run: pnpm format"
-              ;;
-            "Type Check")
-              echo "💡 Review TypeScript errors and update type definitions"
-              ;;
-          esac
-
-  # PR 评论和标签
   pr-feedback:
     name: PR Feedback
     runs-on: ubuntu-latest
-    needs: [quick-check, parallel-checks]
+    needs: [quick-check]
     if: always()
     steps:
       - uses: actions/checkout@v4
@@ -113,9 +54,9 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
 
-      # 运行轻量级分析
+      # Run lightweight analysis
       - name: Bundle Size Analysis
         id: bundle
         run: |
@@ -124,7 +65,7 @@ jobs:
           echo "| Package | Size | Gzip |" >> bundle-report.md
           echo "|---------|------|------|" >> bundle-report.md
 
-          # 分析各个包的大小
+          # Analyze each package size
           for pkg in packages/*/dist; do
             if [ -d "$pkg" ]; then
               PKG_NAME=$(basename $(dirname $pkg))
@@ -144,7 +85,7 @@ jobs:
           fi
         continue-on-error: true
 
-      # 创建 PR 评论
+      # Create PR comment
       - name: Comment PR
         uses: actions/github-script@v7
         with:
@@ -152,30 +93,28 @@ jobs:
             const fs = require('fs');
             let comment = '## 🤖 Automated PR Review\n\n';
 
-            // 添加检查状态
+            // Add check status
             comment += '### ✅ Checks Status\n';
             comment += `- Quick Check: ${{ needs.quick-check.result == 'success' && '✅' || '❌' }}\n`;
-            comment += `- Parallel Checks: ${{ needs.parallel-checks.result == 'success' && '✅' || '❌' }}\n\n`;
+            comment += `- 💡 Lint/Format/Type checks are running in the main CI workflow\n\n`;
 
-            // 添加 bundle 报告
+            // Add bundle report
             if (fs.existsSync('bundle-report.md')) {
               comment += fs.readFileSync('bundle-report.md', 'utf8') + '\n';
             }
 
-            // 添加覆盖率报告
+            // Add coverage report
             if (fs.existsSync('coverage-report.md')) {
               comment += fs.readFileSync('coverage-report.md', 'utf8') + '\n';
             }
 
-            // 添加建议
+            // Add suggestions
             comment += '### 💡 Next Steps\n';
-            if ('${{ needs.parallel-checks.result }}' !== 'success') {
-              comment += '- Fix failing checks by running `pnpm lint --fix` and `pnpm format`\n';
-            }
-            comment += '- Ensure all tests pass locally with `pnpm test`\n';
+            comment += '- Ensure all CI checks pass (Lint, Format, Type Check, Tests)\n';
             comment += '- Review the changes in the Files tab\n';
+            comment += '- Address any failing checks before merging\n';
 
-            // 查找并更新现有评论，或创建新评论
+            // Find and update existing comment, or create new one
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -203,14 +142,14 @@ jobs:
               });
             }
 
-      # 自动添加标签
+      # Automatically add labels
       - name: Add Labels
         uses: actions/github-script@v7
         with:
           script: |
             const labels = [];
 
-            // 根据文件变化添加标签
+            // Add labels based on file changes
             const { data: files } = await github.rest.pulls.listFiles({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -225,7 +164,7 @@ jobs:
             if (hasTestChanges) labels.push('testing');
             if (hasCIChanges) labels.push('ci/cd');
 
-            // 根据 PR 大小添加标签
+            // Add labels based on PR size
             if (files.length < 5) {
               labels.push('size/small');
             } else if (files.length < 15) {

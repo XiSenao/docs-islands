@@ -1,14 +1,14 @@
 name: CI
 
 env:
-  # 降低内存使用，4GB 通常足够
+  # Reduce memory usage - 4GB is typically sufficient
   NODE_OPTIONS: --max-old-space-size=4096
+  NODE_VERSION: "22"
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
-  # 添加 CI 环境变量优化
   CI: true
   FORCE_COLOR: 1
 
-# 明确声明最小权限
+# Explicit minimum permissions declaration
 permissions:
   contents: read
   pull-requests: write
@@ -22,16 +22,15 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened]
   workflow_dispatch:
-  # 添加定时检查
+  # Scheduled health checks
   schedule:
-    - cron: "0 0 * * 1" # 每周一检查
+    - cron: "0 0 * * 1" # Every Monday
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # ========== 第一阶段：快速检查 ==========
   changes:
     name: Detect changes
     runs-on: ubuntu-latest
@@ -43,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2 # 优化：PR 通常只需要 2 个 commits
+          fetch-depth: 2 # Optimization: PRs typically need only 2 commits
 
       - uses: dorny/paths-filter@v3
         id: filter
@@ -55,14 +54,12 @@ jobs:
               - '*.config.*'
             docs:
               - 'docs/**'
-              - '**/*.md'
             deps:
               - 'pnpm-lock.yaml'
               - '**/package.json'
             ci:
-              - '.github/**'
+              - '.github/**/*.yml'
 
-  # ========== 提交信息验证 ==========
   commit-check:
     name: Validate Commits
     runs-on: ubuntu-latest
@@ -75,13 +72,39 @@ jobs:
       - name: Validate Commit Messages
         uses: ./.github/actions/validate-commits
         with:
-          strict_mode: false # Can be set to true for stricter validation
+          strict_mode: false # Set to true for stricter validation
 
-  # ========== 并行执行：Lint & Format ==========
+  build-artifacts:
+    name: Build Artifacts
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build Packages
+        run: pnpm build
+        env:
+          NODE_ENV: production
+          CI: true
+
+      # Cache build artifacts for downstream jobs
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-dist
+          path: packages/*/dist
+          retention-days: 1
+
   quality:
     name: Code Quality
     runs-on: ubuntu-latest
-    needs: changes
+    needs: [changes, build-artifacts]
     if: needs.changes.outputs.src == 'true' || needs.changes.outputs.ci == 'true'
     steps:
       - uses: actions/checkout@v4
@@ -89,10 +112,13 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-env
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Build Packages
-        run: pnpm build
+      # Download pre-built artifacts
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-dist
 
       - name: Lint
         run: pnpm lint
@@ -103,12 +129,10 @@ jobs:
       - name: Type Check
         run: pnpm typecheck
 
-  # ========== 优化的测试矩阵 ==========
   test:
     name: Test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
-    needs: changes
-    # 合并条件：1) 代码变更 2) 不是 skip-pr 的 PR
+    needs: [changes, build-artifacts]
     if: |
       (needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true') &&
       !(matrix.skip-pr == true && github.event_name == 'pull_request')
@@ -117,16 +141,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # 主要测试环境
+          # Primary test environment (reuse build)
           - name: "Linux / Node 22"
             os: ubuntu-latest
             node: 22
             coverage: true
-          # LTS 版本
+            use-artifacts: true
+          # LTS version (reuse build)
           - name: "Linux / Node 20"
             os: ubuntu-latest
             node: 20
-          # 跨平台测试（仅在 main 分支）
+            use-artifacts: true
+          # Cross-platform tests (standalone build, main branch only)
           - name: "macOS / Node 22"
             os: macos-latest
             node: 22
@@ -135,11 +161,12 @@ jobs:
             os: windows-latest
             node: 22
             skip-pr: true
-          # 最新 Node（允许失败）
+          # Latest Node (allow failure)
           - name: "Linux / Node Latest"
             os: ubuntu-latest
             node: 24
             continue-on-error: true
+            use-artifacts: true
 
     continue-on-error: ${{ matrix.continue-on-error || false }}
     steps:
@@ -151,20 +178,33 @@ jobs:
           node-version: ${{ matrix.node }}
           playwright: true
 
+      # Download pre-built artifacts for Linux environments
+      - name: Download Build Artifacts
+        if: matrix.use-artifacts == true
+        uses: actions/download-artifact@v4
+        with:
+          name: build-dist
+
+      # Build only for non-Linux or when artifacts unavailable
       - name: Build Packages
+        if: matrix.use-artifacts != true
         run: pnpm build
         env:
           NODE_ENV: production
+          CI: true
 
       - name: Unit Tests
         run: pnpm test:unit --coverage=${{ matrix.coverage || false }}
+        env:
+          CI: true
 
       - name: E2E Tests
         run: pnpm test:e2e
         env:
           PLAYWRIGHT_BROWSERS_PATH: ~/.cache/playwright
+          CI: true
 
-      # 收集测试覆盖率
+      # Collect test coverage
       - name: Upload Coverage
         if: matrix.coverage
         uses: codecov/codecov-action@v4
@@ -173,7 +213,7 @@ jobs:
           flags: unit
           fail_ci_if_error: false
 
-      # 上传测试失败的 artifacts
+      # Upload test failure artifacts
       - name: Upload Test Results
         if: failure()
         uses: actions/upload-artifact@v4
@@ -184,79 +224,46 @@ jobs:
             playwright-report/
           retention-days: 7
 
-  # ========== 构建验证 ==========
   build:
     name: Build Validation
     runs-on: ubuntu-latest
-    needs: changes
-    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.docs == 'true'
+    needs: [changes, build-artifacts]
+    if: needs.changes.outputs.docs == 'true' || needs.changes.outputs.src == 'true'
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Build Packages
-        run: pnpm build
+      # Download pre-built packages
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-dist
 
       - name: Build Docs
         run: pnpm docs:build
 
-      # 缓存构建产物供后续使用
-      - name: Upload Build Artifacts
+      # Upload documentation build artifacts
+      - name: Upload Docs Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts
-          path: |
-            packages/*/dist
-            docs/.vitepress/dist
+          name: docs-dist
+          path: docs/.vitepress/dist
           retention-days: 1
 
-  # ========== 安全扫描 ==========
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Environment
-        uses: ./.github/actions/setup-env
-        with:
-          node-version: 22
-
-      - name: Audit Dependencies
-        run: pnpm audit --audit-level=high
-        continue-on-error: true
-
-      - name: License Check
-        run: pnpm licenses list --prod
-        continue-on-error: true
-
-  # ========== 依赖更新检查 ==========
-  # dependency-review:
-  #   name: Dependency Review
-  #   runs-on: ubuntu-latest
-  #   if: github.event_name == 'pull_request'
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/dependency-review-action@v4
-  #       with:
-  #         fail-on-severity: high
-  #         deny-licenses: GPL-3.0, AGPL-3.0
-
-  # ========== 最终状态检查 ==========
   status:
     name: CI Status
     runs-on: ubuntu-latest
-    needs: [quality, test, build]
+    needs: [build-artifacts, quality, test, build]
     if: always()
     steps:
       - name: Check Status
         run: |
-          if [[ "${{ needs.quality.result }}" == "failure" || \
+          if [[ "${{ needs.build-artifacts.result }}" == "failure" || \
+                "${{ needs.quality.result }}" == "failure" || \
                 "${{ needs.test.result }}" == "failure" || \
                 "${{ needs.build.result }}" == "failure" ]]; then
             echo "❌ CI Failed"
@@ -265,7 +272,6 @@ jobs:
             echo "✅ CI Passed"
           fi
 
-  # ========== 发布准备（仅 main 分支）==========
   release-ready:
     name: Release Readiness
     runs-on: ubuntu-latest
