@@ -111,7 +111,7 @@ jobs:
 
       - name: Create Security Issue
         if: steps.audit.outputs.has_vulnerabilities == 'true' && (steps.audit.outputs.critical_count != '0' || steps.audit.outputs.high_count != '0')
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
@@ -255,7 +255,7 @@ jobs:
       - name: Create Update Issue
         # ✅ 修复条件判断 - 使用字符串比较
         if: steps.outdated.outputs.updates_available != '' && steps.outdated.outputs.updates_available != '0'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
@@ -448,7 +448,7 @@ jobs:
           path: reports
 
       - name: Create Comprehensive Summary
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
