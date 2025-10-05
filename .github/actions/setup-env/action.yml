@@ -1,0 +1,92 @@
+name: "Setup Environment"
+description: "Setup Node.js, pnpm and dependencies with caching"
+
+inputs:
+  node-version:
+    description: "Node.js version"
+    required: false
+    default: "22"
+  playwright:
+    description: "Install Playwright browsers"
+    required: false
+    default: "false"
+  frozen-lockfile:
+    description: "Use frozen lockfile"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    # 设置 pnpm
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        run_install: false
+
+    # 设置 Node.js 和缓存
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: "pnpm"
+
+    # 获取 pnpm store 目录
+    - name: Get pnpm store directory
+      shell: bash
+      run: |
+        echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+    # 缓存 pnpm store
+    - name: Cache pnpm store
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.STORE_PATH }}
+        key: pnpm-store-${{ runner.os }}-node${{ inputs.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          pnpm-store-${{ runner.os }}-node${{ inputs.node-version }}-
+          pnpm-store-${{ runner.os }}-
+
+    # 缓存 node_modules
+    - name: Cache node_modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          **/node_modules
+          !**/node_modules/.cache
+        key: node-modules-${{ runner.os }}-node${{ inputs.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          node-modules-${{ runner.os }}-node${{ inputs.node-version }}-
+
+    # 安装依赖
+    - name: Install dependencies
+      shell: bash
+      run: |
+        if [[ "${{ inputs.frozen-lockfile }}" == "true" ]]; then
+          pnpm install --frozen-lockfile
+        else
+          pnpm install
+        fi
+
+    # Playwright 设置（如果需要）
+    - name: Setup Playwright Cache
+      if: inputs.playwright == 'true'
+      shell: bash
+      run: |
+        PLAYWRIGHT_VERSION=$(pnpm ls --depth 0 --json -w playwright-chromium | jq -r '.[0].devDependencies["playwright-chromium"].version')
+        echo "PLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION" >> $GITHUB_ENV
+        echo "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/playwright" >> $GITHUB_ENV
+
+    - name: Cache Playwright browsers
+      if: inputs.playwright == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+        key: playwright-${{ runner.os }}-v2-${{ env.PLAYWRIGHT_VERSION }}
+        restore-keys: |
+          playwright-${{ runner.os }}-v2-
+
+    - name: Install Playwright browsers
+      if: inputs.playwright == 'true'
+      shell: bash
+      run: pnpm playwright install chromium

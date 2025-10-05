@@ -1,0 +1,543 @@
+name: Security & Dependencies
+
+on:
+  schedule:
+    # 每天凌晨 2 点运行
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "pnpm-lock.yaml"
+  pull_request:
+    paths:
+      - "pnpm-lock.yaml"
+      - "**/package.json"
+
+# 最小权限原则 - 在 job 级别细化权限
+permissions:
+  contents: read
+
+jobs:
+  # 快速安全审计
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # 用于创建安全问题
+    outputs:
+      has_vulnerabilities: ${{ steps.audit.outputs.has_vulnerabilities }}
+      critical_count: ${{ steps.audit.outputs.critical_count }}
+      high_count: ${{ steps.audit.outputs.high_count }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: 22
+          frozen-lockfile: true # ✅ 使用锁定版本确保一致性
+
+      - name: Cache Audit Results
+        id: cache-audit
+        uses: actions/cache@v4
+        with:
+          path: audit.json
+          key: security-audit-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            security-audit-
+
+      - name: Run Security Audit
+        id: audit
+        run: |
+          set -euo pipefail  # ✅ 严格错误处理
+
+          echo "## 🔒 Security Audit Report" > audit-report.md
+          echo "Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> audit-report.md
+          echo "" >> audit-report.md
+
+          # pnpm audit with proper error handling
+          echo "### pnpm audit results:" >> audit-report.md
+
+          if pnpm audit --json > audit.json 2>&1; then
+            echo "✅ No vulnerabilities found" >> audit-report.md
+            echo "has_vulnerabilities=false" >> $GITHUB_OUTPUT
+            echo "critical_count=0" >> $GITHUB_OUTPUT
+            echo "high_count=0" >> $GITHUB_OUTPUT
+          else
+            # ✅ 验证 JSON 格式
+            if ! jq empty audit.json 2>/dev/null; then
+              echo "❌ Invalid audit output format" >> audit-report.md
+              cat audit.json >> audit-report.md
+              exit 1
+            fi
+
+            # ✅ 检查 advisories 字段是否存在
+            if jq -e '.advisories' audit.json >/dev/null 2>&1; then
+              CRITICAL=$(jq '.advisories | map(select(.severity == "critical")) | length' audit.json)
+              HIGH=$(jq '.advisories | map(select(.severity == "high")) | length' audit.json)
+              MODERATE=$(jq '.advisories | map(select(.severity == "moderate")) | length' audit.json)
+              LOW=$(jq '.advisories | map(select(.severity == "low")) | length' audit.json)
+
+              echo "- 🔴 Critical: $CRITICAL" >> audit-report.md
+              echo "- 🟠 High: $HIGH" >> audit-report.md
+              echo "- 🟡 Moderate: $MODERATE" >> audit-report.md
+              echo "- 🟢 Low: $LOW" >> audit-report.md
+              echo "" >> audit-report.md
+
+              # ✅ 输出到 GitHub Output
+              echo "has_vulnerabilities=true" >> $GITHUB_OUTPUT
+              echo "critical_count=$CRITICAL" >> $GITHUB_OUTPUT
+              echo "high_count=$HIGH" >> $GITHUB_OUTPUT
+
+              # 添加详细信息
+              echo "### Vulnerability Details:" >> audit-report.md
+              jq -r '.advisories[] | "#### [\(.title)](\(.url))\n- **Severity**: \(.severity)\n- **Package**: \(.module_name)\n- **Patched versions**: \(.patched_versions)\n- **Recommendation**: \(.recommendation)\n"' audit.json >> audit-report.md || true
+            else
+              echo "⚠️ Unexpected audit output format" >> audit-report.md
+              jq '.' audit.json >> audit-report.md
+            fi
+          fi
+
+      - name: Upload Audit Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-report
+          path: audit-report.md
+          retention-days: 30
+
+      - name: Create Security Issue
+        if: steps.audit.outputs.has_vulnerabilities == 'true' && (steps.audit.outputs.critical_count != '0' || steps.audit.outputs.high_count != '0')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('audit-report.md', 'utf8');
+            const critical = '${{ steps.audit.outputs.critical_count }}';
+            const high = '${{ steps.audit.outputs.high_count }}';
+
+            const title = `🚨 Critical Security Vulnerabilities Detected (${critical} Critical, ${high} High)`;
+
+            // 检查是否已存在未关闭的安全问题
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'security'
+            });
+
+            const existingIssue = issues.find(issue =>
+              issue.title.includes('Critical Security Vulnerabilities')
+            );
+
+            if (existingIssue) {
+              // 更新现有 issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `## 📅 Updated Scan Results\n\n${report}`
+              });
+            } else {
+              // 创建新 issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: report + '\n\n---\n\n**Action Required**: Please review and address these vulnerabilities.\n\nRun `pnpm audit fix` to attempt automatic fixes.',
+                labels: ['security', 'critical', 'automated']
+              });
+            }
+
+  # CodeQL 静态分析 - 独立 job 并行执行
+  codeql-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    # ✅ 只在特定触发条件下运行 CodeQL（节省 CI 时间）
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: +security-extended,security-and-quality
+          config-file: ./.github/codeql-config.yml
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # 依赖更新检查
+  dependency-updates:
+    name: Check for Updates
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      updates_available: ${{ steps.outdated.outputs.updates_available }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: 22
+          frozen-lockfile: true
+
+      - name: Check Outdated Packages
+        id: outdated
+        run: |
+          set -euo pipefail
+
+          echo "## 📦 Dependency Update Report" > update-report.md
+          echo "Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> update-report.md
+          echo "" >> update-report.md
+
+          # 检查过时的包
+          echo "### Outdated Dependencies:" >> update-report.md
+
+          if pnpm outdated --format json > outdated.json 2>&1; then
+            echo "All dependencies are up to date! ✅" >> update-report.md
+            echo "updates_available=0" >> $GITHUB_OUTPUT
+          else
+            # ✅ 验证 JSON 格式
+            if ! jq empty outdated.json 2>/dev/null; then
+              echo "⚠️ Failed to parse outdated packages" >> update-report.md
+              echo "updates_available=0" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            echo '```json' >> update-report.md
+            jq '.' outdated.json >> update-report.md
+            echo '```' >> update-report.md
+            echo "" >> update-report.md
+
+            # 统计需要更新的包数量
+            TOTAL_UPDATES=$(jq 'length' outdated.json 2>/dev/null || echo "0")
+            MAJOR_UPDATES=$(jq '[.[] | select(.current != .latest and (.latest | split(".")[0]) != (.current | split(".")[0]))] | length' outdated.json 2>/dev/null || echo "0")
+
+            echo "updates_available=$TOTAL_UPDATES" >> $GITHUB_OUTPUT
+            echo "**Total packages needing updates: $TOTAL_UPDATES**" >> update-report.md
+            echo "**Major version updates: $MAJOR_UPDATES**" >> update-report.md
+
+            # 分类显示更新
+            echo "" >> update-report.md
+            echo "#### 🔴 Major Updates (Breaking Changes Expected):" >> update-report.md
+            jq -r '.[] | select(.current != .latest and (.latest | split(".")[0]) != (.current | split(".")[0])) | "- **\(.name)**: \(.current) → \(.latest)"' outdated.json >> update-report.md || echo "None" >> update-report.md
+
+            echo "" >> update-report.md
+            echo "#### 🟡 Minor/Patch Updates:" >> update-report.md
+            jq -r '.[] | select(.current != .latest and (.latest | split(".")[0]) == (.current | split(".")[0])) | "- **\(.name)**: \(.current) → \(.latest)"' outdated.json >> update-report.md || echo "None" >> update-report.md
+          fi
+
+      - name: Upload Update Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-update-report
+          path: update-report.md
+          retention-days: 30
+
+      - name: Create Update Issue
+        # ✅ 修复条件判断 - 使用字符串比较
+        if: steps.outdated.outputs.updates_available != '' && steps.outdated.outputs.updates_available != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('update-report.md', 'utf8');
+            const updateCount = '${{ steps.outdated.outputs.updates_available }}';
+
+            const title = `🤖 Dependency Updates Available (${updateCount} packages) - ${new Date().toISOString().split('T')[0]}`;
+            const body = report + '\n\n---\n\n**To update dependencies, run:**\n```bash\npnpm update --interactive\n```\n\n**For major updates, review breaking changes first:**\n```bash\npnpm outdated\n```';
+
+            // 检查是否已存在相同的 issue
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'dependencies'
+            });
+
+            const existingIssue = issues.find(issue =>
+              issue.title.includes('Dependency Updates Available')
+            );
+
+            if (existingIssue) {
+              // 更新现有 issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `## 📅 Updated Dependency Report\n\n${report}`
+              });
+            } else {
+              // 创建新 issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['dependencies', 'automated']
+              });
+            }
+
+  # License 合规检查
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      has_incompatible: ${{ steps.license.outputs.has_incompatible }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: 22
+          frozen-lockfile: true
+
+      - name: Check Licenses
+        id: license
+        run: |
+          set -euo pipefail
+
+          echo "## 📜 License Compliance Report" > license-report.md
+          echo "Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> license-report.md
+          echo "" >> license-report.md
+
+          # 获取所有生产依赖的许可证
+          echo "### Production Dependencies Licenses:" >> license-report.md
+
+          if pnpm licenses list --prod --json > licenses.json 2>&1; then
+            # ✅ 验证 JSON 格式
+            if ! jq empty licenses.json 2>/dev/null; then
+              echo "⚠️ Failed to parse license data" >> license-report.md
+              exit 1
+            fi
+
+            # ✅ 检查数据结构
+            if jq -e 'type == "array"' licenses.json >/dev/null 2>&1; then
+              # 统计各种许可证类型
+              echo "" >> license-report.md
+              echo "| License | Count |" >> license-report.md
+              echo "|---------|-------|" >> license-report.md
+
+              jq -r 'group_by(.license) | .[] | "| \(.[0].license // "Unknown") | \(length) |"' licenses.json >> license-report.md
+
+              # 检查是否有不兼容的许可证
+              INCOMPATIBLE=$(jq '[.[] | select(.license | test("GPL|AGPL|LGPL|SSPL"; "i"))] | length' licenses.json 2>/dev/null || echo "0")
+
+              echo "has_incompatible=$INCOMPATIBLE" >> $GITHUB_OUTPUT
+
+              if [ "$INCOMPATIBLE" -gt 0 ]; then
+                echo "" >> license-report.md
+                echo "⚠️ **Warning**: Found $INCOMPATIBLE packages with potentially incompatible licenses" >> license-report.md
+                echo "" >> license-report.md
+                echo "### Packages with restrictive licenses:" >> license-report.md
+                jq -r '.[] | select(.license | test("GPL|AGPL|LGPL|SSPL"; "i")) | "- **\(.name)@\(.version)**: \(.license)"' licenses.json >> license-report.md
+              else
+                echo "" >> license-report.md
+                echo "✅ All licenses are compatible" >> license-report.md
+              fi
+            else
+              echo "⚠️ Unexpected license data format" >> license-report.md
+              jq '.' licenses.json >> license-report.md
+            fi
+          else
+            echo "❌ Failed to retrieve license information" >> license-report.md
+            exit 1
+          fi
+
+      - name: Upload License Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-report
+          path: license-report.md
+          retention-days: 90
+
+  # SBOM (Software Bill of Materials) 生成
+  generate-sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: 22
+          frozen-lockfile: true
+
+      - name: Generate SBOM
+        run: |
+          set -euo pipefail
+
+          # ✅ 使用 npx 代替全局安装
+          npx --yes @cyclonedx/cyclonedx-npm@latest \
+            --output-format json \
+            --output-file sbom.json
+
+          echo "✅ SBOM generated successfully"
+
+          # 验证 SBOM 格式
+          if ! jq empty sbom.json 2>/dev/null; then
+            echo "❌ Invalid SBOM format"
+            exit 1
+          fi
+
+          # 输出统计信息
+          COMPONENT_COUNT=$(jq '.components | length' sbom.json 2>/dev/null || echo "0")
+          echo "📊 SBOM contains $COMPONENT_COUNT components"
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+          retention-days: 90
+
+      - name: Upload SBOM to Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-latest
+          path: sbom.json
+          retention-days: 365
+
+      # - name: Submit SBOM to Dependency Track
+      #   if: github.ref == 'refs/heads/main'
+      #   run: |
+      #     # 如果使用 Dependency Track 进行供应链管理
+      #     curl -X POST "${{ secrets.DEPENDENCY_TRACK_URL }}/api/v1/bom" \
+      #       -H "X-API-Key: ${{ secrets.DEPENDENCY_TRACK_KEY }}" \
+      #       -H "Content-Type: application/json" \
+      #       -d @sbom.json
+
+  # 汇总报告
+  summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [security-audit, codeql-analysis, dependency-updates, license-check, generate-sbom]
+    permissions:
+      contents: read
+    if: always()
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: reports
+
+      - name: Create Comprehensive Summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const summary = [];
+            summary.push('# 🛡️ Security & Compliance Summary\n');
+            summary.push(`**Date**: ${new Date().toISOString()}\n`);
+            summary.push(`**Workflow**: ${context.workflow}\n`);
+            summary.push(`**Run**: [#${context.runNumber}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n\n`);
+
+            // Job 状态
+            summary.push('## 📋 Job Status\n');
+            const jobs = {
+              'Security Audit': '${{ needs.security-audit.result }}',
+              'CodeQL Analysis': '${{ needs.codeql-analysis.result }}',
+              'Dependency Updates': '${{ needs.dependency-updates.result }}',
+              'License Check': '${{ needs.license-check.result }}',
+              'SBOM Generation': '${{ needs.generate-sbom.result }}'
+            };
+
+            for (const [name, status] of Object.entries(jobs)) {
+              const icon = status === 'success' ? '✅' : status === 'failure' ? '❌' : '⏭️';
+              summary.push(`- ${icon} **${name}**: ${status}\n`);
+            }
+
+            // 安全审计结果
+            summary.push('\n## 🔒 Security Audit Results\n');
+            const hasVulnerabilities = '${{ needs.security-audit.outputs.has_vulnerabilities }}';
+            const criticalCount = '${{ needs.security-audit.outputs.critical_count }}' || '0';
+            const highCount = '${{ needs.security-audit.outputs.high_count }}' || '0';
+
+            if (hasVulnerabilities === 'true') {
+              summary.push(`⚠️ **Vulnerabilities Found**:\n`);
+              summary.push(`- 🔴 Critical: ${criticalCount}\n`);
+              summary.push(`- 🟠 High: ${highCount}\n`);
+            } else {
+              summary.push('✅ No critical vulnerabilities detected\n');
+            }
+
+            // 依赖更新
+            summary.push('\n## 📦 Dependency Updates\n');
+            const updatesAvailable = '${{ needs.dependency-updates.outputs.updates_available }}' || '0';
+            if (updatesAvailable !== '0') {
+              summary.push(`📊 ${updatesAvailable} packages have updates available\n`);
+            } else {
+              summary.push('✅ All dependencies are up to date\n');
+            }
+
+            // License 合规
+            summary.push('\n## 📜 License Compliance\n');
+            const hasIncompatible = '${{ needs.license-check.outputs.has_incompatible }}' || '0';
+            if (hasIncompatible !== '0') {
+              summary.push(`⚠️ ${hasIncompatible} packages with restrictive licenses found\n`);
+            } else {
+              summary.push('✅ All licenses are compatible\n');
+            }
+
+            // 读取报告内容
+            summary.push('\n## 📄 Detailed Reports\n');
+
+            try {
+              const reportsDir = 'reports';
+              if (fs.existsSync(reportsDir)) {
+                const artifacts = fs.readdirSync(reportsDir);
+                for (const artifact of artifacts) {
+                  const artifactPath = path.join(reportsDir, artifact);
+                  if (fs.statSync(artifactPath).isDirectory()) {
+                    const files = fs.readdirSync(artifactPath);
+                    for (const file of files) {
+                      if (file.endsWith('.md')) {
+                        summary.push(`\n### 📋 ${artifact}\n`);
+                        const content = fs.readFileSync(path.join(artifactPath, file), 'utf8');
+                        summary.push(content + '\n');
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (error) {
+              summary.push(`\n⚠️ Could not read report details: ${error.message}\n`);
+            }
+
+            // 写入 job summary
+            await core.summary
+              .addRaw(summary.join(''))
+              .write();
+
+            // 如果有严重问题，设置失败状态
+            if (hasVulnerabilities === 'true' && (criticalCount !== '0' || highCount !== '0')) {
+              core.setFailed(`Found ${criticalCount} critical and ${highCount} high severity vulnerabilities`);
+            }

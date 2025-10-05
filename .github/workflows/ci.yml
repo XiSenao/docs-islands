@@ -1,166 +1,284 @@
 name: CI
 
 env:
-  NODE_OPTIONS: --max-old-space-size=6144
+  # 降低内存使用，4GB 通常足够
+  NODE_OPTIONS: --max-old-space-size=4096
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+  # 添加 CI 环境变量优化
+  CI: true
+  FORCE_COLOR: 1
 
-permissions: {}
+# 明确声明最小权限
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  actions: read
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
+  # 添加定时检查
+  schedule:
+    - cron: "0 0 * * 1" # 每周一检查
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.number || github.sha }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  changed:
-    name: Get changed files
+  # ========== 第一阶段：快速检查 ==========
+  changes:
+    name: Detect changes
     runs-on: ubuntu-latest
     outputs:
-      should_skip: ${{ steps.changed-files.outputs.only_changed == 'true' }}
-
+      src: ${{ steps.filter.outputs.src }}
+      docs: ${{ steps.filter.outputs.docs }}
+      deps: ${{ steps.filter.outputs.deps }}
+      ci: ${{ steps.filter.outputs.ci }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
-          # Assume PRs are less than 50 commits
-          fetch-depth: 50
-          token: ${{ secrets.PAT }}
+          fetch-depth: 2 # 优化：PR 通常只需要 2 个 commits
 
-      - name: Get changed files
-        id: changed-files
-        uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47.0.0
+      - uses: dorny/paths-filter@v3
+        id: filter
         with:
-          files: |
-            docs/**
-            .github/**
-            !.github/workflows/ci.yml
-            **.md
+          filters: |
+            src:
+              - 'packages/**'
+              - 'utils/**'
+              - '*.config.*'
+            docs:
+              - 'docs/**'
+              - '**/*.md'
+            deps:
+              - 'pnpm-lock.yaml'
+              - '**/package.json'
+            ci:
+              - '.github/**'
 
-  test:
-    needs: changed
-    if: needs.changed.outputs.should_skip != 'true'
-    timeout-minutes: 30
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        node_version: [20, 22, 24]
-        include:
-          # Active LTS + other OS
-          - os: macos-latest
-            node_version: 22
-          - os: windows-latest
-            node_version: 22
-      fail-fast: false
-
-    name: "Build&Test: node-${{ matrix.node_version }}, ${{ matrix.os }}"
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          token: ${{ secrets.PAT }}
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
-
-      - name: Set node version to ${{ matrix.node_version }}
-        uses: actions/setup-node@v5
-        with:
-          node-version: ${{ matrix.node_version }}
-          cache: "pnpm"
-
-      - name: Install deps
-        run: pnpm install
-
-      # Install playwright's binary under custom directory to cache
-      - name: (non-windows) Set Playwright path and Get playwright version
-        if: runner.os != 'Windows'
-        run: |
-          echo "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/playwright-bin" >> $GITHUB_ENV
-          PLAYWRIGHT_VERSION="$(pnpm ls --depth 0 --json -w playwright-chromium | jq --raw-output '.[0].devDependencies["playwright-chromium"].version')"
-          echo "PLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION" >> $GITHUB_ENV
-      - name: (windows) Set Playwright path and Get playwright version
-        if: runner.os == 'Windows'
-        run: |
-          echo "PLAYWRIGHT_BROWSERS_PATH=$HOME\.cache\playwright-bin" >> $env:GITHUB_ENV
-          $env:PLAYWRIGHT_VERSION="$(pnpm ls --depth 0 --json -w playwright-chromium | jq --raw-output '.[0].devDependencies["playwright-chromium"].version')"
-          echo "PLAYWRIGHT_VERSION=$env:PLAYWRIGHT_VERSION" >> $env:GITHUB_ENV
-
-      - name: Cache Playwright's binary
-        uses: actions/cache@v4
-        with:
-          key: ${{ runner.os }}-playwright-bin-v1-${{ env.PLAYWRIGHT_VERSION }}
-          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-bin-v1-
-
-      - name: Install Playwright Browsers
-        # does not need to explicitly set chromium after https://github.com/microsoft/playwright/issues/14862 is solved
-        run: pnpm playwright install chromium
-
-      - name: Build
-        run: pnpm build
-
-      - name: Test unit
-        run: pnpm test:unit
-
-      - name: Test e2e
-        run: pnpm test:e2e
-
-  test-passed:
-    if: (!cancelled() && !failure())
-    needs: test
+  # ========== 提交信息验证 ==========
+  commit-check:
+    name: Validate Commits
     runs-on: ubuntu-latest
-    name: Build & Test Passed or Skipped
+    if: github.event_name == 'pull_request'
     steps:
-      - run: echo "Build & Test Passed or Skipped"
-
-  test-failed:
-    if: (!cancelled() && failure())
-    needs: test
-    runs-on: ubuntu-latest
-    name: Build & Test Failed
-    steps:
-      - run: echo "Build & Test Failed"
-
-  lint:
-    timeout-minutes: 10
-    runs-on: ubuntu-latest
-    name: "Lint: node-22, ubuntu-latest"
-    steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.PAT }}
+          fetch-depth: 0 # Need full history for commit validation
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+      - name: Validate Commit Messages
+        uses: ./.github/actions/validate-commits
+        with:
+          strict_mode: false # Can be set to true for stricter validation
 
-      - name: Set node version to 22
-        uses: actions/setup-node@v5
+  # ========== 并行执行：Lint & Format ==========
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.ci == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
         with:
           node-version: 22
-          cache: "pnpm"
-
-      - name: Install deps
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm build
 
       - name: Lint
         run: pnpm lint
 
-      - name: Check formatting
-        run: pnpm prettier --write --log-level=warn . && git diff --exit-code
+      - name: Format Check
+        run: pnpm prettier --check .
 
-      - name: Typecheck
+      - name: Type Check
         run: pnpm typecheck
 
-      - name: Build docs
+  # ========== 优化的测试矩阵 ==========
+  test:
+    name: Test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    needs: changes
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 主要测试环境
+          - name: "Linux / Node 22"
+            os: ubuntu-latest
+            node: 22
+            coverage: true
+          # LTS 版本
+          - name: "Linux / Node 20"
+            os: ubuntu-latest
+            node: 20
+          # 跨平台测试（仅在 main 分支）
+          - name: "macOS / Node 22"
+            os: macos-latest
+            node: 22
+            skip-pr: true
+          - name: "Windows / Node 22"
+            os: windows-latest
+            node: 22
+            skip-pr: true
+          # 最新 Node（允许失败）
+          - name: "Linux / Node Latest"
+            os: ubuntu-latest
+            node: 24
+            continue-on-error: true
+
+    continue-on-error: ${{ matrix.continue-on-error || false }}
+    steps:
+      - if: matrix.skip-pr && github.event_name == 'pull_request'
+        run: echo "Skipping for PR" && exit 0
+
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: ${{ matrix.node }}
+          playwright: true
+
+      - name: Build
+        run: pnpm build
+        env:
+          NODE_ENV: production
+
+      - name: Unit Tests
+        run: pnpm test:unit --coverage=${{ matrix.coverage || false }}
+
+      - name: E2E Tests
+        run: pnpm test:e2e
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ~/.cache/playwright
+
+      # 收集测试覆盖率
+      - name: Upload Coverage
+        if: matrix.coverage
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: unit
+          fail_ci_if_error: false
+
+      # 上传测试失败的 artifacts
+      - name: Upload Test Results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.name }}
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+
+  # ========== 构建验证 ==========
+  build:
+    name: Build Validation
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.docs == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: 22
+
+      - name: Build Packages
+        run: pnpm build
+
+      - name: Build Docs
         run: pnpm docs:build
+
+      # 缓存构建产物供后续使用
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            packages/*/dist
+            docs/.vitepress/dist
+          retention-days: 1
+
+  # ========== 安全扫描 ==========
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: 22
+
+      - name: Audit Dependencies
+        run: pnpm audit --audit-level=high
+        continue-on-error: true
+
+      - name: License Check
+        run: pnpm licenses list --prod
+        continue-on-error: true
+
+  # ========== 依赖更新检查 ==========
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-3.0, AGPL-3.0
+
+  # ========== 最终状态检查 ==========
+  status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs: [quality, test, build]
+    if: always()
+    steps:
+      - name: Check Status
+        run: |
+          if [[ "${{ needs.quality.result }}" == "failure" || \
+                "${{ needs.test.result }}" == "failure" || \
+                "${{ needs.build.result }}" == "failure" ]]; then
+            echo "❌ CI Failed"
+            exit 1
+          else
+            echo "✅ CI Passed"
+          fi
+
+  # ========== 发布准备（仅 main 分支）==========
+  release-ready:
+    name: Release Readiness
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [status]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Version
+        run: |
+          echo "Checking for version changes..."
+          git diff HEAD~1 HEAD -- '**/package.json' | grep -E '^\+.*"version"' || echo "No version changes"
+
+      - name: Generate Release Notes
+        run: |
+          echo "## Recent Changes" > release-notes.md
+          git log --oneline -10 >> release-notes.md

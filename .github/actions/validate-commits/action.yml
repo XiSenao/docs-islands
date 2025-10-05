@@ -1,0 +1,275 @@
+name: "Validate Commit Messages"
+description: "Validate commit messages against the project commit convention"
+
+inputs:
+  base_ref:
+    description: "Base reference for comparison (e.g., origin/main)"
+    required: false
+    default: "origin/${{ github.base_ref }}"
+  strict_mode:
+    description: "Fail on style warnings (capitalize, period, imperative mood)"
+    required: false
+    default: "false"
+  fetch_depth:
+    description: "Number of commits to fetch"
+    required: false
+    default: "0"
+
+outputs:
+  valid:
+    description: "Whether all commits are valid"
+    value: ${{ steps.validate.outputs.valid }}
+  invalid_count:
+    description: "Number of invalid commits"
+    value: ${{ steps.validate.outputs.invalid_count }}
+  warning_count:
+    description: "Number of style warnings"
+    value: ${{ steps.validate.outputs.warning_count }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Fetch commits if needed
+      shell: bash
+      run: |
+        # For PR events, we need to fetch the base branch
+        if [ -n "${{ github.base_ref }}" ]; then
+          echo "📥 Fetching base branch: ${{ github.base_ref }}"
+          if [ "${{ inputs.fetch_depth }}" != "0" ]; then
+            git fetch --depth=${{ inputs.fetch_depth }} origin ${{ github.base_ref }}
+          else
+            git fetch origin ${{ github.base_ref }}
+          fi
+        fi
+
+    - name: Validate commit messages
+      id: validate
+      shell: bash
+      run: |
+        set +e  # Don't exit on error, we handle errors ourselves
+
+        # Set default outputs (will be overwritten later)
+        echo "valid=false" >> $GITHUB_OUTPUT
+        echo "invalid_count=0" >> $GITHUB_OUTPUT
+        echo "warning_count=0" >> $GITHUB_OUTPUT
+
+        echo "📝 Validating commit messages against .github/commit-convention.md..."
+
+        # Define the exact regex from commit-convention.md
+        COMMIT_REGEX="^(revert: )?(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\(.+\))?!?: .{1,50}$"
+
+        # Valid commit types
+        VALID_TYPES="feat|fix|docs|style|refactor|perf|test|build|ci|chore"
+
+        # Track validation results
+        INVALID_COMMITS=()
+        WARNINGS=()
+        COMMIT_COUNT=0
+        MERGE_SKIP_COUNT=0
+
+        # Debug info
+        echo "🔍 Debug info:"
+        echo "  - Event: ${{ github.event_name }}"
+        echo "  - Base ref: ${{ github.base_ref }}"
+        echo "  - Head ref: ${{ github.head_ref }}"
+        echo ""
+
+        # Determine the base reference
+        if [ -n "${{ github.base_ref }}" ]; then
+          BASE_REF="${{ inputs.base_ref }}"
+          echo "📍 Using PR mode: comparing $BASE_REF..HEAD"
+          
+          # Verify the base ref exists
+          if ! git rev-parse "$BASE_REF" >/dev/null 2>&1; then
+            echo ""
+            echo "❌ Error: Base reference '$BASE_REF' not found"
+            echo "💡 Available refs:"
+            git branch -r | head -5
+            echo ""
+            echo "💡 This usually means the base branch wasn't fetched properly"
+            # Set outputs before exiting
+            echo "valid=false" >> $GITHUB_OUTPUT
+            echo "invalid_count=0" >> $GITHUB_OUTPUT
+            echo "warning_count=0" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+        else
+          # For push events, compare with the previous commit
+          echo "📍 Using push mode"
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            BASE_REF="HEAD~1"
+            echo "  - Comparing HEAD~1..HEAD"
+          else
+            # First commit in the repo
+            echo "ℹ️ Single commit detected, validating only HEAD"
+            BASE_REF=""
+          fi
+        fi
+        echo ""
+
+        # Get the list of commits to validate
+        if [ -z "$BASE_REF" ]; then
+          # Validate only HEAD commit
+          COMMITS=$(git log --format="%H %s" -n 1 HEAD 2>/dev/null || echo "")
+        else
+          # Validate commits in range
+          COMMITS=$(git log --format="%H %s" "$BASE_REF..HEAD" 2>/dev/null || echo "")
+        fi
+
+        # Check if we got any commits
+        if [ -z "$COMMITS" ]; then
+          echo "⚠️ No commits found to validate"
+          echo ""
+          echo "📊 Debug:"
+          echo "  - HEAD: $(git rev-parse HEAD 2>/dev/null || echo 'N/A')"
+          echo "  - BASE_REF: ${BASE_REF:-'(empty)'}"
+          if [ -n "$BASE_REF" ]; then
+            echo "  - BASE commit: $(git rev-parse "$BASE_REF" 2>/dev/null || echo 'N/A')"
+          fi
+          echo ""
+          echo "✅ Treating as valid (no commits to check)"
+          echo "valid=true" >> $GITHUB_OUTPUT
+          echo "invalid_count=0" >> $GITHUB_OUTPUT
+          echo "warning_count=0" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Show commits to be validated
+        echo "📝 Commits to validate:"
+        echo "$COMMITS" | while IFS= read -r line; do
+          echo "  - $line"
+        done
+        echo ""
+
+        # Validate each commit
+        while IFS= read -r commit_hash_and_msg; do
+          commit_hash=$(echo "$commit_hash_and_msg" | cut -d' ' -f1)
+          commit_msg=$(echo "$commit_hash_and_msg" | cut -d' ' -f2-)
+
+          # Skip merge commits (they have multiple parents)
+          PARENT_COUNT=$(git rev-list --parents -n 1 "$commit_hash" | wc -w | tr -d ' ')
+          if [ "$PARENT_COUNT" -gt 2 ]; then
+            echo "  ⏭️  Skipping merge commit: $commit_hash"
+            MERGE_SKIP_COUNT=$((MERGE_SKIP_COUNT + 1))
+            continue
+          fi
+          
+          echo "  ✓ Validating: $commit_msg"
+
+          COMMIT_COUNT=$((COMMIT_COUNT + 1))
+
+          # Check against the regex
+          if ! echo "$commit_msg" | grep -qE "$COMMIT_REGEX"; then
+            INVALID_COMMITS+=("$commit_hash: $commit_msg")
+            echo "  ❌ FAILED regex check: $commit_msg"
+            echo "     Expected pattern: <type>(<scope>): <subject 1-50 chars>"
+
+            # Provide specific feedback
+            if ! echo "$commit_msg" | grep -qE "^(revert: )?($VALID_TYPES)"; then
+              echo "  ❌ $commit_hash: Missing or invalid type"
+            elif ! echo "$commit_msg" | grep -qE "^(revert: )?($VALID_TYPES)(\(.+\))?!?:"; then
+              echo "  ❌ $commit_hash: Missing colon after type/scope"
+            elif echo "$commit_msg" | grep -qE "^(revert: )?($VALID_TYPES)(\(.+\))?!?: .{51,}"; then
+              echo "  ❌ $commit_hash: Subject exceeds 50 characters"
+            elif echo "$commit_msg" | grep -qE "^(revert: )?($VALID_TYPES)(\(.+\))?!?: *$"; then
+              echo "  ❌ $commit_hash: Empty subject"
+            fi
+          else
+            echo "  ✅ PASSED regex check"
+            # Additional style checks
+            subject=$(echo "$commit_msg" | sed -E "s/^(revert: )?($VALID_TYPES)(\(.+\))?!?: //")
+
+            # Check for style issues
+            style_issues=""
+            if echo "$subject" | grep -qE "^[A-Z]"; then
+              style_issues="${style_issues}capitalized "
+            fi
+            if echo "$subject" | grep -qE "\.$"; then
+              style_issues="${style_issues}period "
+            fi
+            if echo "$subject" | grep -qE "^(added|changed|fixed|removed|updated|modified|created|deleted)"; then
+              style_issues="${style_issues}past-tense "
+            fi
+
+            if [ -n "$style_issues" ]; then
+              WARNINGS+=("$commit_hash: $commit_msg [Issues: $style_issues]")
+            fi
+          fi
+        done <<< "$COMMITS"
+
+        # Calculate results
+        INVALID_COUNT=${#INVALID_COMMITS[@]}
+        WARNING_COUNT=${#WARNINGS[@]}
+
+        # Set outputs
+        echo "invalid_count=$INVALID_COUNT" >> $GITHUB_OUTPUT
+        echo "warning_count=$WARNING_COUNT" >> $GITHUB_OUTPUT
+
+        # Display summary
+        echo ""
+        echo "═══════════════════════════════════════════════════════════════"
+        echo "                 Commit Validation Summary                     "
+        echo "═══════════════════════════════════════════════════════════════"
+        echo "  Total commits checked: $COMMIT_COUNT"
+        if [ $MERGE_SKIP_COUNT -gt 0 ]; then
+          echo "  Merge commits skipped: $MERGE_SKIP_COUNT"
+        fi
+        echo "  Invalid commits: $INVALID_COUNT"
+        echo "  Style warnings: $WARNING_COUNT"
+        echo "═══════════════════════════════════════════════════════════════"
+        echo ""
+
+        # Handle validation results
+        if [ $INVALID_COUNT -eq 0 ]; then
+          echo "✅ All commit messages follow the convention!"
+          echo "valid=true" >> $GITHUB_OUTPUT
+
+          # Handle strict mode for warnings
+          if [ "${{ inputs.strict_mode }}" == "true" ] && [ $WARNING_COUNT -gt 0 ]; then
+            echo ""
+            echo "⚠️  Style warnings found (strict mode enabled):"
+            for warning in "${WARNINGS[@]}"; do
+              echo "  - $warning"
+            done
+            echo ""
+            echo "📝 Style guidelines:"
+            echo "  • Use lowercase for subject start"
+            echo "  • No period at the end"
+            echo "  • Use imperative mood (e.g., 'add' not 'added')"
+            exit 1
+          elif [ $WARNING_COUNT -gt 0 ]; then
+            echo ""
+            echo "💡 Style suggestions (non-blocking):"
+            for warning in "${WARNINGS[@]:0:5}"; do
+              echo "  - $warning"
+            done
+            if [ $WARNING_COUNT -gt 5 ]; then
+              echo "  ... and $((WARNING_COUNT - 5)) more"
+            fi
+          fi
+        else
+          echo "valid=false" >> $GITHUB_OUTPUT
+          echo "❌ Invalid commit messages found:"
+          echo ""
+          for commit in "${INVALID_COMMITS[@]}"; do
+            echo "  🚫 $commit"
+          done
+          echo ""
+          echo "📖 Please follow: .github/commit-convention.md"
+          echo ""
+          echo "📝 Format: <type>(<scope>): <subject>"
+          echo "   Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore"
+          echo "   Subject: 1-50 chars, imperative mood, no capital, no period"
+          echo ""
+          echo "🔧 Examples:"
+          echo "   feat(dev): add 'comments' option"
+          echo "   fix(dev): fix dev error"
+          echo "   perf(build)!: remove 'foo' option"
+          exit 1
+        fi
+
+    - name: Create GitHub annotation
+      if: failure()
+      shell: bash
+      run: |
+        echo "::error::Found ${{ steps.validate.outputs.invalid_count }} invalid commit message(s). Please follow the commit convention in .github/commit-convention.md"
