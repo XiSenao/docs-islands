@@ -1,8 +1,8 @@
 # @docs-islands/vitepress
 
 <p align="center">
-  <a href="https://docs.senao.me/docs-islands/vitepress/concept" target="_blank" rel="noopener noreferrer">  
-    <img width="180" src="https://docs.senao.me/docs-islands/vitepress/favicon.svg" alt="logo">
+  <a href="https://docs.senao.me/docs-islands/vitepress/core-concepts" target="_blank" rel="noopener noreferrer">  
+    <img width="180" src="https://docs.senao.me/docs-islands/vitepress/islands-vitepress.svg" alt="logo">
   </a>
 </p>
 <br/>
@@ -26,7 +26,7 @@ Brings cross‑framework component rendering to VitePress (currently built-in Re
 - **HMR support**: Complete hot module replacement across framework boundaries, preserving state and maintaining development velocity.
 - **MPA compatibility**: Works with VitePress MPA mode.
 
-> For comprehensive design rationale and examples, see [VitePress Cross-Framework Rendering Strategy](https://docs.senao.me/docs-islands/vitepress/concept).
+> For comprehensive design rationale and examples, see [VitePress Cross-Framework Rendering Strategy](https://docs.senao.me/docs-islands/vitepress/core-concepts).
 
 ## Quick Start
 

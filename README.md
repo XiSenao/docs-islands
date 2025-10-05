@@ -29,7 +29,7 @@ Brings cross-framework Islands Architecture to documentation frameworks with sel
 - **🔌 Zero-Friction Integration** - Minimal configuration, works out of the box. Seamlessly integrates into existing documentation projects through adapters without disrupting workflows.
 - **📦 Complete Developer Experience** - Dev HMR, dev/prod consistency, MPA compatibility. Performance optimization options available for specific scenarios.
 
-> For more details and usage guides, visit the [documentation site](https://docs.senao.me/docs-islands/vitepress/).
+> For more details and usage guides, visit the [documentation site](https://docs.senao.me/docs-islands/).
 
 ## Contributing
 

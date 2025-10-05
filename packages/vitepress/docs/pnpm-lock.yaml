@@ -23,9 +23,6 @@ importers:
       vitepress-plugin-llms:
         specifier: ^1.7.3
         version: 1.7.3
-      vitepress-rendering-strategies:
-        specifier: link:../dist
-        version: link:../dist
 
 packages:
   '@algolia/abtesting@1.2.0':
