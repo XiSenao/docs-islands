@@ -66,5 +66,8 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{ matrix.language }}"
-          # Upload results to GitHub Security tab
-          upload: true
+          # TODO: Enable upload when GitHub Advanced Security is available
+          # For private repositories, uploading results requires GitHub Advanced Security (GHAS) license
+          # To enable: Repository Settings > Security > Code scanning > Enable
+          # Documentation: https://docs.github.com/en/code-security/code-scanning/introduction-to-code-scanning/about-code-scanning
+          upload: false # Changed from true - currently disabled for private repo without GHAS
