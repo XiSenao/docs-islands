@@ -1,6 +1,5 @@
 version: 2
 updates:
-  # npm/pnpm 依赖更新
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
@@ -8,15 +7,7 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 10
-    # 将相关更新分组
     groups:
-      # 安全更新（高优先级）
-      security:
-        patterns:
-          - "*"
-        update-types:
-          - "security"
-      # 生产依赖
       production:
         patterns:
           - "*"
@@ -24,7 +15,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-      # 开发依赖
       development:
         patterns:
           - "*"
@@ -32,9 +22,8 @@ updates:
         update-types:
           - "minor"
           - "patch"
-    # 自动审查规则
     reviewers:
-      - "XiSenao" # 替换为您的用户名
+      - "XiSenao"
     labels:
       - "dependencies"
       - "automated"
@@ -42,7 +31,6 @@ updates:
       prefix: "chore"
       include: "scope"
 
-  # 子包依赖
   - package-ecosystem: "npm"
     directory: "/packages/vitepress"
     schedule:
@@ -63,7 +51,6 @@ updates:
         patterns:
           - "*"
 
-  # GitHub Actions 更新（安全关键）
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -85,6 +72,5 @@ updates:
     commit-message:
       prefix: "ci"
       include: "scope"
-    # 自动 PR 审查
     reviewers:
       - "XiSenao"

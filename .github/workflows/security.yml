@@ -197,7 +197,6 @@ jobs:
             );
 
             if (existingIssue) {
-              // 更新现有 issue
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -262,8 +261,8 @@ jobs:
             echo "" >> update-report.md
 
             # Count packages needing updates
-            TOTAL_UPDATES=$(jq 'length' outdated.json 2>/dev/null || echo "0")
-            MAJOR_UPDATES=$(jq '[.[] | select(.current != .latest and (.latest | split(".")[0]) != (.current | split(".")[0]))] | length' outdated.json 2>/dev/null || echo "0")
+            TOTAL_UPDATES=$(jq 'to_entries | length' outdated.json 2>/dev/null || echo "0")
+            MAJOR_UPDATES=$(jq '[to_entries[] | select(.value.current != .value.latest and (.value.latest | split(".")[0]) != (.value.current | split(".")[0]))] | length' outdated.json 2>/dev/null || echo "0")
 
             echo "updates_available=$TOTAL_UPDATES" >> $GITHUB_OUTPUT
             echo "**Total packages needing updates: $TOTAL_UPDATES**" >> update-report.md
@@ -272,11 +271,11 @@ jobs:
             # Categorized display of updates
             echo "" >> update-report.md
             echo "#### 🔴 Major Updates (Breaking Changes Expected):" >> update-report.md
-            jq -r '.[] | select(.current != .latest and (.latest | split(".")[0]) != (.current | split(".")[0])) | "- **\(.name)**: \(.current) → \(.latest)"' outdated.json >> update-report.md || echo "None" >> update-report.md
+            jq -r 'to_entries[] | select(.value.current != .value.latest and (.value.latest | split(".")[0]) != (.value.current | split(".")[0])) | "- **\(.key)**: \(.value.current) → \(.value.latest)"' outdated.json >> update-report.md || echo "None" >> update-report.md
 
             echo "" >> update-report.md
             echo "#### 🟡 Minor/Patch Updates:" >> update-report.md
-            jq -r '.[] | select(.current != .latest and (.latest | split(".")[0]) == (.current | split(".")[0])) | "- **\(.name)**: \(.current) → \(.latest)"' outdated.json >> update-report.md || echo "None" >> update-report.md
+            jq -r 'to_entries[] | select(.value.current != .value.latest and (.value.latest | split(".")[0]) == (.value.current | split(".")[0])) | "- **\(.key)**: \(.value.current) → \(.value.latest)"' outdated.json >> update-report.md || echo "None" >> update-report.md
           fi
 
       - name: Upload Update Report
@@ -313,7 +312,6 @@ jobs:
             );
 
             if (existingIssue) {
-              // 更新现有 issue
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -321,7 +319,6 @@ jobs:
                 body: `## 📅 Updated Dependency Report\n\n${report}`
               });
             } else {
-              // Create new issue
               await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -510,7 +507,7 @@ jobs:
             summary.push(`**Workflow**: ${context.workflow}\n`);
             summary.push(`**Run**: [#${context.runNumber}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n\n`);
 
-            // Job 状态
+            // Job status
             summary.push('## 📋 Job Status\n');
             const jobs = {
               'Secret Scan': '${{ needs.secret-scan.result }}',
