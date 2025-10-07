@@ -1,0 +1,67 @@
+name: "Setup Environment"
+description: "Setup Node.js, pnpm and dependencies with caching"
+
+inputs:
+  node-version:
+    description: "Node.js version"
+    required: false
+    default: "22"
+  playwright:
+    description: "Install Playwright browsers"
+    required: false
+    default: "false"
+  frozen-lockfile:
+    description: "Use frozen lockfile"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        run_install: false
+
+    - name: Setup Node.js and cache pnpm store
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: "pnpm"
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        # Use frozen-lockfile by default unless explicitly set to false
+        if [[ "${{ inputs.frozen-lockfile }}" == "false" ]]; then
+          echo "Installing dependencies without frozen lockfile..."
+          pnpm install --no-frozen-lockfile
+        else
+          echo "Installing dependencies with frozen lockfile..."
+          pnpm install --frozen-lockfile
+        fi
+
+    # Step 4: (Optional) Get Playwright version and set cache path
+    - name: Get Playwright version
+      if: inputs.playwright == 'true'
+      shell: bash
+      run: |
+        PLAYWRIGHT_VERSION=$(pnpm ls --depth 0 --json -w playwright-chromium | jq -r '.[0].devDependencies["playwright-chromium"].version')
+        echo "PLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION" >> $GITHUB_ENV
+        echo "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/playwright" >> $GITHUB_ENV
+
+    # Step 5: (Optional) Cache Playwright browsers
+    - name: Cache Playwright browsers
+      if: inputs.playwright == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+        key: playwright-${{ runner.os }}-v2-${{ env.PLAYWRIGHT_VERSION }}
+        restore-keys: |
+          playwright-${{ runner.os }}-v2-
+
+    # Step 6: (Optional) Install Playwright browsers (if cache miss)
+    - name: Install Playwright browsers
+      if: inputs.playwright == 'true'
+      shell: bash
+      run: pnpm playwright install chromium

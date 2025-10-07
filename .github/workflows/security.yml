@@ -1,0 +1,590 @@
+name: Security & Dependencies
+
+env:
+  NODE_VERSION: "22" # Unified Node.js version management
+
+on:
+  schedule:
+    # Daily at 02:00 UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "pnpm-lock.yaml"
+  pull_request:
+    paths:
+      - "pnpm-lock.yaml"
+      - "**/package.json"
+
+# Minimum privilege principle - Job-level permission refinement
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false # Security scans should not be cancelled
+
+jobs:
+  # Secret detection
+  secret-scan:
+    name: Scan for Secrets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # Required by Gitleaks to access PR commits
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Secret Alert Issue
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🚨 Secret Leak Detected';
+            const body = `## 🔐 Secret Scanning Alert
+
+            Gitleaks has detected potential secrets in the repository.
+
+            **Action Required**: Review the scan results and:
+            1. Rotate any exposed credentials immediately
+            2. Remove secrets from git history if needed
+            3. Use environment variables or secret management tools
+
+            **Scan Details**: Check the [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.
+            `;
+
+            // Check for existing open issue
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'security,secrets'
+            });
+
+            const existingIssue = issues.find(issue => issue.title.includes('Secret Leak Detected'));
+
+            if (!existingIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['security', 'secrets', 'critical', 'automated']
+              });
+            }
+
+  # Fast security audit
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # For creating security issues
+    outputs:
+      has_vulnerabilities: ${{ steps.audit.outputs.has_vulnerabilities }}
+      critical_count: ${{ steps.audit.outputs.critical_count }}
+      high_count: ${{ steps.audit.outputs.high_count }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          frozen-lockfile: true # Use locked version for consistency
+
+      - name: Cache Audit Results
+        id: cache-audit
+        uses: actions/cache@v4
+        with:
+          path: audit.json
+          key: security-audit-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            security-audit-
+
+      - name: Run Security Audit
+        id: audit
+        run: |
+          set -euo pipefail  # Strict error handling
+
+          echo "## 🔒 Security Audit Report" > audit-report.md
+          echo "Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> audit-report.md
+          echo "" >> audit-report.md
+
+          # pnpm audit with proper error handling
+          echo "### pnpm audit results:" >> audit-report.md
+
+          if pnpm audit --json > audit.json 2>&1; then
+            echo "✅ No vulnerabilities found" >> audit-report.md
+            echo "has_vulnerabilities=false" >> $GITHUB_OUTPUT
+            echo "critical_count=0" >> $GITHUB_OUTPUT
+            echo "high_count=0" >> $GITHUB_OUTPUT
+          else
+            # Validate JSON format
+            if ! jq empty audit.json 2>/dev/null; then
+              echo "❌ Invalid audit output format" >> audit-report.md
+              cat audit.json >> audit-report.md
+              exit 1
+            fi
+
+            # Check if advisories field exists
+            if jq -e '.advisories' audit.json >/dev/null 2>&1; then
+              CRITICAL=$(jq '.advisories | map(select(.severity == "critical")) | length' audit.json)
+              HIGH=$(jq '.advisories | map(select(.severity == "high")) | length' audit.json)
+              MODERATE=$(jq '.advisories | map(select(.severity == "moderate")) | length' audit.json)
+              LOW=$(jq '.advisories | map(select(.severity == "low")) | length' audit.json)
+
+              echo "- 🔴 Critical: $CRITICAL" >> audit-report.md
+              echo "- 🟠 High: $HIGH" >> audit-report.md
+              echo "- 🟡 Moderate: $MODERATE" >> audit-report.md
+              echo "- 🟢 Low: $LOW" >> audit-report.md
+              echo "" >> audit-report.md
+
+              # Output to GitHub Output
+              echo "has_vulnerabilities=true" >> $GITHUB_OUTPUT
+              echo "critical_count=$CRITICAL" >> $GITHUB_OUTPUT
+              echo "high_count=$HIGH" >> $GITHUB_OUTPUT
+
+              # Add detailed information
+              echo "### Vulnerability Details:" >> audit-report.md
+              jq -r '.advisories[] | "#### [\(.title)](\(.url))\n- **Severity**: \(.severity)\n- **Package**: \(.module_name)\n- **Patched versions**: \(.patched_versions)\n- **Recommendation**: \(.recommendation)\n"' audit.json >> audit-report.md || true
+            else
+              echo "⚠️ Unexpected audit output format" >> audit-report.md
+              jq '.' audit.json >> audit-report.md
+            fi
+          fi
+
+      - name: Upload Audit Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-report
+          path: audit-report.md
+          retention-days: 30
+
+      - name: Create Security Issue
+        if: steps.audit.outputs.has_vulnerabilities == 'true' && (steps.audit.outputs.critical_count != '0' || steps.audit.outputs.high_count != '0')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('audit-report.md', 'utf8');
+            const critical = '${{ steps.audit.outputs.critical_count }}';
+            const high = '${{ steps.audit.outputs.high_count }}';
+
+            const title = `🚨 Critical Security Vulnerabilities Detected (${critical} Critical, ${high} High)`;
+
+            // Check for existing unclosed security issues
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'security'
+            });
+
+            const existingIssue = issues.find(issue =>
+              issue.title.includes('Critical Security Vulnerabilities')
+            );
+
+            if (existingIssue) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `## 📅 Updated Scan Results\n\n${report}`
+              });
+            } else {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: report + '\n\n---\n\n**Action Required**: Please review and address these vulnerabilities.\n\nRun `pnpm audit fix` to attempt automatic fixes.',
+                labels: ['security', 'critical', 'automated']
+              });
+            }
+
+  # Dependency update detection
+  dependency-updates:
+    name: Check for Updates
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      updates_available: ${{ steps.outdated.outputs.updates_available }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: 22
+          frozen-lockfile: true
+
+      - name: Check Outdated Packages
+        id: outdated
+        run: |
+          set -euo pipefail
+
+          echo "## 📦 Dependency Update Report" > update-report.md
+          echo "Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> update-report.md
+          echo "" >> update-report.md
+
+          # Check outdated packages
+          echo "### Outdated Dependencies:" >> update-report.md
+
+          if pnpm outdated --format json > outdated.json 2>&1; then
+            echo "All dependencies are up to date! ✅" >> update-report.md
+            echo "updates_available=0" >> $GITHUB_OUTPUT
+          else
+            # Validate JSON format
+            if ! jq empty outdated.json 2>/dev/null; then
+              echo "⚠️ Failed to parse outdated packages" >> update-report.md
+              echo "updates_available=0" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            echo '```json' >> update-report.md
+            jq '.' outdated.json >> update-report.md
+            echo '```' >> update-report.md
+            echo "" >> update-report.md
+
+            # Count packages needing updates
+            TOTAL_UPDATES=$(jq 'to_entries | length' outdated.json 2>/dev/null || echo "0")
+            MAJOR_UPDATES=$(jq '[to_entries[] | select(.value.current != .value.latest and (.value.latest | split(".")[0]) != (.value.current | split(".")[0]))] | length' outdated.json 2>/dev/null || echo "0")
+
+            echo "updates_available=$TOTAL_UPDATES" >> $GITHUB_OUTPUT
+            echo "**Total packages needing updates: $TOTAL_UPDATES**" >> update-report.md
+            echo "**Major version updates: $MAJOR_UPDATES**" >> update-report.md
+
+            # Categorized display of updates
+            echo "" >> update-report.md
+            echo "#### 🔴 Major Updates (Breaking Changes Expected):" >> update-report.md
+            jq -r 'to_entries[] | select(.value.current != .value.latest and (.value.latest | split(".")[0]) != (.value.current | split(".")[0])) | "- **\(.key)**: \(.value.current) → \(.value.latest)"' outdated.json >> update-report.md || echo "None" >> update-report.md
+
+            echo "" >> update-report.md
+            echo "#### 🟡 Minor/Patch Updates:" >> update-report.md
+            jq -r 'to_entries[] | select(.value.current != .value.latest and (.value.latest | split(".")[0]) == (.value.current | split(".")[0])) | "- **\(.key)**: \(.value.current) → \(.value.latest)"' outdated.json >> update-report.md || echo "None" >> update-report.md
+          fi
+
+      - name: Upload Update Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-update-report
+          path: update-report.md
+          retention-days: 30
+
+      - name: Create Update Issue
+        # Fixed condition judgment - Use string comparison
+        if: steps.outdated.outputs.updates_available != '' && steps.outdated.outputs.updates_available != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('update-report.md', 'utf8');
+            const updateCount = '${{ steps.outdated.outputs.updates_available }}';
+
+            const title = `🤖 Dependency Updates Available (${updateCount} packages) - ${new Date().toISOString().split('T')[0]}`;
+            const body = report + '\n\n---\n\n**To update dependencies, run:**\n```bash\npnpm update --interactive\n```\n\n**For major updates, review breaking changes first:**\n```bash\npnpm outdated\n```';
+
+            // Check for existing same issue
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'dependencies'
+            });
+
+            const existingIssue = issues.find(issue =>
+              issue.title.includes('Dependency Updates Available')
+            );
+
+            if (existingIssue) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `## 📅 Updated Dependency Report\n\n${report}`
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['dependencies', 'automated']
+              });
+            }
+
+  # License compliance check
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      has_incompatible: ${{ steps.license.outputs.has_incompatible }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: 22
+          frozen-lockfile: true
+
+      - name: Check Licenses
+        id: license
+        run: |
+          set -euo pipefail
+
+          echo "## 📜 License Compliance Report" > license-report.md
+          echo "Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> license-report.md
+          echo "" >> license-report.md
+
+          # Get licenses for all production dependencies
+          echo "### Production Dependencies Licenses:" >> license-report.md
+
+          if pnpm licenses list --prod --json > licenses.json 2>&1; then
+            # Validate JSON format
+            if ! jq empty licenses.json 2>/dev/null; then
+              echo "⚠️ Failed to parse license data" >> license-report.md
+              exit 1
+            fi
+
+            # Check data structure
+            if jq -e 'type == "array"' licenses.json >/dev/null 2>&1; then
+              # Count each license type
+              echo "" >> license-report.md
+              echo "| License | Count |" >> license-report.md
+              echo "|---------|-------|" >> license-report.md
+
+              jq -r 'group_by(.license) | .[] | "| \(.[0].license // "Unknown") | \(length) |"' licenses.json >> license-report.md
+
+              # Check for incompatible licenses
+              INCOMPATIBLE=$(jq '[.[] | select(.license | test("GPL|AGPL|LGPL|SSPL"; "i"))] | length' licenses.json 2>/dev/null || echo "0")
+
+              echo "has_incompatible=$INCOMPATIBLE" >> $GITHUB_OUTPUT
+
+              if [ "$INCOMPATIBLE" -gt 0 ]; then
+                echo "" >> license-report.md
+                echo "⚠️ **Warning**: Found $INCOMPATIBLE packages with potentially incompatible licenses" >> license-report.md
+                echo "" >> license-report.md
+                echo "### Packages with restrictive licenses:" >> license-report.md
+                jq -r '.[] | select(.license | test("GPL|AGPL|LGPL|SSPL"; "i")) | "- **\(.name)@\(.version)**: \(.license)"' licenses.json >> license-report.md
+              else
+                echo "" >> license-report.md
+                echo "✅ All licenses are compatible" >> license-report.md
+              fi
+            else
+              echo "⚠️ Unexpected license data format" >> license-report.md
+              jq '.' licenses.json >> license-report.md
+            fi
+          else
+            echo "❌ Failed to retrieve license information" >> license-report.md
+            exit 1
+          fi
+
+      - name: Upload License Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-report
+          path: license-report.md
+          retention-days: 90
+
+  # SBOM (Software Bill of Materials) generation
+  generate-sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: 22
+          frozen-lockfile: true
+
+      # Build project first to ensure all local dependencies are available
+      - name: Build Packages
+        run: pnpm build
+        env:
+          NODE_ENV: production
+          CI: true
+
+      - name: Generate SBOM with Syft
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          output-file: sbom.json
+          format: cyclonedx-json
+          upload-artifact: false # Manual upload
+
+      - name: Validate and Report SBOM
+        run: |
+          set -euo pipefail
+
+          echo "✅ SBOM generated successfully"
+
+          # Validate SBOM format
+          if ! jq empty sbom.json 2>/dev/null; then
+            echo "❌ Invalid SBOM format"
+            exit 1
+          fi
+
+          # Output statistics
+          COMPONENT_COUNT=$(jq '.components | length' sbom.json 2>/dev/null || echo "0")
+          echo "📊 SBOM contains $COMPONENT_COUNT components"
+
+          # Display first few components
+          echo ""
+          echo "📦 Top components:"
+          jq -r '.components[:5] | .[] | "  - \(.name)@\(.version)"' sbom.json || true
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+          retention-days: 90
+
+      - name: Upload SBOM to Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-latest
+          path: sbom.json
+          retention-days: 365
+
+      # - name: Submit SBOM to Dependency Track
+      #   if: github.ref == 'refs/heads/main'
+      #   run: |
+      #     # For supply chain management with Dependency Track
+      #     curl -X POST "${{ secrets.DEPENDENCY_TRACK_URL }}/api/v1/bom" \
+      #       -H "X-API-Key: ${{ secrets.DEPENDENCY_TRACK_KEY }}" \
+      #       -H "Content-Type: application/json" \
+      #       -d @sbom.json
+
+  # Consolidated report
+  summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [secret-scan, security-audit, dependency-updates, license-check, generate-sbom]
+    permissions:
+      contents: read
+    if: always()
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: reports
+
+      - name: Create Comprehensive Summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const summary = [];
+            summary.push('# 🛡️ Security & Compliance Summary\n');
+            summary.push(`**Date**: ${new Date().toISOString()}\n`);
+            summary.push(`**Workflow**: ${context.workflow}\n`);
+            summary.push(`**Run**: [#${context.runNumber}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n\n`);
+
+            // Job status
+            summary.push('## 📋 Job Status\n');
+            const jobs = {
+              'Secret Scan': '${{ needs.secret-scan.result }}',
+              'Security Audit': '${{ needs.security-audit.result }}',
+              'Dependency Updates': '${{ needs.dependency-updates.result }}',
+              'License Check': '${{ needs.license-check.result }}',
+              'SBOM Generation': '${{ needs.generate-sbom.result }}'
+            };
+
+            for (const [name, status] of Object.entries(jobs)) {
+              const icon = status === 'success' ? '✅' : status === 'failure' ? '❌' : '⏭️';
+              summary.push(`- ${icon} **${name}**: ${status}\n`);
+            }
+
+            // Security audit results
+            summary.push('\n## 🔒 Security Audit Results\n');
+            const hasVulnerabilities = '${{ needs.security-audit.outputs.has_vulnerabilities }}';
+            const criticalCount = '${{ needs.security-audit.outputs.critical_count }}' || '0';
+            const highCount = '${{ needs.security-audit.outputs.high_count }}' || '0';
+
+            if (hasVulnerabilities === 'true') {
+              summary.push(`⚠️ **Vulnerabilities Found**:\n`);
+              summary.push(`- 🔴 Critical: ${criticalCount}\n`);
+              summary.push(`- 🟠 High: ${highCount}\n`);
+            } else {
+              summary.push('✅ No critical vulnerabilities detected\n');
+            }
+
+            // Dependency updates
+            summary.push('\n## 📦 Dependency Updates\n');
+            const updatesAvailable = '${{ needs.dependency-updates.outputs.updates_available }}' || '0';
+            if (updatesAvailable !== '0') {
+              summary.push(`📊 ${updatesAvailable} packages have updates available\n`);
+            } else {
+              summary.push('✅ All dependencies are up to date\n');
+            }
+
+            // License compliance
+            summary.push('\n## 📜 License Compliance\n');
+            const hasIncompatible = '${{ needs.license-check.outputs.has_incompatible }}' || '0';
+            if (hasIncompatible !== '0') {
+              summary.push(`⚠️ ${hasIncompatible} packages with restrictive licenses found\n`);
+            } else {
+              summary.push('✅ All licenses are compatible\n');
+            }
+
+            // Read report contents
+            summary.push('\n## 📄 Detailed Reports\n');
+
+            try {
+              const reportsDir = 'reports';
+              if (fs.existsSync(reportsDir)) {
+                const artifacts = fs.readdirSync(reportsDir);
+                for (const artifact of artifacts) {
+                  const artifactPath = path.join(reportsDir, artifact);
+                  if (fs.statSync(artifactPath).isDirectory()) {
+                    const files = fs.readdirSync(artifactPath);
+                    for (const file of files) {
+                      if (file.endsWith('.md')) {
+                        summary.push(`\n### 📋 ${artifact}\n`);
+                        const content = fs.readFileSync(path.join(artifactPath, file), 'utf8');
+                        summary.push(content + '\n');
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (error) {
+              summary.push(`\n⚠️ Could not read report details: ${error.message}\n`);
+            }
+
+            // Write job summary
+            await core.summary
+              .addRaw(summary.join(''))
+              .write();
+
+            // Set failure status for serious issues
+            if (hasVulnerabilities === 'true' && (criticalCount !== '0' || highCount !== '0')) {
+              core.setFailed(`Found ${criticalCount} critical and ${highCount} high severity vulnerabilities`);
+            }

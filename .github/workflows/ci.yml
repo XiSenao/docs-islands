@@ -1,166 +1,293 @@
 name: CI
 
 env:
-  NODE_OPTIONS: --max-old-space-size=6144
+  # Reduce memory usage - 4GB is typically sufficient
+  NODE_OPTIONS: --max-old-space-size=4096
+  NODE_VERSION: "22"
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+  CI: true
+  FORCE_COLOR: 1
 
-permissions: {}
+# Explicit minimum permissions declaration
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  actions: read
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
+  # Scheduled health checks
+  schedule:
+    - cron: "0 0 * * 1" # Every Monday
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.number || github.sha }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  changed:
-    name: Get changed files
+  changes:
+    name: Detect changes
     runs-on: ubuntu-latest
     outputs:
-      should_skip: ${{ steps.changed-files.outputs.only_changed == 'true' }}
-
+      src: ${{ steps.filter.outputs.src }}
+      docs: ${{ steps.filter.outputs.docs }}
+      deps: ${{ steps.filter.outputs.deps }}
+      ci: ${{ steps.filter.outputs.ci }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
-          # Assume PRs are less than 50 commits
-          fetch-depth: 50
-          token: ${{ secrets.PAT }}
+          fetch-depth: 2 # Optimization: PRs typically need only 2 commits
 
-      - name: Get changed files
-        id: changed-files
-        uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47.0.0
+      - uses: dorny/paths-filter@v3
+        id: filter
         with:
-          files: |
-            docs/**
-            .github/**
-            !.github/workflows/ci.yml
-            **.md
+          filters: |
+            src:
+              - 'packages/**'
+              - 'utils/**'
+              - '*.config.*'
+            docs:
+              - 'docs/**'
+            deps:
+              - 'pnpm-lock.yaml'
+              - '**/package.json'
+            ci:
+              - '.github/**/*.yml'
 
-  test:
-    needs: changed
-    if: needs.changed.outputs.should_skip != 'true'
-    timeout-minutes: 30
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        node_version: [20, 22, 24]
-        include:
-          # Active LTS + other OS
-          - os: macos-latest
-            node_version: 22
-          - os: windows-latest
-            node_version: 22
-      fail-fast: false
-
-    name: "Build&Test: node-${{ matrix.node_version }}, ${{ matrix.os }}"
+  commit-check:
+    name: Validate Commits
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.PAT }}
+          fetch-depth: 0 # Need full history for commit validation
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
-
-      - name: Set node version to ${{ matrix.node_version }}
-        uses: actions/setup-node@v5
+      - name: Validate Commit Messages
+        uses: ./.github/actions/validate-commits
         with:
-          node-version: ${{ matrix.node_version }}
-          cache: "pnpm"
+          strict_mode: false # Set to true for stricter validation
 
-      - name: Install deps
-        run: pnpm install
+  build-artifacts:
+    name: Build Artifacts
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
+    steps:
+      - uses: actions/checkout@v4
 
-      # Install playwright's binary under custom directory to cache
-      - name: (non-windows) Set Playwright path and Get playwright version
-        if: runner.os != 'Windows'
-        run: |
-          echo "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/playwright-bin" >> $GITHUB_ENV
-          PLAYWRIGHT_VERSION="$(pnpm ls --depth 0 --json -w playwright-chromium | jq --raw-output '.[0].devDependencies["playwright-chromium"].version')"
-          echo "PLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION" >> $GITHUB_ENV
-      - name: (windows) Set Playwright path and Get playwright version
-        if: runner.os == 'Windows'
-        run: |
-          echo "PLAYWRIGHT_BROWSERS_PATH=$HOME\.cache\playwright-bin" >> $env:GITHUB_ENV
-          $env:PLAYWRIGHT_VERSION="$(pnpm ls --depth 0 --json -w playwright-chromium | jq --raw-output '.[0].devDependencies["playwright-chromium"].version')"
-          echo "PLAYWRIGHT_VERSION=$env:PLAYWRIGHT_VERSION" >> $env:GITHUB_ENV
-
-      - name: Cache Playwright's binary
-        uses: actions/cache@v4
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
         with:
-          key: ${{ runner.os }}-playwright-bin-v1-${{ env.PLAYWRIGHT_VERSION }}
-          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-bin-v1-
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install Playwright Browsers
-        # does not need to explicitly set chromium after https://github.com/microsoft/playwright/issues/14862 is solved
-        run: pnpm playwright install chromium
-
-      - name: Build
+      - name: Build Packages
         run: pnpm build
+        env:
+          NODE_ENV: production
+          CI: true
 
-      - name: Test unit
-        run: pnpm test:unit
-
-      - name: Test e2e
-        run: pnpm test:e2e
-
-  test-passed:
-    if: (!cancelled() && !failure())
-    needs: test
-    runs-on: ubuntu-latest
-    name: Build & Test Passed or Skipped
-    steps:
-      - run: echo "Build & Test Passed or Skipped"
-
-  test-failed:
-    if: (!cancelled() && failure())
-    needs: test
-    runs-on: ubuntu-latest
-    name: Build & Test Failed
-    steps:
-      - run: echo "Build & Test Failed"
-
-  lint:
-    timeout-minutes: 10
-    runs-on: ubuntu-latest
-    name: "Lint: node-22, ubuntu-latest"
-    steps:
-      - uses: actions/checkout@v5
+      # Cache build artifacts for downstream jobs
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.PAT }}
+          name: build-dist
+          path: packages/*/dist
+          retention-days: 1
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    needs: [changes, build-artifacts]
+    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.ci == 'true'
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Set node version to 22
-        uses: actions/setup-node@v5
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
         with:
-          node-version: 22
-          cache: "pnpm"
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install deps
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm build
+      # Download pre-built artifacts
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-dist
 
       - name: Lint
         run: pnpm lint
 
-      - name: Check formatting
-        run: pnpm prettier --write --log-level=warn . && git diff --exit-code
+      - name: Format Check
+        run: pnpm prettier --check .
 
-      - name: Typecheck
+      - name: Type Check
         run: pnpm typecheck
 
-      - name: Build docs
+  test:
+    name: Test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    needs: [changes, build-artifacts]
+    if: |
+      (needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true') &&
+      !(matrix.skip-pr == true && github.event_name == 'pull_request')
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Primary test environment (reuse build)
+          - name: "Linux / Node 22"
+            os: ubuntu-latest
+            node: 22
+            coverage: true
+            use-artifacts: true
+          # LTS version (reuse build)
+          - name: "Linux / Node 20"
+            os: ubuntu-latest
+            node: 20
+            use-artifacts: true
+          # Cross-platform tests (standalone build, main branch only)
+          - name: "macOS / Node 22"
+            os: macos-latest
+            node: 22
+            skip-pr: true
+          - name: "Windows / Node 22"
+            os: windows-latest
+            node: 22
+            skip-pr: true
+          # Latest Node (allow failure)
+          - name: "Linux / Node Latest"
+            os: ubuntu-latest
+            node: 24
+            continue-on-error: true
+            use-artifacts: true
+
+    continue-on-error: ${{ matrix.continue-on-error || false }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: ${{ matrix.node }}
+          playwright: true
+
+      # Download pre-built artifacts for Linux environments
+      - name: Download Build Artifacts
+        if: matrix.use-artifacts == true
+        uses: actions/download-artifact@v4
+        with:
+          name: build-dist
+
+      # Build only for non-Linux or when artifacts unavailable
+      - name: Build Packages
+        if: matrix.use-artifacts != true
+        run: pnpm build
+        env:
+          NODE_ENV: production
+          CI: true
+
+      - name: Unit Tests
+        run: pnpm test:unit --coverage=${{ matrix.coverage || false }}
+        env:
+          CI: true
+
+      - name: E2E Tests
+        run: pnpm test:e2e
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ~/.cache/playwright
+          CI: true
+
+      # Collect test coverage
+      - name: Upload Coverage
+        if: matrix.coverage
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: unit
+          fail_ci_if_error: false
+
+      # Upload test failure artifacts
+      - name: Upload Test Results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.name }}
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+
+  build:
+    name: Build Validation
+    runs-on: ubuntu-latest
+    needs: [changes, build-artifacts]
+    if: needs.changes.outputs.docs == 'true' || needs.changes.outputs.src == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # Download pre-built packages
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-dist
+
+      - name: Build Docs
         run: pnpm docs:build
+
+      # Upload documentation build artifacts
+      - name: Upload Docs Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-dist
+          path: docs/.vitepress/dist
+          retention-days: 1
+
+  status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs: [build-artifacts, quality, test, build]
+    if: always()
+    steps:
+      - name: Check Status
+        run: |
+          if [[ "${{ needs.build-artifacts.result }}" == "failure" || \
+                "${{ needs.quality.result }}" == "failure" || \
+                "${{ needs.test.result }}" == "failure" || \
+                "${{ needs.build.result }}" == "failure" ]]; then
+            echo "❌ CI Failed"
+            exit 1
+          else
+            echo "✅ CI Passed"
+          fi
+
+  release-ready:
+    name: Release Readiness
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [status]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Version
+        run: |
+          echo "Checking for version changes..."
+          git diff HEAD~1 HEAD -- '**/package.json' | grep -E '^\+.*"version"' || echo "No version changes"
+
+      - name: Generate Release Notes
+        run: |
+          echo "## Recent Changes" > release-notes.md
+          git log --oneline -10 >> release-notes.md

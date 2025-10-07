@@ -1,0 +1,183 @@
+name: PR Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+env:
+  NODE_VERSION: "22" # Unified Node.js version management
+  CI: true
+  FORCE_COLOR: 1
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # Fast quality checks
+  quick-check:
+    name: Quick Quality Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Need full history for diff analysis
+
+      - name: Check PR Size
+        run: |
+          FILES_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}..HEAD | wc -l)
+          LINES_CHANGED=$(git diff --stat origin/${{ github.base_ref }}..HEAD | tail -1 | awk '{print $4}')
+
+          echo "📊 PR Statistics:"
+          echo "- Files changed: $FILES_CHANGED"
+          echo "- Lines changed: $LINES_CHANGED"
+
+          if [ $FILES_CHANGED -gt 50 ]; then
+            echo "⚠️ Warning: Large PR detected (>50 files)"
+            echo "Consider breaking this into smaller PRs"
+          fi
+
+  pr-feedback:
+    name: PR Feedback
+    runs-on: ubuntu-latest
+    needs: [quick-check]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-env
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # Run lightweight analysis
+      - name: Bundle Size Analysis
+        id: bundle
+        run: |
+          pnpm build
+          echo "## 📦 Bundle Size Report" > bundle-report.md
+          echo "| Package | Size | Gzip |" >> bundle-report.md
+          echo "|---------|------|------|" >> bundle-report.md
+
+          # Analyze each package size
+          for pkg in packages/*/dist; do
+            if [ -d "$pkg" ]; then
+              PKG_NAME=$(basename $(dirname $pkg))
+              SIZE=$(du -sh $pkg | awk '{print $1}')
+              echo "| $PKG_NAME | $SIZE | - |" >> bundle-report.md
+            fi
+          done
+        continue-on-error: true
+
+      - name: Test Coverage Report
+        id: coverage
+        run: |
+          pnpm test:unit --coverage --silent > coverage.txt 2>&1 || true
+          if grep -q "Coverage summary" coverage.txt; then
+            echo "## ☂️ Coverage Report" > coverage-report.md
+            sed -n '/Coverage summary/,/^$/p' coverage.txt >> coverage-report.md
+          fi
+        continue-on-error: true
+
+      # Create PR comment
+      - name: Comment PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let comment = '## 🤖 Automated PR Review\n\n';
+
+            // Add check status
+            comment += '### ✅ Checks Status\n';
+            comment += `- Quick Check: ${{ needs.quick-check.result == 'success' && '✅' || '❌' }}\n`;
+            comment += `- 💡 Lint/Format/Type checks are running in the main CI workflow\n\n`;
+
+            // Add bundle report
+            if (fs.existsSync('bundle-report.md')) {
+              comment += fs.readFileSync('bundle-report.md', 'utf8') + '\n';
+            }
+
+            // Add coverage report
+            if (fs.existsSync('coverage-report.md')) {
+              comment += fs.readFileSync('coverage-report.md', 'utf8') + '\n';
+            }
+
+            // Add suggestions
+            comment += '### 💡 Next Steps\n';
+            comment += '- Ensure all CI checks pass (Lint, Format, Type Check, Tests)\n';
+            comment += '- Review the changes in the Files tab\n';
+            comment += '- Address any failing checks before merging\n';
+
+            // Find and update existing comment, or create new one
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('🤖 Automated PR Review')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+
+      # Automatically add labels
+      - name: Add Labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = [];
+
+            // Add labels based on file changes
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const hasDocsChanges = files.some(f => f.filename.startsWith('docs/'));
+            const hasTestChanges = files.some(f => f.filename.includes('test'));
+            const hasCIChanges = files.some(f => f.filename.startsWith('.github/'));
+
+            if (hasDocsChanges) labels.push('documentation');
+            if (hasTestChanges) labels.push('testing');
+            if (hasCIChanges) labels.push('ci/cd');
+
+            // Add labels based on PR size
+            if (files.length < 5) {
+              labels.push('size/small');
+            } else if (files.length < 15) {
+              labels.push('size/medium');
+            } else {
+              labels.push('size/large');
+            }
+
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: labels
+              });
+            }
