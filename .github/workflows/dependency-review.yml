@@ -1,0 +1,48 @@
+name: Dependency Review
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-review:
+    name: Review Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # - name: Dependency Review
+      #   uses: actions/dependency-review-action@v4
+      #   with:
+      #     # Fail on high or critical vulnerabilities
+      #     fail-on-severity: high
+
+      #     # Allowed licenses
+      #     allow-licenses: MIT, Apache-2.0, BSD-3-Clause, ISC
+
+      #     # Add detailed comment in PR
+      #     comment-summary-in-pr: on-failure
+
+      #     # Base configuration
+      #     base-ref: ${{ github.event.pull_request.base.sha }}
+      #     head-ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Comment on PR (if failed)
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🚨 **Dependency Review Failed**\n\nPlease check the details above and fix security vulnerabilities and license issues before merging.\n\n📖 [View Security Policy](../security/policy)'
+            })
