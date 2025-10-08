@@ -24,7 +24,7 @@ const vitepressConfig: UserConfig<DefaultTheme.Config> = defineConfig({
       {
         rel: 'icon',
         type: 'image/svg+xml',
-        href: `${base}islands-vitepress.svg`
+        href: `${base}favicon.svg`
       }
     ],
     [
@@ -80,7 +80,7 @@ const vitepressConfig: UserConfig<DefaultTheme.Config> = defineConfig({
   },
   themeConfig: {
     outline: 'deep',
-    logo: { src: '/islands-vitepress.svg', width: 24, height: 24 },
+    logo: { src: '/favicon.svg', width: 24, height: 24 },
     socialLinks: [
       {
         icon: 'github',
