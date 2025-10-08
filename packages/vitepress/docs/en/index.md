@@ -6,7 +6,7 @@ hero:
   name: 'Docs Islands for VitePress'
   tagline: Cross-framework Islands Architecture for VitePress
   image:
-    src: /islands-vitepress.svg
+    src: /favicon.svg
     alt: Docs Islands for VitePress
   actions:
     - theme: brand

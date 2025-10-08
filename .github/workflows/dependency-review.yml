@@ -19,21 +19,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # - name: Dependency Review
-      #   uses: actions/dependency-review-action@v4
-      #   with:
-      #     # Fail on high or critical vulnerabilities
-      #     fail-on-severity: high
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          # Fail on high or critical vulnerabilities
+          fail-on-severity: high
 
-      #     # Allowed licenses
-      #     allow-licenses: MIT, Apache-2.0, BSD-3-Clause, ISC
+          # Allowed licenses
+          allow-licenses: MIT, Apache-2.0, BSD-3-Clause, ISC
 
-      #     # Add detailed comment in PR
-      #     comment-summary-in-pr: on-failure
+          # Add detailed comment in PR
+          comment-summary-in-pr: on-failure
 
-      #     # Base configuration
-      #     base-ref: ${{ github.event.pull_request.base.sha }}
-      #     head-ref: ${{ github.event.pull_request.head.sha }}
+          # Base configuration
+          base-ref: ${{ github.event.pull_request.base.sha }}
+          head-ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Comment on PR (if failed)
         if: failure()

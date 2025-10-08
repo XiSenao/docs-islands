@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://docs.senao.me/docs-islands/vitepress/core-concepts" target="_blank" rel="noopener noreferrer">  
-    <img width="180" src="https://docs.senao.me/docs-islands/vitepress/islands-vitepress.svg" alt="logo">
+    <img width="180" src="https://docs.senao.me/docs-islands/vitepress/favicon.svg" alt="logo">
   </a>
 </p>
 <br/>
