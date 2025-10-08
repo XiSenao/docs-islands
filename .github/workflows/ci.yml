@@ -42,11 +42,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2 # Optimization: PRs typically need only 2 commits
+          # Fetch enough history for change detection
+          # 0 = full history (more reliable for push events)
+          # 2 = last 2 commits (faster for PRs)
+          fetch-depth: ${{ github.event_name == 'pull_request' && 2 || 0 }}
 
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          # Let paths-filter auto-detect the base ref
+          # For push: uses github.event.before and github.sha
+          # For PR: uses base branch and head
           filters: |
             src:
               - 'packages/**'
@@ -94,18 +100,32 @@ jobs:
           CI: true
 
       # Cache build artifacts for downstream jobs
+      # Upload entire packages directory for maximum flexibility
+      # Exclude only heavy/generated directories to keep artifacts small
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-dist
-          path: packages/*/dist
+          path: |
+            packages/
+            packages/**/.vitepress/
+            !packages/**/coverage
+            !packages/**/.vitepress/cache
+            !packages/**/.vitepress/dist
+            !packages/**/.turbo
+            !packages/**/.rollup.cache
           retention-days: 1
 
   quality:
     name: Code Quality
     runs-on: ubuntu-latest
     needs: [changes, build-artifacts]
-    if: needs.changes.outputs.src == 'true' || needs.changes.outputs.ci == 'true'
+    # Run even if build-artifacts was skipped (e.g., only CI files changed)
+    if: |
+      always() &&
+      !cancelled() &&
+      !contains(needs.*.result, 'failure') &&
+      (needs.changes.outputs.src == 'true' || needs.changes.outputs.ci == 'true')
     steps:
       - uses: actions/checkout@v4
 
@@ -114,11 +134,21 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      # Download pre-built artifacts
+      # Download artifacts if available (when src files changed)
       - name: Download Build Artifacts
+        if: needs.build-artifacts.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: build-dist
+          path: packages/
+
+      # Build if artifacts not available (CI-only changes)
+      - name: Build Packages
+        if: needs.build-artifacts.result != 'success'
+        run: pnpm build
+        env:
+          NODE_ENV: production
+          CI: true
 
       - name: Lint
         run: pnpm lint
@@ -182,6 +212,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-dist
+          path: packages/
 
       # Build only for non-Linux or when artifacts unavailable
       - name: Build Packages
@@ -201,7 +232,6 @@ jobs:
         if: ${{ !(matrix.skip-pr == true && github.event_name == 'pull_request') }}
         run: pnpm test:e2e
         env:
-          PLAYWRIGHT_BROWSERS_PATH: ~/.cache/playwright
           CI: true
 
       # Collect test coverage
@@ -242,6 +272,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-dist
+          path: packages/
 
       - name: Build Docs
         run: pnpm docs:build
