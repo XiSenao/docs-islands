@@ -1,7 +1,7 @@
 name: CodeQL Security Analysis
 
 env:
-  NODE_VERSION: "22" # Unified Node.js version management
+  NODE_VERSION: "22"
 
 on:
   push:
@@ -9,7 +9,6 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    # Weekly on Monday at 06:00 UTC
     - cron: "0 6 * * 1"
   workflow_dispatch:
 
@@ -32,7 +31,6 @@ jobs:
       fail-fast: false
       matrix:
         language: ["javascript-typescript"]
-        # Supported languages: javascript-typescript, python, java, csharp, go, ruby
 
     steps:
       - uses: actions/checkout@v4
@@ -41,10 +39,7 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
-          # Use enhanced query set (security + quality)
           queries: security-and-quality
-          # Custom configuration (optional)
-          # config-file: ./.github/codeql/codeql-config.yml
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -52,22 +47,11 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           frozen-lockfile: true
 
-      # CodeQL will automatically build the project
       - name: Autobuild
         uses: github/codeql-action/autobuild@v3
-
-      # If autobuild fails, use manual build
-      # - name: Manual Build
-      #   run: |
-      #     npm ci
-      #     npm run build
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{ matrix.language }}"
-          # TODO: Enable upload when GitHub Advanced Security is available
-          # For private repositories, uploading results requires GitHub Advanced Security (GHAS) license
-          # To enable: Repository Settings > Security > Code scanning > Enable
-          # Documentation: https://docs.github.com/en/code-security/code-scanning/introduction-to-code-scanning/about-code-scanning
-          upload: false # Changed from true - currently disabled for private repo without GHAS
+          upload: true
