@@ -1,10 +1,12 @@
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { fileURLToPath, resolve } from 'node:url';
 import type { PreRenderedChunk } from 'rolldown';
 import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
 import pkg from './package.json' with { type: 'json' };
 import generatePackageJson from './packagePlugin';
+import licensePlugin from './rollupLicensePlugin';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -28,6 +30,11 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
     platform,
     external,
     plugins: [
+      licensePlugin(
+        path.resolve(__dirname, 'LICENSE.md'),
+        '@docs-islands/vitepress license',
+        '@docs-islands/vitepress'
+      ),
       dts(),
       generatePackageJson(),
       {

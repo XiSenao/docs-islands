@@ -1,0 +1,183 @@
+import fs from 'node:fs';
+import colors from 'picocolors';
+import type { Dependency } from 'rollup-plugin-license';
+import license from 'rollup-plugin-license';
+import type { Plugin } from 'vite';
+
+type LoadPlugin = Plugin['load'];
+type GetHandler<T> = T extends { handler: infer H } ? H : T;
+type PluginContext = ThisParameterType<GetHandler<NonNullable<LoadPlugin>>>;
+
+// Keep in sync with github ci workflow: https://github.com/XiSenao/docs-islands/blob/main/.github/workflows/dependency-review.yml
+const ALLOWED_LICENSES = new Set(['MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC']);
+
+export default function licensePlugin(
+  licenseFilePath: string,
+  licenseTitle: string,
+  packageName: string
+): Plugin {
+  const originalPlugin: Plugin = license({
+    thirdParty(dependencies) {
+      // https://github.com/rollup/rollup/blob/master/build-plugins/generate-license-file.js
+      // MIT Licensed https://github.com/rollup/rollup/blob/master/LICENSE-CORE.md
+      const coreLicense = fs.readFileSync(new URL('../../LICENSE', import.meta.url));
+
+      const deps = sortDependencies(dependencies);
+      const licenses = sortLicenses(
+        new Set(dependencies.map(dep => dep.license).filter(Boolean) as string[])
+      );
+      const prohibitedLicenses = licenses.filter(license => !ALLOWED_LICENSES.has(license));
+
+      if (prohibitedLicenses.length > 0) {
+        throw new Error(`Prohibited licenses: ${prohibitedLicenses.join(', ')}`);
+      }
+
+      let dependencyLicenseTexts = '';
+      for (let i = 0; i < deps.length; i++) {
+        // Find dependencies with the same license text so it can be shared.
+        const licenseText = deps[i].licenseText;
+        const sameDeps = [deps[i]];
+        if (licenseText) {
+          for (let j = i + 1; j < deps.length; j++) {
+            if (licenseText === deps[j].licenseText) {
+              sameDeps.push(...deps.splice(j, 1));
+              j--;
+            }
+          }
+        }
+
+        let text = `## ${sameDeps.map(d => d.name).join(', ')}\n\n`;
+        const depInfos = sameDeps.map(d => getDependencyInformation(d));
+
+        // If all same dependencies have the same license and contributor names, show them only once.
+        if (
+          depInfos.length > 1 &&
+          depInfos.every(
+            info => info.license === depInfos[0].license && info.names === depInfos[0].names
+          )
+        ) {
+          const { license, names } = depInfos[0];
+          const repositoryText = depInfos
+            .map(info => info.repository)
+            .filter(Boolean)
+            .join(', ');
+
+          if (license) text += `License: ${license}\n`;
+          if (names) text += `By: ${names}\n`;
+          if (repositoryText) text += `Repositories: ${repositoryText}\n`;
+        }
+        // Else show each dependency separately.
+        else {
+          for (let j = 0; j < depInfos.length; j++) {
+            const { license, names, repository } = depInfos[j];
+
+            if (license) text += `License: ${license}\n`;
+            if (names) text += `By: ${names}\n`;
+            if (repository) text += `Repository: ${repository}\n`;
+            if (j !== depInfos.length - 1) text += '\n';
+          }
+        }
+
+        if (licenseText) {
+          text += `\n${licenseText
+            .trim()
+            .replaceAll(/\r\n|\r/g, '\n')
+            .split('\n')
+            .map(line => `> ${line}`)
+            .join('\n')}\n`;
+        }
+
+        if (i !== deps.length - 1) {
+          text += '\n---------------------------------------\n\n';
+        }
+
+        dependencyLicenseTexts += text;
+      }
+
+      const licenseText = `<!-- markdownlint-disable MD003 MD009 MD025 MD035 MD026 -->
+# ${licenseTitle}
+
+${packageName} is released under the MIT license:
+
+${coreLicense}
+# Licenses of bundled dependencies
+
+The published ${packageName} artifact additionally contains code with the following licenses:
+
+${licenses.join(', ')}
+
+# Bundled dependencies:
+
+${dependencyLicenseTexts}`;
+
+      const existingLicenseText = fs.readFileSync(licenseFilePath, 'utf8');
+      if (existingLicenseText !== licenseText) {
+        fs.writeFileSync(licenseFilePath, licenseText);
+        console.warn(colors.yellow('\nLICENSE.md updated. You should commit the updated file.\n'));
+      }
+    }
+  });
+
+  // Skip for watch mode.
+  for (const hook of ['renderChunk', 'generateBundle'] as const) {
+    const originalHook = originalPlugin[hook]!;
+    originalPlugin[hook] = function (this: PluginContext, ...args: unknown[]) {
+      if (this.meta.watchMode) return null;
+      return (originalHook as Function).apply(this, args);
+    };
+  }
+  return originalPlugin;
+}
+
+function sortDependencies(dependencies: Dependency[]) {
+  return dependencies.sort(({ name: nameA }, { name: nameB }) => {
+    return nameA! > nameB! ? 1 : nameB! > nameA! ? -1 : 0;
+  });
+}
+
+function sortLicenses(licenses: Set<string>) {
+  let withParenthesis: string[] = [];
+  let noParenthesis: string[] = [];
+  for (const license of licenses) {
+    if (license[0] === '(') {
+      withParenthesis.push(license);
+    } else {
+      noParenthesis.push(license);
+    }
+  }
+  withParenthesis = withParenthesis.sort();
+  noParenthesis = noParenthesis.sort();
+  return [...noParenthesis, ...withParenthesis];
+}
+
+interface DependencyInfo {
+  license?: string;
+  names?: string;
+  repository?: string;
+}
+
+function getDependencyInformation(dep: Dependency): DependencyInfo {
+  const info: DependencyInfo = {};
+  const { license, author, maintainers, contributors, repository } = dep;
+
+  if (license) {
+    info.license = license;
+  }
+
+  const names = new Set<string>();
+  for (const person of [author, ...maintainers, ...contributors]) {
+    const name = typeof person === 'string' ? person : person?.name;
+    if (name) {
+      names.add(name);
+    }
+  }
+  if (names.size > 0) {
+    info.names = [...names].join(', ');
+  }
+
+  if (repository) {
+    info.repository = typeof repository === 'string' ? repository : repository.url;
+  }
+
+  return info;
+}
