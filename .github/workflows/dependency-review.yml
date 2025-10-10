@@ -23,7 +23,7 @@ jobs:
         uses: actions/dependency-review-action@56339e523c0409420f6c2c9a2f4292bbb3c07dd3
         with:
           fail-on-severity: high
-          allow-licenses: MIT, Apache-2.0, BSD-3-Clause, ISC
+          allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC
           comment-summary-in-pr: on-failure
           base-ref: ${{ github.event.pull_request.base.sha }}
           head-ref: ${{ github.event.pull_request.head.sha }}
