@@ -9,7 +9,8 @@ jobs:
     if: github.repository == 'XiSenao/docs-islands'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v10
+      # actions/stale@v10.1.0.
+      - uses: actions/stale@5f858e3efba33a5ca4407a664cc011ad407f2008
         with:
           days-before-stale: 30
           days-before-close: -1

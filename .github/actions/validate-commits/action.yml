@@ -47,22 +47,13 @@ runs:
       run: |
         set -euo pipefail
 
-        # ============================================================
-        # Configuration
-        # ============================================================
         readonly COMMIT_REGEX="^(revert: )?(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\(.+\))?!?: .{1,50}$"
         readonly VALID_TYPES="feat|fix|docs|style|refactor|perf|test|build|ci|chore"
 
-        # ============================================================
-        # Functions
-        # ============================================================
-
-        # Set outputs safely
         set_output() {
           echo "$1=$2" >> "$GITHUB_OUTPUT"
         }
 
-        # Initialize outputs
         init_outputs() {
           set_output "valid" "false"
           set_output "invalid_count" "0"
@@ -101,7 +92,6 @@ runs:
           fi
         }
 
-        # Check style issues
         check_style() {
           local msg="$1"
           local subject
@@ -115,10 +105,6 @@ runs:
           
           echo "$issues"
         }
-
-        # ============================================================
-        # Main Logic
-        # ============================================================
 
         echo "📝 Validating commit messages..."
         init_outputs
