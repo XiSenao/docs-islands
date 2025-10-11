@@ -1,1 +1,1 @@
-export { default } from '@docs-islands/eslint-config/vitepress';
+export { default } from '@docs-islands/eslint-config/docs';
