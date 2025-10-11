@@ -1,4 +1,4 @@
-import defaultConfig from '@docs-islands/eslint-config/vitepress';
+import defaultConfig from '@docs-islands/eslint-config';
 import { defineConfig } from 'eslint/config';
 
 export default defineConfig([

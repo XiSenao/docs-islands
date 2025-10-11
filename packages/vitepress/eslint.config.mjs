@@ -1,11 +1,10 @@
-import defaultConfig from '@docs-islands/eslint-config/vitepress';
+import defaultConfig from '@docs-islands/eslint-config';
 import typescriptESlintParser from '@typescript-eslint/parser';
-import { defineConfig, globalIgnores } from 'eslint/config';
+import { defineConfig } from 'eslint/config';
 import globals from 'globals';
 
 export default defineConfig([
   ...defaultConfig,
-  globalIgnores(['docs/**', 'e2e/**']),
   {
     files: ['scripts/*.ts'],
     languageOptions: {

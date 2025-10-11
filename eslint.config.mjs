@@ -1,1 +1,1 @@
-export { default } from '@docs-islands/eslint-config/root';
+export { default } from '@docs-islands/eslint-config/monorepo';
