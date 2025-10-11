@@ -1,18 +1,26 @@
 import typescriptESlintParser from '@typescript-eslint/parser';
-import { defineConfig } from 'eslint/config';
+import { defineConfig, globalIgnores } from 'eslint/config';
 import { eslintConfigBase } from '../base.mjs';
 
+/**
+ * General structure of generic output packages and lint rules:
+ * - packages
+ *   - packageName
+ *     - docs
+ *     - e2e
+ *     - src
+ *       - client
+ *       - node
+ *       - shared
+ *       - types
+ *     - utils
+ *     - vitest.config.ts
+ *     - rolldown.config.ts
+ *     - packagePlugin.ts
+ */
 export default defineConfig([
   ...eslintConfigBase,
-
-  // Docs examples - relax non-critical rules
-  {
-    files: ['docs/**/*.ts', 'docs/**/*.tsx'],
-    rules: {
-      'unicorn/text-encoding-identifier-case': 'off'
-    }
-  },
-
+  globalIgnores(['docs/**', 'e2e/**']),
   // Core rendering files - complex rendering logic requires flexibility
   {
     files: ['src/client/**/*.ts', 'src/node/**/*.ts'],
