@@ -42,45 +42,49 @@ class ProjectManager {
   }
 
   async getOrStartProject(projectName: string): Promise<ProjectInfo> {
-    const existing = this.runningProjects.get(projectName);
+    const docsPackageName = `${projectName}-docs`;
+
+    const existing = this.runningProjects.get(docsPackageName);
     if (existing) {
-      this.logger.debug(`Project ${projectName} already running on port ${existing.port}`);
+      this.logger.debug(`Project ${docsPackageName} already running on port ${existing.port}`);
       return existing;
     }
 
     // Check if already starting (mutex lock).
-    const starting = this.startingProjects.get(projectName);
+    const starting = this.startingProjects.get(docsPackageName);
     if (starting) {
-      this.logger.debug(`Project ${projectName} is already starting, waiting...`);
+      this.logger.debug(`Project ${docsPackageName} is already starting, waiting...`);
       await starting;
-      const projectInfo = this.runningProjects.get(projectName);
+      const projectInfo = this.runningProjects.get(docsPackageName);
       if (!projectInfo) {
-        throw new Error(`Project ${projectName} started but not found in registry`);
+        throw new Error(`Project ${docsPackageName} started but not found in registry`);
       }
       return projectInfo;
     }
 
-    this.logger.info(`Lazy starting dev server for: ${this.config.packageScope}/${projectName}...`);
-    const startPromise = this.startProjectServer(projectName);
-    this.startingProjects.set(projectName, startPromise);
+    this.logger.info(
+      `Lazy starting dev server for: ${this.config.packageScope}/${docsPackageName}...`
+    );
+    const startPromise = this.startProjectServer(docsPackageName);
+    this.startingProjects.set(docsPackageName, startPromise);
 
     try {
       await startPromise;
-      const projectInfo = this.runningProjects.get(projectName);
+      const projectInfo = this.runningProjects.get(docsPackageName);
       if (!projectInfo) {
-        throw new Error(`Project ${projectName} started but not found in registry`);
+        throw new Error(`Project ${docsPackageName} started but not found in registry`);
       }
       return projectInfo;
     } finally {
-      this.startingProjects.delete(projectName);
+      this.startingProjects.delete(docsPackageName);
     }
   }
 
-  private async startProjectServer(projectName: string): Promise<number> {
+  private async startProjectServer(docsPackageName: string): Promise<number> {
     return new Promise((resolve, reject) => {
       const projectProcess = spawn(
         'pnpm',
-        ['--filter', `${this.config.packageScope}/${projectName}`, this.config.devCommand],
+        ['--filter', `${this.config.packageScope}/${docsPackageName}`, this.config.devCommand],
         {
           shell: true,
           stdio: ['pipe', 'pipe', 'pipe']
@@ -92,7 +96,7 @@ class ProjectManager {
         if (!resolved) {
           reject(
             new Error(
-              `Timeout: ${projectName} server failed to start within ${this.config.startupTimeout}ms`
+              `Timeout: ${docsPackageName} server failed to start within ${this.config.startupTimeout}ms`
             )
           );
           projectProcess.kill('SIGKILL');
@@ -101,7 +105,7 @@ class ProjectManager {
 
       const handleOutput = (data: Buffer) => {
         const output = data.toString();
-        this.logger.debug(`[${projectName}] ${output.trim()}`);
+        this.logger.debug(`[${docsPackageName}] ${output.trim()}`);
 
         const match = output.match(/https?:\/\/localhost:(\d+)/);
         if (match?.[1] && !resolved) {
@@ -111,9 +115,9 @@ class ProjectManager {
               resolved = true;
               clearTimeout(timeout);
               this.logger.info(
-                `✓ ${this.config.packageScope}/${projectName} running on port: ${port}`
+                `✓ ${this.config.packageScope}/${docsPackageName} running on port: ${port}`
               );
-              this.runningProjects.set(projectName, { port, process: projectProcess });
+              this.runningProjects.set(docsPackageName, { port, process: projectProcess });
               resolve(port);
             })
             .catch(error => {
@@ -125,18 +129,18 @@ class ProjectManager {
       projectProcess.stdout.on('data', handleOutput);
       projectProcess.stderr.on('data', data => {
         const output = data.toString();
-        this.logger.error(`[${projectName}] ${output.trim()}`);
+        this.logger.error(`[${docsPackageName}] ${output.trim()}`);
         handleOutput(data);
       });
 
       projectProcess.on('exit', code => {
         clearTimeout(timeout);
         this.logger.info(
-          `${this.config.packageScope}/${projectName} server exited with code ${code}`
+          `${this.config.packageScope}/${docsPackageName} server exited with code ${code}`
         );
-        this.runningProjects.delete(projectName);
+        this.runningProjects.delete(docsPackageName);
         if (code !== 0 && !resolved) {
-          reject(new Error(`${projectName} server exited with code ${code}`));
+          reject(new Error(`${docsPackageName} server exited with code ${code}`));
         }
       });
     });
@@ -163,8 +167,8 @@ class ProjectManager {
     this.logger.info('Shutting down child servers...');
     const shutdownPromises: Promise<void>[] = [];
 
-    for (const [projectName, { process }] of this.runningProjects.entries()) {
-      shutdownPromises.push(this.shutdownProcess(projectName, process));
+    for (const [docsPackageName, { process }] of this.runningProjects.entries()) {
+      shutdownPromises.push(this.shutdownProcess(docsPackageName, process));
     }
 
     await Promise.allSettled(shutdownPromises);
@@ -172,12 +176,15 @@ class ProjectManager {
     this.startingProjects.clear();
   }
 
-  private async shutdownProcess(projectName: string, childProcess: ChildProcess): Promise<void> {
+  private async shutdownProcess(
+    docsPackageName: string,
+    childProcess: ChildProcess
+  ): Promise<void> {
     return new Promise(resolve => {
-      this.logger.info(`Shutting down ${projectName} server...`);
+      this.logger.info(`Shutting down ${docsPackageName} server...`);
 
       const forceKillTimer = setTimeout(() => {
-        this.logger.warn(`${projectName} did not exit gracefully, sending SIGKILL`);
+        this.logger.warn(`${docsPackageName} did not exit gracefully, sending SIGKILL`);
         childProcess.kill('SIGKILL');
       }, this.config.shutdownTimeout);
 
@@ -263,11 +270,11 @@ class ProxyHandler {
   ): Promise<void | boolean> {
     if (!req.url) return next();
 
-    const projectName = this.findMatchingProject(req.url);
-    if (!projectName) return next();
+    const packageName = this.findMatchingProject(req.url);
+    if (!packageName) return next();
 
     try {
-      const projectInfo = await this.projectManager.getOrStartProject(projectName);
+      const projectInfo = await this.projectManager.getOrStartProject(packageName);
       const originalUrl = req.url;
 
       this.logger.info(
@@ -281,7 +288,7 @@ class ProxyHandler {
         autoRewrite: true
       });
     } catch (error) {
-      this.logger.error(`Failed to proxy HTTP request for ${projectName}: ${error}`);
+      this.logger.error(`Failed to proxy HTTP request for ${packageName}: ${error}`);
 
       if (!res.headersSent) {
         res.statusCode = 500;
@@ -298,11 +305,11 @@ class ProxyHandler {
     const url = req.url;
     if (!url) return;
 
-    const projectName = this.findMatchingProject(url);
-    if (!projectName) return;
+    const packageName = this.findMatchingProject(url);
+    if (!packageName) return;
 
     try {
-      const projectInfo = await this.projectManager.getOrStartProject(projectName);
+      const projectInfo = await this.projectManager.getOrStartProject(packageName);
 
       this.logger.info(`WebSocket ${url} -> ws://localhost:${projectInfo.port}${url}`);
 
@@ -312,14 +319,14 @@ class ProxyHandler {
         changeOrigin: true
       });
     } catch (error) {
-      this.logger.error(`Failed to proxy WebSocket for ${projectName}: ${error}`);
+      this.logger.error(`Failed to proxy WebSocket for ${packageName}: ${error}`);
       socket.destroy();
     }
   }
 
   private findMatchingProject(url: string): string | undefined {
-    return this.config.validProjects.find(projectName => {
-      const base = `${this.config.basePath}/${projectName}`;
+    return this.config.validProjects.find(packageName => {
+      const base = `${this.config.basePath}/${packageName}`;
       return url.startsWith(base);
     });
   }
