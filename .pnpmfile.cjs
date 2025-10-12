@@ -23,6 +23,20 @@ function readPackage(pkg) {
     };
   }
 
+  if (pkg.name === '@html-eslint/eslint-plugin') {
+    pkg.dependencies = {
+      ...pkg.dependencies,
+      '@html-eslint/parser': '*',
+    };
+  }
+
+  if (pkg.name === 'vue-eslint-parser') {
+    pkg.dependencies = {
+      ...pkg.dependencies,
+      '@typescript-eslint/parser': '*',
+    };
+  }
+
   return pkg;
 }
 

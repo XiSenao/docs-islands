@@ -11,16 +11,16 @@
   },
   "packageManager": "pnpm@10.7.0",
   "dependencies": {
-    "vue": "^3.5.21"
+    "vue": "catalog:prod"
   },
   "devDependencies": {
-    "@types/http-proxy": "^1.17.16",
-    "@nolebase/vitepress-plugin-enhanced-mark": "^2.18.2",
-    "vitepress": "^1.6.3",
-    "vitepress-plugin-group-icons": "^1.6.3",
-    "vitepress-plugin-llms": "^1.7.3",
-    "http-proxy": "^1.18.1",
-    "del-cli": "^6.0.0",
-    "typescript": "~5.8.3"
+    "@types/http-proxy": "catalog:docs-dev",
+    "@nolebase/vitepress-plugin-enhanced-mark": "catalog:docs-dev",
+    "vitepress": "catalog:frameworks",
+    "vitepress-plugin-group-icons": "catalog:docs-dev",
+    "vitepress-plugin-llms": "catalog:docs-dev",
+    "http-proxy": "catalog:docs-dev",
+    "del-cli": "catalog:dev",
+    "typescript": "catalog:dev"
   }
 }

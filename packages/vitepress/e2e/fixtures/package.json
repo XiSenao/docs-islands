@@ -13,17 +13,18 @@
     "clean": "del-cli node_modules .eslintcache"
   },
   "devDependencies": {
+    "eslint": "catalog:lint",
+    "typescript": "catalog:dev",
+    "vue": "catalog:prod",
+    "react": "catalog:dev",
+    "react-dom": "catalog:dev",
+    "vitepress": "catalog:frameworks",
     "@docs-islands/vitepress": "link:../../dist",
-    "vitepress": "^1.6.3",
-    "@vitejs/plugin-react-swc": "^3.9.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "vitest": "^3.2.4",
-    "playwright-chromium": "^1.55.0",
-    "@playwright/test": "^1.55.0",
-    "get-port": "^7.1.0",
-    "vue": "^3.5.21",
-    "del-cli": "^6.0.0",
-    "eslint": "^9.34.0"
+    "@vitejs/plugin-react-swc": "catalog:dev",
+    "vitest": "catalog:test",
+    "playwright-chromium": "catalog:test",
+    "@playwright/test": "catalog:test",
+    "get-port": "catalog:test",
+    "del-cli": "catalog:dev"
   }
 }
