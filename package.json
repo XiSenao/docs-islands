@@ -51,6 +51,7 @@
     "vite": "catalog:prod",
     "tinyglobby": "catalog:prod"
   },
+  "//": "@playwright/test is a shared test infrastructure for E2E testing across all framework packages. Individual packages also declare it in their own package.json to maintain dependency completeness, while the root declaration ensures CI can execute playwright commands.",
   "devDependencies": {
     "@types/node": "catalog:dev",
     "eslint": "catalog:lint",
@@ -63,7 +64,8 @@
     "vue-tsc": "catalog:dev",
     "tsx": "catalog:dev",
     "del-cli": "catalog:dev",
-    "husky": "catalog:dev"
+    "husky": "catalog:dev",
+    "@playwright/test": "catalog:test"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,vue,mjs,cjs}": [
