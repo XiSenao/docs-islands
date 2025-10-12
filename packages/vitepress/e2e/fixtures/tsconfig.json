@@ -4,11 +4,5 @@
     "types": ["vitest/globals"],
     "jsx": "preserve"
   },
-  "include": [
-    "*.ts",
-    "**/*.test.ts",
-    ".vitepress/**/*.ts",
-    "components/react/*.tsx",
-    "../types/client.d.ts"
-  ]
+  "include": ["*.ts", "**/*.test.ts", ".vitepress/**/*.ts", "components/react/*.tsx", "client.d.ts"]
 }
