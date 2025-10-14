@@ -5,9 +5,9 @@ import { eslintConfigBase } from '../base.mjs';
 /**
  * General structure of generic output packages and lint rules:
  * - packages
- *   - packageName
- *     - docs
- *     - e2e
+ *   - packageName (monorepo)
+ *     - docs (monorepo)
+ *     - e2e (monorepo)
  *     - src
  *       - client
  *       - node

@@ -86,7 +86,7 @@
     "picocolors": "catalog:dev",
     "rolldown": "catalog:dev",
     "rolldown-plugin-dts": "catalog:dev",
-    "rollup-plugin-license": "catalog:dev",
+    "@docs-islands/plugin-license": "workspace:*",
     "vitepress": "catalog:frameworks",
     "react": "catalog:dev",
     "react-dom": "catalog:dev",

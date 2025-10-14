@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import colors from 'picocolors';
 import type { Dependency } from 'rollup-plugin-license';
 import license from 'rollup-plugin-license';
@@ -11,16 +13,39 @@ type PluginContext = ThisParameterType<GetHandler<NonNullable<LoadPlugin>>>;
 // Keep in sync with github ci workflow: https://github.com/XiSenao/docs-islands/blob/main/.github/workflows/dependency-review.yml
 const ALLOWED_LICENSES = new Set(['MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC']);
 
+const findMonorepoRoot = (): string | null => {
+  let currentDir = fileURLToPath(new URL('.', import.meta.url));
+  while (true) {
+    if (fs.existsSync(path.resolve(currentDir, 'package.json'))) {
+      const packageJson = fs.readFileSync(path.resolve(currentDir, 'package.json'), 'utf8');
+      const packageJsonData = JSON.parse(packageJson);
+      if (packageJsonData.name && packageJsonData.workspaces) {
+        return currentDir;
+      }
+    }
+    const parentDir = path.resolve(currentDir, '..');
+    if (parentDir === currentDir) {
+      return null;
+    }
+    currentDir = parentDir;
+  }
+};
+
 export default function licensePlugin(
   licenseFilePath: string,
   licenseTitle: string,
   packageName: string
 ): Plugin {
+  const monorepoRootPath = findMonorepoRoot();
+  if (!monorepoRootPath) {
+    throw new Error('Monorepo root not found');
+  }
+  const coreLicenseFilePath = path.resolve(monorepoRootPath, 'LICENSE');
   const originalPlugin: Plugin = license({
     thirdParty(dependencies) {
       // https://github.com/rollup/rollup/blob/master/build-plugins/generate-license-file.js
       // MIT Licensed https://github.com/rollup/rollup/blob/master/LICENSE-CORE.md
-      const coreLicense = fs.readFileSync(new URL('../../LICENSE', import.meta.url));
+      const coreLicense = fs.readFileSync(coreLicenseFilePath, 'utf8');
 
       const deps = sortDependencies(dependencies);
       const licenses = sortLicenses(

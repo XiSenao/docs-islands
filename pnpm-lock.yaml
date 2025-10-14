@@ -361,6 +361,37 @@ importers:
         specifier: catalog:lint
         version: 10.2.0(eslint@9.36.0)(typescript@5.8.3)
 
+  packages/plugins/license:
+    dependencies:
+      vite:
+        specifier: catalog:prod
+        version: 5.4.20(patch_hash=df87215c00fe178eff273f34f9c3707990258e48287ad953816e0b23f744319f)(@types/node@24.5.2)(less@4.4.1)
+    devDependencies:
+      '@docs-islands/eslint-config':
+        specifier: workspace:*
+        version: link:../../eslint-config
+      del-cli:
+        specifier: catalog:dev
+        version: 6.0.0
+      eslint:
+        specifier: catalog:lint
+        version: 9.36.0
+      picocolors:
+        specifier: catalog:dev
+        version: 1.1.1
+      rolldown:
+        specifier: catalog:dev
+        version: 1.0.0-beta.31
+      rolldown-plugin-dts:
+        specifier: catalog:dev
+        version: 0.15.10(rolldown@1.0.0-beta.31)(typescript@5.8.3)(vue-tsc@3.0.8(typescript@5.8.3))
+      rollup-plugin-license:
+        specifier: catalog:dev
+        version: 3.6.0(picomatch@4.0.3)(rollup@4.52.3)
+      typescript:
+        specifier: catalog:dev
+        version: 5.8.3
+
   packages/vitepress:
     dependencies:
       cheerio:
@@ -385,6 +416,9 @@ importers:
       '@docs-islands/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@docs-islands/plugin-license':
+        specifier: workspace:*
+        version: link:../plugins/license
       '@docs-islands/vitepress-shared':
         specifier: link:./src/shared
         version: link:src/shared
@@ -463,9 +497,6 @@ importers:
       rolldown-plugin-dts:
         specifier: catalog:dev
         version: 0.15.10(rolldown@1.0.0-beta.31)(typescript@5.8.3)(vue-tsc@3.0.8(typescript@5.8.3))
-      rollup-plugin-license:
-        specifier: catalog:dev
-        version: 3.6.0(picomatch@4.0.3)(rollup@4.52.3)
       vitepress:
         specifier: catalog:frameworks
         version: 1.6.4(@algolia/client-search@5.39.0)(@types/node@24.5.2)(@types/react@18.3.24)(axios@1.12.2)(change-case@5.4.4)(less@4.4.1)(postcss@8.5.6)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(typescript@5.8.3)

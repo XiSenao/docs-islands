@@ -28,7 +28,7 @@
     "frontend"
   ],
   "scripts": {
-    "build": "pnpm run _run build",
+    "build": "pnpm --filter './packages/plugins/**' build && pnpm --filter '!./packages/plugins/**' build",
     "docs:dev": "sh -c 'pnpm --filter \"@docs-islands/${1:-monorepo}-docs\" docs:dev' --",
     "docs:build": "pnpm run _run docs:build && tsx scripts/merge-docs.ts",
     "docs:preview": "pnpm --filter @docs-islands/monorepo-docs docs:preview",
