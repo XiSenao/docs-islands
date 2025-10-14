@@ -1,0 +1,30 @@
+{
+  "name": "@docs-islands/plugin-license",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rolldown --config rolldown.config.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
+    "clean": "del-cli dist .eslintcache node_modules"
+  },
+  "dependencies": {
+    "vite": "catalog:prod"
+  },
+  "devDependencies": {
+    "eslint": "catalog:lint",
+    "@docs-islands/eslint-config": "workspace:*",
+    "picocolors": "catalog:dev",
+    "rollup-plugin-license": "catalog:dev",
+    "rolldown": "catalog:dev",
+    "rolldown-plugin-dts": "catalog:dev",
+    "del-cli": "catalog:dev",
+    "typescript": "catalog:dev"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "types": "./dist/index.d.ts"
+    }
+  }
+}

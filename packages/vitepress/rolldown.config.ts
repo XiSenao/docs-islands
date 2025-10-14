@@ -1,3 +1,4 @@
+import licensePlugin from '@docs-islands/plugin-license';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, resolve } from 'node:url';
@@ -6,7 +7,6 @@ import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
 import pkg from './package.json' with { type: 'json' };
 import generatePackageJson from './packagePlugin';
-import licensePlugin from './rollupLicensePlugin';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
