@@ -283,6 +283,9 @@ importers:
       del-cli:
         specifier: catalog:dev
         version: 6.0.0
+      eslint:
+        specifier: catalog:lint
+        version: 9.36.0
       http-proxy:
         specifier: catalog:docs-dev
         version: 1.18.1
@@ -362,10 +365,6 @@ importers:
         version: 10.2.0(eslint@9.36.0)(typescript@5.8.3)
 
   packages/plugins/license:
-    dependencies:
-      vite:
-        specifier: catalog:prod
-        version: 5.4.20(patch_hash=df87215c00fe178eff273f34f9c3707990258e48287ad953816e0b23f744319f)(@types/node@24.5.2)(less@4.4.1)
     devDependencies:
       '@docs-islands/eslint-config':
         specifier: workspace:*
@@ -557,6 +556,10 @@ importers:
         version: 8.0.5
 
   packages/vitepress/e2e/fixtures:
+    dependencies:
+      vue:
+        specifier: catalog:prod
+        version: 3.5.22(typescript@5.8.3)
     devDependencies:
       '@docs-islands/vitepress':
         specifier: link:../../dist
@@ -594,9 +597,6 @@ importers:
       vitest:
         specifier: catalog:test
         version: 3.2.4(@types/debug@4.1.12)(@types/node@24.5.2)(jsdom@25.0.1)(less@4.4.1)
-      vue:
-        specifier: catalog:prod
-        version: 3.5.22(typescript@5.8.3)
 
   packages/vitepress/src/shared: {}
 
@@ -606,6 +606,12 @@ importers:
 
   utils:
     devDependencies:
+      del-cli:
+        specifier: catalog:dev
+        version: 6.0.0
+      eslint:
+        specifier: catalog:lint
+        version: 9.36.0
       picocolors:
         specifier: catalog:dev
         version: 1.1.1

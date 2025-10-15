@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "clean": "del-cli node_modules"
+    "lint": "eslint . --config ./config.mjs --fix --cache",
+    "clean": "del-cli .eslintcache node_modules"
   },
   "devDependencies": {
     "@eslint/js": "catalog:lint",

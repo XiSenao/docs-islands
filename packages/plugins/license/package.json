@@ -8,18 +8,23 @@
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
     "clean": "del-cli dist .eslintcache node_modules"
   },
-  "dependencies": {
-    "vite": "catalog:prod"
-  },
   "devDependencies": {
     "eslint": "catalog:lint",
     "@docs-islands/eslint-config": "workspace:*",
-    "picocolors": "catalog:dev",
-    "rollup-plugin-license": "catalog:dev",
     "rolldown": "catalog:dev",
     "rolldown-plugin-dts": "catalog:dev",
+    "rollup-plugin-license": "catalog:dev",
+    "picocolors": "catalog:dev",
     "del-cli": "catalog:dev",
     "typescript": "catalog:dev"
+  },
+  "peerDependencies": {
+    "rolldown": "catalog:dev"
+  },
+  "peerDependenciesMeta": {
+    "rolldown": {
+      "optional": false
+    }
   },
   "exports": {
     ".": {

@@ -31,7 +31,7 @@
   "homepage": "https://docs.senao.me/docs-islands/vitepress",
   "scripts": {
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
-    "typecheck": "tsc --noEmit && pnpm -F=@docs-islands/vitepress-fixtures typecheck",
+    "typecheck": "tsc --noEmit",
     "build": "rolldown --config rolldown.config.ts",
     "build:watch": "enableClientRuntimeSourcemap=1 rolldown --config rolldown.config.ts --watch",
     "changelog": "tsx scripts/changelog.ts",

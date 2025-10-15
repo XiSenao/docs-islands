@@ -391,7 +391,6 @@ export const eslintConfigBase = defineConfig([
       'no-var': 'off',
       'prefer-rest-params': 'off',
       'no-return-await': 'off',
-      'no-unused-vars': 'off',
       'require-await': 'off'
     }
   },

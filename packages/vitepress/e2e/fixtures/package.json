@@ -12,10 +12,12 @@
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
     "clean": "del-cli node_modules .eslintcache"
   },
+  "dependencies": {
+    "vue": "catalog:prod"
+  },
   "devDependencies": {
     "eslint": "catalog:lint",
     "typescript": "catalog:dev",
-    "vue": "catalog:prod",
     "react": "catalog:dev",
     "react-dom": "catalog:dev",
     "vitepress": "catalog:frameworks",
