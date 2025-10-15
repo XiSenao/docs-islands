@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import colors from 'picocolors';
+import type { Plugin } from 'rolldown';
 import type { Dependency } from 'rollup-plugin-license';
 import license from 'rollup-plugin-license';
-import type { Plugin } from 'vite';
 
 type LoadPlugin = Plugin['load'];
 type GetHandler<T> = T extends { handler: infer H } ? H : T;
@@ -41,7 +41,7 @@ export default function licensePlugin(
     throw new Error('Monorepo root not found');
   }
   const coreLicenseFilePath = path.resolve(monorepoRootPath, 'LICENSE');
-  const originalPlugin: Plugin = license({
+  const originalPlugin = license({
     thirdParty(dependencies) {
       // https://github.com/rollup/rollup/blob/master/build-plugins/generate-license-file.js
       // MIT Licensed https://github.com/rollup/rollup/blob/master/LICENSE-CORE.md
@@ -141,7 +141,7 @@ ${dependencyLicenseTexts}`;
         console.warn(colors.yellow('\nLICENSE.md updated. You should commit the updated file.\n'));
       }
     }
-  });
+  }) as Plugin;
 
   // Skip for watch mode.
   for (const hook of ['renderChunk', 'generateBundle'] as const) {

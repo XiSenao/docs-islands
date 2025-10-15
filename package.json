@@ -9,7 +9,8 @@
   "workspaces": [
     "packages/**",
     "docs",
-    "utils"
+    "utils",
+    "!**/dist"
   ],
   "homepage": "https://docs.senao.me/docs-islands",
   "repository": {
@@ -45,6 +46,7 @@
     "changelog:preview": "sh -c 'pnpm --filter \"@docs-islands/$0\" changelog:preview'",
     "clean": "pnpm run _run clean && del-cli node_modules .eslintcache",
     "_run": "sh -c 'SCRIPT=$1; shift; if [ $# -eq 0 ]; then pnpm -r --parallel --if-present run $SCRIPT; else pnpm --filter \"@docs-islands/$1\" $SCRIPT; fi' _",
+    "preinstall": "npx only-allow pnpm",
     "prepare": "husky"
   },
   "dependencies": {

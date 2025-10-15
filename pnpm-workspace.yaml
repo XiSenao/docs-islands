@@ -3,8 +3,6 @@ packages:
   - 'docs'
   - 'utils'
   - '!**/dist'
-  - '!**/node_modules'
-  - '!packages/*/dist/**'
 
 onlyBuiltDependencies:
   - esbuild

@@ -5,9 +5,9 @@
     "docs:dev": "vitepress dev",
     "docs:build": "vitepress build",
     "docs:preview": "vitepress preview",
-    "clean": "del-cli node_modules",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
-    "typecheck": "tsc --noEmit"
+    "clean": "del-cli .eslintcache node_modules"
   },
   "packageManager": "pnpm@10.7.0",
   "dependencies": {
@@ -15,12 +15,13 @@
   },
   "devDependencies": {
     "@types/http-proxy": "catalog:docs-dev",
-    "@nolebase/vitepress-plugin-enhanced-mark": "catalog:docs-dev",
+    "eslint": "catalog:lint",
+    "typescript": "catalog:dev",
+    "http-proxy": "catalog:docs-dev",
     "vitepress": "catalog:frameworks",
     "vitepress-plugin-group-icons": "catalog:docs-dev",
     "vitepress-plugin-llms": "catalog:docs-dev",
-    "http-proxy": "catalog:docs-dev",
-    "del-cli": "catalog:dev",
-    "typescript": "catalog:dev"
+    "@nolebase/vitepress-plugin-enhanced-mark": "catalog:docs-dev",
+    "del-cli": "catalog:dev"
   }
 }

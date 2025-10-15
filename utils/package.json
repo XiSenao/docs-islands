@@ -7,10 +7,14 @@
     "./logger": "./logger.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
+    "clean": "del-cli .eslintcache node_modules"
   },
   "devDependencies": {
-    "picocolors": "catalog:dev",
-    "typescript": "catalog:dev"
+    "eslint": "catalog:lint",
+    "typescript": "catalog:dev",
+    "del-cli": "catalog:dev",
+    "picocolors": "catalog:dev"
   }
 }
