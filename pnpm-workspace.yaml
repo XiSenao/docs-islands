@@ -43,6 +43,7 @@ catalogs:
     'vue-eslint-parser': '^10.2.0'
     '@typescript-eslint/parser': '^8.42.0'
     'typescript-eslint': '^8.40.0'
+    'publint': '^0.3.14'
 
   format:
     'prettier': '~3.5.3'

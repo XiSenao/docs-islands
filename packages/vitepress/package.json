@@ -22,15 +22,19 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/XiSenao/docs-islands",
+    "url": "git+https://github.com/XiSenao/docs-islands.git",
     "directory": "packages/vitepress"
   },
   "bugs": {
     "url": "https://github.com/XiSenao/docs-islands/issues"
   },
   "homepage": "https://docs.senao.me/docs-islands/vitepress",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
+    "lint:package": "publint ./dist --strict --pack pnpm",
     "typecheck": "tsc --noEmit",
     "build": "rolldown --config rolldown.config.ts",
     "build:watch": "enableClientRuntimeSourcemap=1 rolldown --config rolldown.config.ts --watch",
@@ -74,6 +78,7 @@
     "eslint": "catalog:lint",
     "@typescript-eslint/parser": "catalog:lint",
     "@docs-islands/eslint-config": "workspace:*",
+    "publint": "catalog:lint",
     "@babel/generator": "catalog:dev",
     "@babel/parser": "catalog:dev",
     "@babel/traverse": "catalog:dev",
@@ -123,7 +128,6 @@
     "./client": "./src/client/index.ts",
     "./react": "./src/node/react/index.ts",
     "./react/client": "./src/client/react/index.ts",
-    "./client/types": "./types/client.d.ts",
     "./package.json": "./package.json",
     "./utils/client/logger": "./utils/logger.ts",
     "./shared/client/runtime": "./src/shared/client-runtime.ts",
