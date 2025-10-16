@@ -2,6 +2,9 @@ import { expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 
+const originalMarkdownContent =
+  '<!-- This file is used to test the HMR of markdown content changes. -->\n';
+
 // Helper function to modify a file and wait for HMR.
 const modifyFileAndWaitForHMR = async (
   filePath: string,
@@ -120,30 +123,30 @@ describe('Markdown Content Changes', () => {
     });
   });
 
-  // HMR tests — render container content changes.
+  // HMR tests - render container content changes.
   describe('Render Container Content Changes', () => {
     const hmrTestFilePath = path.join(__dirname, 'hmr-test.md');
 
     test('Should handle render directive change from client:only to ssr:only (one-to-one)', async () => {
       const originalContent = `# HMR Test Page
 
-<script lang="react">
-  import HelloWorld from '../components/react/HelloWorld.tsx';
-</script>
+  <script lang="react">
+    import HelloWorld from '../components/react/HelloWorld.tsx';
+  </script>
 
-<span class="original-content-case1">Some content here.</span>
+  <span class="original-content-case1">Some content here.</span>
 
-<HelloWorld client:only uniqueid="hmr-test-component" />`;
+  <HelloWorld client:only uniqueid="hmr-test-component" />`;
 
       const modifiedContent = `# HMR Test Page
 
-<script lang="react">
-  import HelloWorld from '../components/react/HelloWorld.tsx';
-</script>
+  <script lang="react">
+    import HelloWorld from '../components/react/HelloWorld.tsx';
+  </script>
 
-<span class="modified-content-case1">Some modified content here.</span>
+  <span class="modified-content-case1">Some modified content here.</span>
 
-<HelloWorld ssr:only uniqueid="hmr-test-component" />`;
+  <HelloWorld ssr:only uniqueid="hmr-test-component" />`;
 
       try {
         // First, write originalContent and navigate to the page.
@@ -179,30 +182,30 @@ describe('Markdown Content Changes', () => {
         }
       } finally {
         // Restore original content.
-        await restoreFileContent(hmrTestFilePath, '');
+        await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
       }
     });
 
     test('Should handle render directive change from ssr:only to client:only (one-to-one)', async () => {
       const originalContent = `# HMR Test Page
 
-<script lang="react">
-  import HelloWorld from '../components/react/HelloWorld.tsx';
-</script>
+  <script lang="react">
+    import HelloWorld from '../components/react/HelloWorld.tsx';
+  </script>
 
-<span class="original-content-case2">Some content here.</span>
+  <span class="original-content-case2">Some content here.</span>
 
-<HelloWorld ssr:only uniqueid="hmr-test-component" />`;
+  <HelloWorld ssr:only uniqueid="hmr-test-component" />`;
 
       const modifiedContent = `# HMR Test Page
 
-<script lang="react">
-  import HelloWorld from '../components/react/HelloWorld.tsx';
-</script>
+  <script lang="react">
+    import HelloWorld from '../components/react/HelloWorld.tsx';
+  </script>
 
-<span class="modified-content-case2">Some modified content here.</span>
+  <span class="modified-content-case2">Some modified content here.</span>
 
-<HelloWorld client:only uniqueid="hmr-test-component" />`;
+  <HelloWorld client:only uniqueid="hmr-test-component" />`;
 
       try {
         // First, write originalContent and navigate to the page.
@@ -235,33 +238,33 @@ describe('Markdown Content Changes', () => {
         }
       } finally {
         // Restore original content.
-        await restoreFileContent(hmrTestFilePath, '');
+        await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
       }
     });
 
     test('Should handle adding new render container with different directives', async () => {
       const originalContent = `# HMR Test Page
 
-<script lang="react">
-  import HelloWorld from '../components/react/HelloWorld.tsx';
-</script>
+  <script lang="react">
+    import HelloWorld from '../components/react/HelloWorld.tsx';
+  </script>
 
-<span class="original-content-case3">Some content here.</span>
+  <span class="original-content-case3">Some content here.</span>
 
-<HelloWorld uniqueid="original-component" />`;
+  <HelloWorld uniqueid="original-component" />`;
 
       const modifiedContent = `# HMR Test Page
 
-<script lang="react">
-  import HelloWorld from '../components/react/HelloWorld.tsx';
-  import Hello from '../components/react/Hello.tsx';
-</script>
+  <script lang="react">
+    import HelloWorld from '../components/react/HelloWorld.tsx';
+    import Hello from '../components/react/Hello.tsx';
+  </script>
 
-<span class="modified-content-case3">Some modified content here.</span>
+  <span class="modified-content-case3">Some modified content here.</span>
 
-<HelloWorld uniqueid="original-component" />
-<Hello ssr:only uniqueid="new-ssr-component" />
-<Hello client:only uniqueid="new-client-component" />`;
+  <HelloWorld uniqueid="original-component" />
+  <Hello ssr:only uniqueid="new-ssr-component" />
+  <Hello client:only uniqueid="new-client-component" />`;
 
       try {
         // First, write originalContent and navigate to the page.
@@ -303,32 +306,32 @@ describe('Markdown Content Changes', () => {
         expect(await modifiedClientButton.textContent()).toContain('Count: 1');
       } finally {
         // Restore original content.
-        await restoreFileContent(hmrTestFilePath, '');
+        await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
       }
     });
 
     test('Should handle removing render container', async () => {
       const originalContent = `# HMR Test Page
 
-<script lang="react">
-  import HelloWorld from '../components/react/HelloWorld.tsx';
-  import Hello from '../components/react/Hello.tsx';
-</script>
+  <script lang="react">
+    import HelloWorld from '../components/react/HelloWorld.tsx';
+    import Hello from '../components/react/Hello.tsx';
+  </script>
 
-<span class="original-content-case4">Some content here.</span>
+  <span class="original-content-case4">Some content here.</span>
 
-<HelloWorld uniqueid="component-1" />
-<Hello client:only uniqueid="component-to-remove" />`;
+  <HelloWorld uniqueid="component-1" />
+  <Hello client:only uniqueid="component-to-remove" />`;
 
       const modifiedContent = `# HMR Test Page
 
-<script lang="react">
-  import HelloWorld from '../components/react/HelloWorld.tsx';
-</script>
+  <script lang="react">
+    import HelloWorld from '../components/react/HelloWorld.tsx';
+  </script>
 
-<span class="modified-content-case4">Some modified content here.</span>
+  <span class="modified-content-case4">Some modified content here.</span>
 
-<HelloWorld uniqueid="component-1" />`;
+  <HelloWorld uniqueid="component-1" />`;
 
       try {
         // First, write originalContent and navigate to page
@@ -362,7 +365,7 @@ describe('Markdown Content Changes', () => {
         expect(await removedComponent.count()).toBe(0);
       } finally {
         // Restore original content
-        await restoreFileContent(hmrTestFilePath, '');
+        await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
       }
     });
   });
@@ -419,7 +422,7 @@ describe('Markdown Content Changes', () => {
         await expect(component).toBeVisible();
       } finally {
         // Restore original content.
-        await restoreFileContent(pureMarkdownTestFilePath, originalContent);
+        await restoreFileContent(pureMarkdownTestFilePath, originalMarkdownContent);
       }
     });
 
@@ -475,7 +478,7 @@ describe('Markdown Content Changes', () => {
         }
       } finally {
         // Restore original content
-        await restoreFileContent(pureMarkdownTestFilePath, originalContent);
+        await restoreFileContent(pureMarkdownTestFilePath, originalMarkdownContent);
       }
     });
   });

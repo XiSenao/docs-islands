@@ -563,6 +563,9 @@ importers:
 
   packages/vitepress/e2e/fixtures:
     dependencies:
+      tinyglobby:
+        specifier: catalog:prod
+        version: 0.2.15
       vue:
         specifier: catalog:prod
         version: 3.5.22(typescript@5.8.3)

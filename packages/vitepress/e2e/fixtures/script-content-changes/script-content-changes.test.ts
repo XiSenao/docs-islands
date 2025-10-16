@@ -2,6 +2,9 @@ import { expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 
+const originalMarkdownContent =
+  '<!-- This file is used to test the HMR of markdown content changes. -->\n';
+
 // Helper function to modify a file and wait for HMR.
 const modifyFileAndWaitForHMR = async (
   filePath: string,
@@ -159,7 +162,7 @@ describe('HMR: Changing Render Component References', () => {
       await expect(heading).toBeVisible();
       expect(await heading.textContent()).toContain('HMR Import Path Test');
     } finally {
-      await restoreFileContent(hmrTestFilePath, '');
+      await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
     }
   });
 
@@ -201,7 +204,7 @@ describe('HMR: Changing Render Component References', () => {
       await expect(modifiedComponent).toBeVisible();
       expect(await modifiedComponent.textContent()).toContain('Hello Component');
     } finally {
-      await restoreFileContent(hmrTestFilePath, '');
+      await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
     }
   });
 });
@@ -266,7 +269,7 @@ describe('HMR: Adding New Render Component References', () => {
       const heading = page.locator('h1');
       await expect(heading).toBeVisible();
     } finally {
-      await restoreFileContent(hmrTestFilePath, '');
+      await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
     }
   });
 
@@ -301,7 +304,7 @@ describe('HMR: Adding New Render Component References', () => {
       await page.waitForSelector('[data-unique-id="used-component"]');
       await expect(component).toBeVisible();
     } finally {
-      await restoreFileContent(hmrTestFilePath, '');
+      await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
     }
   });
 
@@ -353,7 +356,7 @@ describe('HMR: Adding New Render Component References', () => {
         expect(await button.textContent()).toContain('Count: 0');
       }
     } finally {
-      await restoreFileContent(hmrTestFilePath, '');
+      await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
     }
   });
 
@@ -410,7 +413,7 @@ describe('HMR: Adding New Render Component References', () => {
         expect(await ssrButton.textContent()).toContain('Count: 0');
       }
     } finally {
-      await restoreFileContent(hmrTestFilePath, '');
+      await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
     }
   });
 });
@@ -459,7 +462,7 @@ describe('HMR: Removing Render Component References', () => {
       await componentButton.click();
       expect(await componentButton.textContent()).toContain('Count: 2');
     } finally {
-      await restoreFileContent(hmrTestFilePath, '');
+      await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
     }
   });
 
@@ -511,7 +514,7 @@ describe('HMR: Removing Render Component References', () => {
       expect(await remainingComponentButton.textContent()).toContain('Count: 0');
       expect(await componentToRemove.count()).toBe(0);
     } finally {
-      await restoreFileContent(hmrTestFilePath, '');
+      await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
     }
   });
 
@@ -569,7 +572,7 @@ describe('HMR: Removing Render Component References', () => {
       expect(await clientToRemove.count()).toBe(0);
       expect(await ssrToRemove.count()).toBe(0);
     } finally {
-      await restoreFileContent(hmrTestFilePath, '');
+      await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
     }
   });
 });
@@ -624,7 +627,7 @@ describe('HMR: Render Container Content Changes', () => {
         expect(await modifiedButton.textContent()).toContain('Count: 0');
       }
     } finally {
-      await restoreFileContent(hmrTestFilePath, '');
+      await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
     }
   });
 
@@ -675,7 +678,7 @@ describe('HMR: Render Container Content Changes', () => {
       await expect(newContainer1).toBeVisible();
       await expect(newContainer2).toBeVisible();
     } finally {
-      await restoreFileContent(hmrTestFilePath, '');
+      await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
     }
   });
 
@@ -728,7 +731,7 @@ describe('HMR: Render Container Content Changes', () => {
       expect(await containerToRemove1.count()).toBe(0);
       expect(await containerToRemove2.count()).toBe(0);
     } finally {
-      await restoreFileContent(hmrTestFilePath, '');
+      await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
     }
   });
 });
@@ -785,7 +788,7 @@ More modified content.`;
       await expect(component).toBeVisible();
       expect(await button.textContent()).toContain('Count: 1');
     } finally {
-      await restoreFileContent(hmrTestFilePath, '');
+      await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
     }
   });
 
@@ -837,7 +840,7 @@ Modified markdown paragraph.
         }
       }
     } finally {
-      await restoreFileContent(hmrTestFilePath, '');
+      await restoreFileContent(hmrTestFilePath, originalMarkdownContent);
     }
   });
 });
