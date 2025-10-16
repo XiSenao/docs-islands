@@ -17,37 +17,37 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
     nav: [
       {
         text: 'Core Concepts',
-        link: '/core-concepts'
+        link: '/core-concepts',
       },
       {
         text: 'Quick Start',
-        link: '/quick-start'
+        link: '/quick-start',
       },
       {
         text: pkg.version,
         items: [
           {
             text: 'Changelog',
-            link: 'https://github.com/XiSenao/docs-islands/blob/main/packages/vitepress/CHANGELOG.md'
+            link: 'https://github.com/XiSenao/docs-islands/blob/main/packages/vitepress/CHANGELOG.md',
           },
           {
             text: 'Contributing',
-            link: 'https://github.com/XiSenao/docs-islands/blob/main/.github/CONTRIBUTING.md'
-          }
-        ]
-      }
+            link: 'https://github.com/XiSenao/docs-islands/blob/main/.github/CONTRIBUTING.md',
+          },
+        ],
+      },
     ],
     footer: {
       message: 'Released under the MIT License.',
-      copyright: `Copyright © 2025-present Senao Xi`
+      copyright: `Copyright © 2025-present Senao Xi`,
     },
     socialLinks: [
       {
         icon: 'github',
-        link: 'https://github.com/XiSenao/docs-islands/tree/main/packages/vitepress'
-      }
-    ]
-  }
+        link: 'https://github.com/XiSenao/docs-islands/tree/main/packages/vitepress',
+      },
+    ],
+  },
 };
 
 export default vitepressConfig;

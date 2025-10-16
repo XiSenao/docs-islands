@@ -11,16 +11,23 @@ export default function ReactComp3(props: CompProps) {
       </strong>
       <ol>
         <li>
-          <strong>Component Name:</strong> <span>{props['component-name']}</span>
+          <strong>Component Name:</strong>{' '}
+          <span>{props['component-name']}</span>
         </li>
         <li>
           <strong>Page Title:</strong> <span>{props['page-title']}</span>
         </li>
         <li>
-          <button className="rc3-button" onClick={() => setCount(count + 1)} type="button">
+          <button
+            className="rc3-button"
+            onClick={() => setCount(count + 1)}
+            type="button"
+          >
             Click Me!
           </button>
-          <strong>Pre-rendering Client Hydration Mode, React Instance Count:</strong>{' '}
+          <strong>
+            Pre-rendering Client Hydration Mode, React Instance Count:
+          </strong>{' '}
           <span>{count}</span>
         </li>
       </ol>

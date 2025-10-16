@@ -11,8 +11,14 @@ export default defineConfig([
       'no-console': 'off',
 
       // Tests can have long setup/teardown sequences and multiple test cases in describe blocks
-      'max-lines-per-function': ['warn', { max: 400, skipBlankLines: true, skipComments: true }],
-      'max-lines': ['warn', { max: 800, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': [
+        'warn',
+        { max: 400, skipBlankLines: true, skipComments: true },
+      ],
+      'max-lines': [
+        'warn',
+        { max: 800, skipBlankLines: true, skipComments: true },
+      ],
 
       // Test scenarios can be complex with many conditional branches
       complexity: ['warn', { max: 30 }],
@@ -49,9 +55,9 @@ export default defineConfig([
         {
           argsIgnorePattern: '^_',
           varsIgnorePattern: '^_',
-          caughtErrorsIgnorePattern: '^_'
-        }
-      ]
-    }
-  }
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
+    },
+  },
 ]);

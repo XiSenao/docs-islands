@@ -9,8 +9,8 @@ const testimonials: Testimonial[] = [
     handle: '@vuejs',
     avatar: vitepressLogo,
     comment: ['Vite & Vue Powered Static Site Generator.'],
-    link: 'https://vitepress.dev/'
-  }
+    link: 'https://vitepress.dev/',
+  },
 ];
 </script>
 

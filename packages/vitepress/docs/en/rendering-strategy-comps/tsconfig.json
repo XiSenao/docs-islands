@@ -3,7 +3,7 @@
   "compilerOptions": {
     "moduleResolution": "bundler",
     "jsx": "preserve",
-    "module": "ESNext"
+    "module": "ESNext",
   },
-  "include": ["./**/*.ts", "./**/*.tsx"]
+  "include": ["./**/*.ts", "./**/*.tsx"],
 }

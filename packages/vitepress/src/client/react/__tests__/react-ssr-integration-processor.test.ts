@@ -11,9 +11,9 @@ vi.mock('@docs-islands/vitepress-utils/logger', () => ({
     getLoggerByGroup: () => ({
       error: vi.fn(),
       warn: vi.fn(),
-      info: vi.fn()
-    })
-  }
+      info: vi.fn(),
+    }),
+  },
 }));
 
 describe('ReactSSRIntegrationProcessor', () => {
@@ -24,9 +24,9 @@ describe('ReactSSRIntegrationProcessor', () => {
   };
 
   beforeEach(() => {
-    mockCallback = vi.fn(props => ({
+    mockCallback = vi.fn((props) => ({
       ssrHtml: `<div>SSR Content for ${props.__render_component__}</div>`,
-      clientRuntimeFileName: 'runtime.12345678.js'
+      clientRuntimeFileName: 'runtime.12345678.js',
     }));
     vi.clearAllMocks();
   });
@@ -51,7 +51,7 @@ describe('ReactSSRIntegrationProcessor', () => {
         __render_id__: '12345678',
         __render_component__: 'TestComponent',
         __render_directive__: 'client:load',
-        __spa_sync_render__: 'true'
+        __spa_sync_render__: 'true',
       });
     });
 
@@ -115,8 +115,8 @@ describe('ReactSSRIntegrationProcessor', () => {
       expect(mockCallback).toHaveBeenCalledWith(
         expect.objectContaining({
           title: 'Test Title',
-          description: 'A test component'
-        })
+          description: 'A test component',
+        }),
       );
     });
 
@@ -138,8 +138,8 @@ describe('ReactSSRIntegrationProcessor', () => {
       expect(mockCallback).toHaveBeenCalledWith(
         expect.objectContaining({
           count: 42,
-          percentage: 3.14
-        })
+          percentage: 3.14,
+        }),
       );
     });
 
@@ -163,8 +163,8 @@ describe('ReactSSRIntegrationProcessor', () => {
         expect.objectContaining({
           enabled: true,
           disabled: false,
-          empty: null
-        })
+          empty: null,
+        }),
       );
     });
 
@@ -188,8 +188,8 @@ describe('ReactSSRIntegrationProcessor', () => {
         expect.objectContaining({
           items: [1, 2, 3],
           config: { key: 'value' },
-          dynamicprop: '{{someVariable}}'
-        })
+          dynamicprop: '{{someVariable}}',
+        }),
       );
     });
   });
@@ -248,7 +248,10 @@ describe('ReactSSRIntegrationProcessor', () => {
         });
       `;
 
-      const result = transformReactSSRIntegrationCode(invalidSourceCode, mockCallback);
+      const result = transformReactSSRIntegrationCode(
+        invalidSourceCode,
+        mockCallback,
+      );
 
       expect(result.transformCount).toBe(0);
     });
@@ -267,7 +270,10 @@ describe('ReactSSRIntegrationProcessor', () => {
         });
       `;
 
-      const result = transformReactSSRIntegrationCode(sourceCode, errorCallback);
+      const result = transformReactSSRIntegrationCode(
+        sourceCode,
+        errorCallback,
+      );
 
       // Should not crash, but should not transform either.
       expect(result.transformCount).toBe(0);
@@ -286,7 +292,10 @@ describe('ReactSSRIntegrationProcessor', () => {
         });
       `;
 
-      const result = transformReactSSRIntegrationCode(sourceCode, invalidCallback);
+      const result = transformReactSSRIntegrationCode(
+        sourceCode,
+        invalidCallback,
+      );
 
       expect(result.transformCount).toBe(0);
     });

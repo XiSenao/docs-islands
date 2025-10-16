@@ -6,7 +6,7 @@ export default defineConfig([
   {
     files: ['.vitepress/dynamicProxyPlugin.ts'],
     rules: {
-      'unicorn/no-process-exit': 'off'
-    }
-  }
+      'unicorn/no-process-exit': 'off',
+    },
+  },
 ]);

@@ -17,7 +17,7 @@ const getExternalDeps = () => {
     ...Object.keys(pkg.dependencies || {}),
     ...Object.keys(pkg.peerDependencies || {}),
     // @ts-expect-error No type checking is needed here.
-    ...Object.keys(pkg.optionalDependencies ?? {})
+    ...Object.keys(pkg.optionalDependencies ?? {}),
   ];
 };
 
@@ -33,7 +33,7 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
       licensePlugin(
         path.resolve(__dirname, 'LICENSE.md'),
         '@docs-islands/vitepress license',
-        '@docs-islands/vitepress'
+        '@docs-islands/vitepress',
       ),
       dts(),
       generatePackageJson(),
@@ -45,24 +45,27 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
             this.emitFile({
               type: 'asset',
               source: await readFile(resolve(__dirname, 'README.md'), 'utf8'),
-              fileName: 'README.md'
+              fileName: 'README.md',
             });
             this.emitFile({
               type: 'asset',
-              source: await readFile(resolve(__dirname, 'README.zh-CN.md'), 'utf8'),
-              fileName: 'README.zh-CN.md'
+              source: await readFile(
+                resolve(__dirname, 'README.zh-CN.md'),
+                'utf8',
+              ),
+              fileName: 'README.zh-CN.md',
             });
-          }
-        }
-      }
+          },
+        },
+      },
     ],
     treeshake: {
       moduleSideEffects: [
         {
           external: true,
-          sideEffects: false
-        }
-      ]
+          sideEffects: false,
+        },
+      ],
     },
     output: {
       dir: './dist',
@@ -79,8 +82,8 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
       exports: 'named',
       format: 'esm',
       externalLiveBindings: false,
-      sourcemap: false
-    }
+      sourcemap: false,
+    },
   });
 };
 
@@ -91,16 +94,16 @@ const nodeConfig = defineConfig({
   ...sharedNodeOptions,
   input: {
     index: resolve(__dirname, 'src/node/index.ts'),
-    react: resolve(__dirname, 'src/node/react/index.ts')
+    react: resolve(__dirname, 'src/node/react/index.ts'),
   },
   output: {
     ...sharedNodeOptions.output,
     minify: {
       compress: true,
       mangle: false,
-      removeWhitespace: false
-    }
-  }
+      removeWhitespace: false,
+    },
+  },
 });
 
 const clientConfig = defineConfig({
@@ -108,24 +111,26 @@ const clientConfig = defineConfig({
   input: {
     logger: resolve(__dirname, 'utils/logger.ts'),
     index: resolve(__dirname, 'src/client/index.ts'),
-    react: resolve(__dirname, 'src/client/react/index.ts')
+    react: resolve(__dirname, 'src/client/react/index.ts'),
   },
   plugins: [dts()],
   transform: {
-    target: 'es2022'
-  }
+    target: 'es2022',
+  },
 });
 
-const enableClientRuntimeSourcemap = Boolean(process.env.enableClientRuntimeSourcemap);
+const enableClientRuntimeSourcemap = Boolean(
+  process.env.enableClientRuntimeSourcemap,
+);
 
 const clientRuntimeConfig = defineConfig({
   ...sharedBrowserOptions,
   input: {
-    'client-runtime': resolve(__dirname, 'src/shared/client-runtime.ts')
+    'client-runtime': resolve(__dirname, 'src/shared/client-runtime.ts'),
   },
   plugins: [dts()],
   transform: {
-    target: 'es2022'
+    target: 'es2022',
   },
   output: {
     ...sharedBrowserOptions.output,
@@ -135,10 +140,14 @@ const clientRuntimeConfig = defineConfig({
      * therefore it does not include chunks dependencies temporarily.
      */
     manualChunks: undefined,
-    sourcemap: enableClientRuntimeSourcemap ? 'inline' : false
-  }
+    sourcemap: enableClientRuntimeSourcemap ? 'inline' : false,
+  },
 });
 
-const configs: RolldownOptions[] = [nodeConfig, clientConfig, clientRuntimeConfig];
+const configs: RolldownOptions[] = [
+  nodeConfig,
+  clientConfig,
+  clientRuntimeConfig,
+];
 
 export default configs;

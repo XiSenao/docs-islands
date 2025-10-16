@@ -21,15 +21,24 @@ interface PackageInfo {
 async function findDocsPackages(): Promise<PackageInfo[]> {
   const packages: PackageInfo[] = [];
 
-  const packageJsonPaths = await glob(['docs/package.json', 'packages/*/docs/package.json'], {
-    cwd: projectRoot,
-    absolute: true,
-    onlyFiles: true,
-    ignore: ['**/node_modules/**', '**/.*/**', '**/dist/**', '**/build/**', '**/coverage/**']
-  });
+  const packageJsonPaths = await glob(
+    ['docs/package.json', 'packages/*/docs/package.json'],
+    {
+      cwd: projectRoot,
+      absolute: true,
+      onlyFiles: true,
+      ignore: [
+        '**/node_modules/**',
+        '**/.*/**',
+        '**/dist/**',
+        '**/build/**',
+        '**/coverage/**',
+      ],
+    },
+  );
 
   Logger.getLoggerByGroup('merge-docs').info(
-    `Found ${packageJsonPaths.length} package.json files to check`
+    `Found ${packageJsonPaths.length} package.json files to check`,
   );
 
   for (const packageJsonPath of packageJsonPaths) {
@@ -39,7 +48,10 @@ async function findDocsPackages(): Promise<PackageInfo[]> {
   return packages;
 }
 
-async function processPackageJson(packageJsonPath: string, packages: PackageInfo[]): Promise<void> {
+async function processPackageJson(
+  packageJsonPath: string,
+  packages: PackageInfo[],
+): Promise<void> {
   try {
     const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
     const packageName = packageJson.name;
@@ -51,41 +63,51 @@ async function processPackageJson(packageJsonPath: string, packages: PackageInfo
       const packageDir = dirname(packageJsonPath);
       const distPath = join(packageDir, '.vitepress/dist');
 
-      Logger.getLoggerByGroup('merge-docs').info(`Checking docs package: ${packageName}`);
-      Logger.getLoggerByGroup('merge-docs').info(`  Package path: ${packageDir}`);
-      Logger.getLoggerByGroup('merge-docs').info(`  Expected dist path: ${distPath}`);
+      Logger.getLoggerByGroup('merge-docs').info(
+        `Checking docs package: ${packageName}`,
+      );
+      Logger.getLoggerByGroup('merge-docs').info(
+        `  Package path: ${packageDir}`,
+      );
+      Logger.getLoggerByGroup('merge-docs').info(
+        `  Expected dist path: ${distPath}`,
+      );
 
       if (existsSync(distPath)) {
         packages.push({
           name: packageName,
           path: packageDir,
           distPath,
-          targetName
+          targetName,
         });
         Logger.getLoggerByGroup('merge-docs').success(
-          `Found docs package: ${packageName} -> ${targetName}`
+          `Found docs package: ${packageName} -> ${targetName}`,
         );
       } else {
         Logger.getLoggerByGroup('merge-docs').warn(
-          `${packageName} dist directory not found: ${distPath}`
+          `${packageName} dist directory not found: ${distPath}`,
         );
       }
     } else if (packageName?.startsWith('@docs-islands/')) {
       Logger.getLoggerByGroup('merge-docs').warn(
-        `Skipping @docs-islands package (not docs): ${packageName}`
+        `Skipping @docs-islands package (not docs): ${packageName}`,
       );
     }
   } catch (error) {
-    Logger.getLoggerByGroup('merge-docs').error(`Failed to parse ${packageJsonPath}: ${error}`);
+    Logger.getLoggerByGroup('merge-docs').error(
+      `Failed to parse ${packageJsonPath}: ${error}`,
+    );
   }
 }
 
 async function mergeDistDirectories(packages: PackageInfo[]): Promise<void> {
-  const mainPackage = packages.find(pkg => pkg.name === '@docs-islands/monorepo-docs');
+  const mainPackage = packages.find(
+    (pkg) => pkg.name === '@docs-islands/monorepo-docs',
+  );
 
   if (!mainPackage) {
     Logger.getLoggerByGroup('merge-docs').error(
-      'Main package(@docs-islands/monorepo-docs) not found'
+      'Main package(@docs-islands/monorepo-docs) not found',
     );
     return;
   }
@@ -94,7 +116,9 @@ async function mergeDistDirectories(packages: PackageInfo[]): Promise<void> {
 
   await mkdir(mainDistPath, { recursive: true });
 
-  Logger.getLoggerByGroup('merge-docs').info(`Main dist directory: ${mainDistPath}`);
+  Logger.getLoggerByGroup('merge-docs').info(
+    `Main dist directory: ${mainDistPath}`,
+  );
 
   for (const pkg of packages) {
     try {
@@ -110,14 +134,16 @@ async function mergeDistDirectories(packages: PackageInfo[]): Promise<void> {
       const srcStat = await stat(pkg.distPath);
       if (!srcStat.isDirectory()) {
         Logger.getLoggerByGroup('merge-docs').info(
-          `Skip ${pkg.name}: source path is not a directory`
+          `Skip ${pkg.name}: source path is not a directory`,
         );
         continue;
       }
 
       const srcFiles = await readdir(pkg.distPath);
       if (srcFiles.length === 0) {
-        Logger.getLoggerByGroup('merge-docs').info(`Skip ${pkg.name}: source directory is empty`);
+        Logger.getLoggerByGroup('merge-docs').info(
+          `Skip ${pkg.name}: source directory is empty`,
+        );
         continue;
       }
 
@@ -131,14 +157,16 @@ async function mergeDistDirectories(packages: PackageInfo[]): Promise<void> {
 
       await cp(pkg.distPath, targetPath, {
         recursive: true,
-        force: true
+        force: true,
       });
 
       Logger.getLoggerByGroup('merge-docs').success(
-        `Successfully merged ${pkg.name} to ${pkg.targetName}`
+        `Successfully merged ${pkg.name} to ${pkg.targetName}`,
       );
     } catch (error) {
-      Logger.getLoggerByGroup('merge-docs').error(`Failed to merge ${pkg.name}: ${error}`);
+      Logger.getLoggerByGroup('merge-docs').error(
+        `Failed to merge ${pkg.name}: ${error}`,
+      );
     }
   }
 }
@@ -151,21 +179,31 @@ async function main(): Promise<void> {
     const packages = await findDocsPackages();
 
     if (packages.length === 0) {
-      Logger.getLoggerByGroup('merge-docs').info('No @docs-islands/xxx-docs packages found');
+      Logger.getLoggerByGroup('merge-docs').info(
+        'No @docs-islands/xxx-docs packages found',
+      );
       return;
     }
 
-    Logger.getLoggerByGroup('merge-docs').info(`Found ${packages.length} docs packages:`);
+    Logger.getLoggerByGroup('merge-docs').info(
+      `Found ${packages.length} docs packages:`,
+    );
     for (const pkg of packages) {
-      Logger.getLoggerByGroup('merge-docs').info(`  - ${pkg.name} (${pkg.targetName})`);
+      Logger.getLoggerByGroup('merge-docs').info(
+        `  - ${pkg.name} (${pkg.targetName})`,
+      );
     }
 
-    Logger.getLoggerByGroup('merge-docs').info('Starting dist directory merge...');
+    Logger.getLoggerByGroup('merge-docs').info(
+      'Starting dist directory merge...',
+    );
     await mergeDistDirectories(packages);
 
     Logger.getLoggerByGroup('merge-docs').info('Docs merge completed!');
   } catch (error) {
-    Logger.getLoggerByGroup('merge-docs').error(`Error during merge process: ${error}`);
+    Logger.getLoggerByGroup('merge-docs').error(
+      `Error during merge process: ${error}`,
+    );
     process.exit(1);
   }
 }

@@ -18,7 +18,7 @@ describe('Container Changes', () => {
       consoleMessages = [];
 
       // Listen for console messages.
-      page.on('console', msg => {
+      page.on('console', (msg) => {
         consoleMessages.push(msg.text());
       });
 
@@ -45,17 +45,17 @@ describe('Container Changes', () => {
       await page.waitForTimeout(1000);
 
       // Verify if the console outputs client-side rendering completion messages.
-      const hasClientRenderingMessage = consoleMessages.some(msg =>
-        msg.includes('Component HelloWorld client-side rendering completed')
+      const hasClientRenderingMessage = consoleMessages.some((msg) =>
+        msg.includes('Component HelloWorld client-side rendering completed'),
       );
       expect(hasClientRenderingMessage).toBe(true);
 
       // Verify that basic messages also exist.
-      const hasInitializationMessage = consoleMessages.some(msg =>
-        msg.includes('Initialization completed')
+      const hasInitializationMessage = consoleMessages.some((msg) =>
+        msg.includes('Initialization completed'),
       );
-      const hasRuntimeMessage = consoleMessages.some(msg =>
-        msg.includes('Development render runtime loaded successfully')
+      const hasRuntimeMessage = consoleMessages.some((msg) =>
+        msg.includes('Development render runtime loaded successfully'),
       );
       expect(hasInitializationMessage).toBe(true);
       expect(hasRuntimeMessage).toBe(true);
@@ -81,10 +81,10 @@ describe('Container Changes', () => {
 
       // Verify if there are client-side rendering related messages.
       const clientRenderingMessages = consoleMessages.filter(
-        msg =>
+        (msg) =>
           msg.toLowerCase().includes('client-side rendering') ||
           msg.toLowerCase().includes('client-side') ||
-          msg.toLowerCase().includes('rendering completed')
+          msg.toLowerCase().includes('rendering completed'),
       );
 
       expect(clientRenderingMessages.length).toBeGreaterThan(0);
@@ -99,7 +99,7 @@ describe('Container Changes', () => {
       consoleMessages = [];
 
       // Listen for console messages.
-      page.on('console', msg => {
+      page.on('console', (msg) => {
         consoleMessages.push(msg.text());
       });
 
@@ -114,24 +114,24 @@ describe('Container Changes', () => {
 
     test('should not be interactive for only ssr:only components', async () => {
       const uniqueIdList = ['ssr-only-1', 'default-unique-id', 'ssr-only-2'];
-      const relatedDoms = uniqueIdList.map(uniqueId =>
-        page.locator(`[data-unique-id="${uniqueId}"]`)
+      const relatedDoms = uniqueIdList.map((uniqueId) =>
+        page.locator(`[data-unique-id="${uniqueId}"]`),
       );
       await Promise.all(
-        relatedDoms.map(async dom => {
+        relatedDoms.map(async (dom) => {
           return expect(dom).toBeVisible();
-        })
+        }),
       );
 
       // Wait for a period to ensure console messages are output
       await page.waitForTimeout(1000);
 
       // Verify basic initialization and runtime loading messages (all rendering strategies have these)
-      const hasInitializationMessage = consoleMessages.some(msg =>
-        msg.includes('Initialization completed')
+      const hasInitializationMessage = consoleMessages.some((msg) =>
+        msg.includes('Initialization completed'),
       );
-      const hasRuntimeMessage = consoleMessages.some(msg =>
-        msg.includes('Development render runtime loaded successfully')
+      const hasRuntimeMessage = consoleMessages.some((msg) =>
+        msg.includes('Development render runtime loaded successfully'),
       );
 
       expect(hasInitializationMessage).toBe(true);
@@ -139,8 +139,9 @@ describe('Container Changes', () => {
 
       // Verify SSR:only characteristics: no client-side rendering or hydration messages
       const hasClientRenderingMessage = consoleMessages.some(
-        msg =>
-          msg.includes('client-side rendering completed') || msg.includes('hydration completed')
+        (msg) =>
+          msg.includes('client-side rendering completed') ||
+          msg.includes('hydration completed'),
       );
       expect(hasClientRenderingMessage).toBe(false);
 
@@ -156,16 +157,18 @@ describe('Container Changes', () => {
 
       // Verify that basic messages exist (all rendering strategies have these).
       const initializationMessages = consoleMessages.filter(
-        msg =>
+        (msg) =>
           msg.toLowerCase().includes('initialization completed') ||
-          msg.toLowerCase().includes('development render runtime loaded successfully')
+          msg
+            .toLowerCase()
+            .includes('development render runtime loaded successfully'),
       );
 
       // Verify SSR:only characteristics: only basic messages, no client-interaction-related messages.
       const clientInteractionMessages = consoleMessages.filter(
-        msg =>
+        (msg) =>
           msg.toLowerCase().includes('hydration completed') ||
-          msg.toLowerCase().includes('client-side rendering completed')
+          msg.toLowerCase().includes('client-side rendering completed'),
       );
 
       expect(initializationMessages.length).toBeGreaterThan(0);
@@ -181,7 +184,7 @@ describe('Container Changes', () => {
       consoleMessages = [];
 
       // Listen for console messages.
-      page.on('console', msg => {
+      page.on('console', (msg) => {
         consoleMessages.push(msg.text());
       });
 
@@ -210,17 +213,17 @@ describe('Container Changes', () => {
       await page.waitForTimeout(1000);
 
       // Verify client:load-specific hydration completion messages.
-      const hasHydrationMessage = consoleMessages.some(msg =>
-        msg.includes('Component HelloWorld hydration completed')
+      const hasHydrationMessage = consoleMessages.some((msg) =>
+        msg.includes('Component HelloWorld hydration completed'),
       );
       expect(hasHydrationMessage).toBe(true);
 
       // Verify that basic messages also exist (all rendering strategies have these).
-      const hasInitializationMessage = consoleMessages.some(msg =>
-        msg.includes('Initialization completed')
+      const hasInitializationMessage = consoleMessages.some((msg) =>
+        msg.includes('Initialization completed'),
       );
-      const hasRuntimeMessage = consoleMessages.some(msg =>
-        msg.includes('Development render runtime loaded successfully')
+      const hasRuntimeMessage = consoleMessages.some((msg) =>
+        msg.includes('Development render runtime loaded successfully'),
       );
       expect(hasInitializationMessage).toBe(true);
       expect(hasRuntimeMessage).toBe(true);
@@ -253,10 +256,10 @@ describe('Container Changes', () => {
 
       // Verify if there are runtime-related messages
       const runtimeRelatedMessages = consoleMessages.filter(
-        msg =>
+        (msg) =>
           msg.toLowerCase().includes('runtime') ||
           msg.toLowerCase().includes('loaded') ||
-          msg.toLowerCase().includes('development')
+          msg.toLowerCase().includes('development'),
       );
 
       expect(runtimeRelatedMessages.length).toBeGreaterThan(0);
@@ -271,7 +274,7 @@ describe('Container Changes', () => {
       consoleMessages = [];
 
       // Listen for console messages.
-      page.on('console', msg => {
+      page.on('console', (msg) => {
         consoleMessages.push(msg.text());
       });
 
@@ -288,19 +291,19 @@ describe('Container Changes', () => {
       await page.waitForTimeout(1000);
 
       // Verify that the initial state only has basic messages.
-      const hasInitializationMessage = consoleMessages.some(msg =>
-        msg.includes('Initialization completed')
+      const hasInitializationMessage = consoleMessages.some((msg) =>
+        msg.includes('Initialization completed'),
       );
-      const hasRuntimeMessage = consoleMessages.some(msg =>
-        msg.includes('Development render runtime loaded successfully')
+      const hasRuntimeMessage = consoleMessages.some((msg) =>
+        msg.includes('Development render runtime loaded successfully'),
       );
 
       expect(hasInitializationMessage).toBe(true);
       expect(hasRuntimeMessage).toBe(true);
 
       // Verify that the initial state has no lazy-loading hydration messages.
-      const hasLazyHydrationMessage = consoleMessages.some(msg =>
-        msg.includes('lazy hydration completed')
+      const hasLazyHydrationMessage = consoleMessages.some((msg) =>
+        msg.includes('lazy hydration completed'),
       );
       expect(hasLazyHydrationMessage).toBe(false);
     });
@@ -321,8 +324,8 @@ describe('Container Changes', () => {
       await page.waitForTimeout(2000);
 
       // Verify the first component's lazy-loading hydration messages.
-      const hasFirstLazyHydrationMessage = consoleMessages.some(msg =>
-        msg.includes('Component HelloWorld lazy hydration completed')
+      const hasFirstLazyHydrationMessage = consoleMessages.some((msg) =>
+        msg.includes('Component HelloWorld lazy hydration completed'),
       );
       expect(hasFirstLazyHydrationMessage).toBe(true);
 
@@ -330,7 +333,9 @@ describe('Container Changes', () => {
       const firstComponent = page.locator('[data-testid="first-component"]');
       await expect(firstComponent).toBeVisible();
 
-      const firstButton = firstComponent.locator('[data-testid="counter-button"]');
+      const firstButton = firstComponent.locator(
+        '[data-testid="counter-button"]',
+      );
       await expect(firstButton).toBeVisible();
 
       // Test the first component's interaction functionality.
@@ -360,8 +365,8 @@ describe('Container Changes', () => {
       await page.waitForTimeout(2000);
 
       // Verify the second component's lazy-loading hydration messages.
-      const hasSecondLazyHydrationMessage = consoleMessages.some(msg =>
-        msg.includes('Component HelloWorld lazy hydration completed')
+      const hasSecondLazyHydrationMessage = consoleMessages.some((msg) =>
+        msg.includes('Component HelloWorld lazy hydration completed'),
       );
       expect(hasSecondLazyHydrationMessage).toBe(true);
 
@@ -369,7 +374,9 @@ describe('Container Changes', () => {
       const secondComponent = page.locator('[data-testid="second-component"]');
       await expect(secondComponent).toBeVisible();
 
-      const secondButton = secondComponent.locator('[data-testid="counter-button"]');
+      const secondButton = secondComponent.locator(
+        '[data-testid="counter-button"]',
+      );
       await expect(secondButton).toBeVisible();
 
       // Test the second component's interaction functionality.
@@ -390,8 +397,8 @@ describe('Container Changes', () => {
       await page.waitForTimeout(2000);
 
       // Count the first component's hydration messages.
-      const firstHydrationMessages = consoleMessages.filter(msg =>
-        msg.includes('Component HelloWorld lazy hydration completed')
+      const firstHydrationMessages = consoleMessages.filter((msg) =>
+        msg.includes('Component HelloWorld lazy hydration completed'),
       );
       totalLazyHydrationMessages += firstHydrationMessages.length;
 
@@ -402,8 +409,8 @@ describe('Container Changes', () => {
       await page.waitForTimeout(2000);
 
       // Count total hydration messages.
-      const allHydrationMessages = consoleMessages.filter(msg =>
-        msg.includes('Component HelloWorld lazy hydration completed')
+      const allHydrationMessages = consoleMessages.filter((msg) =>
+        msg.includes('Component HelloWorld lazy hydration completed'),
       );
       totalLazyHydrationMessages = allHydrationMessages.length;
 
@@ -418,8 +425,12 @@ describe('Container Changes', () => {
       await expect(secondComponent).toBeVisible();
 
       // Verify both buttons can be clicked.
-      const firstButton = firstComponent.locator('[data-testid="counter-button"]');
-      const secondButton = secondComponent.locator('[data-testid="counter-button"]');
+      const firstButton = firstComponent.locator(
+        '[data-testid="counter-button"]',
+      );
+      const secondButton = secondComponent.locator(
+        '[data-testid="counter-button"]',
+      );
 
       await firstButton.click();
       await expect(firstButton).toHaveText(/Count: 1/);
@@ -437,7 +448,7 @@ describe('Container Changes', () => {
       consoleMessages = [];
 
       // Listen for console messages.
-      page.on('console', msg => {
+      page.on('console', (msg) => {
         consoleMessages.push(msg.text());
       });
 
@@ -454,32 +465,32 @@ describe('Container Changes', () => {
       await page.waitForTimeout(2000);
 
       // Verify basic initialization messages.
-      const hasInitializationMessage = consoleMessages.some(msg =>
-        msg.includes('Initialization completed')
+      const hasInitializationMessage = consoleMessages.some((msg) =>
+        msg.includes('Initialization completed'),
       );
       expect(hasInitializationMessage).toBe(true);
 
       // Verify development runtime loading messages.
-      const hasRuntimeMessage = consoleMessages.some(msg =>
-        msg.includes('Development render runtime loaded successfully')
+      const hasRuntimeMessage = consoleMessages.some((msg) =>
+        msg.includes('Development render runtime loaded successfully'),
       );
       expect(hasRuntimeMessage).toBe(true);
 
       // Verify client:only client-side rendering messages.
-      const hasClientRenderingMessage = consoleMessages.some(msg =>
-        msg.includes('Component HelloWorld client-side rendering completed')
+      const hasClientRenderingMessage = consoleMessages.some((msg) =>
+        msg.includes('Component HelloWorld client-side rendering completed'),
       );
       expect(hasClientRenderingMessage).toBe(true);
 
       // Verify client:load hydration messages.
-      const hasHydrationMessage = consoleMessages.some(msg =>
-        msg.includes('Component HelloWorld hydration completed')
+      const hasHydrationMessage = consoleMessages.some((msg) =>
+        msg.includes('Component HelloWorld hydration completed'),
       );
       expect(hasHydrationMessage).toBe(true);
 
       // Verify no lazy-loading hydration messages (client:visible is outside the viewport).
-      const hasLazyHydrationMessage = consoleMessages.some(msg =>
-        msg.includes('Component HelloWorld lazy hydration completed')
+      const hasLazyHydrationMessage = consoleMessages.some((msg) =>
+        msg.includes('Component HelloWorld lazy hydration completed'),
       );
       expect(hasLazyHydrationMessage).toBe(false);
     });
@@ -500,8 +511,12 @@ describe('Container Changes', () => {
       await page.waitForTimeout(1000);
 
       // client:only component — should be interactive.
-      const clientOnlyComponent = page.locator('[data-unique-id="client-only"]');
-      const clientOnlyButton = clientOnlyComponent.locator('[data-testid="counter-button"]');
+      const clientOnlyComponent = page.locator(
+        '[data-unique-id="client-only"]',
+      );
+      const clientOnlyButton = clientOnlyComponent.locator(
+        '[data-testid="counter-button"]',
+      );
 
       await expect(clientOnlyComponent).toBeVisible();
       await expect(clientOnlyButton).toHaveText(/Count: 0/);
@@ -514,7 +529,9 @@ describe('Container Changes', () => {
 
       // ssr:only component — should not be interactive.
       const ssrOnlyComponent = page.locator('[data-unique-id="ssr-only"]');
-      const ssrOnlyButton = ssrOnlyComponent.locator('[data-testid="counter-button"]');
+      const ssrOnlyButton = ssrOnlyComponent.locator(
+        '[data-testid="counter-button"]',
+      );
 
       await expect(ssrOnlyComponent).toBeVisible();
       await expect(ssrOnlyButton).toHaveText(/Count: 0/);
@@ -528,8 +545,12 @@ describe('Container Changes', () => {
       await expect(ssrOnlyButton).toHaveText(/Count: 0/);
 
       // client:load component — should be interactive.
-      const clientLoadComponent = page.locator('[data-unique-id="client-load"]');
-      const clientLoadButton = clientLoadComponent.locator('[data-testid="counter-button"]');
+      const clientLoadComponent = page.locator(
+        '[data-unique-id="client-load"]',
+      );
+      const clientLoadButton = clientLoadComponent.locator(
+        '[data-testid="counter-button"]',
+      );
 
       await expect(clientLoadComponent).toBeVisible();
       await expect(clientLoadButton).toHaveText(/Count: 0/);
@@ -557,14 +578,18 @@ describe('Container Changes', () => {
       await page.waitForTimeout(2000);
 
       // Verify lazy-loading hydration messages.
-      const hasLazyHydrationMessage = consoleMessages.some(msg =>
-        msg.includes('Component HelloWorld lazy hydration completed')
+      const hasLazyHydrationMessage = consoleMessages.some((msg) =>
+        msg.includes('Component HelloWorld lazy hydration completed'),
       );
       expect(hasLazyHydrationMessage).toBe(true);
 
       // Use uniqueId to verify the client:visible component is interactive.
-      const clientVisibleComponent = page.locator('[data-unique-id="client-visible"]');
-      const clientVisibleButton = clientVisibleComponent.locator('[data-testid="counter-button"]');
+      const clientVisibleComponent = page.locator(
+        '[data-unique-id="client-visible"]',
+      );
+      const clientVisibleButton = clientVisibleComponent.locator(
+        '[data-testid="counter-button"]',
+      );
 
       await expect(clientVisibleComponent).toBeVisible();
       await expect(clientVisibleButton).toHaveText(/Count: 0/);

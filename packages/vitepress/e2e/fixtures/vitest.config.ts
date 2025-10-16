@@ -12,23 +12,23 @@ export default defineConfig({
     teardownTimeout: timeout,
     expect: {
       poll: {
-        timeout: 50 * (process.env.CI ? 300 : 200)
-      }
+        timeout: 50 * (process.env.CI ? 300 : 200),
+      },
     },
     globals: true,
     sequence: {
-      concurrent: false
+      concurrent: false,
     },
     maxConcurrency: 1,
     pool: 'forks',
     poolOptions: {
       forks: {
         maxForks: 1,
-        minForks: 1
-      }
-    }
+        minForks: 1,
+      },
+    },
   },
   esbuild: {
-    target: 'node20'
-  }
+    target: 'node20',
+  },
 }) as ReturnType<typeof defineConfig>;

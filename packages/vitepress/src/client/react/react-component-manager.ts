@@ -1,5 +1,8 @@
 import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/vitepress-shared/constants';
-import type { ComponentInfo, PageMetafile } from '@docs-islands/vitepress-types';
+import type {
+  ComponentInfo,
+  PageMetafile,
+} from '@docs-islands/vitepress-types';
 import logger from '@docs-islands/vitepress-utils/logger';
 import { getCleanPathname } from '../../shared/runtime';
 
@@ -115,8 +118,10 @@ export class ReactComponentManager {
    *    Immediately prior to navigating to a target page, preload all of its dependent React component scripts.
    */
   private initialModulePreloads(pageId: string): void {
-    const initialModulePreloads = reactComponentManager.getAllInitialModulePreloadScripts();
-    const currentPageMetafile = reactComponentManager.getPageComponentInfo(pageId);
+    const initialModulePreloads =
+      reactComponentManager.getAllInitialModulePreloadScripts();
+    const currentPageMetafile =
+      reactComponentManager.getPageComponentInfo(pageId);
     const prefetchScriptLinks = new Set<string>(initialModulePreloads);
 
     if (currentPageMetafile) {
@@ -140,10 +145,15 @@ export class ReactComponentManager {
   }
 
   private async loadGlobalMetafile(): Promise<void> {
-    if (typeof window !== 'undefined' && !window[RENDER_STRATEGY_CONSTANTS.pageMetafile]) {
+    if (
+      typeof window !== 'undefined' &&
+      !window[RENDER_STRATEGY_CONSTANTS.pageMetafile]
+    ) {
       try {
         const targetUrl = 'assets/vrite-page-metafile.json';
-        const requestUrl = baseUrl.endsWith('/') ? baseUrl + targetUrl : `${baseUrl}/${targetUrl}`;
+        const requestUrl = baseUrl.endsWith('/')
+          ? baseUrl + targetUrl
+          : `${baseUrl}/${targetUrl}`;
         const response = await fetch(requestUrl);
         if (response.ok) {
           this.pageMetafile = await response.json();
@@ -152,7 +162,9 @@ export class ReactComponentManager {
           Logger.success('Global page metafile loaded successfully');
         }
       } catch (error) {
-        Logger.warn(`Failed to load global page metafile, message: ${error.message}`);
+        Logger.warn(
+          `Failed to load global page metafile, message: ${error.message}`,
+        );
         this.pageMetafile = {};
         window[RENDER_STRATEGY_CONSTANTS.pageMetafile] = {};
       }
@@ -162,13 +174,19 @@ export class ReactComponentManager {
   }
 
   private setupGlobalComponents(): void {
-    if (typeof window !== 'undefined' && !window[RENDER_STRATEGY_CONSTANTS.injectComponent]) {
+    if (
+      typeof window !== 'undefined' &&
+      !window[RENDER_STRATEGY_CONSTANTS.injectComponent]
+    ) {
       window[RENDER_STRATEGY_CONSTANTS.injectComponent] = {};
     }
   }
 
   private setupComponentManager(): void {
-    if (typeof window !== 'undefined' && !window[RENDER_STRATEGY_CONSTANTS.componentManager]) {
+    if (
+      typeof window !== 'undefined' &&
+      !window[RENDER_STRATEGY_CONSTANTS.componentManager]
+    ) {
       window[RENDER_STRATEGY_CONSTANTS.componentManager] = this;
     }
   }
@@ -201,7 +219,7 @@ export class ReactComponentManager {
   private async performReactLoad(): Promise<boolean> {
     if (typeof window === 'undefined') {
       throw new TypeError(
-        '[ReactComponentManager] React can only be loaded in browser environment'
+        '[ReactComponentManager] React can only be loaded in browser environment',
       );
     }
 
@@ -210,7 +228,7 @@ export class ReactComponentManager {
 
       const [reactModule, reactDOMModule] = await Promise.all([
         import('react'),
-        import('react-dom/client')
+        import('react-dom/client'),
       ]);
 
       window.React = reactModule.default || reactModule;
@@ -272,7 +290,9 @@ export class ReactComponentManager {
         const requiredCssSet = new Set(cssBundlePaths);
 
         // Collect existing CSS links with vrite bundle markers.
-        for (const link of document.querySelectorAll('link[data-vrite-css-bundle]')) {
+        for (const link of document.querySelectorAll(
+          'link[data-vrite-css-bundle]',
+        )) {
           const href = link.getAttribute('href');
           if (href) {
             existingCssMap.set(href, link);
@@ -329,7 +349,9 @@ export class ReactComponentManager {
         }
 
         if (newCssCount > 0) {
-          Logger.info(`Loaded ${newCssCount} new CSS bundle(s) in correct order`);
+          Logger.info(
+            `Loaded ${newCssCount} new CSS bundle(s) in correct order`,
+          );
         }
 
         if (cssToRemove.size > 0) {
@@ -337,7 +359,9 @@ export class ReactComponentManager {
         }
       }
 
-      const existingScript = document.querySelector(`script[src="${loaderScript}"]`);
+      const existingScript = document.querySelector(
+        `script[src="${loaderScript}"]`,
+      );
       if (existingScript) {
         Logger.info('Current page components already loaded');
         return true;
@@ -345,7 +369,9 @@ export class ReactComponentManager {
       // Preload dependency modules before script execution while avoiding duplicate preload tags.
       if (modulePreloads && modulePreloads.length > 0) {
         for (const src of modulePreloads) {
-          if (!document.querySelector(`link[rel="modulepreload"][href="${src}"]`)) {
+          if (
+            !document.querySelector(`link[rel="modulepreload"][href="${src}"]`)
+          ) {
             const link = document.createElement('link');
             link.rel = 'modulepreload';
             link.href = src;
@@ -363,8 +389,10 @@ export class ReactComponentManager {
           Logger.success('Page components loaded successfully');
           resolve(true);
         });
-        script.addEventListener('error', error => {
-          Logger.error(`Failed to load page components, message: ${String(error)}`);
+        script.addEventListener('error', (error) => {
+          Logger.error(
+            `Failed to load page components, message: ${String(error)}`,
+          );
           reject(new Error(`Failed to load script: ${loaderScript}`));
         });
         document.head.append(script);
@@ -378,7 +406,7 @@ export class ReactComponentManager {
   public async subscribeComponent(
     pageId: string,
     componentName: string,
-    timeout = 10_000
+    timeout = 10_000,
   ): Promise<boolean> {
     try {
       /**
@@ -401,24 +429,28 @@ export class ReactComponentManager {
         const timeoutId = setTimeout(() => {
           this.rejectSubscriptions(
             key,
-            new Error(`Component subscription timeout: ${componentName} (${timeout}ms)`)
+            new Error(
+              `Component subscription timeout: ${componentName} (${timeout}ms)`,
+            ),
           );
         }, timeout);
 
         this.subscriptions.get(key)!.push({
-          resolve: value => {
+          resolve: (value) => {
             clearTimeout(timeoutId);
             resolve(value);
           },
-          reject: error => {
+          reject: (error) => {
             clearTimeout(timeoutId);
             reject(error);
           },
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
       });
     } catch (error) {
-      Logger.error(`Failed to subscribe to component, message: ${error.message}`);
+      Logger.error(
+        `Failed to subscribe to component, message: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -429,14 +461,18 @@ export class ReactComponentManager {
     try {
       if (
         typeof window !== 'undefined' &&
-        window[RENDER_STRATEGY_CONSTANTS.injectComponent]?.[pageId]?.[componentName]?.component
+        window[RENDER_STRATEGY_CONSTANTS.injectComponent]?.[pageId]?.[
+          componentName
+        ]?.component
       ) {
         this.loadedComponents.set(key, {
           name: componentName,
           Component:
-            window[RENDER_STRATEGY_CONSTANTS.injectComponent][pageId][componentName].component!,
+            window[RENDER_STRATEGY_CONSTANTS.injectComponent][pageId][
+              componentName
+            ].component!,
           renderDirectives: new Set(),
-          loadTime: Date.now()
+          loadTime: Date.now(),
         });
       }
 
@@ -446,19 +482,26 @@ export class ReactComponentManager {
           try {
             subscriber.resolve(true);
           } catch (error) {
-            Logger.error(`Subscription callback execution error, message: ${error.message}`);
+            Logger.error(
+              `Subscription callback execution error, message: ${error.message}`,
+            );
           }
         }
 
         this.subscriptions.delete(key);
       }
     } catch (error) {
-      Logger.error(`Component load notification failed, message: ${error.message}`);
+      Logger.error(
+        `Component load notification failed, message: ${error.message}`,
+      );
       this.rejectSubscriptions(key, new Error('Component loading failed'));
     }
   }
 
-  public notifyComponentsLoaded(pageId: string, componentNames: string[]): void {
+  public notifyComponentsLoaded(
+    pageId: string,
+    componentNames: string[],
+  ): void {
     for (const componentName of componentNames) {
       this.notifyComponentLoaded(pageId, componentName);
     }
@@ -468,13 +511,19 @@ export class ReactComponentManager {
     return this.loadedComponents.has(key);
   }
 
-  public getComponent(pageId: string, componentName: string): ComponentInfo['Component'] | null {
+  public getComponent(
+    pageId: string,
+    componentName: string,
+  ): ComponentInfo['Component'] | null {
     if (
       typeof window !== 'undefined' &&
-      window[RENDER_STRATEGY_CONSTANTS.injectComponent]?.[pageId]?.[componentName]
+      window[RENDER_STRATEGY_CONSTANTS.injectComponent]?.[pageId]?.[
+        componentName
+      ]
     ) {
       return (
-        window[RENDER_STRATEGY_CONSTANTS.injectComponent][pageId][componentName].component || null
+        window[RENDER_STRATEGY_CONSTANTS.injectComponent][pageId][componentName]
+          .component || null
       );
     }
     return null;
@@ -502,7 +551,9 @@ export class ReactComponentManager {
         try {
           subscriber.reject(error);
         } catch (rejectionError) {
-          Logger.error(`Subscription rejection handling error, message: ${rejectionError.message}`);
+          Logger.error(
+            `Subscription rejection handling error, message: ${rejectionError.message}`,
+          );
         }
       }
       this.subscriptions.delete(key);
@@ -532,4 +583,5 @@ export class ReactComponentManager {
   }
 }
 
-export const reactComponentManager: ReactComponentManager = new ReactComponentManager();
+export const reactComponentManager: ReactComponentManager =
+  new ReactComponentManager();

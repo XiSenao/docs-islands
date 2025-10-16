@@ -18,7 +18,9 @@ function App(): JSX.Element {
       </div>
       <h1>VitePress + React</h1>
       <div className="card">
-        <button onClick={() => setCount(count => count + 1)}>点击次数: {count}</button>
+        <button onClick={() => setCount((count) => count + 1)}>
+          点击次数: {count}
+        </button>
       </div>
     </div>
   );

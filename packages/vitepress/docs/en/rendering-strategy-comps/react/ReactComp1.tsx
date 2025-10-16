@@ -12,7 +12,8 @@ export default function ReactComp1(props: CompProps): JSX.Element {
       </strong>
       <ol>
         <li>
-          <strong>Component Name:</strong> <span>{props['component-name']}</span>
+          <strong>Component Name:</strong>{' '}
+          <span>{props['component-name']}</span>
         </li>
         <li>
           <strong>Page Title:</strong> <span>{props['page-title']}</span>
@@ -21,10 +22,15 @@ export default function ReactComp1(props: CompProps): JSX.Element {
           <strong>License:</strong> <span>{renderSharedLicense()}</span>
         </li>
         <li>
-          <button className="rc1-button" onClick={() => setCount(count + 1)} type="button">
+          <button
+            className="rc1-button"
+            onClick={() => setCount(count + 1)}
+            type="button"
+          >
             Click Me!
           </button>
-          <strong>Client-Only Rendering Mode, React Instance Count:</strong> <span>{count}</span>
+          <strong>Client-Only Rendering Mode, React Instance Count:</strong>{' '}
+          <span>{count}</span>
         </li>
       </ol>
     </div>

@@ -11,13 +11,22 @@ type GetHandler<T> = T extends { handler: infer H } ? H : T;
 type PluginContext = ThisParameterType<GetHandler<NonNullable<LoadPlugin>>>;
 
 // Keep in sync with github ci workflow: https://github.com/XiSenao/docs-islands/blob/main/.github/workflows/dependency-review.yml
-const ALLOWED_LICENSES = new Set(['MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC']);
+const ALLOWED_LICENSES = new Set([
+  'MIT',
+  'Apache-2.0',
+  'BSD-2-Clause',
+  'BSD-3-Clause',
+  'ISC',
+]);
 
 const findMonorepoRoot = (): string | null => {
   let currentDir = fileURLToPath(new URL('.', import.meta.url));
   while (true) {
     if (fs.existsSync(path.resolve(currentDir, 'package.json'))) {
-      const packageJson = fs.readFileSync(path.resolve(currentDir, 'package.json'), 'utf8');
+      const packageJson = fs.readFileSync(
+        path.resolve(currentDir, 'package.json'),
+        'utf8',
+      );
       const packageJsonData = JSON.parse(packageJson);
       if (packageJsonData.name && packageJsonData.workspaces) {
         return currentDir;
@@ -34,7 +43,7 @@ const findMonorepoRoot = (): string | null => {
 export default function licensePlugin(
   licenseFilePath: string,
   licenseTitle: string,
-  packageName: string
+  packageName: string,
 ): Plugin {
   const monorepoRootPath = findMonorepoRoot();
   if (!monorepoRootPath) {
@@ -49,12 +58,18 @@ export default function licensePlugin(
 
       const deps = sortDependencies(dependencies);
       const licenses = sortLicenses(
-        new Set(dependencies.map(dep => dep.license).filter(Boolean) as string[])
+        new Set(
+          dependencies.map((dep) => dep.license).filter(Boolean) as string[],
+        ),
       );
-      const prohibitedLicenses = licenses.filter(license => !ALLOWED_LICENSES.has(license));
+      const prohibitedLicenses = licenses.filter(
+        (license) => !ALLOWED_LICENSES.has(license),
+      );
 
       if (prohibitedLicenses.length > 0) {
-        throw new Error(`Prohibited licenses: ${prohibitedLicenses.join(', ')}`);
+        throw new Error(
+          `Prohibited licenses: ${prohibitedLicenses.join(', ')}`,
+        );
       }
 
       let dependencyLicenseTexts = '';
@@ -71,19 +86,21 @@ export default function licensePlugin(
           }
         }
 
-        let text = `## ${sameDeps.map(d => d.name).join(', ')}\n\n`;
-        const depInfos = sameDeps.map(d => getDependencyInformation(d));
+        let text = `## ${sameDeps.map((d) => d.name).join(', ')}\n\n`;
+        const depInfos = sameDeps.map((d) => getDependencyInformation(d));
 
         // If all same dependencies have the same license and contributor names, show them only once.
         if (
           depInfos.length > 1 &&
           depInfos.every(
-            info => info.license === depInfos[0].license && info.names === depInfos[0].names
+            (info) =>
+              info.license === depInfos[0].license &&
+              info.names === depInfos[0].names,
           )
         ) {
           const { license, names } = depInfos[0];
           const repositoryText = depInfos
-            .map(info => info.repository)
+            .map((info) => info.repository)
             .filter(Boolean)
             .join(', ');
 
@@ -108,7 +125,7 @@ export default function licensePlugin(
             .trim()
             .replaceAll(/\r\n|\r/g, '\n')
             .split('\n')
-            .map(line => `> ${line}`)
+            .map((line) => `> ${line}`)
             .join('\n')}\n`;
         }
 
@@ -138,9 +155,13 @@ ${dependencyLicenseTexts}`;
       const existingLicenseText = fs.readFileSync(licenseFilePath, 'utf8');
       if (existingLicenseText !== licenseText) {
         fs.writeFileSync(licenseFilePath, licenseText);
-        console.warn(colors.yellow('\nLICENSE.md updated. You should commit the updated file.\n'));
+        console.warn(
+          colors.yellow(
+            '\nLICENSE.md updated. You should commit the updated file.\n',
+          ),
+        );
       }
-    }
+    },
   }) as Plugin;
 
   // Skip for watch mode.
@@ -201,7 +222,8 @@ function getDependencyInformation(dep: Dependency): DependencyInfo {
   }
 
   if (repository) {
-    info.repository = typeof repository === 'string' ? repository : repository.url;
+    info.repository =
+      typeof repository === 'string' ? repository : repository.url;
   }
 
   return info;

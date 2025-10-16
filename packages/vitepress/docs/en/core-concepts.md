@@ -100,11 +100,7 @@ Now let's calculate specifically how much additional size (**uncompressed**) is 
 
 ```js [xxx.md.js]
 import { __CSS_LOADING_RUNTIME__ } from './chunks/client-runtime.41d9d1b5.js';
-await __CSS_LOADING_RUNTIME__([
-  '/assets/styles.css',
-  '/assets/styles2.css',
-  '/assets/styles3.css'
-]);
+await __CSS_LOADING_RUNTIME__(['/assets/styles.css', '/assets/styles2.css', '/assets/styles3.css']);
 ```
 
 For the current example page, `Landing`, `ReactComp2`, and `ReactComp3` all use the `spa:sync-render` directive:
@@ -222,13 +218,11 @@ export default function ReactComp1(props: CompProps) {
   return (
     <div className="react-comp1-demo">
       <strong>
-        {props['render-count']}: Rendering Strategy:{' '}
-        {props['render-strategy']}
+        {props['render-count']}: Rendering Strategy: {props['render-strategy']}
       </strong>
       <ol>
         <li>
-          <strong>Component Name:</strong>{' '}
-          <span>{props['component-name']}</span>
+          <strong>Component Name:</strong> <span>{props['component-name']}</span>
         </li>
         <li>
           <strong>Page Title:</strong> <span>{props['page-title']}</span>
@@ -237,15 +231,10 @@ export default function ReactComp1(props: CompProps) {
           <strong>License:</strong> <span>{renderSharedLicense()}</span>
         </li>
         <li>
-          <button
-            className="rc1-button"
-            onClick={() => setCount(count + 1)}
-            type="button"
-          >
+          <button className="rc1-button" onClick={() => setCount(count + 1)} type="button">
             Click Me!
           </button>
-          <strong>Client-Only Rendering Mode, React Instance Count:</strong>{' '}
-          <span>{count}</span>
+          <strong>Client-Only Rendering Mode, React Instance Count:</strong> <span>{count}</span>
         </li>
       </ol>
     </div>
@@ -341,7 +330,7 @@ export function ReactComp2(props: CompProps) {
   const [count, setCount] = useState(0);
   const data = JSON.parse(readFileSync(targetPath, 'utf-8')) as LocalData;
   const displayLocalData = () => {
-    const showLocalList = data.data.map(item => (
+    const showLocalList = data.data.map((item) => (
       <li key={item.id}>
         <span>
           <strong>ID:</strong> {item.id}
@@ -361,27 +350,20 @@ export function ReactComp2(props: CompProps) {
   return (
     <div className="react-comp2-demo">
       <strong>
-        {props['render-count']}: Rendering Strategy:{' '}
-        {props['render-strategy']}
+        {props['render-count']}: Rendering Strategy: {props['render-strategy']}
       </strong>
       <ol>
         <li>
-          <strong>Component Name:</strong>{' '}
-          <span>{props['component-name']}</span>
+          <strong>Component Name:</strong> <span>{props['component-name']}</span>
         </li>
         <li>
           <strong>Page Title:</strong> <span>{props['page-title']}</span>
         </li>
         <li>
-          <button
-            className="rc2-button"
-            onClick={() => setCount(count + 1)}
-            type="button"
-          >
+          <button className="rc2-button" onClick={() => setCount(count + 1)} type="button">
             Click Me!
           </button>
-          <strong>Pre-rendering Mode Only, React Instance Count:</strong>{' '}
-          <span>{count}</span>
+          <strong>Pre-rendering Mode Only, React Instance Count:</strong> <span>{count}</span>
         </li>
       </ol>
       <div>{displayLocalData()}</div>
@@ -489,28 +471,20 @@ export default function ReactComp3(props: CompProps) {
   return (
     <div className="react-comp3-demo">
       <strong>
-        {props['render-count']}: Rendering Strategy:{' '}
-        {props['render-strategy']}
+        {props['render-count']}: Rendering Strategy: {props['render-strategy']}
       </strong>
       <ol>
         <li>
-          <strong>Component Name:</strong>{' '}
-          <span>{props['component-name']}</span>
+          <strong>Component Name:</strong> <span>{props['component-name']}</span>
         </li>
         <li>
           <strong>Page Title:</strong> <span>{props['page-title']}</span>
         </li>
         <li>
-          <button
-            className="rc3-button"
-            onClick={() => setCount(count + 1)}
-            type="button"
-          >
+          <button className="rc3-button" onClick={() => setCount(count + 1)} type="button">
             Click Me!
           </button>
-          <strong>
-            Pre-rendering Client Hydration Mode, React Instance Count:
-          </strong>{' '}
+          <strong>Pre-rendering Client Hydration Mode, React Instance Count:</strong>{' '}
           <span>{count}</span>
         </li>
       </ol>
@@ -586,13 +560,11 @@ export function ReactComp4(props: CompProps) {
   return (
     <div className="react-comp4-demo">
       <strong>
-        {props['render-count']}: Rendering Strategy:{' '}
-        {props['render-strategy']}
+        {props['render-count']}: Rendering Strategy: {props['render-strategy']}
       </strong>
       <ol>
         <li>
-          <strong>Component Name:</strong>{' '}
-          <span>{props['component-name']}</span>
+          <strong>Component Name:</strong> <span>{props['component-name']}</span>
         </li>
         <li>
           <strong>Page Title:</strong> <span>{props['page-title']}</span>
@@ -606,17 +578,14 @@ export function ReactComp4(props: CompProps) {
               marginRight: '8px',
               backgroundColor: '#56a8ab',
               color: '#9ee2d3',
-              border: 'none'
+              border: 'none',
             }}
             onClick={() => setCount(count + 1)}
             type="button"
           >
             Click Me!
           </button>
-          <strong>
-            Pre-rendering Client Visible Hydration Mode, React Instance
-            Count:
-          </strong>{' '}
+          <strong>Pre-rendering Client Visible Hydration Mode, React Instance Count:</strong>{' '}
           <span>{count}</span>
         </li>
       </ol>
@@ -673,13 +642,11 @@ export function ReactComp5(props: CompProps) {
   return (
     <div className="react-comp5-demo">
       <strong>
-        {props['render-count']}: Rendering Strategy:{' '}
-        {props['render-strategy']}
+        {props['render-count']}: Rendering Strategy: {props['render-strategy']}
       </strong>
       <ol>
         <li>
-          <strong>Component Name:</strong>{' '}
-          <span>{props['component-name']}</span>
+          <strong>Component Name:</strong> <span>{props['component-name']}</span>
         </li>
         <li>
           <strong>Page Title:</strong> <span>{props['page-title']}</span>
@@ -693,17 +660,14 @@ export function ReactComp5(props: CompProps) {
               marginRight: '8px',
               backgroundColor: '#56a8ab',
               color: '#9ee2d3',
-              border: 'none'
+              border: 'none',
             }}
             onClick={() => setCount(count + 1)}
             type="button"
           >
             Click Me!
           </button>
-          <strong>
-            Default Rendering Mode (Pre-rendering Mode Only), React Instance
-            Count:
-          </strong>{' '}
+          <strong>Default Rendering Mode (Pre-rendering Mode Only), React Instance Count:</strong>{' '}
           <span>{count}</span>
         </li>
       </ol>
@@ -781,20 +745,17 @@ export default function ReactVueSharedComp(props: ReactVueSharedCompProps) {
   return (
     <div className="react-vue-shared-comp">
       <strong>
-        {props['render-count']}: Rendering Strategy:{' '}
-        {props['render-strategy']}
+        {props['render-count']}: Rendering Strategy: {props['render-strategy']}
       </strong>
       <ol>
         <li>
-          <strong>Component Name:</strong>{' '}
-          <span>{props['component-name']}</span>
+          <strong>Component Name:</strong> <span>{props['component-name']}</span>
         </li>
         <li>
           <strong>Page Title:</strong> <span>{props['page-title']}</span>
         </li>
         <li>
-          <strong>Vue Component Info:</strong>{' '}
-          <span>{props['vue-info']}</span>
+          <strong>Vue Component Info:</strong> <span>{props['vue-info']}</span>
         </li>
         <li>
           <button
@@ -805,15 +766,14 @@ export default function ReactVueSharedComp(props: ReactVueSharedCompProps) {
               marginRight: '8px',
               backgroundColor: '#56a8ab',
               color: '#9ee2d3',
-              border: 'none'
+              border: 'none',
             }}
             onClick={() => setCount(count + 1)}
             type="button"
           >
             Click Me!
           </button>
-          <strong>Client-Only Rendering Mode, React Instance Count:</strong>{' '}
-          <span>{count}</span>
+          <strong>Client-Only Rendering Mode, React Instance Count:</strong> <span>{count}</span>
         </li>
       </ol>
     </div>
@@ -915,7 +875,7 @@ const theme: Theme = {
   extends: DefaultTheme,
   async enhanceApp(context) {
     await reactClientIntegration();
-  }
+  },
 };
 
 export default theme;
@@ -980,31 +940,25 @@ export default theme;
                   const { file, server, modules } = ctx;
 
                   if (file.includes('local-data.json')) {
-                    const updateModuleEntryPath = join(
-                      file,
-                      '../',
-                      'ReactComp2.tsx'
-                    );
+                    const updateModuleEntryPath = join(file, '../', 'ReactComp2.tsx');
                     const updateModuleEntry =
-                      await server.moduleGraph.getModuleByUrl(
-                        updateModuleEntryPath
-                      );
+                      await server.moduleGraph.getModuleByUrl(updateModuleEntryPath);
                     if (updateModuleEntry) {
                       server.moduleGraph.invalidateModule(
                         updateModuleEntry,
                         new Set(),
                         Date.now(),
-                        true
+                        true,
                       );
                       return [updateModuleEntry];
                     }
                   }
 
                   return modules;
-                }
-              }
-            ]
-          }
+                },
+              },
+            ],
+          },
         });
 
         export default vitepressConfig;

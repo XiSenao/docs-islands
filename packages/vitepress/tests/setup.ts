@@ -6,7 +6,7 @@ if (process.env.NODE_ENV === 'test') {
     warn: console.warn,
     error: console.error,
     info: console.info,
-    debug: console.debug
+    debug: console.debug,
   };
 
   global.console = {
@@ -15,7 +15,7 @@ if (process.env.NODE_ENV === 'test') {
     warn: vi.fn(),
     error: vi.fn(),
     info: vi.fn(),
-    debug: vi.fn()
+    debug: vi.fn(),
   };
 
   (global as any).__originalConsole = originalConsole;
@@ -24,14 +24,14 @@ if (process.env.NODE_ENV === 'test') {
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual('node:fs');
   return {
-    ...actual
+    ...actual,
   };
 });
 
 vi.mock('vite', async () => {
   const actual = await vi.importActual('vite');
   return {
-    ...actual
+    ...actual,
   };
 });
 
@@ -45,12 +45,17 @@ expect.extend({
 
     return {
       pass: isValid,
-      message: () => `expected ${received} to be a valid component`
+      message: () => `expected ${received} to be a valid component`,
     };
   },
 
   toHaveValidRenderStrategy(received: any) {
-    const validStrategies = ['client:only', 'ssr:only', 'client:load', 'client:visible'];
+    const validStrategies = [
+      'client:only',
+      'ssr:only',
+      'client:load',
+      'client:visible',
+    ];
     const isValid =
       received &&
       typeof received.directive === 'string' &&
@@ -58,14 +63,14 @@ expect.extend({
 
     return {
       pass: isValid,
-      message: () => `expected ${received} to have a valid render strategy`
+      message: () => `expected ${received} to have a valid render strategy`,
     };
-  }
+  },
 });
 
 vi.setConfig({
   testTimeout: 50_000,
-  hookTimeout: 30_000
+  hookTimeout: 30_000,
 });
 
 // Setup global variables that are expected in the code.
@@ -78,20 +83,20 @@ Object.defineProperty(global, 'import', {
       env: {
         DEV: false,
         PROD: true,
-        MPA: false
-      }
-    }
+        MPA: false,
+      },
+    },
   },
-  writable: true
+  writable: true,
 });
 
 // Helper to set import.meta.env values in tests.
 (global as any).__setImportMetaEnv = (env: Record<string, boolean>) => {
   Object.defineProperty(global, 'import', {
     value: {
-      meta: { env }
+      meta: { env },
     },
-    writable: true
+    writable: true,
   });
 };
 

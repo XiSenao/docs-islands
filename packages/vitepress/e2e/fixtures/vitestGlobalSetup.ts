@@ -12,7 +12,9 @@ const root = '.';
 export async function setup(): Promise<void> {
   browserServer = await chromium.launchServer({
     headless: !process.env.DEBUG,
-    args: process.env.CI ? ['--no-sandbox', '--disable-setuid-sandbox'] : undefined
+    args: process.env.CI
+      ? ['--no-sandbox', '--disable-setuid-sandbox']
+      : undefined,
   });
   process.env.WS_ENDPOINT = browserServer.wsEndpoint();
   const port = await getPort();
@@ -35,7 +37,7 @@ export async function teardown(): Promise<void> {
     await ('ws' in server
       ? server.close()
       : new Promise<void>((resolve, reject) => {
-          server.close(error => (error ? reject(error) : resolve()));
+          server.close((error) => (error ? reject(error) : resolve()));
         }));
   }
 }

@@ -21,10 +21,15 @@ export default function ReactComp1(props: CompProps): JSX.Element {
           <strong>协议:</strong> <span>{renderSharedLicense()}</span>
         </li>
         <li>
-          <button className="rc1-button" onClick={() => setCount(count + 1)} type="button">
+          <button
+            className="rc1-button"
+            onClick={() => setCount(count + 1)}
+            type="button"
+          >
             点击我!
           </button>
-          <strong>仅客户端渲染模式, React 实例数量:</strong> <span>{count}</span>
+          <strong>仅客户端渲染模式, React 实例数量:</strong>{' '}
+          <span>{count}</span>
         </li>
       </ol>
     </div>

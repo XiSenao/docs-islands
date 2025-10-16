@@ -3,7 +3,10 @@
 import type { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/vitepress-shared/constants';
 import type { PageMetafile } from '@docs-islands/vitepress-types';
 import type { DefaultTheme, SiteConfig } from 'vitepress';
-import type { ReactComponentManager, ReactInjectComponent } from '../src/client/react';
+import type {
+  ReactComponentManager,
+  ReactInjectComponent,
+} from '../src/client/react';
 
 /**
  * Compatible VitePress extension types.
