@@ -55,7 +55,7 @@ pnpm add react react-dom
      extends: DefaultTheme,
      async enhanceApp() {
        await reactClientIntegration();
-     }
+     },
    };
 
    export default theme;
@@ -120,12 +120,12 @@ pnpm add react react-dom
 
 ### 指令速查表
 
-| 指令 | 是否预渲染 HTML | 客户端 Hydration | 触发时机 | 典型场景 | `spa:sr` 默认 |
-| --- | --- | --- | --- | --- | --- |
-| `ssr:only` | 是 | 否 | N/A | 静态/SEO 关键内容 | 开启 |
-| `client:load` | 是 | 立即 | 预加载模块，加载后即水合 | 首屏关键交互组件 | 关闭 |
-| `client:visible` | 是 | 可见时 | 预加载；进入视口后水合 | 非首屏交互（评论、图表等） | 关闭 |
-| `client:only` | 否 | 否 | 仅客户端 | 强宿主依赖或轻量小部件 | 禁用 |
+| 指令             | 是否预渲染 HTML | 客户端 Hydration | 触发时机                 | 典型场景                   | `spa:sr` 默认 |
+| ---------------- | --------------- | ---------------- | ------------------------ | -------------------------- | ------------- |
+| `ssr:only`       | 是              | 否               | N/A                      | 静态/SEO 关键内容          | 开启          |
+| `client:load`    | 是              | 立即             | 预加载模块，加载后即水合 | 首屏关键交互组件           | 关闭          |
+| `client:visible` | 是              | 可见时           | 预加载；进入视口后水合   | 非首屏交互（评论、图表等） | 关闭          |
+| `client:only`    | 否              | 否               | 仅客户端                 | 强宿主依赖或轻量小部件     | 禁用          |
 
 ### SPA 同步渲染（`spa:sync-render` / `spa:sr`）
 

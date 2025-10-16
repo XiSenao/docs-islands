@@ -14,15 +14,15 @@ describe('Shared Runtime - getCleanPathname', () => {
     Object.defineProperty(global, 'window', {
       writable: true,
       value: {
-        __VP_SITE_DATA__: undefined
-      }
+        __VP_SITE_DATA__: undefined,
+      },
     });
 
     Object.defineProperty(global, 'location', {
       writable: true,
       value: {
-        pathname: '/'
-      }
+        pathname: '/',
+      },
     });
   });
 
@@ -75,7 +75,7 @@ describe('Shared Runtime - getCleanPathname', () => {
       ['/about', '/about'],
       ['/guide/', '/guide/'],
       ['/guide/getting-started', '/guide/getting-started'],
-      ['/api/reference/', '/api/reference/']
+      ['/api/reference/', '/api/reference/'],
     ])('should normalize %s to %s', (input, expected) => {
       (global.window as any).__VP_SITE_DATA__ = { base: '/' };
       global.location.pathname = input;

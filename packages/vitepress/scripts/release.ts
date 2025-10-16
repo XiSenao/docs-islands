@@ -40,14 +40,14 @@ const SimpleVersionManager = {
       major: Number.parseInt(match[1], 10),
       minor: Number.parseInt(match[2], 10),
       patch: Number.parseInt(match[3], 10),
-      prerelease: match[4]
+      prerelease: match[4],
     };
   },
 
   incrementVersion(
     version: string,
     type: 'patch' | 'minor' | 'major' | 'prerelease',
-    preId?: string
+    preId?: string,
   ): string {
     const parsed = this.parseVersion(version);
 
@@ -77,7 +77,8 @@ const SimpleVersionManager = {
         } else {
           const prereleaseMatch = parsed.prerelease.match(/^(.+)\.(\d+)$/);
           if (prereleaseMatch) {
-            const prereleaseVersion = Number.parseInt(prereleaseMatch[2], 10) + 1;
+            const prereleaseVersion =
+              Number.parseInt(prereleaseMatch[2], 10) + 1;
             parsed.prerelease = `${prereleaseMatch[1]}.${prereleaseVersion}`;
           } else {
             parsed.prerelease = `${parsed.prerelease}.1`;
@@ -112,7 +113,7 @@ const SimpleVersionManager = {
     if (!parsedB.prerelease) return -1;
 
     return parsedA.prerelease.localeCompare(parsedB.prerelease);
-  }
+  },
 };
 
 class ReleaseSystemManager {
@@ -172,10 +173,12 @@ class ReleaseSystemManager {
     try {
       const status = execSync('git status --porcelain', {
         encoding: 'utf8',
-        cwd: this.packageRootDir
+        cwd: this.packageRootDir,
       });
       if (status.trim() && !this.options.dryRun) {
-        throw new Error('Working directory is not clean. Commit or stash changes first.');
+        throw new Error(
+          'Working directory is not clean. Commit or stash changes first.',
+        );
       }
     } catch {
       throw new Error('Git status check failed');
@@ -184,10 +187,12 @@ class ReleaseSystemManager {
     try {
       const branch = execSync('git rev-parse --abbrev-ref HEAD', {
         encoding: 'utf8',
-        cwd: this.packageRootDir
+        cwd: this.packageRootDir,
       }).trim();
       if (branch !== 'main' && branch !== 'master' && !this.options.dryRun) {
-        Logger.warn(`⚠️  You are not on main/master branch (current: ${branch})`);
+        Logger.warn(
+          `⚠️  You are not on main/master branch (current: ${branch})`,
+        );
       }
     } catch {
       throw new Error('Git branch check failed');
@@ -205,25 +210,35 @@ class ReleaseSystemManager {
 
     try {
       execSync('git fetch --tags', { stdio: 'pipe', cwd: this.packageRootDir });
-      const upstream = execSync('git rev-parse --abbrev-ref --symbolic-full-name @{u}', {
-        encoding: 'utf8',
-        stdio: 'pipe',
-        cwd: this.packageRootDir
-      }).trim();
-      const aheadBehind = execSync('git rev-list --left-right --count @{u}...HEAD', {
-        encoding: 'utf8',
-        stdio: 'pipe',
-        cwd: this.packageRootDir
-      })
+      const upstream = execSync(
+        'git rev-parse --abbrev-ref --symbolic-full-name @{u}',
+        {
+          encoding: 'utf8',
+          stdio: 'pipe',
+          cwd: this.packageRootDir,
+        },
+      ).trim();
+      const aheadBehind = execSync(
+        'git rev-list --left-right --count @{u}...HEAD',
+        {
+          encoding: 'utf8',
+          stdio: 'pipe',
+          cwd: this.packageRootDir,
+        },
+      )
         .trim()
         .split('\t')
         .map(Number);
       const [behindCount, aheadCount] = aheadBehind;
       if (behindCount > 0) {
-        Logger.warn(`⚠️  Your branch is behind ${upstream} by ${behindCount} commits.`);
+        Logger.warn(
+          `⚠️  Your branch is behind ${upstream} by ${behindCount} commits.`,
+        );
       }
       if (aheadCount > 0) {
-        Logger.warn(`⚠️  Your branch is ahead of ${upstream} by ${aheadCount} commits.`);
+        Logger.warn(
+          `⚠️  Your branch is ahead of ${upstream} by ${aheadCount} commits.`,
+        );
       }
     } catch {
       // Ignore for repos without upstream.
@@ -253,7 +268,9 @@ class ReleaseSystemManager {
     }
   }
 
-  private async verifyDistPackageJsonVersion(expectedVersion: string): Promise<void> {
+  private async verifyDistPackageJsonVersion(
+    expectedVersion: string,
+  ): Promise<void> {
     const distPkgPath = path.join(this.packageRootDir, 'dist', 'package.json');
     if (!existsSync(distPkgPath)) {
       throw new Error('dist/package.json not found after build');
@@ -263,7 +280,7 @@ class ReleaseSystemManager {
       const parsed = JSON.parse(content) as { version?: string };
       if (parsed.version !== expectedVersion) {
         throw new Error(
-          `dist/package.json version mismatch: expected ${expectedVersion}, got ${parsed.version}`
+          `dist/package.json version mismatch: expected ${expectedVersion}, got ${parsed.version}`,
         );
       }
     } catch {
@@ -274,7 +291,10 @@ class ReleaseSystemManager {
   private async verifyPublint(): Promise<void> {
     Logger.info('📋 Verifying publint...');
     try {
-      execSync('pnpm lint:package', { stdio: 'inherit', cwd: this.packageRootDir });
+      execSync('pnpm lint:package', {
+        stdio: 'inherit',
+        cwd: this.packageRootDir,
+      });
       Logger.success('✅ Publint passed\n');
     } catch {
       throw new Error('Publint failed');
@@ -294,21 +314,23 @@ class ReleaseSystemManager {
       newVersion = SimpleVersionManager.incrementVersion(
         currentVersion,
         this.options.type,
-        this.options.preId
+        this.options.preId,
       );
     } else {
       throw new Error('Either version or type must be specified');
     }
 
     if (SimpleVersionManager.compareVersions(newVersion, currentVersion) <= 0) {
-      throw new Error(`New version ${newVersion} must be greater than current ${currentVersion}`);
+      throw new Error(
+        `New version ${newVersion} must be greater than current ${currentVersion}`,
+      );
     }
 
     this.pkg.version = newVersion;
     if (!this.options.dryRun) {
       writeFileSync(
         path.join(this.packageRootDir, 'package.json'),
-        `${JSON.stringify(this.pkg, null, 2)}\n`
+        `${JSON.stringify(this.pkg, null, 2)}\n`,
       );
     }
 
@@ -321,12 +343,17 @@ class ReleaseSystemManager {
     try {
       execSync(`npm view ${packageName}@${version} version`, {
         stdio: 'pipe',
-        cwd: this.packageRootDir
+        cwd: this.packageRootDir,
       });
-      throw new Error(`Version already exists on npm: ${packageName}@${version}`);
+      throw new Error(
+        `Version already exists on npm: ${packageName}@${version}`,
+      );
     } catch {
       try {
-        execSync(`npm view ${packageName}`, { stdio: 'pipe', cwd: this.packageRootDir });
+        execSync(`npm view ${packageName}`, {
+          stdio: 'pipe',
+          cwd: this.packageRootDir,
+        });
         Logger.success(`📦 Package ${packageName} exists on npm`);
       } catch {
         Logger.success(`📦 Package ${packageName} is new to npm`);
@@ -341,7 +368,7 @@ class ReleaseSystemManager {
 
     if (!existsSync(changelogPath)) {
       throw new Error(
-        `CHANGELOG.md not found. Please run 'pnpm changelog --version ${version}' first to generate the changelog.`
+        `CHANGELOG.md not found. Please run 'pnpm changelog --version ${version}' first to generate the changelog.`,
       );
     }
 
@@ -350,7 +377,7 @@ class ReleaseSystemManager {
 
     if (!hasVersionEntry) {
       throw new Error(
-        `CHANGELOG.md has not been updated for version ${version}. Please run 'pnpm changelog --version ${version}' first.`
+        `CHANGELOG.md has not been updated for version ${version}. Please run 'pnpm changelog --version ${version}' first.`,
       );
     }
 
@@ -363,14 +390,14 @@ class ReleaseSystemManager {
       execSync('git add .', { stdio: 'pipe', cwd: this.packageRootDir });
       execSync(`git commit -m "release: ${version}"`, {
         stdio: 'pipe',
-        cwd: this.packageRootDir
+        cwd: this.packageRootDir,
       });
       const tag = this.options.gitTag || this.options.tag || `v${version}`;
       const tagExists = (() => {
         try {
           execSync(`git rev-parse -q --verify refs/tags/${tag}`, {
             stdio: 'pipe',
-            cwd: this.packageRootDir
+            cwd: this.packageRootDir,
           });
           return true;
         } catch {
@@ -382,7 +409,7 @@ class ReleaseSystemManager {
       }
       execSync(`git tag -a ${tag} -m "Release ${version}"`, {
         stdio: 'pipe',
-        cwd: this.packageRootDir
+        cwd: this.packageRootDir,
       });
       Logger.success(`✅ Committed and tagged as ${tag}\n`);
     } catch {
@@ -401,7 +428,8 @@ class ReleaseSystemManager {
       const publishArgs = ['pnpm', 'publish', '--no-git-checks'];
       const resolvedNpmTag =
         this.options.npmTag ||
-        (this.pkg.version.includes('-') && (this.options.preId?.split('.')[0] || 'next')) ||
+        (this.pkg.version.includes('-') &&
+          (this.options.preId?.split('.')[0] || 'next')) ||
         undefined;
       if (resolvedNpmTag) {
         publishArgs.push('--tag', resolvedNpmTag);
@@ -421,7 +449,10 @@ class ReleaseSystemManager {
     Logger.info('🎉 Running post-release tasks...');
     if (!this.options.dryRun) {
       try {
-        execSync('git push origin --follow-tags', { stdio: 'pipe', cwd: this.packageRootDir });
+        execSync('git push origin --follow-tags', {
+          stdio: 'pipe',
+          cwd: this.packageRootDir,
+        });
         Logger.success('✅ Pushed to remote repository');
       } catch {
         Logger.warn('⚠️  Failed to push to remote repository');
@@ -434,7 +465,7 @@ class ReleaseSystemManager {
         const tag = this.options.gitTag || this.options.tag || `v${version}`;
         execSync(`gh release create ${tag} --generate-notes`, {
           stdio: 'pipe',
-          cwd: this.packageRootDir
+          cwd: this.packageRootDir,
         });
         Logger.success('✅ GitHub release created');
       }
@@ -459,9 +490,16 @@ async function main() {
       case '--type': {
         {
           const t = args[++i] as string;
-          const allowed: ReleaseType[] = ['patch', 'minor', 'major', 'prerelease'];
+          const allowed: ReleaseType[] = [
+            'patch',
+            'minor',
+            'major',
+            'prerelease',
+          ];
           if (!allowed.includes(t as ReleaseType)) {
-            throw new Error(`Invalid --type value: ${t}. Expected one of ${allowed.join(', ')}`);
+            throw new Error(
+              `Invalid --type value: ${t}. Expected one of ${allowed.join(', ')}`,
+            );
           }
           options.type = t as ReleaseType;
         }
@@ -536,8 +574,11 @@ Examples:
   await releaseSystem.release();
 }
 
-if (normalizePath(fileURLToPath(import.meta.url)) === normalizePath(process.argv[1])) {
-  main().catch(error => {
+if (
+  normalizePath(fileURLToPath(import.meta.url)) ===
+  normalizePath(process.argv[1])
+) {
+  main().catch((error) => {
     Logger.error(`❌ Release failed: ${String(error)}`);
     // Allow process to exit with failure naturally.
     process.exitCode = 1;

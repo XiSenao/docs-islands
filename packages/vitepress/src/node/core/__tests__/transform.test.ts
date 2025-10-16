@@ -11,27 +11,28 @@ vi.mock('@docs-islands/vitepress-utils/logger', () => ({
       warn: vi.fn(),
       error: vi.fn(),
       info: vi.fn(),
-      success: vi.fn()
-    })
-  }
+      success: vi.fn(),
+    }),
+  },
 }));
 
 const attrNames = {
   renderId: RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),
   renderDirective: RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase(),
   renderComponent: RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase(),
-  renderWithSpaSync: RENDER_STRATEGY_CONSTANTS.renderWithSpaSync.toLowerCase()
+  renderWithSpaSync: RENDER_STRATEGY_CONSTANTS.renderWithSpaSync.toLowerCase(),
 };
 
 describe('coreTransformComponentTags', () => {
   it('transforms self-closing component with default ssr:only and spa:sr true', () => {
     const code = `# Title\n\n<HelloWorld />\n`;
-    const { code: out, renderIdToRenderDirectiveMap } = coreTransformComponentTags(
-      code,
-      ['HelloWorld'],
-      '/docs/index.md',
-      attrNames
-    );
+    const { code: out, renderIdToRenderDirectiveMap } =
+      coreTransformComponentTags(
+        code,
+        ['HelloWorld'],
+        '/docs/index.md',
+        attrNames,
+      );
 
     expect(out).toMatch(/<div[\S\s]*__render_component__="HelloWorld"/);
     expect(out).toContain(`${attrNames.renderDirective}="ssr:only"`);
@@ -51,7 +52,7 @@ describe('coreTransformComponentTags', () => {
       codeDefault,
       ['HelloWorld'],
       '/docs/index.md',
-      attrNames
+      attrNames,
     );
 
     expect(out).toContain(`${attrNames.renderDirective}="client:only"`);
@@ -64,7 +65,7 @@ describe('coreTransformComponentTags', () => {
       codeWithSpaSr,
       ['HelloWorld'],
       '/docs/guide.md',
-      attrNames
+      attrNames,
     );
 
     expect(out2).toContain(`${attrNames.renderDirective}="client:only"`);
@@ -79,7 +80,7 @@ describe('coreTransformComponentTags', () => {
       codeDefault,
       ['HelloWorld'],
       '/docs/guide.md',
-      attrNames
+      attrNames,
     );
 
     expect(outDefault).toContain(`${attrNames.renderDirective}="ssr:only"`);
@@ -92,11 +93,15 @@ describe('coreTransformComponentTags', () => {
       codeWithSpaSrDisable,
       ['HelloWorld'],
       '/docs/guide.md',
-      attrNames
+      attrNames,
     );
 
-    expect(outWithSpaSrDisable).toContain(`${attrNames.renderDirective}="ssr:only"`);
-    expect(outWithSpaSrDisable).toContain(`${attrNames.renderWithSpaSync}="false"`);
+    expect(outWithSpaSrDisable).toContain(
+      `${attrNames.renderDirective}="ssr:only"`,
+    );
+    expect(outWithSpaSrDisable).toContain(
+      `${attrNames.renderWithSpaSync}="false"`,
+    );
   });
 
   it('keeps user props on transformed container and excludes strategy attrs', () => {
@@ -107,7 +112,7 @@ describe('coreTransformComponentTags', () => {
       code,
       ['HelloWorld'],
       '/docs/props.md',
-      attrNames
+      attrNames,
     );
 
     expect(out).toMatch(/title="Hi"/);
@@ -121,12 +126,13 @@ describe('coreTransformComponentTags', () => {
     const code = `# Title
 
 <HelloWorld></HelloWorld>`;
-    const { code: out, renderIdToRenderDirectiveMap } = coreTransformComponentTags(
-      code,
-      ['HelloWorld'],
-      '/docs/fail.md',
-      attrNames
-    );
+    const { code: out, renderIdToRenderDirectiveMap } =
+      coreTransformComponentTags(
+        code,
+        ['HelloWorld'],
+        '/docs/fail.md',
+        attrNames,
+      );
     expect(out).toContain('<HelloWorld></HelloWorld>');
     expect(renderIdToRenderDirectiveMap.size).toBe(0);
   });
@@ -137,12 +143,13 @@ describe('coreTransformComponentTags', () => {
 
       <Helloworld />
     `;
-    const { code: out, renderIdToRenderDirectiveMap } = coreTransformComponentTags(
-      code,
-      ['HelloWorld'],
-      '/docs/case.md',
-      attrNames
-    );
+    const { code: out, renderIdToRenderDirectiveMap } =
+      coreTransformComponentTags(
+        code,
+        ['HelloWorld'],
+        '/docs/case.md',
+        attrNames,
+      );
     // Not transformed due to case mismatch.
     expect(out).toContain('<Helloworld />');
     expect(renderIdToRenderDirectiveMap.size).toBe(0);
@@ -153,12 +160,13 @@ describe('coreTransformComponentTags', () => {
       // This mimics the exact scenario that failed in Windows CI
       const code =
         '<HelloWorld invalid:directive uniqueId="invalid-directive" />\n<HelloWorld client:invalid uniqueId="client-invalid" />';
-      const { code: out, renderIdToRenderDirectiveMap } = coreTransformComponentTags(
-        code,
-        ['HelloWorld'],
-        '/error-handling/invalid-directive.md',
-        attrNames
-      );
+      const { code: out, renderIdToRenderDirectiveMap } =
+        coreTransformComponentTags(
+          code,
+          ['HelloWorld'],
+          '/error-handling/invalid-directive.md',
+          attrNames,
+        );
 
       // Both components should be transformed successfully
       expect(renderIdToRenderDirectiveMap.size).toBe(2);
@@ -172,17 +180,21 @@ describe('coreTransformComponentTags', () => {
       expect(out).toContain('uniqueid="client-invalid"');
 
       // Both should default to ssr:only due to invalid directives
-      expect(out).toMatch(new RegExp(`${attrNames.renderDirective}="ssr:only"`, 'g'));
+      expect(out).toMatch(
+        new RegExp(`${attrNames.renderDirective}="ssr:only"`, 'g'),
+      );
     });
 
     it('correctly handles CRLF line endings (Windows line endings)', () => {
-      const codeWithCRLF = '# Title\r\n\r\n<HelloWorld prop="value" />\r\n<TestComponent />\r\n';
-      const { code: out, renderIdToRenderDirectiveMap } = coreTransformComponentTags(
-        codeWithCRLF,
-        ['HelloWorld', 'TestComponent'],
-        '/docs/windows-line-endings.md',
-        attrNames
-      );
+      const codeWithCRLF =
+        '# Title\r\n\r\n<HelloWorld prop="value" />\r\n<TestComponent />\r\n';
+      const { code: out, renderIdToRenderDirectiveMap } =
+        coreTransformComponentTags(
+          codeWithCRLF,
+          ['HelloWorld', 'TestComponent'],
+          '/docs/windows-line-endings.md',
+          attrNames,
+        );
 
       // Both components should be processed correctly despite CRLF endings
       expect(renderIdToRenderDirectiveMap.size).toBe(2);
@@ -198,12 +210,13 @@ describe('coreTransformComponentTags', () => {
       const codeWithWhitespace = `<HelloWorld />
     <HelloWorld attr="value" />`;
 
-      const { code: out, renderIdToRenderDirectiveMap } = coreTransformComponentTags(
-        codeWithWhitespace,
-        ['HelloWorld'],
-        '/docs/whitespace-positions.md',
-        attrNames
-      );
+      const { code: out, renderIdToRenderDirectiveMap } =
+        coreTransformComponentTags(
+          codeWithWhitespace,
+          ['HelloWorld'],
+          '/docs/whitespace-positions.md',
+          attrNames,
+        );
 
       // Both components should be transformed despite leading whitespace
       expect(renderIdToRenderDirectiveMap.size).toBe(2);
@@ -214,12 +227,13 @@ describe('coreTransformComponentTags', () => {
 
     it('correctly sorts components by absolute positions (not relative)', () => {
       // This test ensures the sorting fix works - components should be processed in reverse order
-      const code = '<FirstComponent />\n<SecondComponent />\n<ThirdComponent />';
+      const code =
+        '<FirstComponent />\n<SecondComponent />\n<ThirdComponent />';
       const { code: out } = coreTransformComponentTags(
         code,
         ['FirstComponent', 'SecondComponent', 'ThirdComponent'],
         '/docs/sorting-test.md',
-        attrNames
+        attrNames,
       );
 
       // All components should be transformed
@@ -238,12 +252,13 @@ describe('coreTransformComponentTags', () => {
       const code = `<HelloWorld prop="value" />
 <HelloWorld booleanProp />`;
 
-      const { code: out, renderIdToRenderDirectiveMap } = coreTransformComponentTags(
-        code,
-        ['HelloWorld'],
-        '/docs/complex-boundaries.md',
-        attrNames
-      );
+      const { code: out, renderIdToRenderDirectiveMap } =
+        coreTransformComponentTags(
+          code,
+          ['HelloWorld'],
+          '/docs/complex-boundaries.md',
+          attrNames,
+        );
 
       // Both components should be correctly identified and transformed
       expect(renderIdToRenderDirectiveMap.size).toBe(2);
@@ -264,8 +279,8 @@ describe('coreTransformComponentTags', () => {
           problematicCode,
           ['HelloWorld'],
           '/test/consistency.md',
-          attrNames
-        )
+          attrNames,
+        ),
       );
 
       // All runs should produce the same number of processed components
@@ -276,7 +291,9 @@ describe('coreTransformComponentTags', () => {
       // All runs should produce the same output structure
       const firstOutput = results[0].code;
       for (const { code } of results.slice(1)) {
-        expect(code.match(/<div/g)?.length).toBe(firstOutput.match(/<div/g)?.length);
+        expect(code.match(/<div/g)?.length).toBe(
+          firstOutput.match(/<div/g)?.length,
+        );
       }
     });
   });
@@ -292,13 +309,17 @@ describe('travelImports', () => {
     const resNamed = travelImports(codeNamed)!;
     const resNamespace = travelImports(codeNamespace)!;
 
-    expect(resDefault).toEqual([{ importedName: 'default', localName: 'React' }]);
+    expect(resDefault).toEqual([
+      { importedName: 'default', localName: 'React' },
+    ]);
     expect(resNamed).toEqual(
       expect.arrayContaining([
         { importedName: 'useState', localName: 'useS' },
-        { importedName: 'useEffect', localName: 'useEffect' }
-      ])
+        { importedName: 'useEffect', localName: 'useEffect' },
+      ]),
     );
-    expect(resNamespace).toEqual([{ importedName: '*', localName: 'ReactDOM' }]);
+    expect(resNamespace).toEqual([
+      { importedName: '*', localName: 'ReactDOM' },
+    ]);
   });
 });

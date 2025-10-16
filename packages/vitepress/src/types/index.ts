@@ -7,12 +7,17 @@ export const ConsoleTheme = {
   SUCCESS: 'green',
   WARNING: 'yellow',
   INFO: 'blue',
-  ERROR_LIGHT: 'redBright'
+  ERROR_LIGHT: 'redBright',
 } as const;
 
-export type ConsoleThemeValue = (typeof ConsoleTheme)[keyof typeof ConsoleTheme];
+export type ConsoleThemeValue =
+  (typeof ConsoleTheme)[keyof typeof ConsoleTheme];
 
-export type RenderDirective = 'client:only' | 'client:load' | 'client:visible' | 'ssr:only';
+export type RenderDirective =
+  | 'client:only'
+  | 'client:load'
+  | 'client:visible'
+  | 'ssr:only';
 
 type ColorsKeys = keyof Colors;
 
@@ -21,7 +26,7 @@ export const ConsoleThemeMap: Record<ConsoleThemeValue, ColorsKeys> = {
   [ConsoleTheme.SUCCESS]: 'greenBright',
   [ConsoleTheme.WARNING]: 'yellow',
   [ConsoleTheme.INFO]: 'blue',
-  [ConsoleTheme.ERROR_LIGHT]: 'redBright'
+  [ConsoleTheme.ERROR_LIGHT]: 'redBright',
 };
 
 export interface PrintOptions {

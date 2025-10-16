@@ -13,18 +13,18 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
       {
         text: 'VitePress',
         target: '_blank',
-        link: '/vitepress/'
+        link: '/vitepress/',
       },
       {
         text: 'Contributing',
-        link: 'https://github.com/XiSenao/docs-islands/blob/main/.github/CONTRIBUTING.md'
-      }
+        link: 'https://github.com/XiSenao/docs-islands/blob/main/.github/CONTRIBUTING.md',
+      },
     ],
     footer: {
       message: 'Released under the MIT License.',
-      copyright: `Copyright © 2025-present Senao Xi`
-    }
-  }
+      copyright: `Copyright © 2025-present Senao Xi`,
+    },
+  },
 };
 
 export default vitepressConfig;

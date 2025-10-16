@@ -10,13 +10,20 @@ import type { DefaultTheme, UserConfig } from 'vitepress';
 const NODE_BUILTIN_NAMESPACE = 'node:';
 const NPM_BUILTIN_NAMESPACE = 'npm:';
 const BUN_BUILTIN_NAMESPACE = 'bun:';
-const nodeBuiltins = builtinModules.filter(id => !id.includes(':'));
+const nodeBuiltins = builtinModules.filter((id) => !id.includes(':'));
 
-function createIsBuiltin(builtins: Array<string | RegExp>): (id: string) => boolean {
-  const plainBuiltinsSet = new Set(builtins.filter(builtin => typeof builtin === 'string'));
-  const regexBuiltins = builtins.filter(builtin => typeof builtin !== 'string');
+function createIsBuiltin(
+  builtins: Array<string | RegExp>,
+): (id: string) => boolean {
+  const plainBuiltinsSet = new Set(
+    builtins.filter((builtin) => typeof builtin === 'string'),
+  );
+  const regexBuiltins = builtins.filter(
+    (builtin) => typeof builtin !== 'string',
+  );
 
-  return id => plainBuiltinsSet.has(id) || regexBuiltins.some(regexp => regexp.test(id));
+  return (id) =>
+    plainBuiltinsSet.has(id) || regexBuiltins.some((regexp) => regexp.test(id));
 }
 
 const isBuiltinCache = new WeakMap<
@@ -37,7 +44,7 @@ const nodeLikeBuiltins: Array<string | RegExp> = [
   ...nodeBuiltins,
   new RegExp(`^${NODE_BUILTIN_NAMESPACE}`),
   new RegExp(`^${NPM_BUILTIN_NAMESPACE}`),
-  new RegExp(`^${BUN_BUILTIN_NAMESPACE}`)
+  new RegExp(`^${BUN_BUILTIN_NAMESPACE}`),
 ];
 
 export function isNodeLikeBuiltin(id: string): boolean {
@@ -46,9 +53,11 @@ export function isNodeLikeBuiltin(id: string): boolean {
 
 export const print = (text: string, options?: PrintOptions): void => {
   const { theme = ConsoleTheme.SUCCESS, bold = false } = options || {};
-  const consoleThemeColor = ConsoleThemeMap[theme] || ConsoleThemeMap[ConsoleTheme.SUCCESS];
+  const consoleThemeColor =
+    ConsoleThemeMap[theme] || ConsoleThemeMap[ConsoleTheme.SUCCESS];
   const colorFunction = colors[consoleThemeColor];
-  const renderContent = typeof colorFunction === 'function' ? colorFunction(text) : text;
+  const renderContent =
+    typeof colorFunction === 'function' ? colorFunction(text) : text;
   const boldContent = bold ? colors.bold(renderContent) : renderContent;
   console.log(boldContent);
 };
@@ -84,7 +93,9 @@ export function getProjectRoot(): string {
   return process.cwd();
 }
 
-export const resolveConfig = (rawVitepressConfig: UserConfig<DefaultTheme.Config>): ConfigType => {
+export const resolveConfig = (
+  rawVitepressConfig: UserConfig<DefaultTheme.Config>,
+): ConfigType => {
   const vitepressResolve = (root: string, file: string) =>
     normalizePath(resolve(root, `.vitepress`, file));
   const root = normalizePath(resolve(getProjectRoot()));
@@ -92,7 +103,9 @@ export const resolveConfig = (rawVitepressConfig: UserConfig<DefaultTheme.Config
     ? slash(rawVitepressConfig.assetsDir).replaceAll(/^\.?\/|\/$/g, '')
     : 'assets';
   const mpa = rawVitepressConfig.mpa ?? false;
-  const base = rawVitepressConfig.base ? rawVitepressConfig.base.replace(/([^/])$/, '$1/') : '/';
+  const base = rawVitepressConfig.base
+    ? rawVitepressConfig.base.replace(/([^/])$/, '$1/')
+    : '/';
   const srcDir = normalizePath(resolve(root, rawVitepressConfig.srcDir || '.'));
   const publicDir = resolve(srcDir, 'public');
   const outDir = rawVitepressConfig.outDir
@@ -115,7 +128,7 @@ export const resolveConfig = (rawVitepressConfig: UserConfig<DefaultTheme.Config
     cleanUrls,
     wrapBaseUrl: (path: string) => {
       return path.startsWith('http') ? path : join('/', base, path);
-    }
+    },
   };
 
   return config;
@@ -123,9 +136,11 @@ export const resolveConfig = (rawVitepressConfig: UserConfig<DefaultTheme.Config
 
 export const getPathnameByMarkdownModuleId = (
   markdownModuleId: string,
-  siteConfig: ConfigType
+  siteConfig: ConfigType,
 ): string => {
-  const relativePath = normalizePath(relative(siteConfig.srcDir, markdownModuleId));
+  const relativePath = normalizePath(
+    relative(siteConfig.srcDir, markdownModuleId),
+  );
   let pathname = `/${relativePath
     .replace(/\.md$/, siteConfig.cleanUrls ? '' : '.html')
     .replace(/(^|\/)index(\.html)?$/, '$1')}`;
@@ -134,5 +149,7 @@ export const getPathnameByMarkdownModuleId = (
     pathname = '/';
   }
 
-  return siteConfig.base === '/' ? pathname : siteConfig.base.slice(0, -1) + pathname;
+  return siteConfig.base === '/'
+    ? pathname
+    : siteConfig.base.slice(0, -1) + pathname;
 };

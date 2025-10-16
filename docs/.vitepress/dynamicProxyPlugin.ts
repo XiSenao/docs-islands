@@ -26,7 +26,7 @@ const DEFAULT_CONFIG: ProxyConfig = {
   packageScope: '@docs-islands',
   devCommand: 'docs:dev',
   startupTimeout: 60_000,
-  shutdownTimeout: 5000
+  shutdownTimeout: 5000,
 };
 
 class ProjectManager {
@@ -46,24 +46,30 @@ class ProjectManager {
 
     const existing = this.runningProjects.get(docsPackageName);
     if (existing) {
-      this.logger.debug(`Project ${docsPackageName} already running on port ${existing.port}`);
+      this.logger.debug(
+        `Project ${docsPackageName} already running on port ${existing.port}`,
+      );
       return existing;
     }
 
     // Check if already starting (mutex lock).
     const starting = this.startingProjects.get(docsPackageName);
     if (starting) {
-      this.logger.debug(`Project ${docsPackageName} is already starting, waiting...`);
+      this.logger.debug(
+        `Project ${docsPackageName} is already starting, waiting...`,
+      );
       await starting;
       const projectInfo = this.runningProjects.get(docsPackageName);
       if (!projectInfo) {
-        throw new Error(`Project ${docsPackageName} started but not found in registry`);
+        throw new Error(
+          `Project ${docsPackageName} started but not found in registry`,
+        );
       }
       return projectInfo;
     }
 
     this.logger.info(
-      `Lazy starting dev server for: ${this.config.packageScope}/${docsPackageName}...`
+      `Lazy starting dev server for: ${this.config.packageScope}/${docsPackageName}...`,
     );
     const startPromise = this.startProjectServer(docsPackageName);
     this.startingProjects.set(docsPackageName, startPromise);
@@ -72,7 +78,9 @@ class ProjectManager {
       await startPromise;
       const projectInfo = this.runningProjects.get(docsPackageName);
       if (!projectInfo) {
-        throw new Error(`Project ${docsPackageName} started but not found in registry`);
+        throw new Error(
+          `Project ${docsPackageName} started but not found in registry`,
+        );
       }
       return projectInfo;
     } finally {
@@ -84,11 +92,15 @@ class ProjectManager {
     return new Promise((resolve, reject) => {
       const projectProcess = spawn(
         'pnpm',
-        ['--filter', `${this.config.packageScope}/${docsPackageName}`, this.config.devCommand],
+        [
+          '--filter',
+          `${this.config.packageScope}/${docsPackageName}`,
+          this.config.devCommand,
+        ],
         {
           shell: true,
-          stdio: ['pipe', 'pipe', 'pipe']
-        }
+          stdio: ['pipe', 'pipe', 'pipe'],
+        },
       );
 
       let resolved = false;
@@ -96,8 +108,8 @@ class ProjectManager {
         if (!resolved) {
           reject(
             new Error(
-              `Timeout: ${docsPackageName} server failed to start within ${this.config.startupTimeout}ms`
-            )
+              `Timeout: ${docsPackageName} server failed to start within ${this.config.startupTimeout}ms`,
+            ),
           );
           projectProcess.kill('SIGKILL');
         }
@@ -115,32 +127,39 @@ class ProjectManager {
               resolved = true;
               clearTimeout(timeout);
               this.logger.info(
-                `✓ ${this.config.packageScope}/${docsPackageName} running on port: ${port}`
+                `✓ ${this.config.packageScope}/${docsPackageName} running on port: ${port}`,
               );
-              this.runningProjects.set(docsPackageName, { port, process: projectProcess });
+              this.runningProjects.set(docsPackageName, {
+                port,
+                process: projectProcess,
+              });
               resolve(port);
             })
-            .catch(error => {
-              this.logger.warn(`Port ${port} detected but health check failed: ${error}`);
+            .catch((error) => {
+              this.logger.warn(
+                `Port ${port} detected but health check failed: ${error}`,
+              );
             });
         }
       };
 
       projectProcess.stdout.on('data', handleOutput);
-      projectProcess.stderr.on('data', data => {
+      projectProcess.stderr.on('data', (data) => {
         const output = data.toString();
         this.logger.error(`[${docsPackageName}] ${output.trim()}`);
         handleOutput(data);
       });
 
-      projectProcess.on('exit', code => {
+      projectProcess.on('exit', (code) => {
         clearTimeout(timeout);
         this.logger.info(
-          `${this.config.packageScope}/${docsPackageName} server exited with code ${code}`
+          `${this.config.packageScope}/${docsPackageName} server exited with code ${code}`,
         );
         this.runningProjects.delete(docsPackageName);
         if (code !== 0 && !resolved) {
-          reject(new Error(`${docsPackageName} server exited with code ${code}`));
+          reject(
+            new Error(`${docsPackageName} server exited with code ${code}`),
+          );
         }
       });
     });
@@ -151,14 +170,14 @@ class ProjectManager {
       try {
         const response = await fetch(`http://localhost:${port}`, {
           method: 'HEAD',
-          signal: AbortSignal.timeout(2000)
+          signal: AbortSignal.timeout(2000),
         });
         if (response.ok || response.status === 404) {
           return;
         }
       } catch (error) {
         if (i === retries - 1) throw error;
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
   }
@@ -167,7 +186,10 @@ class ProjectManager {
     this.logger.info('Shutting down child servers...');
     const shutdownPromises: Promise<void>[] = [];
 
-    for (const [docsPackageName, { process }] of this.runningProjects.entries()) {
+    for (const [
+      docsPackageName,
+      { process },
+    ] of this.runningProjects.entries()) {
       shutdownPromises.push(this.shutdownProcess(docsPackageName, process));
     }
 
@@ -178,13 +200,15 @@ class ProjectManager {
 
   private async shutdownProcess(
     docsPackageName: string,
-    childProcess: ChildProcess
+    childProcess: ChildProcess,
   ): Promise<void> {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       this.logger.info(`Shutting down ${docsPackageName} server...`);
 
       const forceKillTimer = setTimeout(() => {
-        this.logger.warn(`${docsPackageName} did not exit gracefully, sending SIGKILL`);
+        this.logger.warn(
+          `${docsPackageName} did not exit gracefully, sending SIGKILL`,
+        );
         childProcess.kill('SIGKILL');
       }, this.config.shutdownTimeout);
 
@@ -208,13 +232,17 @@ class ProxyHandler {
   private config: ProxyConfig;
   private projectManager: ProjectManager;
 
-  constructor(config: ProxyConfig, projectManager: ProjectManager, logger: Logger) {
+  constructor(
+    config: ProxyConfig,
+    projectManager: ProjectManager,
+    logger: Logger,
+  ) {
     this.config = config;
     this.projectManager = projectManager;
     this.logger = logger;
     this.proxy = httpProxy.createProxyServer({
       proxyTimeout: 30_000,
-      timeout: 30_000
+      timeout: 30_000,
     });
 
     this.setupProxyErrorHandlers();
@@ -251,13 +279,18 @@ class ProxyHandler {
     });
 
     this.proxy.on('proxyRes', (proxyRes, req) => {
-      this.logger.debug(`Received ${proxyRes.statusCode} for ${req.method} ${req.url}`);
+      this.logger.debug(
+        `Received ${proxyRes.statusCode} for ${req.method} ${req.url}`,
+      );
     });
   }
 
-  private classifyError(err: Error): 'TIMEOUT' | 'CONNECTION_REFUSED' | 'ECONNRESET' | 'OTHER' {
+  private classifyError(
+    err: Error,
+  ): 'TIMEOUT' | 'CONNECTION_REFUSED' | 'ECONNRESET' | 'OTHER' {
     const message = err.message.toLowerCase();
-    if (message.includes('timeout') || err.name === 'TimeoutError') return 'TIMEOUT';
+    if (message.includes('timeout') || err.name === 'TimeoutError')
+      return 'TIMEOUT';
     if (message.includes('econnrefused')) return 'CONNECTION_REFUSED';
     if (message.includes('econnreset')) return 'ECONNRESET';
     return 'OTHER';
@@ -266,7 +299,7 @@ class ProxyHandler {
   async handleHttpRequest(
     req: IncomingMessage,
     res: ServerResponse,
-    next: () => void
+    next: () => void,
   ): Promise<void | boolean> {
     if (!req.url) return next();
 
@@ -274,34 +307,41 @@ class ProxyHandler {
     if (!packageName) return next();
 
     try {
-      const projectInfo = await this.projectManager.getOrStartProject(packageName);
+      const projectInfo =
+        await this.projectManager.getOrStartProject(packageName);
       const originalUrl = req.url;
 
       this.logger.info(
-        `HTTP ${req.method} ${originalUrl} -> http://localhost:${projectInfo.port}${originalUrl}`
+        `HTTP ${req.method} ${originalUrl} -> http://localhost:${projectInfo.port}${originalUrl}`,
       );
 
       this.proxy.web(req, res, {
         target: `http://localhost:${projectInfo.port}`,
         changeOrigin: true,
         preserveHeaderKeyCase: true,
-        autoRewrite: true
+        autoRewrite: true,
       });
     } catch (error) {
-      this.logger.error(`Failed to proxy HTTP request for ${packageName}: ${error}`);
+      this.logger.error(
+        `Failed to proxy HTTP request for ${packageName}: ${error}`,
+      );
 
       if (!res.headersSent) {
         res.statusCode = 500;
         res.setHeader('Content-Type', 'text/plain');
         res.end(
-          `Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+          `Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
         );
       }
     }
     return undefined;
   }
 
-  async handleWebSocketUpgrade(req: IncomingMessage, socket: Socket, head: Buffer): Promise<void> {
+  async handleWebSocketUpgrade(
+    req: IncomingMessage,
+    socket: Socket,
+    head: Buffer,
+  ): Promise<void> {
     const url = req.url;
     if (!url) return;
 
@@ -309,23 +349,28 @@ class ProxyHandler {
     if (!packageName) return;
 
     try {
-      const projectInfo = await this.projectManager.getOrStartProject(packageName);
+      const projectInfo =
+        await this.projectManager.getOrStartProject(packageName);
 
-      this.logger.info(`WebSocket ${url} -> ws://localhost:${projectInfo.port}${url}`);
+      this.logger.info(
+        `WebSocket ${url} -> ws://localhost:${projectInfo.port}${url}`,
+      );
 
       this.proxy.ws(req, socket, head, {
         target: `ws://localhost:${projectInfo.port}`,
         ws: true,
-        changeOrigin: true
+        changeOrigin: true,
       });
     } catch (error) {
-      this.logger.error(`Failed to proxy WebSocket for ${packageName}: ${error}`);
+      this.logger.error(
+        `Failed to proxy WebSocket for ${packageName}: ${error}`,
+      );
       socket.destroy();
     }
   }
 
   private findMatchingProject(url: string): string | undefined {
-    return this.config.validProjects.find(packageName => {
+    return this.config.validProjects.find((packageName) => {
       const base = `${this.config.basePath}/${packageName}`;
       return url.startsWith(base);
     });
@@ -350,7 +395,7 @@ export function dynamicProxyPlugin(userConfig?: Partial<ProxyConfig>): Plugin {
     configureServer(server) {
       // HTTP middleware.
       server.middlewares.use((req, res, next) => {
-        proxyHandler.handleHttpRequest(req, res, next).catch(error => {
+        proxyHandler.handleHttpRequest(req, res, next).catch((error) => {
           logger.error(`Unexpected error in HTTP middleware: ${error}`);
           next();
         });
@@ -358,10 +403,12 @@ export function dynamicProxyPlugin(userConfig?: Partial<ProxyConfig>): Plugin {
 
       // WebSocket upgrade handler.
       server.httpServer?.on('upgrade', (req, socket, head) => {
-        proxyHandler.handleWebSocketUpgrade(req, socket, head).catch(error => {
-          logger.error(`Unexpected error in WebSocket upgrade: ${error}`);
-          socket.destroy();
-        });
+        proxyHandler
+          .handleWebSocketUpgrade(req, socket, head)
+          .catch((error) => {
+            logger.error(`Unexpected error in WebSocket upgrade: ${error}`);
+            socket.destroy();
+          });
       });
 
       // Register cleanup handlers only once.
@@ -377,7 +424,7 @@ export function dynamicProxyPlugin(userConfig?: Partial<ProxyConfig>): Plugin {
               logger.info('Cleanup completed');
               process.exit(0);
             })
-            .catch(error => {
+            .catch((error) => {
               logger.error(`Error during cleanup: ${error}`);
               process.exit(1);
             });
@@ -397,6 +444,6 @@ export function dynamicProxyPlugin(userConfig?: Partial<ProxyConfig>): Plugin {
       return projectManager.cleanup().then(() => {
         proxyHandler.destroy();
       });
-    }
+    },
   };
 }

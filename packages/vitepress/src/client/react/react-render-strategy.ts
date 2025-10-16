@@ -1,6 +1,6 @@
 import {
   RENDER_STRATEGY_ATTRS,
-  RENDER_STRATEGY_CONSTANTS
+  RENDER_STRATEGY_CONSTANTS,
 } from '@docs-islands/vitepress-shared/constants';
 import { validateLegalRenderElements } from '@docs-islands/vitepress-shared/utils';
 import type { RenderDirective } from '@docs-islands/vitepress-types';
@@ -49,7 +49,7 @@ export class ReactRenderStrategy {
 
   public collectLegalRenderComponents(): RenderComponent[] {
     const elements = document.querySelectorAll(
-      `[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}]`
+      `[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}]`,
     );
     const renderComponents: RenderComponent[] = [];
 
@@ -58,8 +58,11 @@ export class ReactRenderStrategy {
         continue;
       }
 
-      const elementRenderAttrs = RENDER_STRATEGY_ATTRS.map(attr => element.getAttribute(attr));
-      const [renderId, renderDirective, renderComponent, renderWithSpaSync] = elementRenderAttrs;
+      const elementRenderAttrs = RENDER_STRATEGY_ATTRS.map((attr) =>
+        element.getAttribute(attr),
+      );
+      const [renderId, renderDirective, renderComponent, renderWithSpaSync] =
+        elementRenderAttrs;
       const props = this.getPropsFromElement(element);
 
       renderComponents.push({
@@ -68,7 +71,7 @@ export class ReactRenderStrategy {
         renderId: renderId!,
         renderDirective: renderDirective! as RenderDirective,
         renderWithSpaSync: renderWithSpaSync === 'true',
-        props
+        props,
       });
     }
 
@@ -82,7 +85,10 @@ export class ReactRenderStrategy {
     try {
       await reactComponentManager.subscribeComponent(pageId, renderComponent);
 
-      const Component = reactComponentManager.getComponent(pageId, renderComponent);
+      const Component = reactComponentManager.getComponent(
+        pageId,
+        renderComponent,
+      );
       if (!Component) {
         Logger.warn(`Component ${renderComponent} not found`);
         return;
@@ -96,7 +102,9 @@ export class ReactRenderStrategy {
       try {
         window.ReactDOM.hydrateRoot(element, reactElement);
       } catch (error) {
-        Logger.error(`Hydration failed, fallback to client render, message: ${error.message}`);
+        Logger.error(
+          `Hydration failed, fallback to client render, message: ${error.message}`,
+        );
         const root = window.ReactDOM.createRoot(element);
         root.render(reactElement);
       }
@@ -113,7 +121,10 @@ export class ReactRenderStrategy {
     try {
       await reactComponentManager.subscribeComponent(pageId, renderComponent);
 
-      const Component = reactComponentManager.getComponent(pageId, renderComponent);
+      const Component = reactComponentManager.getComponent(
+        pageId,
+        renderComponent,
+      );
       if (!Component) {
         Logger.warn(`Component ${renderComponent} not found`);
         return;
@@ -126,9 +137,13 @@ export class ReactRenderStrategy {
       const root = window.ReactDOM.createRoot(element);
       const reactElement = window.React.createElement(Component, props);
       root.render(reactElement);
-      Logger.success(`Component ${renderComponent} client-side rendering completed`);
+      Logger.success(
+        `Component ${renderComponent} client-side rendering completed`,
+      );
     } catch (error) {
-      Logger.error(`Component client-side rendering failed, message: ${error.message}`);
+      Logger.error(
+        `Component client-side rendering failed, message: ${error.message}`,
+      );
     }
   }
 
@@ -137,19 +152,23 @@ export class ReactRenderStrategy {
       this.visibilityObserver.disconnect();
     }
 
-    this.visibilityObserver = new IntersectionObserver(entries => {
+    this.visibilityObserver = new IntersectionObserver((entries) => {
       for (const entry of entries) {
         if (entry.isIntersecting) {
           const element = entry.target;
           const renderComponent = element.getAttribute(
-            RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()
+            RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase(),
           );
-          const renderId = element.getAttribute(RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase());
+          const renderId = element.getAttribute(
+            RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),
+          );
           const renderDirective = element.getAttribute(
-            RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase()
+            RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase(),
           ) as RenderDirective;
           const renderWithSpaSync =
-            element.getAttribute(RENDER_STRATEGY_CONSTANTS.renderWithSpaSync) === 'true';
+            element.getAttribute(
+              RENDER_STRATEGY_CONSTANTS.renderWithSpaSync,
+            ) === 'true';
 
           if (renderComponent && renderDirective && renderId) {
             const props = this.getPropsFromElement(element);
@@ -160,9 +179,11 @@ export class ReactRenderStrategy {
               renderId,
               renderDirective,
               renderWithSpaSync,
-              props
-            }).catch(error => {
-              Logger.error(`Visibility rendering failed, message: ${error.message}`);
+              props,
+            }).catch((error) => {
+              Logger.error(
+                `Visibility rendering failed, message: ${error.message}`,
+              );
             });
           }
 
@@ -173,15 +194,17 @@ export class ReactRenderStrategy {
   }
 
   private async executeSpaSyncRender(
-    renderComponents: RenderComponent[]
+    renderComponents: RenderComponent[],
   ): Promise<RenderComponent[]> {
     Logger.info('Executing SPA sync rendering strategy');
 
     const hydrateComponents = renderComponents.filter(
-      info => info.renderDirective === 'client:load' && info.renderWithSpaSync
+      (info) =>
+        info.renderDirective === 'client:load' && info.renderWithSpaSync,
     );
     const visibleComponents = renderComponents.filter(
-      info => info.renderDirective === 'client:visible' && info.renderWithSpaSync
+      (info) =>
+        info.renderDirective === 'client:visible' && info.renderWithSpaSync,
     );
     if (visibleComponents.length > 0) {
       this.setupVisibilityObserver();
@@ -193,7 +216,9 @@ export class ReactRenderStrategy {
     const clientRenderTasks: Array<Promise<void>> = [];
 
     if (hydrateComponents.length > 0) {
-      clientRenderTasks.push(...hydrateComponents.map(async info => this.hydrateComponent(info)));
+      clientRenderTasks.push(
+        ...hydrateComponents.map(async (info) => this.hydrateComponent(info)),
+      );
     }
 
     await Promise.allSettled(clientRenderTasks);
@@ -203,33 +228,37 @@ export class ReactRenderStrategy {
 
   private async executeSSRInitialStrategy(
     renderComponents: RenderComponent[],
-    excludeComponents?: RenderComponent[]
+    excludeComponents?: RenderComponent[],
   ): Promise<void> {
     Logger.info('Executing SSR initialization rendering strategy');
 
     const filteredRenderComponents =
       Array.isArray(excludeComponents) && excludeComponents.length > 0
-        ? renderComponents.filter(info => !excludeComponents.includes(info))
+        ? renderComponents.filter((info) => !excludeComponents.includes(info))
         : renderComponents;
 
     const hydrateComponents = filteredRenderComponents.filter(
-      info => info.renderDirective === 'client:load'
+      (info) => info.renderDirective === 'client:load',
     );
     const clientOnlyComponents = filteredRenderComponents.filter(
-      info => info.renderDirective === 'client:only'
+      (info) => info.renderDirective === 'client:only',
     );
     const visibleComponents = filteredRenderComponents.filter(
-      info => info.renderDirective === 'client:visible'
+      (info) => info.renderDirective === 'client:visible',
     );
 
     const clientRenderTasks: Array<Promise<void>> = [];
 
     if (hydrateComponents.length > 0) {
-      clientRenderTasks.push(...hydrateComponents.map(async info => this.hydrateComponent(info)));
+      clientRenderTasks.push(
+        ...hydrateComponents.map(async (info) => this.hydrateComponent(info)),
+      );
     }
 
     if (clientOnlyComponents.length > 0) {
-      clientRenderTasks.push(...clientOnlyComponents.map(async info => this.renderComponent(info)));
+      clientRenderTasks.push(
+        ...clientOnlyComponents.map(async (info) => this.renderComponent(info)),
+      );
     }
 
     if (visibleComponents.length > 0) {
@@ -262,24 +291,30 @@ export class ReactRenderStrategy {
          */
         const [_, spaSyncHydrateComponents] = await Promise.all([
           reactComponentManager.loadPageComponents(),
-          this.executeSpaSyncRender(renderComponents)
+          this.executeSpaSyncRender(renderComponents),
         ]);
         /**
          * After route switching, it is necessary to obtain the server-rendered HTML
          * and patch it onto the corresponding DOM node.
          */
-        const componentInfo = reactComponentManager.getPageComponentInfo(pageId);
+        const componentInfo =
+          reactComponentManager.getPageComponentInfo(pageId);
         if (componentInfo) {
           const { ssrInjectScript } = componentInfo;
           if (ssrInjectScript) {
-            const { __SSR_INJECT_CODE__ } = await import(/* @vite-ignore */ ssrInjectScript);
+            const { __SSR_INJECT_CODE__ } = await import(
+              /* @vite-ignore */ ssrInjectScript
+            );
             if (typeof __SSR_INJECT_CODE__ === 'function') {
               __SSR_INJECT_CODE__();
             }
           }
         }
         // The remaining scenarios will be executed using the unoptimized path.
-        await this.executeSSRInitialStrategy(renderComponents, spaSyncHydrateComponents);
+        await this.executeSSRInitialStrategy(
+          renderComponents,
+          spaSyncHydrateComponents,
+        );
       } else {
         await this.executeSSRInitialStrategy(renderComponents);
       }
@@ -297,4 +332,5 @@ export class ReactRenderStrategy {
   }
 }
 
-export const reactRenderStrategy: ReactRenderStrategy = new ReactRenderStrategy();
+export const reactRenderStrategy: ReactRenderStrategy =
+  new ReactRenderStrategy();

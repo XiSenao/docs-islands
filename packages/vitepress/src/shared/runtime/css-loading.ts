@@ -46,7 +46,9 @@ interface LoadStyleOptions {
   failureStrategy?: FailureStrategy;
 }
 
-function createCSSLoadingConfig(environment: Environment = 'production'): CSSLoadingConfig {
+function createCSSLoadingConfig(
+  environment: Environment = 'production',
+): CSSLoadingConfig {
   const baseConfig: Record<Environment, CSSLoadingConfig> = {
     development: {
       timeout: 10_000,
@@ -54,7 +56,7 @@ function createCSSLoadingConfig(environment: Environment = 'production'): CSSLoa
       retryDelay: 1000,
       enablePerformanceMonitoring: true,
       enableDuplicateDetection: true,
-      failureStrategy: 'partial' as const
+      failureStrategy: 'partial' as const,
     },
     production: {
       timeout: 6000,
@@ -62,7 +64,7 @@ function createCSSLoadingConfig(environment: Environment = 'production'): CSSLoa
       retryDelay: 300,
       enablePerformanceMonitoring: false,
       enableDuplicateDetection: true,
-      failureStrategy: 'partial' as const
+      failureStrategy: 'partial' as const,
     },
     debug: {
       timeout: 15_000,
@@ -70,8 +72,8 @@ function createCSSLoadingConfig(environment: Environment = 'production'): CSSLoa
       retryDelay: 500,
       enablePerformanceMonitoring: true,
       enableDuplicateDetection: true,
-      failureStrategy: 'strict' as const
-    }
+      failureStrategy: 'strict' as const,
+    },
   };
 
   return baseConfig[environment] ?? baseConfig.production;
@@ -94,7 +96,7 @@ function createCSSLoadingConfig(environment: Environment = 'production'): CSSLoa
  */
 async function loadHighPriorityStyles(
   highPriorityRenderStyles: string[],
-  options: LoadStyleOptions = {}
+  options: LoadStyleOptions = {},
 ): Promise<StyleLoadResult> {
   const {
     timeout = 8000, // 8 seconds timeout.
@@ -102,10 +104,10 @@ async function loadHighPriorityStyles(
     retryDelay = 500, // Retry delay.
     enablePerformanceMonitoring = true,
     enableDuplicateDetection = true,
-    failureStrategy = 'partial' // 'partial' | 'strict'.
+    failureStrategy = 'partial', // 'partial' | 'strict'.
   } = options;
 
-  return new Promise<StyleLoadResult>(resolve => {
+  return new Promise<StyleLoadResult>((resolve) => {
     const startTime = performance.now();
     let loadedCount = 0;
     let failedCount = 0;
@@ -116,7 +118,7 @@ async function loadHighPriorityStyles(
       totalStartTime: startTime,
       individualLoadTimes: new Map<string, number>(),
       duplicatesDetected: 0,
-      retriesPerformed: 0
+      retriesPerformed: 0,
     };
 
     if (totalStyles === 0) {
@@ -126,7 +128,7 @@ async function loadHighPriorityStyles(
         failedCount: 0,
         totalCount: 0,
         timedOut: false,
-        metrics: performanceMetrics
+        metrics: performanceMetrics,
       });
       return;
     }
@@ -142,7 +144,7 @@ async function loadHighPriorityStyles(
           lightGeneralLogger(
             'warn',
             `CSS loading timeout after ${timeout}ms. Loaded: ${loadedCount}/${totalStyles}, Failed: ${failedCount}`,
-            'css-loading-runtime'
+            'css-loading-runtime',
           );
         }
 
@@ -152,7 +154,7 @@ async function loadHighPriorityStyles(
           failedCount,
           totalCount: totalStyles,
           timedOut: true,
-          metrics: performanceMetrics
+          metrics: performanceMetrics,
         });
       }
     }, timeout);
@@ -172,14 +174,14 @@ async function loadHighPriorityStyles(
           lightGeneralLogger(
             'success',
             `Success rate: ${loadedCount}/${totalStyles} (${((loadedCount / totalStyles) * 100).toFixed(1)}%)`,
-            'css-loading-runtime'
+            'css-loading-runtime',
           );
 
           if (performanceMetrics.duplicatesDetected > 0) {
             lightGeneralLogger(
               'info',
               `Detected and skipped ${performanceMetrics.duplicatesDetected} duplicate CSS files`,
-              'css-loading-runtime'
+              'css-loading-runtime',
             );
           }
 
@@ -187,19 +189,20 @@ async function loadHighPriorityStyles(
             lightGeneralLogger(
               'info',
               `Performed ${performanceMetrics.retriesPerformed} retries`,
-              'css-loading-runtime'
+              'css-loading-runtime',
             );
           }
         }
 
-        const success = failureStrategy === 'strict' ? failedCount === 0 : loadedCount > 0;
+        const success =
+          failureStrategy === 'strict' ? failedCount === 0 : loadedCount > 0;
         resolve({
           success,
           loadedCount,
           failedCount,
           totalCount: totalStyles,
           timedOut: false,
-          metrics: performanceMetrics
+          metrics: performanceMetrics,
         });
       }
     };
@@ -209,7 +212,9 @@ async function loadHighPriorityStyles(
 
       // Duplicate loading detection.
       if (enableDuplicateDetection) {
-        const existingLink = document.querySelector<HTMLLinkElement>(`link[href="${styleUrl}"]`);
+        const existingLink = document.querySelector<HTMLLinkElement>(
+          `link[href="${styleUrl}"]`,
+        );
         if (existingLink) {
           performanceMetrics.duplicatesDetected++;
           loadedCount++;
@@ -235,7 +240,7 @@ async function loadHighPriorityStyles(
           lightGeneralLogger(
             'warn',
             `Slow CSS loading detected: ${styleUrl} took ${loadTime.toFixed(2)}ms`,
-            'css-loading-runtime'
+            'css-loading-runtime',
           );
         }
 
@@ -248,7 +253,7 @@ async function loadHighPriorityStyles(
           lightGeneralLogger(
             'error',
             `CSS loading failed for ${styleUrl}, retrying (${retries + 1}/${retryCount})`,
-            'css-loading-runtime'
+            'css-loading-runtime',
           );
 
           // Remove the failed link element.
@@ -261,18 +266,23 @@ async function loadHighPriorityStyles(
             (): void => {
               loadStyleWithRetry(styleUrl, retries + 1);
             },
-            retryDelay * (retries + 1)
+            retryDelay * (retries + 1),
           );
         } else {
           const loadTime = performance.now() - loadStartTime;
           failedCount++;
-          loadResults.set(styleUrl, { success: false, loadTime, retries, error: 'Load failed' });
+          loadResults.set(styleUrl, {
+            success: false,
+            loadTime,
+            retries,
+            error: 'Load failed',
+          });
 
           if (enablePerformanceMonitoring) {
             lightGeneralLogger(
               'error',
               `CSS loading failed permanently: ${styleUrl} after ${retries} retries`,
-              'css-loading-runtime'
+              'css-loading-runtime',
             );
           }
 
@@ -295,7 +305,10 @@ async function loadHighPriorityStyles(
 
 const environment: Environment = (() => {
   if (typeof window !== 'undefined') {
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    if (
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
+    ) {
       return 'development';
     }
     if (
@@ -312,25 +325,29 @@ const cssLoadingConfig: CSSLoadingConfig = createCSSLoadingConfig(environment);
 
 // TODO: Export CSS loading config to users.
 export default async function cssLoadingRuntime(
-  highPriorityRenderStyles: string[]
+  highPriorityRenderStyles: string[],
 ): Promise<StyleLoadResult> {
-  const loadResult = await loadHighPriorityStyles(highPriorityRenderStyles, cssLoadingConfig);
+  const loadResult = await loadHighPriorityStyles(
+    highPriorityRenderStyles,
+    cssLoadingConfig,
+  );
 
   if (
     typeof window !== 'undefined' &&
-    (window.location.hostname === 'localhost' || window.location.search.includes('debug'))
+    (window.location.hostname === 'localhost' ||
+      window.location.search.includes('debug'))
   ) {
     if (loadResult.timedOut) {
       lightGeneralLogger(
         'error',
         `CSS loading timed out. Loaded: ${loadResult.loadedCount}/${loadResult.totalCount}`,
-        'css-loading-runtime'
+        'css-loading-runtime',
       );
     } else if (loadResult.failedCount > 0) {
       lightGeneralLogger(
         'error',
         `Some CSS files failed to load: ${loadResult.failedCount}/${loadResult.totalCount} failed`,
-        'css-loading-runtime'
+        'css-loading-runtime',
       );
     }
 
@@ -338,7 +355,7 @@ export default async function cssLoadingRuntime(
       lightGeneralLogger(
         'success',
         `Total CSS loading time: ${loadResult.metrics.totalLoadTime.toFixed(2)}ms`,
-        'css-loading-runtime'
+        'css-loading-runtime',
       );
     }
   }

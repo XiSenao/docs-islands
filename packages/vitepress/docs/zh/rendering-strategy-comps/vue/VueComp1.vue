@@ -12,7 +12,9 @@ const vueInfo = 'VueComp1';
 
 <template>
   <div class="vue-comp1-demo">
-    <strong>{{ props.renderCount }}: 渲染策略: {{ props.renderStrategy }}</strong>
+    <strong
+      >{{ props.renderCount }}: 渲染策略: {{ props.renderStrategy }}</strong
+    >
     <ol>
       <li>
         <strong>组件名称:</strong>

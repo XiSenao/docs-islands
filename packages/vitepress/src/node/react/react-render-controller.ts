@@ -1,11 +1,13 @@
 import {
   RENDER_STRATEGY_ATTRS,
-  RENDER_STRATEGY_CONSTANTS
+  RENDER_STRATEGY_CONSTANTS,
 } from '@docs-islands/vitepress-shared/constants';
 import { RenderController } from '../core/render-controller';
 
 export class ReactRenderController extends RenderController {
-  public async generateClientRuntimeInDEV(markdownModuleId: string): Promise<string> {
+  public async generateClientRuntimeInDEV(
+    markdownModuleId: string,
+  ): Promise<string> {
     const compilationContainer =
       await this.getCompilationContainerByMarkdownModuleId(markdownModuleId);
 
@@ -57,7 +59,7 @@ if (targetElements.length > 0) {
     const attributes = dom.getAttributeNames();
     const props: Record<string, string> = {};
     const userProps: Record<string, string> = {};
-    const renderStrategyAttrs = [${RENDER_STRATEGY_ATTRS.map(v => `"${v}"`).join(', ')}];
+    const renderStrategyAttrs = [${RENDER_STRATEGY_ATTRS.map((v) => `"${v}"`).join(', ')}];
 
     attributes.forEach((key) => {
       props[key] = dom.getAttribute(key);

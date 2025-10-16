@@ -33,11 +33,11 @@ export default defineConfig([
       parserOptions: {
         projectService: true,
         ecmaVersion: 'latest',
-        sourceType: 'module'
+        sourceType: 'module',
       },
       globals: {
-        ...globals.node
-      }
+        ...globals.node,
+      },
     },
     rules: {
       // Script files are allowed to use console and process.exit
@@ -45,8 +45,14 @@ export default defineConfig([
       'unicorn/no-process-exit': 'off',
       // Script files can have higher complexity
       complexity: ['warn', { max: 30 }],
-      'max-lines': ['warn', { max: 800, skipBlankLines: true, skipComments: true }],
-      'max-lines-per-function': ['warn', { max: 200, skipBlankLines: true, skipComments: true }],
+      'max-lines': [
+        'warn',
+        { max: 800, skipBlankLines: true, skipComments: true },
+      ],
+      'max-lines-per-function': [
+        'warn',
+        { max: 200, skipBlankLines: true, skipComments: true },
+      ],
       // Relaxed TypeScript rules
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
@@ -58,8 +64,8 @@ export default defineConfig([
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
       'no-return-await': 'off',
-      'require-await': 'off'
-    }
+      'require-await': 'off',
+    },
   },
 
   // CommonJS files configuration (Root directory only)
@@ -69,7 +75,7 @@ export default defineConfig([
       // CommonJS uses default Espree parser (not TypeScript parser)
       parserOptions: {
         ecmaVersion: 'latest',
-        sourceType: 'script' // CommonJS modules
+        sourceType: 'script', // CommonJS modules
       },
       globals: {
         ...globals.node,
@@ -80,8 +86,8 @@ export default defineConfig([
         __filename: 'readonly',
         process: 'readonly',
         global: 'readonly',
-        Buffer: 'readonly'
-      }
+        Buffer: 'readonly',
+      },
     },
     rules: {
       // CommonJS-appropriate styles
@@ -102,8 +108,14 @@ export default defineConfig([
 
       // Complexity controls (moderately relaxed)
       complexity: ['warn', { max: 20 }],
-      'max-lines-per-function': ['warn', { max: 150, skipBlankLines: true, skipComments: true }],
-      'max-lines': ['warn', { max: 800, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': [
+        'warn',
+        { max: 150, skipBlankLines: true, skipComments: true },
+      ],
+      'max-lines': [
+        'warn',
+        { max: 800, skipBlankLines: true, skipComments: true },
+      ],
       'max-depth': ['warn', 5],
 
       // Naming conventions
@@ -112,8 +124,8 @@ export default defineConfig([
         {
           properties: 'never',
           ignoreDestructuring: true,
-          allow: ['^npm_', '^PNPM_', '^NODE_']
-        }
+          allow: ['^npm_', '^PNPM_', '^NODE_'],
+        },
       ],
 
       // Comment conventions
@@ -127,8 +139,8 @@ export default defineConfig([
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off'
-    }
+      '@typescript-eslint/no-unsafe-return': 'off',
+    },
   },
 
   // .pnpmfile.cjs specific rules (Supplement general .cjs rules)
@@ -140,9 +152,9 @@ export default defineConfig([
         'error',
         {
           props: true,
-          ignorePropertyModificationsFor: ['pkg'] // Required for pnpm readPackage hook
-        }
-      ]
-    }
-  }
+          ignorePropertyModificationsFor: ['pkg'], // Required for pnpm readPackage hook
+        },
+      ],
+    },
+  },
 ]);

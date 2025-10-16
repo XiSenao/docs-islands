@@ -14,7 +14,7 @@ export const TIMEOUTS = {
   DEFAULT: 30_000,
   WINDOWS_CI: 90_000,
   ELEMENT_WAIT: (isWindows && isCI ? 60_000 : 30_000) as number,
-  PAGE_LOAD: (isWindows && isCI ? 45_000 : 15_000) as number
+  PAGE_LOAD: (isWindows && isCI ? 45_000 : 15_000) as number,
 } as const;
 
 /**
@@ -28,13 +28,13 @@ export async function waitForElementRobust(
     expectedAttributeValue?: string | null;
     checkVisibility?: boolean;
     timeout?: number;
-  } = {}
+  } = {},
 ): Promise<Locator> {
   const {
     checkAttribute,
     expectedAttributeValue,
     checkVisibility = true,
-    timeout = TIMEOUTS.ELEMENT_WAIT
+    timeout = TIMEOUTS.ELEMENT_WAIT,
   } = options;
 
   const element = page.locator(selector);
@@ -49,7 +49,7 @@ export async function waitForElementRobust(
       expect(attrValue).toBe(expectedAttributeValue);
     }).toPass({
       timeout,
-      intervals: isWindows && isCI ? [2000, 3000] : [1000]
+      intervals: isWindows && isCI ? [2000, 3000] : [1000],
     });
   }
 
@@ -60,7 +60,7 @@ export async function waitForElementRobust(
           await expect(element).toBeVisible();
         }).toPass({
           timeout,
-          intervals: [3000, 5000]
+          intervals: [3000, 5000],
         })
       : expect(element).toBeVisible({ timeout: timeout / 2 }));
   }
@@ -74,7 +74,7 @@ export async function waitForElementRobust(
 export async function debugElementState(
   page: Page,
   selector: string,
-  label: string = 'Element'
+  label: string = 'Element',
 ): Promise<void> {
   if (!isCI) return;
 
@@ -82,18 +82,20 @@ export async function debugElementState(
     const element = page.locator(selector);
     const isAttached = await element
       .count()
-      .then(count => count > 0)
+      .then((count) => count > 0)
       .catch(() => false);
     const isVisible = await element.isVisible().catch(() => false);
     const attributes = await element
-      .evaluateAll(els =>
-        els.map(el => ({
+      .evaluateAll((els) =>
+        els.map((el) => ({
           tag: el.tagName,
           attributes: JSON.stringify(
-            Object.fromEntries([...el.attributes].map(attr => [attr.name, attr.value]))
+            Object.fromEntries(
+              [...el.attributes].map((attr) => [attr.name, attr.value]),
+            ),
           ),
-          textContent: el.textContent?.slice(0, 100)
-        }))
+          textContent: el.textContent?.slice(0, 100),
+        })),
       )
       .catch(() => []);
 
@@ -102,7 +104,7 @@ export async function debugElementState(
       isAttached,
       isVisible,
       elements: attributes.length,
-      details: attributes
+      details: attributes,
     });
   } catch (error) {
     console.log(`[DEBUG] ${label} debug failed:`, error);

@@ -20,7 +20,7 @@ export function ReactComp2(props: CompProps): JSX.Element {
   const data = JSON.parse(readFileSync(targetPath, 'utf8')) as LocalData;
 
   const displayLocalData = () => {
-    const showLocalList = data.data.map(item => (
+    const showLocalList = data.data.map((item) => (
       <li key={item.id}>
         <span>
           <strong>标识位:</strong> {item.id}
@@ -50,7 +50,11 @@ export function ReactComp2(props: CompProps): JSX.Element {
           <strong>页面标题:</strong> <span>{props['page-title']}</span>
         </li>
         <li>
-          <button className="rc2-button" onClick={() => setCount(count + 1)} type="button">
+          <button
+            className="rc2-button"
+            onClick={() => setCount(count + 1)}
+            type="button"
+          >
             点击我!
           </button>
           <strong>仅预渲染模式, React 实例数量:</strong> <span>{count}</span>

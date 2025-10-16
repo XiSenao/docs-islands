@@ -10,14 +10,19 @@ class VitePressPathResolver {
   private readonly srcDir: string;
   private readonly cleanUrls: boolean;
   private readonly pages = new Set<string>();
-  private rewrites: SiteConfig<DefaultTheme.Config>['rewrites'] = { map: {}, inv: {} };
+  private rewrites: SiteConfig<DefaultTheme.Config>['rewrites'] = {
+    map: {},
+    inv: {},
+  };
 
   public cachedResolvedIds: Map<string, string> = new Map<string, string>();
 
   constructor(config: SiteConfig<DefaultTheme.Config>) {
     const root = normalizePath(resolve(getProjectRoot()));
     const srcDir = normalizePath(resolve(root, config.srcDir || '.'));
-    const base = config.site.base ? config.site.base.replace(/([^/])$/, '$1/') : '/';
+    const base = config.site.base
+      ? config.site.base.replace(/([^/])$/, '$1/')
+      : '/';
     const cleanUrls = config.site.cleanUrls ?? false;
     this.srcDir = normalizePath(srcDir);
     this.base = base;
@@ -79,7 +84,7 @@ class VitePressPathResolver {
   urlToMarkdownPath(url: string): string {
     let relativePath = url.replace(
       new RegExp(`^${this.base.replaceAll(/[$()*+.?[\\\]^{|}]/g, '\\$&')}`),
-      ''
+      '',
     );
     relativePath = relativePath.replace(/[#?].*$/, '');
 
@@ -157,8 +162,8 @@ class VitePressPathResolver {
 const needInlinePathResolver = (id: string) => {
   const queryString = id.split('?')[1] || '';
   const queryStringIterator = queryString.split('&') || [];
-  const queryItemString = queryStringIterator.find(queryItemString =>
-    queryItemString.startsWith(RENDER_STRATEGY_CONSTANTS.inlinePathResolver)
+  const queryItemString = queryStringIterator.find((queryItemString) =>
+    queryItemString.startsWith(RENDER_STRATEGY_CONSTANTS.inlinePathResolver),
   );
   if (queryItemString) {
     const [key] = queryItemString.split('=');
@@ -169,7 +174,8 @@ const needInlinePathResolver = (id: string) => {
   return false;
 };
 
-const cleanUrl = (url: string): string => url.replace(/#.*$/s, '').replace(/\?.*$/s, '');
+const cleanUrl = (url: string): string =>
+  url.replace(/#.*$/s, '').replace(/\?.*$/s, '');
 
 export default function createVitePressPathResolverPlugin(): Plugin {
   let resolver: VitePressPathResolver | null = null;
@@ -205,12 +211,14 @@ export default function createVitePressPathResolverPlugin(): Plugin {
         if (resolved) {
           logger
             .getLoggerByGroup('vitepress-path-resolver')
-            .success(`${id.replace(/([&?])+__INLINE_PATH_RESOLVER__/, '')} -> ${resolved}`);
+            .success(
+              `${id.replace(/([&?])+__INLINE_PATH_RESOLVER__/, '')} -> ${resolved}`,
+            );
           resolver.cachedResolvedIds.set(cahcedKey, resolved);
         }
 
         return resolved;
-      }
+      },
     },
 
     // Update resolver when configuration changes.
@@ -221,7 +229,7 @@ export default function createVitePressPathResolverPlugin(): Plugin {
       if (vitepressConfig) {
         resolver.updateConfig(vitepressConfig);
       }
-    }
+    },
   };
 }
 
@@ -232,7 +240,9 @@ export function transformPathForInlinePathResolver(id: string): string {
   return `${id}&${RENDER_STRATEGY_CONSTANTS.inlinePathResolver}`;
 }
 
-export function createPathResolver(config: SiteConfig<DefaultTheme.Config>): VitePressPathResolver {
+export function createPathResolver(
+  config: SiteConfig<DefaultTheme.Config>,
+): VitePressPathResolver {
   return new VitePressPathResolver(config);
 }
 

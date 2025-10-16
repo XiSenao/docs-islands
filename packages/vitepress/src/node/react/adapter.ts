@@ -2,7 +2,7 @@ import {
   ALLOWED_RENDER_DIRECTIVES,
   DIRNAME_VAR_NAME,
   NEED_PRE_RENDER_DIRECTIVES,
-  RENDER_STRATEGY_CONSTANTS
+  RENDER_STRATEGY_CONSTANTS,
 } from '@docs-islands/vitepress-shared/constants';
 import type { ConfigType } from '@docs-islands/vitepress-types';
 import reactPlugin from '@vitejs/plugin-react-swc';
@@ -10,7 +10,10 @@ import { dirname } from 'pathe';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import type { Plugin, PluginOption } from 'vite';
-import type { FrameworkAdapter, FrameworkAdapterConstants } from '../core/framework-adapter';
+import type {
+  FrameworkAdapter,
+  FrameworkAdapterConstants,
+} from '../core/framework-adapter';
 import type { RenderController } from '../core/render-controller';
 
 export class ReactAdapter implements FrameworkAdapter {
@@ -21,19 +24,22 @@ export class ReactAdapter implements FrameworkAdapter {
       renderId: RENDER_STRATEGY_CONSTANTS.renderId,
       renderDirective: RENDER_STRATEGY_CONSTANTS.renderDirective,
       renderComponent: RENDER_STRATEGY_CONSTANTS.renderComponent,
-      renderWithSpaSync: RENDER_STRATEGY_CONSTANTS.renderWithSpaSync
+      renderWithSpaSync: RENDER_STRATEGY_CONSTANTS.renderWithSpaSync,
     },
     windowKeys: {
       injectComponent: RENDER_STRATEGY_CONSTANTS.injectComponent,
       componentManager: RENDER_STRATEGY_CONSTANTS.componentManager,
-      pageMetafile: RENDER_STRATEGY_CONSTANTS.pageMetafile
+      pageMetafile: RENDER_STRATEGY_CONSTANTS.pageMetafile,
     },
     allowedDirectives: ALLOWED_RENDER_DIRECTIVES,
-    needPreRenderDirectives: NEED_PRE_RENDER_DIRECTIVES
+    needPreRenderDirectives: NEED_PRE_RENDER_DIRECTIVES,
   };
 
   browserBundlerPlugins(): Plugin[] {
-    const plugins: PluginOption[] = [reactPlugin(), this.externalizeRuntimePlugin()];
+    const plugins: PluginOption[] = [
+      reactPlugin(),
+      this.externalizeRuntimePlugin(),
+    ];
     return plugins.filter((plugin): plugin is Plugin => Boolean(plugin));
   }
 
@@ -50,9 +56,9 @@ export class ReactAdapter implements FrameworkAdapter {
               return code.replaceAll(DIRNAME_VAR_NAME, `"${dirname(id)}"`);
             }
             return code;
-          }
-        }
-      }
+          },
+        },
+      },
     ];
     return plugins.filter((plugin): plugin is Plugin => Boolean(plugin));
   }
@@ -64,10 +70,14 @@ export class ReactAdapter implements FrameworkAdapter {
   async generateDevRuntime(
     pathname: string,
     cfg: ConfigType,
-    rc: RenderController
+    rc: RenderController,
   ): Promise<string> {
-    const resolveId = `${cfg.base}/${cfg.srcDir}/${pathname}.md`.replaceAll('\\', '/');
-    const compilationContainer = await rc.getCompilationContainerByMarkdownModuleId(resolveId);
+    const resolveId = `${cfg.base}/${cfg.srcDir}/${pathname}.md`.replaceAll(
+      '\\',
+      '/',
+    );
+    const compilationContainer =
+      await rc.getCompilationContainerByMarkdownModuleId(resolveId);
     if (compilationContainer.importsByLocalName.size === 0) {
       return '';
     }
@@ -111,7 +121,7 @@ if (targetDoms.length > 0) {
 
   renderToString(
     component: React.ComponentType<Record<string, string>>,
-    props: Record<string, string>
+    props: Record<string, string>,
   ): string {
     const Component = component;
     return ReactDOMServer.renderToString(React.createElement(Component, props));
@@ -135,7 +145,7 @@ if (targetDoms.length > 0) {
           return `module.exports = window.ReactDOM;`;
         }
         return null;
-      }
+      },
     };
   }
 }

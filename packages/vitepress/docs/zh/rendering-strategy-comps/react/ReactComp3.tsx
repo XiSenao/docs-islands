@@ -17,10 +17,15 @@ export default function ReactComp3(props: CompProps): JSX.Element {
           <strong>页面标题:</strong> <span>{props['page-title']}</span>
         </li>
         <li>
-          <button className="rc3-button" onClick={() => setCount(count + 1)} type="button">
+          <button
+            className="rc3-button"
+            onClick={() => setCount(count + 1)}
+            type="button"
+          >
             点击我!
           </button>
-          <strong>预渲染客户端 hydration 模式, React 实例数量:</strong> <span>{count}</span>
+          <strong>预渲染客户端 hydration 模式, React 实例数量:</strong>{' '}
+          <span>{count}</span>
         </li>
       </ol>
     </div>

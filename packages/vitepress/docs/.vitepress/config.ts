@@ -2,7 +2,10 @@ import vitepressRenderingStrategiesPackageJson from '@docs-islands/vitepress/pac
 import vitepressReactRenderingStrategies from '@docs-islands/vitepress/react';
 import { join } from 'pathe';
 import { type DefaultTheme, defineConfig, type UserConfig } from 'vitepress';
-import { groupIconMdPlugin, groupIconVitePlugin } from 'vitepress-plugin-group-icons';
+import {
+  groupIconMdPlugin,
+  groupIconVitePlugin,
+} from 'vitepress-plugin-group-icons';
 import llmstxt from 'vitepress-plugin-llms';
 import enConfig from '../en/config';
 import zhConfig from '../zh/config';
@@ -16,7 +19,7 @@ const vitepressConfig: UserConfig<DefaultTheme.Config> = defineConfig({
   title: '@docs-islands/vitepress',
 
   rewrites: {
-    'en/:rest*': ':rest*'
+    'en/:rest*': ':rest*',
   },
   head: [
     [
@@ -24,30 +27,30 @@ const vitepressConfig: UserConfig<DefaultTheme.Config> = defineConfig({
       {
         rel: 'icon',
         type: 'image/svg+xml',
-        href: `${base}favicon.svg`
-      }
+        href: `${base}favicon.svg`,
+      },
     ],
     [
       'link',
       {
         rel: 'mask-icon',
         href: `${base}safari-pinned-tab.svg`,
-        color: '#646CFF'
-      }
+        color: '#646CFF',
+      },
     ],
-    ['meta', { name: 'theme-color', content: '#0f172a' }]
+    ['meta', { name: 'theme-color', content: '#0f172a' }],
   ],
   lastUpdated: true,
   cleanUrls: true,
   metaChunk: true,
   locales: {
     root: enConfig,
-    zh: zhConfig
+    zh: zhConfig,
   },
   markdown: {
-    config: md => {
+    config: (md) => {
       md.use(groupIconMdPlugin);
-    }
+    },
   },
   vite: {
     plugins: [
@@ -59,24 +62,30 @@ const vitepressConfig: UserConfig<DefaultTheme.Config> = defineConfig({
 
           if (file.includes('local-data.json')) {
             const updateModuleEntryPath = join(file, '../', 'ReactComp2.tsx');
-            const updateModuleEntry =
-              await server.moduleGraph.getModuleByUrl(updateModuleEntryPath);
+            const updateModuleEntry = await server.moduleGraph.getModuleByUrl(
+              updateModuleEntryPath,
+            );
             if (updateModuleEntry) {
-              server.moduleGraph.invalidateModule(updateModuleEntry, new Set(), Date.now(), true);
+              server.moduleGraph.invalidateModule(
+                updateModuleEntry,
+                new Set(),
+                Date.now(),
+                true,
+              );
               return [updateModuleEntry];
             }
           }
 
           return modules;
-        }
+        },
       },
       groupIconVitePlugin(),
       release &&
         llmstxt({
           workDir: 'en',
-          ignoreFiles: ['index.md']
-        })
-    ]
+          ignoreFiles: ['index.md'],
+        }),
+    ],
   },
   themeConfig: {
     outline: 'deep',
@@ -84,10 +93,10 @@ const vitepressConfig: UserConfig<DefaultTheme.Config> = defineConfig({
     socialLinks: [
       {
         icon: 'github',
-        link: 'https://github.com/XiSenao/docs-islands/tree/main/packages/vitepress'
-      }
-    ]
-  }
+        link: 'https://github.com/XiSenao/docs-islands/tree/main/packages/vitepress',
+      },
+    ],
+  },
 });
 
 vitepressReactRenderingStrategies(vitepressConfig);

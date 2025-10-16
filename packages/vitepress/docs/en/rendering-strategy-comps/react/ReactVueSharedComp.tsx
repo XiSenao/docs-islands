@@ -5,7 +5,9 @@ interface ReactVueSharedCompProps extends CompProps {
   'vue-info': string;
 }
 
-export default function ReactVueSharedComp(props: ReactVueSharedCompProps): JSX.Element {
+export default function ReactVueSharedComp(
+  props: ReactVueSharedCompProps,
+): JSX.Element {
   const [count, setCount] = useState(0);
   return (
     <div className="react-vue-shared-comp">
@@ -14,7 +16,8 @@ export default function ReactVueSharedComp(props: ReactVueSharedCompProps): JSX.
       </strong>
       <ol>
         <li>
-          <strong>Component Name:</strong> <span>{props['component-name']}</span>
+          <strong>Component Name:</strong>{' '}
+          <span>{props['component-name']}</span>
         </li>
         <li>
           <strong>Page Title:</strong> <span>{props['page-title']}</span>
@@ -31,14 +34,15 @@ export default function ReactVueSharedComp(props: ReactVueSharedCompProps): JSX.
               marginRight: '8px',
               backgroundColor: '#56a8ab',
               color: '#9ee2d3',
-              border: 'none'
+              border: 'none',
             }}
             onClick={() => setCount(count + 1)}
             type="button"
           >
             Click Me!
           </button>
-          <strong>Client Only Render Mode, React Instance Count:</strong> <span>{count}</span>
+          <strong>Client Only Render Mode, React Instance Count:</strong>{' '}
+          <span>{count}</span>
         </li>
       </ol>
     </div>

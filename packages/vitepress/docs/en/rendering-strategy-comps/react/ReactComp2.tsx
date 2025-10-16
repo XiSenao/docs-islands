@@ -18,7 +18,7 @@ export function ReactComp2(props: CompProps): JSX.Element {
   const [count, setCount] = useState(0);
   const data = JSON.parse(readFileSync(targetPath, 'utf8')) as LocalData;
   const displayLocalData = () => {
-    const showLocalList = data.data.map(item => (
+    const showLocalList = data.data.map((item) => (
       <li key={item.id}>
         <span>
           <strong>ID:</strong> {item.id}
@@ -42,16 +42,22 @@ export function ReactComp2(props: CompProps): JSX.Element {
       </strong>
       <ol>
         <li>
-          <strong>Component Name:</strong> <span>{props['component-name']}</span>
+          <strong>Component Name:</strong>{' '}
+          <span>{props['component-name']}</span>
         </li>
         <li>
           <strong>Page Title:</strong> <span>{props['page-title']}</span>
         </li>
         <li>
-          <button className="rc2-button" onClick={() => setCount(count + 1)} type="button">
+          <button
+            className="rc2-button"
+            onClick={() => setCount(count + 1)}
+            type="button"
+          >
             Click Me!
           </button>
-          <strong>Pre-rendering Mode Only, React Instance Count:</strong> <span>{count}</span>
+          <strong>Pre-rendering Mode Only, React Instance Count:</strong>{' '}
+          <span>{count}</span>
         </li>
       </ol>
       <div>{displayLocalData()}</div>

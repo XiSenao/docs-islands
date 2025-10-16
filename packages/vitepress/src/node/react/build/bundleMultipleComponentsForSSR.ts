@@ -3,7 +3,7 @@ import type {
   ComponentBundleInfo,
   ConfigType,
   RollupOutput,
-  UsedSnippetContainerType
+  UsedSnippetContainerType,
 } from '@docs-islands/vitepress-types';
 import { isNodeLikeBuiltin } from '@docs-islands/vitepress-utils';
 import logger from '@docs-islands/vitepress-utils/logger';
@@ -22,7 +22,7 @@ export async function bundleMultipleComponentsForSSR(
   config: ConfigType,
   ssrComponents: ComponentBundleInfo[],
   usedSnippetContainer: Map<string, UsedSnippetContainerType>,
-  adapter: FrameworkAdapter = reactAdapter
+  adapter: FrameworkAdapter = reactAdapter,
 ): Promise<{
   renderedComponents: Map<string, string>;
 }> {
@@ -52,7 +52,7 @@ export async function bundleMultipleComponentsForSSR(
         ssrEmitAssets: false,
         rollupOptions: {
           input: entryPoints,
-          external: id => {
+          external: (id) => {
             if (isNodeLikeBuiltin(id)) {
               return true;
             }
@@ -68,8 +68,8 @@ export async function bundleMultipleComponentsForSSR(
             format: 'esm',
             assetFileNames: `${assetsDir}/[name].[hash].[ext]`,
             entryFileNames: '[name].js',
-            chunkFileNames: '[name].[hash].js'
-          }
+            chunkFileNames: '[name].[hash].js',
+          },
         },
         outDir: ssrTempDir,
         emptyOutDir: true,
@@ -77,14 +77,14 @@ export async function bundleMultipleComponentsForSSR(
         target: 'es2022',
         minify: false,
         assetsInlineLimit: 4096,
-        cssCodeSplit: true
+        cssCodeSplit: true,
       },
       plugins: adapter.ssrBundlerPlugins(),
       define: {
         'process.env.NODE_ENV': '"production"',
-        'import.meta.dirname': DIRNAME_VAR_NAME
+        'import.meta.dirname': DIRNAME_VAR_NAME,
       },
-      logLevel: 'warn'
+      logLevel: 'warn',
     };
 
     const result = (await build(viteConfig)) as RollupOutput | RollupOutput[];
@@ -99,7 +99,7 @@ export async function bundleMultipleComponentsForSSR(
       for (const chunk of output.output) {
         if (isOutputChunk(chunk) && chunk.isEntry && entryPoints[chunk.name]) {
           const ssrComponent = ssrComponents.find(
-            ssrComponent => ssrComponent.componentName === chunk.name
+            (ssrComponent) => ssrComponent.componentName === chunk.name,
           );
 
           if (!ssrComponent) {
@@ -116,11 +116,14 @@ export async function bundleMultipleComponentsForSSR(
             } else if (ssrComponent.importReference.importedName === '*') {
               ssrModuleComponent = ssrModule;
             } else {
-              ssrModuleComponent = ssrModule[ssrComponent.importReference.importedName];
+              ssrModuleComponent =
+                ssrModule[ssrComponent.importReference.importedName];
             }
 
             if (!ssrModuleComponent) {
-              Logger.warn(`Component "${ssrComponent.componentName}" not found in bundle`);
+              Logger.warn(
+                `Component "${ssrComponent.componentName}" not found in bundle`,
+              );
               continue;
             }
 
@@ -131,22 +134,24 @@ export async function bundleMultipleComponentsForSSR(
                 try {
                   const reactSSRHtml = adapter.renderToString(
                     ssrModuleComponent,
-                    Object.fromEntries(usedSnippet.props)
+                    Object.fromEntries(usedSnippet.props),
                   );
                   renderedComponents.set(renderId, reactSSRHtml);
                   usedSnippet.ssrHtml = reactSSRHtml;
                   Logger.success(
-                    `Rendered component ${ssrComponent.componentName} for render ID: ${renderId}`
+                    `Rendered component ${ssrComponent.componentName} for render ID: ${renderId}`,
                   );
                 } catch (error) {
                   Logger.error(
-                    `Error rendering component "${ssrComponent.componentName}" for render ID ${renderId}: ${error}`
+                    `Error rendering component "${ssrComponent.componentName}" for render ID ${renderId}: ${error}`,
                   );
                 }
               }
             }
           } catch (error) {
-            Logger.error(`Failed to import SSR bundle for ${ssrComponent.componentName}: ${error}`);
+            Logger.error(
+              `Failed to import SSR bundle for ${ssrComponent.componentName}: ${error}`,
+            );
           }
         }
       }
@@ -155,14 +160,16 @@ export async function bundleMultipleComponentsForSSR(
     for (const ssrComponent of ssrComponents) {
       const entryName = ssrComponent.componentName;
       const outputFile = output.output.find(
-        chunk =>
+        (chunk) =>
           isOutputChunk(chunk) &&
           chunk.facadeModuleId === ssrComponent.componentPath &&
-          chunk.name === entryName
+          chunk.name === entryName,
       );
 
       if (!outputFile) {
-        Logger.warn(`No SSR bundle found for component: ${ssrComponent.componentName}`);
+        Logger.warn(
+          `No SSR bundle found for component: ${ssrComponent.componentName}`,
+        );
         continue;
       }
 
@@ -177,11 +184,14 @@ export async function bundleMultipleComponentsForSSR(
         } else if (ssrComponent.importReference.importedName === '*') {
           ssrModuleComponent = ssrModule;
         } else {
-          ssrModuleComponent = ssrModule[ssrComponent.importReference.importedName];
+          ssrModuleComponent =
+            ssrModule[ssrComponent.importReference.importedName];
         }
 
         if (!ssrModuleComponent) {
-          Logger.warn(`Component "${ssrComponent.componentName}" not found in bundle`);
+          Logger.warn(
+            `Component "${ssrComponent.componentName}" not found in bundle`,
+          );
           continue;
         }
 
@@ -192,22 +202,24 @@ export async function bundleMultipleComponentsForSSR(
             try {
               const reactSSRHtml = adapter.renderToString(
                 ssrModuleComponent,
-                Object.fromEntries(usedSnippet.props)
+                Object.fromEntries(usedSnippet.props),
               );
               renderedComponents.set(renderId, reactSSRHtml);
               usedSnippet.ssrHtml = reactSSRHtml;
               Logger.success(
-                `Rendered component ${ssrComponent.componentName} for render ID: ${renderId}`
+                `Rendered component ${ssrComponent.componentName} for render ID: ${renderId}`,
               );
             } catch (error) {
               Logger.error(
-                `Error rendering component "${ssrComponent.componentName}" for render ID ${renderId}: ${error}`
+                `Error rendering component "${ssrComponent.componentName}" for render ID ${renderId}: ${error}`,
               );
             }
           }
         }
       } catch (error) {
-        Logger.error(`Failed to import SSR bundle for ${ssrComponent.componentName}: ${error}`);
+        Logger.error(
+          `Failed to import SSR bundle for ${ssrComponent.componentName}: ${error}`,
+        );
       }
     }
 

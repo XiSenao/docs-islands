@@ -10,13 +10,13 @@ const config: UserConfig<DefaultTheme.Config> = defineConfig({
     server: {
       watch: {
         usePolling: true,
-        interval: 100
+        interval: 100,
       },
       hmr: {
-        overlay: false
-      }
-    }
-  }
+        overlay: false,
+      },
+    },
+  },
 });
 
 vitepressReactRenderingStrategies(config);

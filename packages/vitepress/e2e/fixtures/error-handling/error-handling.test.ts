@@ -1,5 +1,8 @@
 import { expect } from '@playwright/test';
-import { debugElementState, waitForElementRobust } from '../test-utils/platform-helpers';
+import {
+  debugElementState,
+  waitForElementRobust,
+} from '../test-utils/platform-helpers';
 
 describe('Error Handling and Edge Cases', () => {
   describe('Import Resolution Errors', () => {
@@ -13,7 +16,7 @@ describe('Error Handling and Edge Cases', () => {
 
       // Check the console for errors.
       const consoleLogs: string[] = [];
-      page.on('console', msg => {
+      page.on('console', (msg) => {
         consoleLogs.push(msg.text());
       });
 
@@ -70,19 +73,27 @@ describe('Error Handling and Edge Cases', () => {
       await expect(content).toBeVisible();
 
       // Debug element states before testing (CI only)
-      await debugElementState(page, '[uniqueid="invalid-directive"]', 'InvalidDirective');
-      await debugElementState(page, '[uniqueid="client-invalid"]', 'ClientInvalid');
+      await debugElementState(
+        page,
+        '[uniqueid="invalid-directive"]',
+        'InvalidDirective',
+      );
+      await debugElementState(
+        page,
+        '[uniqueid="client-invalid"]',
+        'ClientInvalid',
+      );
 
       await waitForElementRobust(page, '[uniqueid="invalid-directive"]', {
         checkAttribute: '__render_directive__',
         expectedAttributeValue: 'ssr:only',
-        checkVisibility: true
+        checkVisibility: true,
       });
 
       await waitForElementRobust(page, '[uniqueid="client-invalid"]', {
         checkAttribute: '__render_directive__',
         expectedAttributeValue: 'ssr:only',
-        checkVisibility: true
+        checkVisibility: true,
       });
     });
   });

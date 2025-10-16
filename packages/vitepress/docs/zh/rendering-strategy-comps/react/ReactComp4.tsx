@@ -24,14 +24,15 @@ export function ReactComp4(props: CompProps): JSX.Element {
               marginRight: '8px',
               backgroundColor: '#56a8ab',
               color: '#9ee2d3',
-              border: 'none'
+              border: 'none',
             }}
             onClick={() => setCount(count + 1)}
             type="button"
           >
             点击我!
           </button>
-          <strong>预渲染客户端可见 hydration 模式, React 实例数量:</strong> <span>{count}</span>
+          <strong>预渲染客户端可见 hydration 模式, React 实例数量:</strong>{' '}
+          <span>{count}</span>
         </li>
       </ol>
     </div>

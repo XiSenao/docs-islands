@@ -8,12 +8,15 @@ if (isColorSupported) {
   colors = picocolors;
 }
 
-const isBrowserRuntime = typeof window !== 'undefined' && typeof document !== 'undefined';
+const isBrowserRuntime =
+  typeof window !== 'undefined' && typeof document !== 'undefined';
 const isNodeRuntime =
-  typeof process !== 'undefined' && Boolean(process.versions && process.versions.node);
+  typeof process !== 'undefined' &&
+  Boolean(process.versions && process.versions.node);
 const isProductionEnv =
   (typeof import.meta !== 'undefined' &&
-    (import.meta as unknown as { env?: { PROD?: boolean } }).env?.PROD === true) ||
+    (import.meta as unknown as { env?: { PROD?: boolean } }).env?.PROD ===
+      true) ||
   (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production');
 
 const BROWSER_STYLES = {
@@ -24,7 +27,7 @@ const BROWSER_STYLES = {
   warn: 'color: #ffc107;',
   error: 'color: #dc3545; font-weight: bold;',
   debug: 'color: #6c757d;',
-  default: ''
+  default: '',
 } as const;
 
 class Logger {
@@ -61,7 +64,10 @@ class Logger {
       return;
     }
     // Suppress non-critical logs in production environment.
-    if (isProductionEnv && (kind === 'info' || kind === 'success' || kind === 'debug')) {
+    if (
+      isProductionEnv &&
+      (kind === 'info' || kind === 'success' || kind === 'debug')
+    ) {
       return;
     }
     if (isNodeRuntime && isColorSupported && colors) {
@@ -174,7 +180,7 @@ export const lightGeneralLogger = (
   type: 'success' | 'info' | 'error' | 'warn' | 'debug',
   message: string,
   group?: string,
-  options?: LightGeneralLoggerOptions
+  options?: LightGeneralLoggerOptions,
 ): string | void => {
   const { immediate = true } = options || {};
 
@@ -221,7 +227,7 @@ export const lightGeneralLogger = (
       'color: #e28a00; font-weight: bold;',
       'color: gray;',
       iconColor,
-      messageColor
+      messageColor,
     );
   }
   return `

@@ -7,7 +7,7 @@ export interface CreateRenderingStrategiesOptions {
 
 export default function createRenderingStrategies(
   vitepressConfig: UserConfig<DefaultTheme.Config>,
-  options?: CreateRenderingStrategiesOptions
+  options?: CreateRenderingStrategiesOptions,
 ): void {
   const frameworks = options?.frameworks ?? ['react'];
 

@@ -100,11 +100,7 @@
 
 ```js [xxx.md.js]
 import { __CSS_LOADING_RUNTIME__ } from './chunks/client-runtime.41d9d1b5.js';
-await __CSS_LOADING_RUNTIME__([
-  '/assets/styles.css',
-  '/assets/styles2.css',
-  '/assets/styles3.css'
-]);
+await __CSS_LOADING_RUNTIME__(['/assets/styles.css', '/assets/styles2.css', '/assets/styles3.css']);
 ```
 
 对当前示例页面来说，`Landing`、`ReactComp2`、`ReactComp3` 均使用 `spa:sync-render` 指令：
@@ -235,15 +231,10 @@ export default function ReactComp1(props: CompProps) {
           <strong>协议:</strong> <span>{renderSharedLicense()}</span>
         </li>
         <li>
-          <button
-            className="rc1-button"
-            onClick={() => setCount(count + 1)}
-            type="button"
-          >
+          <button className="rc1-button" onClick={() => setCount(count + 1)} type="button">
             点击我!
           </button>
-          <strong>仅客户端渲染模式, React 实例数量:</strong>{' '}
-          <span>{count}</span>
+          <strong>仅客户端渲染模式, React 实例数量:</strong> <span>{count}</span>
         </li>
       </ol>
     </div>
@@ -341,7 +332,7 @@ export function ReactComp2(props: CompProps) {
   const data = JSON.parse(readFileSync(targetPath, 'utf-8')) as LocalData;
 
   const displayLocalData = () => {
-    const showLocalList = data.data.map(item => (
+    const showLocalList = data.data.map((item) => (
       <li key={item.id}>
         <span>
           <strong>标识位:</strong> {item.id}
@@ -371,15 +362,10 @@ export function ReactComp2(props: CompProps) {
           <strong>页面标题:</strong> <span>{props['page-title']}</span>
         </li>
         <li>
-          <button
-            className="rc2-button"
-            onClick={() => setCount(count + 1)}
-            type="button"
-          >
+          <button className="rc2-button" onClick={() => setCount(count + 1)} type="button">
             点击我!
           </button>
-          <strong>仅预渲染模式, React 实例数量:</strong>{' '}
-          <span>{count}</span>
+          <strong>仅预渲染模式, React 实例数量:</strong> <span>{count}</span>
         </li>
       </ol>
       <div>{displayLocalData()}</div>
@@ -497,15 +483,10 @@ export default function ReactComp3(props: CompProps) {
           <strong>页面标题:</strong> <span>{props['page-title']}</span>
         </li>
         <li>
-          <button
-            className="rc3-button"
-            onClick={() => setCount(count + 1)}
-            type="button"
-          >
+          <button className="rc3-button" onClick={() => setCount(count + 1)} type="button">
             点击我!
           </button>
-          <strong>预渲染客户端 hydration 模式, React 实例数量:</strong>{' '}
-          <span>{count}</span>
+          <strong>预渲染客户端 hydration 模式, React 实例数量:</strong> <span>{count}</span>
         </li>
       </ol>
     </div>
@@ -598,15 +579,14 @@ export function ReactComp4(props: CompProps) {
               marginRight: '8px',
               backgroundColor: '#56a8ab',
               color: '#9ee2d3',
-              border: 'none'
+              border: 'none',
             }}
             onClick={() => setCount(count + 1)}
             type="button"
           >
             点击我!
           </button>
-          <strong>预渲染客户端可见 hydration 模式, React 实例数量:</strong>{' '}
-          <span>{count}</span>
+          <strong>预渲染客户端可见 hydration 模式, React 实例数量:</strong> <span>{count}</span>
         </li>
       </ol>
     </div>
@@ -680,15 +660,14 @@ export function ReactComp5(props: CompProps) {
               marginRight: '8px',
               backgroundColor: '#56a8ab',
               color: '#9ee2d3',
-              border: 'none'
+              border: 'none',
             }}
             onClick={() => setCount(count + 1)}
             type="button"
           >
             点击我!
           </button>
-          <strong>默认渲染模式(仅预渲染模式), React 实例数量:</strong>{' '}
-          <span>{count}</span>
+          <strong>默认渲染模式(仅预渲染模式), React 实例数量:</strong> <span>{count}</span>
         </li>
       </ol>
     </div>
@@ -786,15 +765,14 @@ export default function ReactVueSharedComp(props: ReactVueSharedCompProps) {
               marginRight: '8px',
               backgroundColor: '#56a8ab',
               color: '#9ee2d3',
-              border: 'none'
+              border: 'none',
             }}
             onClick={() => setCount(count + 1)}
             type="button"
           >
             点击我!
           </button>
-          <strong>仅客户端渲染模式, React 实例数量:</strong>{' '}
-          <span>{count}</span>
+          <strong>仅客户端渲染模式, React 实例数量:</strong> <span>{count}</span>
         </li>
       </ol>
     </div>
@@ -817,9 +795,7 @@ const vueInfo = 'VueComp1';
 
 <template>
   <div class="vue-comp1-demo">
-    <strong>
-      {{ props.renderCount }}: 渲染策略: {{ props.renderStrategy }}
-    </strong>
+    <strong> {{ props.renderCount }}: 渲染策略: {{ props.renderStrategy }} </strong>
     <ol>
       <li>
         <strong>组件名称:</strong> <span>{{ props.componentName }}</span>
@@ -894,7 +870,7 @@ const theme: Theme = {
   extends: DefaultTheme,
   async enhanceApp(context) {
     await reactClientIntegration();
-  }
+  },
 };
 
 export default theme;
@@ -958,31 +934,25 @@ export default theme;
                   const { file, server, modules } = ctx;
 
                   if (file.includes('local-data.json')) {
-                    const updateModuleEntryPath = join(
-                      file,
-                      '../',
-                      'ReactComp2.tsx'
-                    );
+                    const updateModuleEntryPath = join(file, '../', 'ReactComp2.tsx');
                     const updateModuleEntry =
-                      await server.moduleGraph.getModuleByUrl(
-                        updateModuleEntryPath
-                      );
+                      await server.moduleGraph.getModuleByUrl(updateModuleEntryPath);
                     if (updateModuleEntry) {
                       server.moduleGraph.invalidateModule(
                         updateModuleEntry,
                         new Set(),
                         Date.now(),
-                        true
+                        true,
                       );
                       return [updateModuleEntry];
                     }
                   }
 
                   return modules;
-                }
-              }
-            ]
-          }
+                },
+              },
+            ],
+          },
         });
 
         export default vitepressConfig;

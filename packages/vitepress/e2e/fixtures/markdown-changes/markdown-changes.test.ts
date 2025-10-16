@@ -9,7 +9,7 @@ const originalMarkdownContent =
 const modifyFileAndWaitForHMR = async (
   filePath: string,
   newContent: string,
-  expectHMR = true
+  expectHMR = true,
 ): Promise<void> => {
   // Write the new content.
   fs.writeFileSync(filePath, newContent);
@@ -24,7 +24,10 @@ const modifyFileAndWaitForHMR = async (
 };
 
 // Helper function to restore file content.
-const restoreFileContent = async (filePath: string, originalContent: string): Promise<void> => {
+const restoreFileContent = async (
+  filePath: string,
+  originalContent: string,
+): Promise<void> => {
   fs.writeFileSync(filePath, originalContent);
   await page.waitForTimeout(200);
 };
@@ -69,7 +72,9 @@ describe('Markdown Content Changes', () => {
 
       const heading = page.locator('h1');
       await expect(heading).toBeVisible();
-      expect(await heading.textContent()).toContain('Content Without Components');
+      expect(await heading.textContent()).toContain(
+        'Content Without Components',
+      );
 
       // Check list rendering
       const listItems = page.locator('strong.test');
@@ -156,12 +161,18 @@ describe('Markdown Content Changes', () => {
         // Verify that the test case source file completes rendering.
         await page.waitForSelector('.original-content-case1');
         // Verify original content renders correctly.
-        const originalComponent = page.locator('[data-unique-id="hmr-test-component"]');
+        const originalComponent = page.locator(
+          '[data-unique-id="hmr-test-component"]',
+        );
         await expect(originalComponent).toBeVisible();
 
-        await page.waitForSelector('[data-unique-id="hmr-test-component"] > button');
+        await page.waitForSelector(
+          '[data-unique-id="hmr-test-component"] > button',
+        );
         // Test that the original is client:only (interactive).
-        const originalButton = page.locator('[data-unique-id="hmr-test-component"] > button');
+        const originalButton = page.locator(
+          '[data-unique-id="hmr-test-component"] > button',
+        );
         if (await originalButton.isVisible()) {
           await originalButton.click();
           expect(await originalButton.textContent()).toContain('Count: 1'); // Should increment
@@ -175,7 +186,9 @@ describe('Markdown Content Changes', () => {
         await expect(component).toBeVisible();
 
         // SSR-only components should not be interactive.
-        const button = page.locator('[data-unique-id="hmr-test-component"] > button');
+        const button = page.locator(
+          '[data-unique-id="hmr-test-component"] > button',
+        );
         if (await button.isVisible()) {
           await button.click();
           expect(await button.textContent()).toContain('Count: 0'); // Should remain 0
@@ -213,10 +226,14 @@ describe('Markdown Content Changes', () => {
 
         await page.waitForSelector('.original-content-case2');
         // Verify original content renders correctly (SSR-only, non-interactive).
-        const originalComponent = page.locator('[data-unique-id="hmr-test-component"]');
+        const originalComponent = page.locator(
+          '[data-unique-id="hmr-test-component"]',
+        );
         await expect(originalComponent).toBeVisible();
 
-        const originalButton = page.locator('[data-unique-id="hmr-test-component"] > button');
+        const originalButton = page.locator(
+          '[data-unique-id="hmr-test-component"] > button',
+        );
         if (await originalButton.isVisible()) {
           await originalButton.click();
           expect(await originalButton.textContent()).toContain('Count: 0'); // Should remain 0
@@ -272,10 +289,16 @@ describe('Markdown Content Changes', () => {
         await page.waitForSelector('.original-content-case3');
 
         // Verify original content renders correctly.
-        const originalComponent = page.locator('[data-unique-id="original-component"]');
+        const originalComponent = page.locator(
+          '[data-unique-id="original-component"]',
+        );
         await expect(originalComponent).toBeVisible();
-        await page.waitForSelector('[data-unique-id="original-component"] > button');
-        const originalButton = page.locator('[data-unique-id="original-component"] > button');
+        await page.waitForSelector(
+          '[data-unique-id="original-component"] > button',
+        );
+        const originalButton = page.locator(
+          '[data-unique-id="original-component"] > button',
+        );
         await originalButton.click();
         expect(await originalButton.textContent()).toContain('Count: 0');
 
@@ -285,22 +308,30 @@ describe('Markdown Content Changes', () => {
         await page.waitForSelector('.modified-content-case3');
         // Verify all components are rendered.
         await page.waitForSelector('[data-unique-id="original-component"]');
-        const modifiedComponent = page.locator('[data-unique-id="original-component"]');
+        const modifiedComponent = page.locator(
+          '[data-unique-id="original-component"]',
+        );
         await expect(modifiedComponent).toBeVisible();
         const modifiedOriginalButton = page.locator(
-          '[data-unique-id="original-component"] > button'
+          '[data-unique-id="original-component"] > button',
         );
         await modifiedOriginalButton.click();
-        expect(await modifiedOriginalButton.textContent()).toContain('Count: 0');
+        expect(await modifiedOriginalButton.textContent()).toContain(
+          'Count: 0',
+        );
 
-        await page.waitForSelector('[data-unique-id="new-ssr-component"] > button');
-        const modifiedSsrButton = page.locator('[data-unique-id="new-ssr-component"] > button');
+        await page.waitForSelector(
+          '[data-unique-id="new-ssr-component"] > button',
+        );
+        const modifiedSsrButton = page.locator(
+          '[data-unique-id="new-ssr-component"] > button',
+        );
         await modifiedSsrButton.click();
         expect(await modifiedSsrButton.textContent()).toContain('Count: 0');
 
         await page.waitForSelector('[data-unique-id="new-client-component"]');
         const modifiedClientButton = page.locator(
-          '[data-unique-id="new-client-component"] > button'
+          '[data-unique-id="new-client-component"] > button',
         );
         await modifiedClientButton.click();
         expect(await modifiedClientButton.textContent()).toContain('Count: 1');
@@ -339,16 +370,24 @@ describe('Markdown Content Changes', () => {
         await page.waitForSelector('.original-content-case4');
 
         await page.waitForSelector('[data-unique-id="component-1"] > button');
-        const originalComponentButton1 = page.locator('[data-unique-id="component-1"] > button');
+        const originalComponentButton1 = page.locator(
+          '[data-unique-id="component-1"] > button',
+        );
         await originalComponentButton1.click();
-        expect(await originalComponentButton1.textContent()).toContain('Count: 0');
+        expect(await originalComponentButton1.textContent()).toContain(
+          'Count: 0',
+        );
 
-        await page.waitForSelector('[data-unique-id="component-to-remove"] > button');
+        await page.waitForSelector(
+          '[data-unique-id="component-to-remove"] > button',
+        );
         const originalComponentButton2 = page.locator(
-          '[data-unique-id="component-to-remove"] > button'
+          '[data-unique-id="component-to-remove"] > button',
         );
         await originalComponentButton2.click();
-        expect(await originalComponentButton2.textContent()).toContain('Count: 1');
+        expect(await originalComponentButton2.textContent()).toContain(
+          'Count: 1',
+        );
 
         // Now modify to remove one component and test HMR
         await modifyFileAndWaitForHMR(hmrTestFilePath, modifiedContent);
@@ -357,11 +396,15 @@ describe('Markdown Content Changes', () => {
 
         // Verify the remaining component is still visible
         await page.waitForSelector('[data-unique-id="component-1"]');
-        const remainingComponent = page.locator('[data-unique-id="component-1"]');
+        const remainingComponent = page.locator(
+          '[data-unique-id="component-1"]',
+        );
         await expect(remainingComponent).toBeVisible();
 
         // Verify the removed component is no longer present
-        const removedComponent = page.locator('[data-unique-id="component-to-remove"]');
+        const removedComponent = page.locator(
+          '[data-unique-id="component-to-remove"]',
+        );
         expect(await removedComponent.count()).toBe(0);
       } finally {
         // Restore original content
@@ -372,7 +415,10 @@ describe('Markdown Content Changes', () => {
 
   // HMR tests — Markdown content changes not related to the feature.
   describe('Markdown Content Changes Not Related to the Feature', () => {
-    const pureMarkdownTestFilePath = path.join(__dirname, 'pure-markdown-hmr-test.md');
+    const pureMarkdownTestFilePath = path.join(
+      __dirname,
+      'pure-markdown-hmr-test.md',
+    );
 
     test('Should render changed markdown correctly without triggering React HMR', async () => {
       const originalContent = `# Hello World
@@ -402,11 +448,17 @@ describe('Markdown Content Changes', () => {
         await expect(heading).toBeVisible();
         expect(await heading.textContent()).toContain('Hello World');
 
-        const originalComponent = page.locator('[data-unique-id="markdown-test-component"]');
+        const originalComponent = page.locator(
+          '[data-unique-id="markdown-test-component"]',
+        );
         await expect(originalComponent).toBeVisible();
 
         // Now modify content and test HMR.
-        await modifyFileAndWaitForHMR(pureMarkdownTestFilePath, modifiedContent, false);
+        await modifyFileAndWaitForHMR(
+          pureMarkdownTestFilePath,
+          modifiedContent,
+          false,
+        );
 
         // Reload to see changes.
         await page.reload();
@@ -418,11 +470,16 @@ describe('Markdown Content Changes', () => {
         expect(await modifiedHeading.textContent()).toContain('Hello World!');
 
         // Verify the component still works.
-        const component = page.locator('[data-unique-id="markdown-test-component"]');
+        const component = page.locator(
+          '[data-unique-id="markdown-test-component"]',
+        );
         await expect(component).toBeVisible();
       } finally {
         // Restore original content.
-        await restoreFileContent(pureMarkdownTestFilePath, originalMarkdownContent);
+        await restoreFileContent(
+          pureMarkdownTestFilePath,
+          originalMarkdownContent,
+        );
       }
     });
 
@@ -453,32 +510,47 @@ describe('Markdown Content Changes', () => {
         await page.waitForSelector('[data-unique-id="state-test-component"]');
 
         // Verify original content renders and interact with component
-        const component = page.locator('[data-unique-id="state-test-component"]');
+        const component = page.locator(
+          '[data-unique-id="state-test-component"]',
+        );
         await expect(component).toBeVisible();
 
-        const button = page.locator('[data-unique-id="state-test-component"] > button');
+        const button = page.locator(
+          '[data-unique-id="state-test-component"] > button',
+        );
         if (await button.isVisible()) {
           await button.click();
           await button.click();
           expect(await button.textContent()).toContain('Count: 2');
 
           // Now modify markdown content (not React-related)
-          await modifyFileAndWaitForHMR(pureMarkdownTestFilePath, modifiedContent, true);
+          await modifyFileAndWaitForHMR(
+            pureMarkdownTestFilePath,
+            modifiedContent,
+            true,
+          );
 
           await page.waitForSelector('.modified-content');
           // Verify markdown changed
           const heading = page.locator('.modified-content');
-          expect(await heading.textContent()).toContain('Some modified content here.');
+          expect(await heading.textContent()).toContain(
+            'Some modified content here.',
+          );
 
           // Component state should reset on page reload (expected behavior)
-          const newComponent = page.locator('[data-unique-id="state-test-component"] > button');
+          const newComponent = page.locator(
+            '[data-unique-id="state-test-component"] > button',
+          );
           if (await newComponent.isVisible()) {
             expect(await newComponent.textContent()).toContain('Count: 2');
           }
         }
       } finally {
         // Restore original content
-        await restoreFileContent(pureMarkdownTestFilePath, originalMarkdownContent);
+        await restoreFileContent(
+          pureMarkdownTestFilePath,
+          originalMarkdownContent,
+        );
       }
     });
   });

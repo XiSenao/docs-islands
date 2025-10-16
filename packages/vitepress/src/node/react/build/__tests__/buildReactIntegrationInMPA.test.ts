@@ -34,7 +34,7 @@ describe('buildReactIntegrationInMPA', () => {
       cacheDir,
       outDir,
       srcDir: sourceDir,
-      publicDir
+      publicDir,
     };
   };
 
@@ -47,7 +47,8 @@ describe('buildReactIntegrationInMPA', () => {
   });
 
   it('Verify that the React integration runtime under MPA mode is built successfully', async () => {
-    const { entryPoint, modulePreloads } = await buildReactIntegrationInMPA(config);
+    const { entryPoint, modulePreloads } =
+      await buildReactIntegrationInMPA(config);
 
     const expectedAssets = [entryPoint, ...modulePreloads].filter(Boolean);
     expect(expectedAssets.length).toBeGreaterThan(0);

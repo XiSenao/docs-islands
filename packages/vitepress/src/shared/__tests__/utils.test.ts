@@ -8,9 +8,9 @@ import { validateLegalRenderElements } from '../utils';
 vi.mock('@docs-islands/vitepress-utils/logger', () => ({
   default: {
     getLoggerByGroup: () => ({
-      warn: vi.fn()
-    })
-  }
+      warn: vi.fn(),
+    }),
+  },
 }));
 
 describe('Shared Utils - validateLegalRenderElements Simple', () => {
@@ -22,16 +22,22 @@ describe('Shared Utils - validateLegalRenderElements Simple', () => {
   });
 
   it('should validate element with all required attributes', () => {
-    mockElement.setAttribute(RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(), '12345678');
+    mockElement.setAttribute(
+      RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),
+      '12345678',
+    );
     mockElement.setAttribute(
       RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase(),
-      'TestComponent'
+      'TestComponent',
     );
     mockElement.setAttribute(
       RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase(),
-      'client:load'
+      'client:load',
     );
-    mockElement.setAttribute(RENDER_STRATEGY_CONSTANTS.renderWithSpaSync.toLowerCase(), 'true');
+    mockElement.setAttribute(
+      RENDER_STRATEGY_CONSTANTS.renderWithSpaSync.toLowerCase(),
+      'true',
+    );
 
     const result = validateLegalRenderElements(mockElement);
 
@@ -39,7 +45,10 @@ describe('Shared Utils - validateLegalRenderElements Simple', () => {
   });
 
   it('should reject element with missing attributes', () => {
-    mockElement.setAttribute(RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(), '12345678');
+    mockElement.setAttribute(
+      RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),
+      '12345678',
+    );
 
     const result = validateLegalRenderElements(mockElement);
 

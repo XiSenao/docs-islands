@@ -10,7 +10,7 @@ const theme: Theme = {
   },
   async enhanceApp() {
     await reactClientIntegration();
-  }
+  },
 };
 
 export default theme;

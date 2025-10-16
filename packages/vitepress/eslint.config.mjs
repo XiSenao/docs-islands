@@ -12,11 +12,11 @@ export default defineConfig([
       parserOptions: {
         projectService: true,
         ecmaVersion: 'latest',
-        sourceType: 'module'
+        sourceType: 'module',
       },
       globals: {
-        ...globals.node
-      }
+        ...globals.node,
+      },
     },
     rules: {
       // Script files are allowed to use console and process.exit
@@ -24,8 +24,14 @@ export default defineConfig([
       'unicorn/no-process-exit': 'off',
       // Script files can have higher complexity
       complexity: ['warn', { max: 30 }],
-      'max-lines': ['warn', { max: 800, skipBlankLines: true, skipComments: true }],
-      'max-lines-per-function': ['warn', { max: 200, skipBlankLines: true, skipComments: true }],
+      'max-lines': [
+        'warn',
+        { max: 800, skipBlankLines: true, skipComments: true },
+      ],
+      'max-lines-per-function': [
+        'warn',
+        { max: 200, skipBlankLines: true, skipComments: true },
+      ],
       // Relaxed TypeScript rules
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
@@ -37,7 +43,7 @@ export default defineConfig([
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
       'no-return-await': 'off',
-      'require-await': 'off'
-    }
-  }
+      'require-await': 'off',
+    },
+  },
 ]);
