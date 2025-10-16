@@ -7,7 +7,7 @@ export default defineConfig([
   {
     files: ['docs/**/*.ts', 'docs/**/*.tsx'],
     rules: {
-      'unicorn/text-encoding-identifier-case': 'off'
-    }
-  }
+      'unicorn/text-encoding-identifier-case': 'off',
+    },
+  },
 ]);

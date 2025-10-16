@@ -14,7 +14,11 @@ interface ChangelogOptions {
 }
 
 const ChangelogManager = {
-  generateChangelog(version: string, packageRootDir: string, dryRun = false): void {
+  generateChangelog(
+    version: string,
+    packageRootDir: string,
+    dryRun = false,
+  ): void {
     const changelogPath = path.join(packageRootDir, 'CHANGELOG.md');
     const date = new Date().toISOString().split('T')[0];
 
@@ -25,7 +29,7 @@ const ChangelogManager = {
         lastTag = execSync('git describe --tags --abbrev=0', {
           encoding: 'utf8',
           stdio: 'pipe',
-          cwd: packageRootDir
+          cwd: packageRootDir,
         }).trim();
       } catch {
         lastTag = '';
@@ -35,27 +39,35 @@ const ChangelogManager = {
       const commits = execSync(`git log ${range} --oneline --no-merges`, {
         encoding: 'utf8',
         stdio: 'pipe',
-        cwd: packageRootDir
+        cwd: packageRootDir,
       }).trim();
 
       if (!commits) {
-        Logger.info('📝 No commits found since last release, skipping changelog');
+        Logger.info(
+          '📝 No commits found since last release, skipping changelog',
+        );
         return;
       }
 
-      const commitLines = commits.split('\n').filter(line => line.trim());
+      const commitLines = commits.split('\n').filter((line) => line.trim());
 
       // Categorize commits.
-      const features = commitLines.filter(line => /^\w+\s+(feat|feature)/.test(line));
-      const fixes = commitLines.filter(line => /^\w+\s+(fix|bugfix)/.test(line));
-      const docs = commitLines.filter(line => /^\w+\s+docs?/.test(line));
-      const chores = commitLines.filter(line => /^\w+\s+(chore|refactor|style|test)/.test(line));
+      const features = commitLines.filter((line) =>
+        /^\w+\s+(feat|feature)/.test(line),
+      );
+      const fixes = commitLines.filter((line) =>
+        /^\w+\s+(fix|bugfix)/.test(line),
+      );
+      const docs = commitLines.filter((line) => /^\w+\s+docs?/.test(line));
+      const chores = commitLines.filter((line) =>
+        /^\w+\s+(chore|refactor|style|test)/.test(line),
+      );
       const others = commitLines.filter(
-        line =>
+        (line) =>
           !features.includes(line) &&
           !fixes.includes(line) &&
           !docs.includes(line) &&
-          !chores.includes(line)
+          !chores.includes(line),
       );
 
       // Generate changelog section.
@@ -123,16 +135,24 @@ const ChangelogManager = {
 
       if (!dryRun) {
         writeFileSync(changelogPath, updatedContent);
-        Logger.success(`✅ Updated CHANGELOG.md with ${commitLines.length} commits`);
-        Logger.info(`📋 Please review the generated changelog at: ${changelogPath}`);
+        Logger.success(
+          `✅ Updated CHANGELOG.md with ${commitLines.length} commits`,
+        );
+        Logger.info(
+          `📋 Please review the generated changelog at: ${changelogPath}`,
+        );
       } else {
-        Logger.info(`📝 Would update CHANGELOG.md with ${commitLines.length} commits`);
+        Logger.info(
+          `📝 Would update CHANGELOG.md with ${commitLines.length} commits`,
+        );
         Logger.info('📋 Preview of new section:');
         console.log(`\n${newSection}`);
       }
     } catch (error) {
       Logger.error(`❌ Failed to generate changelog: ${String(error)}`);
-      throw error instanceof Error ? error : new Error('Failed to generate changelog');
+      throw error instanceof Error
+        ? error
+        : new Error('Failed to generate changelog');
     }
   },
 
@@ -145,7 +165,7 @@ const ChangelogManager = {
 
     const content = readFileSync(changelogPath, 'utf8');
     return content.includes(`## [${version}]`);
-  }
+  },
 };
 
 class ChangelogSystemManager {
@@ -165,12 +185,18 @@ class ChangelogSystemManager {
 
       Logger.info(`🏷️  Generating changelog for version: ${version}`);
 
-      ChangelogManager.generateChangelog(version, this.packageRootDir, this.options.dryRun);
+      ChangelogManager.generateChangelog(
+        version,
+        this.packageRootDir,
+        this.options.dryRun,
+      );
 
       Logger.success(`✅ Changelog generation completed!\n`);
     } catch (error) {
       Logger.error(`❌ Changelog generation failed: ${String(error)}`);
-      throw error instanceof Error ? error : new Error('Changelog generation failed');
+      throw error instanceof Error
+        ? error
+        : new Error('Changelog generation failed');
     }
   }
 
@@ -226,7 +252,7 @@ Examples:
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(error => {
+  main().catch((error) => {
     Logger.error(`❌ Changelog generation failed: ${String(error)}`);
     // Allow process to exit with failure naturally.
     process.exitCode = 1;

@@ -18,7 +18,9 @@ describe('Basic Site Functionality', () => {
     // Navigate to script changes.
     await goto('/script-content-changes/basic');
     heading = page.locator('h1');
-    expect(await heading.textContent()).toContain('Script Content Changes Test');
+    expect(await heading.textContent()).toContain(
+      'Script Content Changes Test',
+    );
 
     // Navigate to container changes.
     await goto('/container-changes/client-only');

@@ -10,7 +10,8 @@ export function ReactComp4(props: CompProps) {
       </strong>
       <ol>
         <li>
-          <strong>Component Name:</strong> <span>{props['component-name']}</span>
+          <strong>Component Name:</strong>{' '}
+          <span>{props['component-name']}</span>
         </li>
         <li>
           <strong>Page Title:</strong> <span>{props['page-title']}</span>
@@ -24,14 +25,16 @@ export function ReactComp4(props: CompProps) {
               marginRight: '8px',
               backgroundColor: '#56a8ab',
               color: '#9ee2d3',
-              border: 'none'
+              border: 'none',
             }}
             onClick={() => setCount(count + 1)}
             type="button"
           >
             Click Me!
           </button>
-          <strong>Pre-rendering Client Visible Hydration Mode, React Instance Count:</strong>{' '}
+          <strong>
+            Pre-rendering Client Visible Hydration Mode, React Instance Count:
+          </strong>{' '}
           <span>{count}</span>
         </li>
       </ol>

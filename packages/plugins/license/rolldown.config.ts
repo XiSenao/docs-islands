@@ -7,8 +7,8 @@ const config: RolldownOptions = defineConfig({
   output: {
     dir: 'dist',
     format: 'esm',
-    entryFileNames: 'index.mjs'
-  }
+    entryFileNames: 'index.mjs',
+  },
 });
 
 const dtsConfig: RolldownOptions = defineConfig({
@@ -16,13 +16,13 @@ const dtsConfig: RolldownOptions = defineConfig({
   platform: 'node',
   external: [/^[\w@][^:]/],
   output: {
-    dir: 'dist'
+    dir: 'dist',
   },
   plugins: [
     dts({
-      emitDtsOnly: true
-    })
-  ]
+      emitDtsOnly: true,
+    }),
+  ],
 });
 
 const rolldownConfig: RolldownOptions[] = [dtsConfig, config];

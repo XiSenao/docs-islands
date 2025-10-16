@@ -51,7 +51,7 @@ pnpm add react react-dom
      extends: DefaultTheme,
      async enhanceApp() {
        await reactClientIntegration();
-     }
+     },
    };
 
    export default theme;
@@ -116,12 +116,12 @@ pnpm add react react-dom
 
 ### Directives quick reference
 
-| Directive | Pre-render HTML | Client Hydration | Load timing | Typical usage | `spa:sr` default |
-| --- | --- | --- | --- | --- | --- |
-| `ssr:only` | Yes | No | N/A | Static/SEO‑critical sections | Enabled |
-| `client:load` | Yes | Immediate | Preload module, hydrate on load | Above‑the‑fold interactive components | Disabled |
-| `client:visible` | Yes | On visible | Preload; hydrate on intersection | Offscreen interactions (comments/charts) | Disabled |
-| `client:only` | No | N/A | Client‑only | Host‑dependent/lightweight widgets | Disabled |
+| Directive        | Pre-render HTML | Client Hydration | Load timing                      | Typical usage                            | `spa:sr` default |
+| ---------------- | --------------- | ---------------- | -------------------------------- | ---------------------------------------- | ---------------- |
+| `ssr:only`       | Yes             | No               | N/A                              | Static/SEO‑critical sections             | Enabled          |
+| `client:load`    | Yes             | Immediate        | Preload module, hydrate on load  | Above‑the‑fold interactive components    | Disabled         |
+| `client:visible` | Yes             | On visible       | Preload; hydrate on intersection | Offscreen interactions (comments/charts) | Disabled         |
+| `client:only`    | No              | N/A              | Client‑only                      | Host‑dependent/lightweight widgets       | Disabled         |
 
 ### SPA Synchronous Rendering (`spa:sync-render` / `spa:sr`)
 

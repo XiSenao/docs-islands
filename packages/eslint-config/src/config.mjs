@@ -26,20 +26,29 @@ export default defineConfig([
     files: ['src/client/**/*.ts', 'src/node/**/*.ts'],
     rules: {
       complexity: ['warn', { max: 50 }], // Rendering logic can be very complex
-      'max-lines-per-function': ['warn', { max: 800, skipBlankLines: true, skipComments: true }], // Large rendering functions are acceptable for core logic
-      'max-lines': ['warn', { max: 1200, skipBlankLines: true, skipComments: true }], // Core files can be large
-      'max-depth': ['warn', 10] // Deep nesting needed for complex rendering conditions
-    }
+      'max-lines-per-function': [
+        'warn',
+        { max: 1000, skipBlankLines: true, skipComments: true },
+      ], // Large rendering functions are acceptable for core logic
+      'max-lines': [
+        'warn',
+        { max: 1500, skipBlankLines: true, skipComments: true },
+      ], // Core files can be large
+      'max-depth': ['warn', 10], // Deep nesting needed for complex rendering conditions
+    },
   },
 
   // Shared runtime files - allow complexity for runtime optimizations
   {
     files: ['src/shared/**/*.ts'],
     rules: {
-      'max-lines-per-function': ['warn', { max: 200, skipBlankLines: true, skipComments: true }], // Runtime functions can be long
+      'max-lines-per-function': [
+        'warn',
+        { max: 200, skipBlankLines: true, skipComments: true },
+      ], // Runtime functions can be long
       complexity: 'off', // Runtime code can be complex for performance
-      'max-depth': 'off' // Runtime optimizations may need deep nesting
-    }
+      'max-depth': 'off', // Runtime optimizations may need deep nesting
+    },
   },
 
   // Utils files - allow complexity for utility functions
@@ -47,8 +56,11 @@ export default defineConfig([
     files: ['utils/*.ts'],
     rules: {
       complexity: ['warn', { max: 25 }], // Utils can be more complex
-      'max-lines-per-function': ['warn', { max: 200, skipBlankLines: true, skipComments: true }]
-    }
+      'max-lines-per-function': [
+        'warn',
+        { max: 200, skipBlankLines: true, skipComments: true },
+      ],
+    },
   },
 
   // Tooling config files - disable typed linting
@@ -60,8 +72,8 @@ export default defineConfig([
       parserOptions: {
         projectService: true,
         ecmaVersion: 'latest',
-        sourceType: 'module'
-      }
+        sourceType: 'module',
+      },
     },
     rules: {
       '@typescript-eslint/explicit-function-return-type': 'off',
@@ -89,7 +101,7 @@ export default defineConfig([
       '@typescript-eslint/restrict-template-expressions': 'off',
       '@typescript-eslint/return-await': 'off',
       '@typescript-eslint/switch-exhaustiveness-check': 'off',
-      '@typescript-eslint/unbound-method': 'off'
-    }
-  }
+      '@typescript-eslint/unbound-method': 'off',
+    },
+  },
 ]);

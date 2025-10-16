@@ -1,7 +1,7 @@
 import {
   ALLOWED_RENDER_DIRECTIVES,
   SPA_RENDER_SYNC_OFF,
-  SPA_RENDER_SYNC_ON
+  SPA_RENDER_SYNC_ON,
 } from '@docs-islands/vitepress-shared/constants';
 import type { RenderDirective } from '@docs-islands/vitepress-types';
 import logger from '@docs-islands/vitepress-utils/logger';
@@ -23,27 +23,39 @@ interface StartTagOffsets {
 }
 
 function getIdentifierNameOrLiteralValue(
-  node: Identifier | Literal
+  node: Identifier | Literal,
 ): string | number | boolean | null {
-  return node.type === 'Identifier' ? node.name : (node.value as string | number | boolean | null);
+  return node.type === 'Identifier'
+    ? node.name
+    : (node.value as string | number | boolean | null);
 }
 
-export const travelImports = (content: string): ImportNameSpecifier[] | undefined => {
+export const travelImports = (
+  content: string,
+): ImportNameSpecifier[] | undefined => {
   const node = parseAst(content).body[0];
-  if (node.type === 'ImportDeclaration' || node.type === 'ExportNamedDeclaration') {
+  if (
+    node.type === 'ImportDeclaration' ||
+    node.type === 'ExportNamedDeclaration'
+  ) {
     if (node.specifiers.length === 0) return undefined;
     const importNames: ImportNameSpecifier[] = [];
     for (const spec of node.specifiers) {
       switch (spec.type) {
         case 'ImportSpecifier': {
-          const importedName = getIdentifierNameOrLiteralValue(spec.imported) as string;
+          const importedName = getIdentifierNameOrLiteralValue(
+            spec.imported,
+          ) as string;
           const localName = spec.local.name;
           importNames.push({ importedName, localName });
 
           break;
         }
         case 'ImportDefaultSpecifier': {
-          importNames.push({ importedName: 'default', localName: spec.local.name });
+          importNames.push({
+            importedName: 'default',
+            localName: spec.local.name,
+          });
 
           break;
         }
@@ -68,15 +80,21 @@ export default function coreTransformComponentTags(
     renderDirective: string;
     renderComponent: string;
     renderWithSpaSync: string;
-  }
-): { code: string; renderIdToRenderDirectiveMap: Map<string, string[]>; map: SourceMap | null } {
+  },
+): {
+  code: string;
+  renderIdToRenderDirectiveMap: Map<string, string[]>;
+  map: SourceMap | null;
+} {
   const Logger = logger.getLoggerByGroup('coreTransformComponentTags');
   const md = new MarkdownIt({ html: true });
   const tokens = md.parse(code, {});
 
   const s = new MagicString(code);
   const renderIdToRenderDirectiveMap = new Map<string, string[]>();
-  const maybeReactComponentNameSets = new Set(maybeReactComponentNames.map(n => n.toLowerCase()));
+  const maybeReactComponentNameSets = new Set(
+    maybeReactComponentNames.map((n) => n.toLowerCase()),
+  );
 
   // Handle different line ending types properly
   const lines = code.split('\n');
@@ -103,9 +121,11 @@ export default function coreTransformComponentTags(
       if (startOffset === -1) continue;
 
       const fragment = parseFragment(tokenContent, {
-        sourceCodeLocationInfo: true
+        sourceCodeLocationInfo: true,
       });
-      const stack: Array<DefaultTreeAdapterMap['node']> = [...fragment.childNodes];
+      const stack: Array<DefaultTreeAdapterMap['node']> = [
+        ...fragment.childNodes,
+      ];
       interface PendingReplacement {
         absStart: number;
         absEnd: number;
@@ -113,7 +133,10 @@ export default function coreTransformComponentTags(
       }
       const pending: PendingReplacement[] = [];
 
-      const analyze = (attrs: ReadonlyArray<{ name: string; value: string }>, compName: string) => {
+      const analyze = (
+        attrs: ReadonlyArray<{ name: string; value: string }>,
+        compName: string,
+      ) => {
         const attributes: Array<{ name: string; value: string | null }> = [];
         let directive = 'ssr:only';
         let useSpaSyncRender = false;
@@ -124,11 +147,19 @@ export default function coreTransformComponentTags(
             directive = attrName;
             continue;
           }
-          if (SPA_RENDER_SYNC_ON.includes(attrName as (typeof SPA_RENDER_SYNC_ON)[number])) {
+          if (
+            SPA_RENDER_SYNC_ON.includes(
+              attrName as (typeof SPA_RENDER_SYNC_ON)[number],
+            )
+          ) {
             useSpaSyncRender = true;
             continue;
           }
-          if (SPA_RENDER_SYNC_OFF.includes(attrName as (typeof SPA_RENDER_SYNC_OFF)[number])) {
+          if (
+            SPA_RENDER_SYNC_OFF.includes(
+              attrName as (typeof SPA_RENDER_SYNC_OFF)[number],
+            )
+          ) {
             forceDisableSpaSyncRender = true;
             continue;
           }
@@ -145,7 +176,7 @@ export default function coreTransformComponentTags(
         }
         if (directive === 'client:only' && useSpaSyncRender) {
           Logger.warn(
-            `'spa:sync-render' is not supported for 'client:only' directive, disabling 'spa:sync-render'`
+            `'spa:sync-render' is not supported for 'client:only' directive, disabling 'spa:sync-render'`,
           );
           useSpaSyncRender = false;
         }
@@ -160,11 +191,11 @@ export default function coreTransformComponentTags(
       }> = [];
 
       const isElementNode = (
-        node: DefaultTreeAdapterMap['node']
+        node: DefaultTreeAdapterMap['node'],
       ): node is DefaultTreeAdapterMap['element'] => 'tagName' in node;
 
       const isStartTagOffsets = (
-        x: { startOffset?: number; endOffset?: number } | null | undefined
+        x: { startOffset?: number; endOffset?: number } | null | undefined,
       ): x is StartTagOffsets =>
         typeof x === 'object' &&
         x !== null &&
@@ -172,44 +203,57 @@ export default function coreTransformComponentTags(
         typeof x.endOffset === 'number';
 
       const getStartTagOffsets = (
-        loc: DefaultTreeAdapterMap['element']['sourceCodeLocation'] | null | undefined
+        loc:
+          | DefaultTreeAdapterMap['element']['sourceCodeLocation']
+          | null
+          | undefined,
       ): StartTagOffsets | null => {
         if (!loc || typeof loc !== 'object') return null;
         const startTag = (
-          loc as { startTag?: { startOffset?: number; endOffset?: number } | null | undefined }
+          loc as {
+            startTag?:
+              | { startOffset?: number; endOffset?: number }
+              | null
+              | undefined;
+          }
         ).startTag;
         return isStartTagOffsets(startTag) ? startTag : null;
       };
 
       const hasChildNodes = (
-        node: DefaultTreeAdapterMap['node']
+        node: DefaultTreeAdapterMap['node'],
       ): node is
         | DefaultTreeAdapterMap['element']
         | DefaultTreeAdapterMap['document']
         | DefaultTreeAdapterMap['documentFragment'] =>
         'childNodes' in (node as DefaultTreeAdapterMap['element']) &&
-        Array.isArray((node as DefaultTreeAdapterMap['element']).childNodes as unknown[]);
+        Array.isArray(
+          (node as DefaultTreeAdapterMap['element']).childNodes as unknown[],
+        );
 
       const isTemplateNode = (
-        node: DefaultTreeAdapterMap['node']
+        node: DefaultTreeAdapterMap['node'],
       ): node is DefaultTreeAdapterMap['template'] =>
         node?.nodeName === 'template' && 'content' in node;
       while (stack.length > 0) {
         const node = stack.pop()!;
         if (node?.nodeName) {
           const nameLower = node.nodeName;
-          if (maybeReactComponentNameSets.has(nameLower) && isElementNode(node)) {
+          if (
+            maybeReactComponentNameSets.has(nameLower) &&
+            isElementNode(node)
+          ) {
             const loc = node.sourceCodeLocation;
             const st = getStartTagOffsets(loc);
             if (st) {
               found.push({
                 start: st.startOffset,
                 end: st.endOffset,
-                attrs: node.attrs.map(attribute => ({
+                attrs: node.attrs.map((attribute) => ({
                   name: attribute.name,
-                  value: attribute.value
+                  value: attribute.value,
                 })),
-                nameLower
+                nameLower,
               });
             }
           }
@@ -219,7 +263,7 @@ export default function coreTransformComponentTags(
           stack.push(
             ...((node as DefaultTreeAdapterMap['element']).childNodes as Array<
               DefaultTreeAdapterMap['node']
-            >)
+            >),
           );
         }
         // Ensure we also traverse into <template> content to discover nodes inside slots.
@@ -232,7 +276,9 @@ export default function coreTransformComponentTags(
 
       for (const item of found) {
         const originalName =
-          maybeReactComponentNames.find(n => n.toLowerCase() === item.nameLower) || item.nameLower;
+          maybeReactComponentNames.find(
+            (n) => n.toLowerCase() === item.nameLower,
+          ) || item.nameLower;
 
         // Compute absolute positions of the start tag for validation.
         let absStart = startOffset + item.start;
@@ -269,13 +315,15 @@ export default function coreTransformComponentTags(
         startTagRaw = code.slice(absStart, actualAbsEnd);
 
         // Extract the typed tag name from the raw start tag.
-        const tagNameMatch = /^<\s*([A-Z][\dA-Za-z]*[^\s/>]*)/.exec(startTagRaw);
+        const tagNameMatch = /^<\s*([A-Z][\dA-Za-z]*[^\s/>]*)/.exec(
+          startTagRaw,
+        );
         const typedTagName = tagNameMatch ? tagNameMatch[1] : '';
 
         // 1) Enforce naming: component name must be in PascalCase.
         if (!typedTagName) {
           Logger.error(
-            `Component name must be in PascalCase. Found "${typedTagName || startTagRaw}" in ${id}, skipping compilation!`
+            `Component name must be in PascalCase. Found "${typedTagName || startTagRaw}" in ${id}, skipping compilation!`,
           );
           continue;
         }
@@ -283,7 +331,7 @@ export default function coreTransformComponentTags(
         // 2) Enforce exact local import name match: no aliasing by different casing.
         if (typedTagName !== originalName) {
           Logger.error(
-            `React component tag "${typedTagName}" does not match imported local name "${originalName}" in ${id}, skipping compilation!`
+            `React component tag "${typedTagName}" does not match imported local name "${originalName}" in ${id}, skipping compilation!`,
           );
           continue;
         }
@@ -292,7 +340,7 @@ export default function coreTransformComponentTags(
         const isSelfClosing = /\/\s*>\s*$/.test(startTagRaw);
         if (!isSelfClosing) {
           Logger.error(
-            `React component tag must be self-closing. Use "<${typedTagName} ... />". Found in ${id}, skipping compilation!`
+            `React component tag must be self-closing. Use "<${typedTagName} ... />". Found in ${id}, skipping compilation!`,
           );
           continue;
         }
@@ -307,12 +355,14 @@ export default function coreTransformComponentTags(
           `${attrNames.renderId}="${renderId}"`,
           `${attrNames.renderDirective}="${parsed.directive}"`,
           `${attrNames.renderComponent}="${parsed.name}"`,
-          `${attrNames.renderWithSpaSync}="${parsed.useSpaSyncRender}"`
+          `${attrNames.renderWithSpaSync}="${parsed.useSpaSyncRender}"`,
         ];
         const userElementProps: string[] = [];
         for (const attr of parsed.attributes) {
           if (attr.value !== null) {
-            userElementProps.push(`${attr.name}="${String(attr.value).replaceAll('"', '&quot;')}"`);
+            userElementProps.push(
+              `${attr.name}="${String(attr.value).replaceAll('"', '&quot;')}"`,
+            );
           } else {
             userElementProps.push(attr.name);
           }
@@ -331,6 +381,6 @@ export default function coreTransformComponentTags(
   return {
     code: s.toString(),
     renderIdToRenderDirectiveMap,
-    map: s.generateMap({ source: id, file: id, includeContent: true })
+    map: s.generateMap({ source: id, file: id, includeContent: true }),
   };
 }

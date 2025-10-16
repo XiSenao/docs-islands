@@ -1,7 +1,7 @@
 import {
   ALLOWED_RENDER_DIRECTIVES,
   RENDER_STRATEGY_ATTRS,
-  RENDER_STRATEGY_CONSTANTS
+  RENDER_STRATEGY_CONSTANTS,
 } from '@docs-islands/vitepress-shared/constants';
 import type { RenderDirective } from '@docs-islands/vitepress-types';
 import logger from '@docs-islands/vitepress-utils/logger';
@@ -23,7 +23,7 @@ export const validateLegalRenderElements = (element: Element): boolean => {
   const renderStrategyProps: Record<string, string> = {};
 
   // Must include all render strategy attrs.
-  const missingRenderStrategyAttrs = RENDER_STRATEGY_ATTRS.filter(attr => {
+  const missingRenderStrategyAttrs = RENDER_STRATEGY_ATTRS.filter((attr) => {
     if (element.hasAttribute(attr)) {
       renderStrategyProps[attr] = element.getAttribute(attr) || '';
       return false;
@@ -32,35 +32,40 @@ export const validateLegalRenderElements = (element: Element): boolean => {
   });
   if (missingRenderStrategyAttrs.length > 0) {
     Logger.warn(
-      `The element is missing rendering attributes: ${missingRenderStrategyAttrs.join(', ')}, skipping compilation.`
+      `The element is missing rendering attributes: ${missingRenderStrategyAttrs.join(', ')}, skipping compilation.`,
     );
     return false;
   }
 
-  const renderId = renderStrategyProps[RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()];
+  const renderId =
+    renderStrategyProps[RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()];
   if (!/^[\da-f]{8}$/i.test(renderId)) {
     Logger.warn(
-      `The element with renderId: [${renderId}] is not a valid renderId, skipping compilation.`
+      `The element with renderId: [${renderId}] is not a valid renderId, skipping compilation.`,
     );
     return false;
   }
 
   // Component name must be in PascalCase.
   const renderComponent =
-    renderStrategyProps[RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()];
+    renderStrategyProps[
+      RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()
+    ];
   if (!/^[A-Z][\dA-Za-z]*$/.test(renderComponent)) {
     Logger.warn(
-      `The element with renderComponent: [${renderComponent}] is not a valid component name, component name must be in PascalCase, skipping compilation.`
+      `The element with renderComponent: [${renderComponent}] is not a valid component name, component name must be in PascalCase, skipping compilation.`,
     );
     return false;
   }
 
   // Render directive must be one of the allowed directives.
   const renderDirective =
-    renderStrategyProps[RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase()];
+    renderStrategyProps[
+      RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase()
+    ];
   if (!ALLOWED_RENDER_DIRECTIVES.includes(renderDirective as RenderDirective)) {
     Logger.warn(
-      `The element with renderDirective: [${renderDirective}] is not a valid render directive, allowed render directives: ${ALLOWED_RENDER_DIRECTIVES.join(', ')}, skipping compilation.`
+      `The element with renderDirective: [${renderDirective}] is not a valid render directive, allowed render directives: ${ALLOWED_RENDER_DIRECTIVES.join(', ')}, skipping compilation.`,
     );
     return false;
   }

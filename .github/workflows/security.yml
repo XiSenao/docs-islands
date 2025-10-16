@@ -492,7 +492,14 @@ jobs:
   summary:
     name: Security Summary
     runs-on: ubuntu-latest
-    needs: [secret-scan, security-audit, dependency-updates, license-check, generate-sbom]
+    needs:
+      [
+        secret-scan,
+        security-audit,
+        dependency-updates,
+        license-check,
+        generate-sbom,
+      ]
     permissions:
       contents: read
     if: always()

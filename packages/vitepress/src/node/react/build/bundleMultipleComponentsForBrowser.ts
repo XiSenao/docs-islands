@@ -2,10 +2,12 @@ import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/vitepress-shared/consta
 import type {
   ComponentBundleInfo,
   ConfigType,
-  UsedSnippetContainerType
+  UsedSnippetContainerType,
 } from '@docs-islands/vitepress-types';
 import { isNodeLikeBuiltin } from '@docs-islands/vitepress-utils';
-import logger, { lightGeneralLogger } from '@docs-islands/vitepress-utils/logger';
+import logger, {
+  lightGeneralLogger,
+} from '@docs-islands/vitepress-utils/logger';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { dirname, join } from 'pathe';
@@ -22,7 +24,7 @@ export async function bundleMultipleComponentsForBrowser(
   config: ConfigType,
   components: ComponentBundleInfo[],
   usedSnippetContainer: Map<string, UsedSnippetContainerType>,
-  adapter: FrameworkAdapter = reactAdapter
+  adapter: FrameworkAdapter = reactAdapter,
 ): Promise<{
   loaderScript: string;
   modulePreloads: string[];
@@ -31,7 +33,12 @@ export async function bundleMultipleComponentsForBrowser(
 }> {
   const { base, srcDir, assetsDir, outDir, wrapBaseUrl } = config;
   if (components.length === 0) {
-    return { loaderScript: '', modulePreloads: [], cssBundlePaths: [], ssrInjectScript: '' };
+    return {
+      loaderScript: '',
+      modulePreloads: [],
+      cssBundlePaths: [],
+      ssrInjectScript: '',
+    };
   }
 
   const entryPoints: Record<string, string> = {};
@@ -52,7 +59,7 @@ export async function bundleMultipleComponentsForBrowser(
         rollupOptions: {
           input: entryPoints,
           preserveEntrySignatures: 'allow-extension',
-          external: id => {
+          external: (id) => {
             /**
              * Components using only the `ssr:only` directive will also go through the client-side build process,
              * so node modules need to be externalized.
@@ -66,21 +73,21 @@ export async function bundleMultipleComponentsForBrowser(
             format: 'esm',
             assetFileNames: `${assetsDir}/[name].[hash].[ext]`,
             entryFileNames: `${assetsDir}/[name].[hash].js`,
-            chunkFileNames: `${assetsDir}/chunks/[name].[hash].js`
-          }
+            chunkFileNames: `${assetsDir}/chunks/[name].[hash].js`,
+          },
         },
         write: false,
         target: 'es2022',
         minify: true,
         manifest: true,
         assetsInlineLimit: 4096,
-        cssCodeSplit: true
+        cssCodeSplit: true,
       },
       plugins: adapter.browserBundlerPlugins(),
       define: {
-        'process.env.NODE_ENV': '"production"'
+        'process.env.NODE_ENV': '"production"',
       },
-      logLevel: 'warn'
+      logLevel: 'warn',
     };
 
     const output = await build(viteConfig);
@@ -98,7 +105,10 @@ export async function bundleMultipleComponentsForBrowser(
     }> = [];
     const modulePreloads: string[] = [];
     const cssBundlePaths: string[] = [];
-    const preRenderComponentNameToCssBundlePathsMap = new Map<string, Set<string>>();
+    const preRenderComponentNameToCssBundlePathsMap = new Map<
+      string,
+      Set<string>
+    >();
 
     for (const chunk of output.output) {
       if (isOutputChunk(chunk) && chunk.isEntry && chunk.facadeModuleId) {
@@ -110,7 +120,7 @@ export async function bundleMultipleComponentsForBrowser(
         const componentModuleRelativePath = join('/', chunk.fileName);
 
         const importedCss = [...(chunk.viteMetadata?.importedCss ?? [])];
-        const publicCssBundlePaths = importedCss.map(css => join('/', css));
+        const publicCssBundlePaths = importedCss.map((css) => join('/', css));
 
         /**
          * If the rendering component in the current page is NOT only rendered with client:only strategy,
@@ -122,7 +132,7 @@ export async function bundleMultipleComponentsForBrowser(
         ) {
           preRenderComponentNameToCssBundlePathsMap.set(
             clientComponentInfo.componentName,
-            new Set(publicCssBundlePaths)
+            new Set(publicCssBundlePaths),
           );
         }
 
@@ -138,7 +148,9 @@ export async function bundleMultipleComponentsForBrowser(
         }
 
         const importedAssets = [...(chunk.viteMetadata?.importedAssets ?? [])];
-        const publicAssetsBundlePaths = importedAssets.map(asset => join('/', asset));
+        const publicAssetsBundlePaths = importedAssets.map((asset) =>
+          join('/', asset),
+        );
 
         componentEntries.push({
           componentName: clientComponentInfo.componentName,
@@ -146,7 +158,7 @@ export async function bundleMultipleComponentsForBrowser(
           assetsBundlePath: publicAssetsBundlePaths,
           modulePath: componentModuleRelativePath,
           importReference: clientComponentInfo.importReference,
-          pendingRenderIds: clientComponentInfo.pendingRenderIds
+          pendingRenderIds: clientComponentInfo.pendingRenderIds,
         });
       }
 
@@ -174,7 +186,10 @@ export async function bundleMultipleComponentsForBrowser(
       }
     }
 
-    const getExportExpression = (importInfo: { importedName: string; identifier: string }) => {
+    const getExportExpression = (importInfo: {
+      importedName: string;
+      identifier: string;
+    }) => {
       if (importInfo.importedName === 'default') {
         return 'module.default';
       }
@@ -188,7 +203,9 @@ export async function bundleMultipleComponentsForBrowser(
     for (const [renderId, usedSnippet] of usedSnippetContainer.entries()) {
       if (usedSnippet.ssrHtml && !usedSnippet.useSpaSyncRender) {
         if (ssrInjectCodeSnippet.length === 0) {
-          ssrInjectCodeSnippet.push('export const __SSR_INJECT_CODE__ = () => {');
+          ssrInjectCodeSnippet.push(
+            'export const __SSR_INJECT_CODE__ = () => {',
+          );
         }
         ssrInjectCodeSnippet.push(`
           const __SSR_DOM_${usedSnippet.renderId}__ = document.querySelector('[${RENDER_STRATEGY_CONSTANTS.renderId}="${renderId}"]');
@@ -203,10 +220,15 @@ export async function bundleMultipleComponentsForBrowser(
          * the page rendering in route switching scenarios needs to wait
          * until the corresponding rendering component's styles are loaded before rendering.
          */
-        if (preRenderComponentNameToCssBundlePathsMap.has(usedSnippet.renderComponent)) {
-          usedSnippet.ssrCssBundlePaths = preRenderComponentNameToCssBundlePathsMap.get(
-            usedSnippet.renderComponent
-          );
+        if (
+          preRenderComponentNameToCssBundlePathsMap.has(
+            usedSnippet.renderComponent,
+          )
+        ) {
+          usedSnippet.ssrCssBundlePaths =
+            preRenderComponentNameToCssBundlePathsMap.get(
+              usedSnippet.renderComponent,
+            );
         }
       }
     }
@@ -240,7 +262,7 @@ export async function bundleMultipleComponentsForBrowser(
   const componentLoaders = [
     ${componentEntries
       .map(
-        entry => `
+        (entry) => `
     {
       name: '${entry.componentName}',
       loader: async () => {
@@ -252,7 +274,7 @@ export async function bundleMultipleComponentsForBrowser(
           return null;
         }
       }
-    }`
+    }`,
       )
       .join(',')}
   ];
@@ -284,7 +306,10 @@ export async function bundleMultipleComponentsForBrowser(
 })();
     `.trim();
 
-    const hash = createHash('sha256').update(unifiedLoaderCode).digest('hex').slice(0, 8);
+    const hash = createHash('sha256')
+      .update(unifiedLoaderCode)
+      .digest('hex')
+      .slice(0, 8);
     const loaderFileName = `unified-loader.${hash}.js`;
     const loaderFullPath = join(outDir, assetsDir, loaderFileName);
     fs.writeFileSync(loaderFullPath, unifiedLoaderCode);
@@ -308,7 +333,7 @@ export async function bundleMultipleComponentsForBrowser(
       loaderScript: loaderScriptRelativePath,
       modulePreloads,
       cssBundlePaths,
-      ssrInjectScript: ssrInjectScriptRelativePath
+      ssrInjectScript: ssrInjectScriptRelativePath,
     };
   } catch (error) {
     Logger.error(`Failed to bundle multiple components: ${error}`);

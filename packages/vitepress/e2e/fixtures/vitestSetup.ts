@@ -26,7 +26,7 @@ afterAll(async () => {
   const markdownFilePaths = await glob(['**/*.md'], {
     cwd: projectRoot,
     absolute: true,
-    onlyFiles: true
+    onlyFiles: true,
   });
   for (const markdownFilePath of markdownFilePaths) {
     const filePath = path.resolve(projectRoot, markdownFilePath);

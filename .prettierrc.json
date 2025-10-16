@@ -1,81 +1,48 @@
 {
-  "arrowParens": "avoid",
+  "$schema": "https://json.schemastore.org/prettierrc",
   "semi": true,
   "tabWidth": 2,
   "singleQuote": true,
-  "printWidth": 100,
-  "useTabs": false,
-  "trailingComma": "none",
+  "printWidth": 80,
+  "trailingComma": "all",
+  "arrowParens": "always",
   "endOfLine": "lf",
+  "plugins": ["prettier-plugin-organize-imports"],
   "overrides": [
     {
-      "files": "**/*.md",
+      "files": ["*.md", "*.mdx"],
       "options": {
-        "printWidth": 76,
-        "tabWidth": 2,
-        "proseWrap": "never"
-      }
-    },
-    {
-      "files": "*.json",
-      "options": {
-        "singleQuote": false,
-        "quoteProps": "preserve",
         "printWidth": 100,
-        "bracketSpacing": false
+        "proseWrap": "preserve"
       }
     },
     {
-      "files": ["*.json5", "tsconfig.json"],
+      "files": "package.json",
+      "options": {
+        "parser": "json-stringify"
+      }
+    },
+    {
+      "files": ["*.jsonc", "*.json5"],
       "options": {
         "parser": "json5",
-        "printWidth": 100,
-        "bracketSpacing": false,
         "singleQuote": false,
-        "trailingComma": "none",
-        "quoteProps": "preserve",
-        "bracketSameLine": true,
-        "singleAttributePerLine": false
+        "bracketSpacing": false,
+        "trailingComma": "none"
+      }
+    },
+    {
+      "files": "tsconfig.json",
+      "options": {
+        "parser": "jsonc"
       }
     },
     {
       "files": ["*.yml"],
       "options": {
-        "singleQuote": false
-      }
-    },
-    {
-      "files": "*.vue",
-      "options": {
-        "parser": "vue",
-        "singleAttributePerLine": true,
-        "vueIndentScriptAndStyle": false,
-        "htmlWhitespaceSensitivity": "ignore"
-      }
-    },
-    {
-      "files": ["*.jsx", "*.tsx"],
-      "options": {
-        "jsxSingleQuote": false,
-        "jsxBracketSameLine": false,
-        "singleAttributePerLine": false
-      }
-    },
-    {
-      "files": "*.cjs",
-      "options": {
-        "printWidth": 100,
-        "tabWidth": 2,
-        "useTabs": false,
-        "semi": true,
-        "singleQuote": true,
-        "quoteProps": "as-needed",
-        "trailingComma": "es5",
-        "bracketSpacing": true,
-        "arrowParens": "avoid",
-        "endOfLine": "lf"
+        "singleQuote": false,
+        "proseWrap": "preserve"
       }
     }
-  ],
-  "plugins": ["prettier-plugin-organize-imports"]
+  ]
 }

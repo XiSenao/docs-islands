@@ -88,12 +88,20 @@
     rgb(64 188 234) 40%,
     rgb(48, 129, 158)
   );
-  --vp-home-hero-image-background-image: linear-gradient(-45deg, rgb(0 174 230) 50%, #1dc9f1 50%);
+  --vp-home-hero-image-background-image: linear-gradient(
+    -45deg,
+    rgb(0 174 230) 50%,
+    #1dc9f1 50%
+  );
   --vp-home-hero-image-filter: blur(30px);
 }
 
 .dark:root {
-  --vp-home-hero-name-background: -webkit-linear-gradient(-45deg, rgb(66, 205, 255) 40%, #2f5eb9);
+  --vp-home-hero-name-background: -webkit-linear-gradient(
+    -45deg,
+    rgb(66, 205, 255) 40%,
+    #2f5eb9
+  );
   --vp-home-hero-image-background-image: linear-gradient(
     -45deg,
     rgb(16 114 190) 50%,
@@ -128,7 +136,11 @@
   /* Configure the color of the custom block of tips to be non-default product color in dark mode, to avoid incompatibility with text and cause readability to decrease */
   --vp-custom-block-tip-bg: #162f33;
   --vp-custom-block-tip-code-bg: #1b54549c;
-  --landing-community-section-linear-background: linear-gradient(0deg, #fff, #ffffffc2);
+  --landing-community-section-linear-background: linear-gradient(
+    0deg,
+    #fff,
+    #ffffffc2
+  );
   --vp-c-divider: #5c5c60;
 }
 

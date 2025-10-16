@@ -1,4 +1,7 @@
-import type { ConfigType, RenderDirective } from '@docs-islands/vitepress-types';
+import type {
+  ConfigType,
+  RenderDirective,
+} from '@docs-islands/vitepress-types';
 import type React from 'react';
 import type { Plugin } from 'vitepress';
 import type { RenderController } from './render-controller';
@@ -33,12 +36,16 @@ export interface FrameworkAdapter {
   clientEntryModule: () => string;
 
   // generate dev runtime code (HMR/SPA) for current pathname
-  generateDevRuntime: (pathname: string, cfg: ConfigType, rc: RenderController) => Promise<string>;
+  generateDevRuntime: (
+    pathname: string,
+    cfg: ConfigType,
+    rc: RenderController,
+  ) => Promise<string>;
 
   // SSR render implementation for this framework
   renderToString: (
     component: React.ComponentType<Record<string, string>>,
-    props: Record<string, string>
+    props: Record<string, string>,
   ) => string;
 
   // externalize runtime (map framework runtime to window in browser build)

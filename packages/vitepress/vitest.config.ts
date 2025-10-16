@@ -4,14 +4,17 @@ const config: ViteUserConfig = defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['src/**/__tests__/**/*.{test,spec}.{js,ts,tsx}', 'src/**/*.{test,spec}.{js,ts,tsx}'],
+    include: [
+      'src/**/__tests__/**/*.{test,spec}.{js,ts,tsx}',
+      'src/**/*.{test,spec}.{js,ts,tsx}',
+    ],
     exclude: [
       'node_modules/**',
       'dist/**',
       'coverage/**',
       '**/*.d.ts',
       'e2e/**/node_modules/**',
-      'e2e/fixtures/**'
+      'e2e/fixtures/**',
     ],
     testTimeout: 50_000,
     hookTimeout: 30_000,
@@ -30,28 +33,28 @@ const config: ViteUserConfig = defineConfig({
         '**/*.d.ts',
         'scripts/**',
         'dist/**',
-        'coverage/**'
+        'coverage/**',
       ],
       thresholds: {
         global: {
           branches: 80,
           functions: 80,
           lines: 80,
-          statements: 80
-        }
-      }
+          statements: 80,
+        },
+      },
     },
     pool: 'threads',
     poolOptions: {
       threads: {
         singleThread: false,
         minThreads: 1,
-        maxThreads: 4
-      }
+        maxThreads: 4,
+      },
     },
     reporters: ['default', 'json'],
     outputFile: {
-      json: './coverage/test-results.json'
+      json: './coverage/test-results.json',
     },
     resolveSnapshotPath: (testPath, snapExtension) => {
       return testPath.replace(/\.test\.([jt]sx?)$/, `${snapExtension}.$1`);
@@ -59,11 +62,11 @@ const config: ViteUserConfig = defineConfig({
     clearMocks: true,
     restoreMocks: true,
     setupFiles: ['./tests/setup.ts'],
-    watch: false
+    watch: false,
   },
   define: {
-    __TEST__: true
-  }
+    __TEST__: true,
+  },
 });
 
 export default config;

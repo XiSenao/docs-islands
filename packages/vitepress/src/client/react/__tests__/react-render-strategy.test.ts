@@ -13,17 +13,17 @@ vi.mock('@docs-islands/vitepress-utils/logger', () => ({
       warn: vi.fn(),
       error: vi.fn(),
       info: vi.fn(),
-      success: vi.fn()
-    })
-  }
+      success: vi.fn(),
+    }),
+  },
 }));
 
 vi.mock('../../../shared/runtime', () => ({
-  getCleanPathname: vi.fn(() => '/test-page')
+  getCleanPathname: vi.fn(() => '/test-page'),
 }));
 
 vi.mock('../../../shared/utils', () => ({
-  validateLegalRenderElements: vi.fn(() => true)
+  validateLegalRenderElements: vi.fn(() => true),
 }));
 
 // Mock ReactComponentManager (hoisted).
@@ -31,11 +31,13 @@ const mockReactComponentManager = vi.hoisted(() => ({
   subscribeComponent: vi.fn(async () => true),
   getComponent: vi.fn(() => vi.fn()),
   loadPageComponents: vi.fn(async () => true),
-  getPageComponentInfo: vi.fn(() => ({ ssrInjectScript: '/assets/ssr-inject.js' }))
+  getPageComponentInfo: vi.fn(() => ({
+    ssrInjectScript: '/assets/ssr-inject.js',
+  })),
 }));
 
 vi.mock('../react-component-manager', () => ({
-  reactComponentManager: mockReactComponentManager
+  reactComponentManager: mockReactComponentManager,
 }));
 
 describe('ReactRenderStrategy', () => {
@@ -52,18 +54,18 @@ describe('ReactRenderStrategy', () => {
     Object.defineProperty(window, 'React', {
       writable: true,
       value: {
-        createElement: vi.fn(() => ({ type: 'div', props: {} }))
-      }
+        createElement: vi.fn(() => ({ type: 'div', props: {} })),
+      },
     });
 
     Object.defineProperty(window, 'ReactDOM', {
       writable: true,
       value: {
         createRoot: vi.fn(() => ({
-          render: vi.fn()
+          render: vi.fn(),
         })),
-        hydrateRoot: vi.fn()
-      }
+        hydrateRoot: vi.fn(),
+      },
     });
 
     // Reset all mocks.
@@ -80,8 +82,13 @@ describe('ReactRenderStrategy', () => {
       // Create test elements.
       mockElements = [
         createMockElement('12345678', 'client:load', 'TestComponent', 'true'),
-        createMockElement('abcdef12', 'client:visible', 'AnotherComponent', 'false'),
-        createMockElement('87654321', 'ssr:only', 'ServerComponent', 'true')
+        createMockElement(
+          'abcdef12',
+          'client:visible',
+          'AnotherComponent',
+          'false',
+        ),
+        createMockElement('87654321', 'ssr:only', 'ServerComponent', 'true'),
       ];
 
       for (const el of mockElements) document.body.append(el);
@@ -94,12 +101,17 @@ describe('ReactRenderStrategy', () => {
     });
 
     it('should extract component props correctly', () => {
-      const element = createMockElement('feedbeef', 'client:load', 'TestComponent', 'true');
+      const element = createMockElement(
+        'feedbeef',
+        'client:load',
+        'TestComponent',
+        'true',
+      );
       element.dataset.test = 'test-value';
       document.body.append(element);
 
       const components = strategy.collectLegalRenderComponents();
-      const component = components.find(c => c.renderId === 'feedbeef');
+      const component = components.find((c) => c.renderId === 'feedbeef');
 
       expect(component?.props['data-test']).toBe('test-value');
       expect(component?.props).not.toHaveProperty('__render_id__');
@@ -108,29 +120,36 @@ describe('ReactRenderStrategy', () => {
 
   describe('React runtime execution', () => {
     beforeEach(() => {
-      const mockElement = createMockElement('12345678', 'client:load', 'TestComponent', 'true');
+      const mockElement = createMockElement(
+        '12345678',
+        'client:load',
+        'TestComponent',
+        'true',
+      );
       document.body.append(mockElement);
     });
 
     it('should execute initial load runtime', async () => {
       await strategy.executeReactRuntime({
         pageId: '/test-page',
-        isInitialLoad: true
+        isInitialLoad: true,
       });
 
       // On initial load, loadPageComponents is not called directly.
-      expect(mockReactComponentManager.loadPageComponents).not.toHaveBeenCalled();
+      expect(
+        mockReactComponentManager.loadPageComponents,
+      ).not.toHaveBeenCalled();
       // subscribeComponent will be called but may timeout due to components not being loaded.
       expect(mockReactComponentManager.subscribeComponent).toHaveBeenCalledWith(
         '/test-page',
-        'TestComponent'
+        'TestComponent',
       );
     });
 
     it('should handle component hydration', async () => {
       await strategy.executeReactRuntime({
         pageId: '/test-page',
-        isInitialLoad: true
+        isInitialLoad: true,
       });
 
       expect(window.React.createElement).toHaveBeenCalled();
@@ -146,7 +165,7 @@ describe('ReactRenderStrategy', () => {
 
       await strategy.executeReactRuntime({
         pageId: '/test-page',
-        isInitialLoad: true
+        isInitialLoad: true,
       });
 
       expect(window.ReactDOM.createRoot).toHaveBeenCalled();
@@ -159,50 +178,61 @@ describe('ReactRenderStrategy', () => {
     let mockElement: HTMLElement;
 
     beforeEach(() => {
-      mockElement = createMockElement('12345678', 'client:visible', 'VisibleComponent', 'true');
+      mockElement = createMockElement(
+        '12345678',
+        'client:visible',
+        'VisibleComponent',
+        'true',
+      );
       document.body.append(mockElement);
 
       mockIntersectionObserver = {
         observe: vi.fn(),
         unobserve: vi.fn(),
-        disconnect: vi.fn()
+        disconnect: vi.fn(),
       };
 
-      (global as any).IntersectionObserver = vi.fn().mockImplementation((callback: any) => {
-        mockIntersectionObserver.callback = callback;
-        return mockIntersectionObserver;
-      });
+      (global as any).IntersectionObserver = vi
+        .fn()
+        .mockImplementation((callback: any) => {
+          mockIntersectionObserver.callback = callback;
+          return mockIntersectionObserver;
+        });
     });
 
     it('should setup visibility observer for client:visible components', async () => {
       await strategy.executeReactRuntime({
         pageId: '/test-page',
-        isInitialLoad: true
+        isInitialLoad: true,
       });
 
       expect(global.IntersectionObserver).toHaveBeenCalled();
-      expect(mockIntersectionObserver.observe).toHaveBeenCalledWith(mockElement);
+      expect(mockIntersectionObserver.observe).toHaveBeenCalledWith(
+        mockElement,
+      );
     });
 
     it('should trigger hydration when element becomes visible', async () => {
       await strategy.executeReactRuntime({
         pageId: '/test-page',
-        isInitialLoad: true
+        isInitialLoad: true,
       });
 
       mockIntersectionObserver.callback([
         {
           isIntersecting: true,
-          target: mockElement
-        }
+          target: mockElement,
+        },
       ]);
 
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
-      expect(mockIntersectionObserver.unobserve).toHaveBeenCalledWith(mockElement);
+      expect(mockIntersectionObserver.unobserve).toHaveBeenCalledWith(
+        mockElement,
+      );
       expect(mockReactComponentManager.subscribeComponent).toHaveBeenCalledWith(
         '/test-page',
-        'VisibleComponent'
+        'VisibleComponent',
       );
     });
   });
@@ -212,15 +242,24 @@ describe('ReactRenderStrategy', () => {
     renderId: string,
     renderDirective: RenderDirective,
     renderComponent: string,
-    renderWithSpaSync: string
+    renderWithSpaSync: string,
   ): HTMLElement {
     const element = document.createElement('div');
-    element.setAttribute(RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(), renderId);
-    element.setAttribute(RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase(), renderDirective);
-    element.setAttribute(RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase(), renderComponent);
+    element.setAttribute(
+      RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),
+      renderId,
+    );
+    element.setAttribute(
+      RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase(),
+      renderDirective,
+    );
+    element.setAttribute(
+      RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase(),
+      renderComponent,
+    );
     element.setAttribute(
       RENDER_STRATEGY_CONSTANTS.renderWithSpaSync.toLowerCase(),
-      renderWithSpaSync
+      renderWithSpaSync,
     );
     return element;
   }

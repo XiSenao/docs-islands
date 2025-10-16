@@ -4,11 +4,17 @@ import packageJson from './package.json' with { type: 'json' };
 const supportedUIFrameworks = ['react'];
 
 const supportedUIFrameworksNodeEntries = new Map(
-  supportedUIFrameworks.map(framework => [`./${framework}`, `./node/${framework}.js`])
+  supportedUIFrameworks.map((framework) => [
+    `./${framework}`,
+    `./node/${framework}.js`,
+  ]),
 );
 
 const supportedUIFrameworksClientEntries = new Map(
-  supportedUIFrameworks.map(framework => [`./${framework}/client`, `./client/${framework}.mjs`])
+  supportedUIFrameworks.map((framework) => [
+    `./${framework}/client`,
+    `./client/${framework}.mjs`,
+  ]),
 );
 
 const INTERNAL_SCOPES = ['@docs-islands/'] as const;
@@ -17,7 +23,7 @@ const UNSUPPORTED_VERSION_PROTOCOL_PREFIXES = [
   'link:',
   'file:',
   'portal:',
-  'patch:'
+  'patch:',
 ] as const;
 
 function sanitizeFiles(files: string[] | undefined): string[] {
@@ -28,19 +34,23 @@ function sanitizeFiles(files: string[] | undefined): string[] {
 }
 
 function sanitizeDevDependencies(
-  devDependencies: Record<string, string> | undefined
+  devDependencies: Record<string, string> | undefined,
 ): Record<string, string> | undefined {
   if (!devDependencies || typeof devDependencies !== 'object') {
     return undefined;
   }
 
-  const filtered = Object.entries(devDependencies).filter(([packageName, versionRange]) => {
-    const isInternal = INTERNAL_SCOPES.some(scope => packageName.startsWith(scope));
-    const hasUnsupportedProtocol = UNSUPPORTED_VERSION_PROTOCOL_PREFIXES.some(prefix =>
-      versionRange.startsWith(prefix)
-    );
-    return !isInternal && !hasUnsupportedProtocol;
-  });
+  const filtered = Object.entries(devDependencies).filter(
+    ([packageName, versionRange]) => {
+      const isInternal = INTERNAL_SCOPES.some((scope) =>
+        packageName.startsWith(scope),
+      );
+      const hasUnsupportedProtocol = UNSUPPORTED_VERSION_PROTOCOL_PREFIXES.some(
+        (prefix) => versionRange.startsWith(prefix),
+      );
+      return !isInternal && !hasUnsupportedProtocol;
+    },
+  );
 
   if (filtered.length === 0) {
     return undefined;
@@ -80,7 +90,10 @@ export default function generatePackageJson(): Plugin {
                 }
                 if (value.includes('src/')) {
                   const targetExt = key.startsWith('./client') ? '.mjs' : '.js';
-                  return [key, value.replace('src/', '').replace('.ts', targetExt)];
+                  return [
+                    key,
+                    value.replace('src/', '').replace('.ts', targetExt),
+                  ];
                 }
                 if (value.endsWith('.ts')) {
                   return [key, value.replace('.ts', '.js')];
@@ -88,12 +101,15 @@ export default function generatePackageJson(): Plugin {
 
                 return [key, value];
               })
-              .filter(([key]) => !key.includes('dev'))
+              .filter(([key]) => !key.includes('dev')),
           );
         }
-        const sanitized = sanitizeDevDependencies(packageJsonObject.devDependencies);
+        const sanitized = sanitizeDevDependencies(
+          packageJsonObject.devDependencies,
+        );
         if (sanitized && Object.keys(sanitized).length > 0) {
-          packageJsonObject.devDependencies = sanitized as PackageJson['devDependencies'];
+          packageJsonObject.devDependencies =
+            sanitized as PackageJson['devDependencies'];
         } else {
           delete packageJsonObject.devDependencies;
         }
@@ -106,9 +122,9 @@ export default function generatePackageJson(): Plugin {
         this.emitFile({
           type: 'asset',
           source: JSON.stringify(packageJsonObject, null, 2),
-          fileName: 'package.json'
+          fileName: 'package.json',
         });
-      }
-    }
+      },
+    },
   };
 }

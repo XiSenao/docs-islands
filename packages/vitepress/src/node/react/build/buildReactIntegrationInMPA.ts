@@ -1,4 +1,8 @@
-import type { ConfigType, OutputChunk, RollupOutput } from '@docs-islands/vitepress-types';
+import type {
+  ConfigType,
+  OutputChunk,
+  RollupOutput,
+} from '@docs-islands/vitepress-types';
 import logger from '@docs-islands/vitepress-utils/logger';
 import fs from 'node:fs';
 import { dirname, join, resolve } from 'pathe';
@@ -10,11 +14,14 @@ import { isOutputChunk } from './shared';
 
 const Logger = logger.getLoggerByGroup('buildReactIntegrationInMPA');
 
-let buildPromise: Promise<{ entryPoint: string; modulePreloads: string[] }> | null = null;
+let buildPromise: Promise<{
+  entryPoint: string;
+  modulePreloads: string[];
+}> | null = null;
 
 export const buildReactIntegrationInMPA = async (
   config: ConfigType,
-  adapter: FrameworkAdapter = reactAdapter
+  adapter: FrameworkAdapter = reactAdapter,
 ): Promise<{ entryPoint: string; modulePreloads: string[] }> => {
   const { base, cacheDir, assetsDir, srcDir, outDir } = config;
   if (buildPromise) {
@@ -63,7 +70,7 @@ export const inBrowser = true;
 `;
           }
           return null;
-        }
+        },
       };
 
       const viteConfig: InlineConfig = {
@@ -72,24 +79,24 @@ export const inBrowser = true;
         build: {
           lib: {
             entry: {
-              'react-integration': tempEntryPath
+              'react-integration': tempEntryPath,
             },
             formats: ['es'],
-            fileName: '[name].[hash].js'
+            fileName: '[name].[hash].js',
           },
           rollupOptions: {
             output: {
               format: 'esm',
               assetFileNames: `${assetsDir}/[name].[hash].[ext]`,
               entryFileNames: `${assetsDir}/[name].[hash].js`,
-              chunkFileNames: `${assetsDir}/chunks/[name].[hash].js`
-            }
+              chunkFileNames: `${assetsDir}/chunks/[name].[hash].js`,
+            },
           },
           emptyOutDir: false,
           write: false,
           target: 'es2022',
           minify: true,
-          assetsInlineLimit: 4096
+          assetsInlineLimit: 4096,
         },
         plugins: [vitepressTreeShakingPlugin],
         define: {
@@ -98,18 +105,18 @@ export const inBrowser = true;
           'import.meta.env.MPA': 'true',
           'import.meta.env.PROD': 'true',
           'process.env.NODE_ENV': '"production"',
-          __BASE__: JSON.stringify(base)
+          __BASE__: JSON.stringify(base),
         },
         resolve: {
-          extensions: ['.ts', '.tsx', '.js', '.jsx']
+          extensions: ['.ts', '.tsx', '.js', '.jsx'],
         },
         esbuild: {
           target: 'es2022',
           supported: {
-            'top-level-await': true
-          }
+            'top-level-await': true,
+          },
         },
-        logLevel: 'warn'
+        logLevel: 'warn',
       };
 
       const modulePreloads: string[] = [];
@@ -117,7 +124,11 @@ export const inBrowser = true;
       if (outputs[0] && outputs[0].output && Array.isArray(outputs[0].output)) {
         let entryPointChunk = null;
         for (const chunk of outputs[0].output as OutputChunk[]) {
-          if (isOutputChunk(chunk) && chunk.isEntry && chunk.facadeModuleId === tempEntryPath) {
+          if (
+            isOutputChunk(chunk) &&
+            chunk.isEntry &&
+            chunk.facadeModuleId === tempEntryPath
+          ) {
             entryPointChunk = chunk;
           } else if (isOutputChunk(chunk)) {
             modulePreloads.push(join('/', chunk.fileName));
@@ -134,12 +145,14 @@ export const inBrowser = true;
         }
 
         Logger.success(
-          `ReactIntegration build completed, entryPoint: ${entryPointChunk ? join('/', entryPointChunk.fileName) : ''}`
+          `ReactIntegration build completed, entryPoint: ${entryPointChunk ? join('/', entryPointChunk.fileName) : ''}`,
         );
 
         return {
-          entryPoint: entryPointChunk ? join('/', entryPointChunk.fileName) : '',
-          modulePreloads
+          entryPoint: entryPointChunk
+            ? join('/', entryPointChunk.fileName)
+            : '',
+          modulePreloads,
         };
       }
       throw new Error('vite did not generate output file');
@@ -147,7 +160,7 @@ export const inBrowser = true;
       Logger.error(`ReactIntegration build failed: ${error}`);
       return {
         entryPoint: '',
-        modulePreloads: []
+        modulePreloads: [],
       };
     } finally {
       try {

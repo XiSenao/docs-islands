@@ -9,7 +9,7 @@ const theme: Theme = {
   extends: DefaultTheme,
   Layout: () => {
     return h(DefaultTheme.Layout, null);
-  }
+  },
 };
 
 export default theme;

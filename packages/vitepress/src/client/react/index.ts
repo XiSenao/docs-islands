@@ -2,13 +2,13 @@ import {
   NEED_PRE_RENDER_DIRECTIVES,
   REACT_RENDER_STRATEGY_INJECT_RUNTIME_ID,
   RENDER_STRATEGY_ATTRS,
-  RENDER_STRATEGY_CONSTANTS
+  RENDER_STRATEGY_CONSTANTS,
 } from '@docs-islands/vitepress-shared/constants';
 import { validateLegalRenderElements } from '@docs-islands/vitepress-shared/utils';
 import type {
   RenderDirective,
   SSRUpdateData,
-  SSRUpdateRenderData
+  SSRUpdateRenderData,
 } from '@docs-islands/vitepress-types';
 import logger from '@docs-islands/vitepress-utils/logger';
 import type React from 'react';
@@ -18,8 +18,12 @@ import { reactComponentManager } from './react-component-manager';
 import { reactRenderStrategy } from './react-render-strategy';
 
 // Hoisted predicate to satisfy unicorn/consistent-function-scoping.
-const __requiresSsrDirective = (d: string): d is Exclude<RenderDirective, 'client:only'> =>
-  NEED_PRE_RENDER_DIRECTIVES.includes(d as Exclude<RenderDirective, 'client:only'>);
+const __requiresSsrDirective = (
+  d: string,
+): d is Exclude<RenderDirective, 'client:only'> =>
+  NEED_PRE_RENDER_DIRECTIVES.includes(
+    d as Exclude<RenderDirective, 'client:only'>,
+  );
 
 /**
  * Vitepress redirects the default entry point to the vitepress/client entry point
@@ -53,7 +57,10 @@ export type ReactInjectComponent = Record<
 let currentLocationPathname = '';
 
 class ReactIntegration {
-  public pendingReactRuntimeLoads: Map<string, Promise<void>> = new Map<string, Promise<void>>();
+  public pendingReactRuntimeLoads: Map<string, Promise<void>> = new Map<
+    string,
+    Promise<void>
+  >();
   private isInitialLoad = true;
   private react: typeof React | null = null;
   private reactDOM: typeof ReactDOM | null = null;
@@ -64,7 +71,7 @@ class ReactIntegration {
 
   public detectRenderElementsInDev(): boolean {
     const renderElements = document.querySelectorAll(
-      `[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}]`
+      `[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}]`,
     );
     return renderElements.length > 0;
   }
@@ -102,7 +109,10 @@ class ReactIntegration {
             component: React.ComponentType<Record<string, string>> | null;
             source: string;
             importedName: string;
-            effectElements: Record<string, { current: Element; props: Map<string, string> }>;
+            effectElements: Record<
+              string,
+              { current: Element; props: Map<string, string> }
+            >;
           }
         >;
         pendingUpdateState: ReactUpdateState['updates'] | null;
@@ -112,19 +122,22 @@ class ReactIntegration {
         state: {},
         pendingUpdateState: null,
         memoizedSsrOnlyComponents: new Set(),
-        pendingMissingImports: null
+        pendingMissingImports: null,
       };
 
-      const [React, ReactDOM] = await Promise.all([import('react'), import('react-dom/client')]);
+      const [React, ReactDOM] = await Promise.all([
+        import('react'),
+        import('react-dom/client'),
+      ]);
       this.react = React;
       this.reactDOM = ReactDOM;
 
       import.meta.hot.on(
         'vrite-markdown-update-prepare',
         ({ updates, missingImports }: ReactUpdateState) => {
-          const currentPageInjectComponents = window[RENDER_STRATEGY_CONSTANTS.injectComponent][
-            this.getPageId()
-          ] as Record<string, DevComponentInfo>;
+          const currentPageInjectComponents = window[
+            RENDER_STRATEGY_CONSTANTS.injectComponent
+          ][this.getPageId()] as Record<string, DevComponentInfo>;
           // Clear memoized state.
           memoizedUpdateState.state = {};
           memoizedUpdateState.pendingUpdateState = null;
@@ -134,25 +147,28 @@ class ReactIntegration {
           memoizedUpdateState.pendingUpdateState = updates;
           memoizedUpdateState.pendingMissingImports = missingImports;
           if (currentPageInjectComponents) {
-            for (const componentName of Object.keys(currentPageInjectComponents)) {
-              const componentReference = currentPageInjectComponents[componentName];
+            for (const componentName of Object.keys(
+              currentPageInjectComponents,
+            )) {
+              const componentReference =
+                currentPageInjectComponents[componentName];
               const { path, importedName, component } = componentReference;
               memoizedUpdateState.state[componentName] = {
                 component,
                 source: path,
                 importedName,
-                effectElements: {}
+                effectElements: {},
               };
             }
             const renderComponentDOMContainers = document.querySelectorAll(
-              `[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}]`
+              `[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}]`,
             );
             for (const element of renderComponentDOMContainers) {
               const renderComponentName = element.getAttribute(
-                RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()
+                RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase(),
               )!;
               const renderId = element.getAttribute(
-                RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()
+                RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),
               )!;
               if (
                 validateLegalRenderElements(element) &&
@@ -166,17 +182,24 @@ class ReactIntegration {
                 for (const attr of element.getAttributeNames()) {
                   props.set(attr, element.getAttribute(attr) || '');
                 }
-                if (memoizedUpdateState.state[renderComponentName].component === null) {
-                  memoizedUpdateState.memoizedSsrOnlyComponents.add(renderComponentName);
+                if (
+                  memoizedUpdateState.state[renderComponentName].component ===
+                  null
+                ) {
+                  memoizedUpdateState.memoizedSsrOnlyComponents.add(
+                    renderComponentName,
+                  );
                 }
-                memoizedUpdateState.state[renderComponentName].effectElements[renderId] = {
+                memoizedUpdateState.state[renderComponentName].effectElements[
+                  renderId
+                ] = {
                   current: element,
-                  props
+                  props,
                 };
               }
             }
           }
-        }
+        },
       );
 
       /**
@@ -184,15 +207,20 @@ class ReactIntegration {
        */
       import.meta.hot.on('vite:afterUpdate', () => {
         // Content changes trigger this hook, filtering HMR not captured by @docs-islands/vitepress.
-        if (!memoizedUpdateState.pendingUpdateState && !memoizedUpdateState.pendingMissingImports) {
+        if (
+          !memoizedUpdateState.pendingUpdateState &&
+          !memoizedUpdateState.pendingMissingImports
+        ) {
           return;
         }
-        memoizedUpdateState.pendingUpdateState = memoizedUpdateState.pendingUpdateState || {};
-        memoizedUpdateState.pendingMissingImports = memoizedUpdateState.pendingMissingImports || [];
+        memoizedUpdateState.pendingUpdateState =
+          memoizedUpdateState.pendingUpdateState || {};
+        memoizedUpdateState.pendingMissingImports =
+          memoizedUpdateState.pendingMissingImports || [];
 
         const Logger = logger.getLoggerByGroup('vite:afterUpdate');
         const renderComponentDOMContainers = document.querySelectorAll(
-          `[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}]`
+          `[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}]`,
         );
         /**
          * `renderUpdates` contains two types of updates:
@@ -227,22 +255,24 @@ class ReactIntegration {
         for (const element of renderComponentDOMContainers) {
           if (validateLegalRenderElements(element)) {
             const renderId = element.getAttribute(
-              RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()
+              RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),
             )!;
             const renderComponent = element.getAttribute(
-              RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()
+              RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase(),
             )!;
             const renderDirective = element.getAttribute(
-              RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase()
+              RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase(),
             )!;
 
-            const pendingMissingImports = memoizedUpdateState.pendingMissingImports;
+            const pendingMissingImports =
+              memoizedUpdateState.pendingMissingImports;
             if (pendingMissingImports.includes(renderComponent)) {
               element.remove();
               continue;
             }
 
-            const pendingState = memoizedUpdateState.pendingUpdateState[renderComponent];
+            const pendingState =
+              memoizedUpdateState.pendingUpdateState[renderComponent];
             if (pendingState) {
               const { importedName, path } = pendingState;
               const memorizedState = memoizedUpdateState.state[renderComponent];
@@ -251,7 +281,7 @@ class ReactIntegration {
                   component,
                   source,
                   importedName: memorizedImportedName,
-                  effectElements
+                  effectElements,
                 } = memorizedState;
                 // Component reference has changed.
                 if (importedName !== memorizedImportedName || source !== path) {
@@ -260,7 +290,7 @@ class ReactIntegration {
                       component: null,
                       source: path,
                       importedName,
-                      effectElements: [element]
+                      effectElements: [element],
                     };
                   } else {
                     renderUpdates[renderComponent].effectElements.push(element);
@@ -269,7 +299,7 @@ class ReactIntegration {
                   reuseInjectComponent.set(renderComponent, {
                     component,
                     path,
-                    importedName
+                    importedName,
                   });
                   // If both pre- and post-update containers point to the same component, detect reuse vs re-render.
                   if (effectElements[renderId]) {
@@ -278,8 +308,13 @@ class ReactIntegration {
                     const attrKeys = element.getAttributeNames();
 
                     if (attrKeys.length === props.size) {
-                      for (const [memorizedAttrKey, memorizedAttrValue] of props.entries()) {
-                        const attrValue = element.getAttribute(memorizedAttrKey.toLowerCase());
+                      for (const [
+                        memorizedAttrKey,
+                        memorizedAttrValue,
+                      ] of props.entries()) {
+                        const attrValue = element.getAttribute(
+                          memorizedAttrKey.toLowerCase(),
+                        );
                         if (attrValue !== memorizedAttrValue) {
                           hasAttrChanged = true;
                         }
@@ -295,10 +330,12 @@ class ReactIntegration {
                           component,
                           source: path,
                           importedName,
-                          effectElements: [element]
+                          effectElements: [element],
                         };
                       } else {
-                        renderUpdates[renderComponent].effectElements.push(element);
+                        renderUpdates[renderComponent].effectElements.push(
+                          element,
+                        );
                       }
                     } else {
                       // If the component reference and props haven't changed, reuse the already-rendered DOM.
@@ -310,7 +347,7 @@ class ReactIntegration {
                       component,
                       source: path,
                       importedName,
-                      effectElements: [element]
+                      effectElements: [element],
                     };
                   } else {
                     renderUpdates[renderComponent].effectElements.push(element);
@@ -322,7 +359,7 @@ class ReactIntegration {
                   component: null,
                   source: path,
                   importedName,
-                  effectElements: [element]
+                  effectElements: [element],
                 };
               } else {
                 renderUpdates[renderComponent].effectElements.push(element);
@@ -332,20 +369,25 @@ class ReactIntegration {
                 ssrOnlyComponents.set(renderComponent, {
                   component: null,
                   importedName,
-                  path
+                  path,
                 });
               } else if (ssrOnlyComponents.has(renderComponent)) {
                 ssrOnlyComponents.delete(renderComponent);
               }
             } else {
-              Logger.error(`[${renderComponent}] is not found in container script`);
+              Logger.error(
+                `[${renderComponent}] is not found in container script`,
+              );
             }
           }
         }
 
-        for (const [renderId, element] of renderIdToReuseRenderedElements.entries()) {
+        for (const [
+          renderId,
+          element,
+        ] of renderIdToReuseRenderedElements.entries()) {
           const currentElement = document.querySelector(
-            `[${RENDER_STRATEGY_CONSTANTS.renderId}="${renderId}"]`
+            `[${RENDER_STRATEGY_CONSTANTS.renderId}="${renderId}"]`,
           );
           if (currentElement) {
             currentElement.replaceWith(element);
@@ -380,12 +422,17 @@ class ReactIntegration {
         const ssrComponentsRenderData: SSRUpdateData['data'] = [];
 
         for (const componentName of Object.keys(renderUpdates)) {
-          const { component, source, importedName, effectElements } = renderUpdates[componentName];
+          const { component, source, importedName, effectElements } =
+            renderUpdates[componentName];
           for (const element of effectElements) {
             const renderDirective =
-              element.getAttribute(RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase()) || '';
+              element.getAttribute(
+                RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase(),
+              ) || '';
             const renderId =
-              element.getAttribute(RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()) || '';
+              element.getAttribute(
+                RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),
+              ) || '';
 
             // Component props exclude attributes in RENDER_STRATEGY_ATTRS.
             const props: Record<string, string> = {};
@@ -400,7 +447,7 @@ class ReactIntegration {
               ssrComponentsRenderData.push({
                 renderId,
                 componentName,
-                props
+                props,
               });
 
               /**
@@ -417,7 +464,7 @@ class ReactIntegration {
                 importedName,
                 componentName,
                 renderDirective,
-                props
+                props,
               };
             } else {
               clientComponents[renderId] = {
@@ -426,22 +473,29 @@ class ReactIntegration {
                 importedName,
                 componentName,
                 renderDirective,
-                props
+                props,
               };
             }
           }
         }
 
-        const handleMarkdownUpdateRender = ({ pathname, data }: SSRUpdateRenderData) => {
+        const handleMarkdownUpdateRender = ({
+          pathname,
+          data,
+        }: SSRUpdateRenderData) => {
           if (import.meta.hot) {
-            import.meta.hot.off('vrite-ssr-markdown-update-render', handleMarkdownUpdateRender);
+            import.meta.hot.off(
+              'vrite-ssr-markdown-update-render',
+              handleMarkdownUpdateRender,
+            );
           }
           if (pathname === this.getPageId() && data.length > 0) {
             const ssrComponentsMap = new Map<string, Element>();
-            const renderComponents = reactRenderStrategy.collectLegalRenderComponents();
+            const renderComponents =
+              reactRenderStrategy.collectLegalRenderComponents();
             const ssrRequiredDirectives = NEED_PRE_RENDER_DIRECTIVES;
-            const ssrComponents = renderComponents.filter(renderComponent =>
-              ssrRequiredDirectives.includes(renderComponent.renderDirective)
+            const ssrComponents = renderComponents.filter((renderComponent) =>
+              ssrRequiredDirectives.includes(renderComponent.renderDirective),
             );
             for (const ssrComponent of ssrComponents) {
               ssrComponentsMap.set(ssrComponent.renderId, ssrComponent.element);
@@ -457,7 +511,9 @@ class ReactIntegration {
                      * so we need to update them first, then remove the old css resources to
                      * avoid style jitter.
                      */
-                    const isExistCssElement = document.querySelector(`link[href="${css}"]`);
+                    const isExistCssElement = document.querySelector(
+                      `link[href="${css}"]`,
+                    );
                     const link = document.createElement('link');
                     link.rel = 'stylesheet';
                     link.href = css;
@@ -484,154 +540,184 @@ class ReactIntegration {
          * 3. Component import reference changes.
          * 4. Component rendering strategy changes.
          */
-        const loadComponentsAndRenderComponentsOrHydrateComponents = (): void => {
-          const loadComponents: Record<
-            string,
-            Promise<React.ComponentType<Record<string, string>>>
-          > = {};
-          const workInProgressInjectComponent: Record<string, DevComponentInfo> = {};
-
-          for (const renderId of Object.keys(clientComponents)) {
-            const { component, source, importedName } = clientComponents[renderId];
-            const key = `${source}#${importedName}`;
-            if (component) {
-              loadComponents[key] = Promise.resolve(component);
-            } else if (!loadComponents[key]) {
-              loadComponents[key] = import(/* @vite-ignore */ source).then(module => {
-                if (importedName === 'default') {
-                  return module.default;
-                }
-                if (importedName === '*') {
-                  return module;
-                }
-                return module[importedName];
-              });
-            }
-          }
-
-          for (const renderId of Object.keys(ssrClientComponents)) {
-            const { component, source, importedName } = ssrClientComponents[renderId];
-            const key = `${source}#${importedName}`;
-            if (component) {
-              loadComponents[key] = Promise.resolve(component);
-            } else if (!loadComponents[key]) {
-              loadComponents[key] = import(/* @vite-ignore */ source).then(module => {
-                if (importedName === 'default') {
-                  return module.default;
-                }
-                if (importedName === '*') {
-                  return module;
-                }
-                return module[importedName];
-              });
-            }
-          }
-
-          const promiseComponents: Array<{
-            component: Promise<React.ComponentType<Record<string, string>>>;
-            key: string;
-          }> = [];
-
-          for (const key of Object.keys(loadComponents)) {
-            const component = loadComponents[key];
-            promiseComponents.push({
-              component,
-              key
-            });
-          }
-
-          const componentsMap = new Map<string, React.ComponentType<Record<string, string>>>();
-          Promise.all(promiseComponents.map(async item => item.component)).then(components => {
-            for (const [index, component] of components.entries()) {
-              componentsMap.set(promiseComponents[index].key, component);
-            }
+        const loadComponentsAndRenderComponentsOrHydrateComponents =
+          (): void => {
+            const loadComponents: Record<
+              string,
+              Promise<React.ComponentType<Record<string, string>>>
+            > = {};
+            const workInProgressInjectComponent: Record<
+              string,
+              DevComponentInfo
+            > = {};
 
             for (const renderId of Object.keys(clientComponents)) {
-              const { source, importedName, props, componentName } = clientComponents[renderId];
+              const { component, source, importedName } =
+                clientComponents[renderId];
               const key = `${source}#${importedName}`;
-              const Component = componentsMap.get(key);
-              if (Component) {
-                const renderElement = document.querySelector(
-                  `[${RENDER_STRATEGY_CONSTANTS.renderId}="${renderId}"]`
+              if (component) {
+                loadComponents[key] = Promise.resolve(component);
+              } else if (!loadComponents[key]) {
+                loadComponents[key] = import(/* @vite-ignore */ source).then(
+                  (module) => {
+                    if (importedName === 'default') {
+                      return module.default;
+                    }
+                    if (importedName === '*') {
+                      return module;
+                    }
+                    return module[importedName];
+                  },
                 );
-                if (renderElement) {
-                  workInProgressInjectComponent[componentName] = {
-                    component: Component,
-                    path: source,
-                    importedName
-                  };
-                  const root = this.reactDOM!.createRoot(renderElement);
-                  root.render(this.react!.createElement(Component, props));
-                }
               }
             }
 
             for (const renderId of Object.keys(ssrClientComponents)) {
-              const { source, importedName, renderDirective, props, componentName } =
+              const { component, source, importedName } =
                 ssrClientComponents[renderId];
               const key = `${source}#${importedName}`;
-              const Component = componentsMap.get(key);
-              if (renderDirective !== 'ssr:only' && Component) {
-                const renderElement = document.querySelector(
-                  `[${RENDER_STRATEGY_CONSTANTS.renderId}="${renderId}"]`
+              if (component) {
+                loadComponents[key] = Promise.resolve(component);
+              } else if (!loadComponents[key]) {
+                loadComponents[key] = import(/* @vite-ignore */ source).then(
+                  (module) => {
+                    if (importedName === 'default') {
+                      return module.default;
+                    }
+                    if (importedName === '*') {
+                      return module;
+                    }
+                    return module[importedName];
+                  },
                 );
-                if (renderElement) {
-                  workInProgressInjectComponent[componentName] = {
-                    component: Component,
-                    path: source,
-                    importedName
-                  };
-                  this.reactDOM!.hydrateRoot(
-                    renderElement,
-                    this.react!.createElement(Component, props)
-                  );
-                }
               }
             }
-          });
 
-          for (const [
-            componentName,
-            { component, path, importedName }
-          ] of reuseInjectComponent.entries()) {
-            workInProgressInjectComponent[componentName] = {
-              component,
-              path,
-              importedName
-            };
-          }
-          reuseInjectComponent.clear();
+            const promiseComponents: Array<{
+              component: Promise<React.ComponentType<Record<string, string>>>;
+              key: string;
+            }> = [];
 
-          for (const [
-            componentName,
-            { component, importedName, path }
-          ] of ssrOnlyComponents.entries()) {
-            workInProgressInjectComponent[componentName] = {
-              component,
-              path,
-              importedName
-            };
-          }
-          ssrOnlyComponents.clear();
+            for (const key of Object.keys(loadComponents)) {
+              const component = loadComponents[key];
+              promiseComponents.push({
+                component,
+                key,
+              });
+            }
 
-          // Update global injectComponent.
-          window[RENDER_STRATEGY_CONSTANTS.injectComponent][this.getPageId()] =
-            workInProgressInjectComponent;
-          reactComponentManager.reset();
-          for (const componentName of Object.keys(workInProgressInjectComponent)) {
-            reactComponentManager.notifyComponentLoaded(this.getPageId(), componentName);
-          }
-          Logger.success('Markdown HMR completed.');
-        };
+            const componentsMap = new Map<
+              string,
+              React.ComponentType<Record<string, string>>
+            >();
+            Promise.all(
+              promiseComponents.map(async (item) => item.component),
+            ).then((components) => {
+              for (const [index, component] of components.entries()) {
+                componentsMap.set(promiseComponents[index].key, component);
+              }
+
+              for (const renderId of Object.keys(clientComponents)) {
+                const { source, importedName, props, componentName } =
+                  clientComponents[renderId];
+                const key = `${source}#${importedName}`;
+                const Component = componentsMap.get(key);
+                if (Component) {
+                  const renderElement = document.querySelector(
+                    `[${RENDER_STRATEGY_CONSTANTS.renderId}="${renderId}"]`,
+                  );
+                  if (renderElement) {
+                    workInProgressInjectComponent[componentName] = {
+                      component: Component,
+                      path: source,
+                      importedName,
+                    };
+                    const root = this.reactDOM!.createRoot(renderElement);
+                    root.render(this.react!.createElement(Component, props));
+                  }
+                }
+              }
+
+              for (const renderId of Object.keys(ssrClientComponents)) {
+                const {
+                  source,
+                  importedName,
+                  renderDirective,
+                  props,
+                  componentName,
+                } = ssrClientComponents[renderId];
+                const key = `${source}#${importedName}`;
+                const Component = componentsMap.get(key);
+                if (renderDirective !== 'ssr:only' && Component) {
+                  const renderElement = document.querySelector(
+                    `[${RENDER_STRATEGY_CONSTANTS.renderId}="${renderId}"]`,
+                  );
+                  if (renderElement) {
+                    workInProgressInjectComponent[componentName] = {
+                      component: Component,
+                      path: source,
+                      importedName,
+                    };
+                    this.reactDOM!.hydrateRoot(
+                      renderElement,
+                      this.react!.createElement(Component, props),
+                    );
+                  }
+                }
+              }
+            });
+
+            for (const [
+              componentName,
+              { component, path, importedName },
+            ] of reuseInjectComponent.entries()) {
+              workInProgressInjectComponent[componentName] = {
+                component,
+                path,
+                importedName,
+              };
+            }
+            reuseInjectComponent.clear();
+
+            for (const [
+              componentName,
+              { component, importedName, path },
+            ] of ssrOnlyComponents.entries()) {
+              workInProgressInjectComponent[componentName] = {
+                component,
+                path,
+                importedName,
+              };
+            }
+            ssrOnlyComponents.clear();
+
+            // Update global injectComponent.
+            window[RENDER_STRATEGY_CONSTANTS.injectComponent][
+              this.getPageId()
+            ] = workInProgressInjectComponent;
+            reactComponentManager.reset();
+            for (const componentName of Object.keys(
+              workInProgressInjectComponent,
+            )) {
+              reactComponentManager.notifyComponentLoaded(
+                this.getPageId(),
+                componentName,
+              );
+            }
+            Logger.success('Markdown HMR completed.');
+          };
 
         if (ssrComponentsRenderData.length > 0) {
           const ssrUpdateData: SSRUpdateData = {
             pathname: this.getPageId(),
             data: ssrComponentsRenderData,
-            updateType: 'markdown-update'
+            updateType: 'markdown-update',
           };
           if (import.meta.hot) {
-            import.meta.hot.on('vrite-ssr-markdown-update-render', handleMarkdownUpdateRender);
+            import.meta.hot.on(
+              'vrite-ssr-markdown-update-render',
+              handleMarkdownUpdateRender,
+            );
             import.meta.hot.send('vrite-ssr-update', ssrUpdateData);
           }
         } else {
@@ -644,10 +730,11 @@ class ReactIntegration {
         ({ pathname, data }: SSRUpdateRenderData) => {
           if (pathname === this.getPageId() && data.length > 0) {
             const ssrComponentsMap = new Map<string, Element>();
-            const renderComponents = reactRenderStrategy.collectLegalRenderComponents();
+            const renderComponents =
+              reactRenderStrategy.collectLegalRenderComponents();
             const needSSRRenderDirective = NEED_PRE_RENDER_DIRECTIVES;
-            const ssrComponents = renderComponents.filter(info =>
-              needSSRRenderDirective.includes(info.renderDirective)
+            const ssrComponents = renderComponents.filter((info) =>
+              needSSRRenderDirective.includes(info.renderDirective),
             );
             for (const info of ssrComponents) {
               ssrComponentsMap.set(info.renderId, info.element);
@@ -658,7 +745,9 @@ class ReactIntegration {
               if (element) {
                 if (Array.isArray(ssrOnlyCss)) {
                   for (const css of ssrOnlyCss) {
-                    const isExistCssElement = document.querySelector(`link[href="${css}"]`);
+                    const isExistCssElement = document.querySelector(
+                      `link[href="${css}"]`,
+                    );
                     const link = document.createElement('link');
                     link.rel = 'stylesheet';
                     link.href = css;
@@ -671,11 +760,13 @@ class ReactIntegration {
                   }
                 }
                 element.innerHTML = ssrHtml;
-                logger.getLoggerByGroup('HotUpdated').success('ssr:only component HMR completed.');
+                logger
+                  .getLoggerByGroup('HotUpdated')
+                  .success('ssr:only component HMR completed.');
               }
             }
           }
-        }
+        },
       );
 
       import.meta.hot.on(
@@ -686,7 +777,7 @@ class ReactIntegration {
             const ssrOnlyComponentsUpdates: SSRUpdateData['data'] = [];
             for (const ssrOnlyComponentName of updateComponentNames) {
               const ssrOnlyComponents = document.querySelectorAll(
-                `[${RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()}="${ssrOnlyComponentName}"]`
+                `[${RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()}="${ssrOnlyComponentName}"]`,
               );
               if (ssrOnlyComponents.length > 0) {
                 for (const ssrOnlyComponent of ssrOnlyComponents) {
@@ -694,7 +785,7 @@ class ReactIntegration {
                     continue;
                   }
                   const renderId = ssrOnlyComponent.getAttribute(
-                    RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()
+                    RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),
                   )!;
                   const props: Record<string, string> = {};
                   for (const attr of ssrOnlyComponent.getAttributeNames()) {
@@ -705,13 +796,13 @@ class ReactIntegration {
                   ssrOnlyComponentsUpdates.push({
                     renderId,
                     componentName: ssrOnlyComponentName,
-                    props
+                    props,
                   });
                 }
                 const ssrUpdateData: SSRUpdateData = {
                   pathname: this.getPageId(),
                   data: ssrOnlyComponentsUpdates,
-                  updateType: 'ssr-only-component-update'
+                  updateType: 'ssr-only-component-update',
                 };
 
                 if (import.meta.hot) {
@@ -720,41 +811,45 @@ class ReactIntegration {
               }
             }
           }
-        }
+        },
       );
 
-      import.meta.hot.on('vrite-ssr-mount-render', ({ pathname, data }: SSRUpdateRenderData) => {
-        if (pathname === this.getPageId() && data.length > 0) {
-          const ssrComponentsMap = new Map<string, Element>();
-          const renderComponents = reactRenderStrategy.collectLegalRenderComponents();
-          const preRenderComponents = renderComponents.filter(info =>
-            NEED_PRE_RENDER_DIRECTIVES.includes(info.renderDirective)
-          );
-          for (const info of preRenderComponents) {
-            ssrComponentsMap.set(info.renderId, info.element);
-          }
-          for (const preRenderComponent of data) {
-            const { renderId, ssrOnlyCss, ssrHtml } = preRenderComponent;
-            const element = ssrComponentsMap.get(renderId);
-            if (element) {
-              // Inject CSS resources in order for ssr:only components.
-              for (const css of ssrOnlyCss) {
-                const link = document.createElement('link');
-                link.rel = 'stylesheet';
-                link.href = css;
-                link.dataset.vriteCssInDev = css;
-                document.head.append(link);
+      import.meta.hot.on(
+        'vrite-ssr-mount-render',
+        ({ pathname, data }: SSRUpdateRenderData) => {
+          if (pathname === this.getPageId() && data.length > 0) {
+            const ssrComponentsMap = new Map<string, Element>();
+            const renderComponents =
+              reactRenderStrategy.collectLegalRenderComponents();
+            const preRenderComponents = renderComponents.filter((info) =>
+              NEED_PRE_RENDER_DIRECTIVES.includes(info.renderDirective),
+            );
+            for (const info of preRenderComponents) {
+              ssrComponentsMap.set(info.renderId, info.element);
+            }
+            for (const preRenderComponent of data) {
+              const { renderId, ssrOnlyCss, ssrHtml } = preRenderComponent;
+              const element = ssrComponentsMap.get(renderId);
+              if (element) {
+                // Inject CSS resources in order for ssr:only components.
+                for (const css of ssrOnlyCss) {
+                  const link = document.createElement('link');
+                  link.rel = 'stylesheet';
+                  link.href = css;
+                  link.dataset.vriteCssInDev = css;
+                  document.head.append(link);
+                }
+                element.innerHTML = ssrHtml;
               }
-              element.innerHTML = ssrHtml;
             }
           }
-        }
-        /**
-         * The server has completed rendering, proceed to complete the client-side rendering
-         * and client-side hydration process.
-         */
-        this.loadDevRenderRuntime();
-      });
+          /**
+           * The server has completed rendering, proceed to complete the client-side rendering
+           * and client-side hydration process.
+           */
+          this.loadDevRenderRuntime();
+        },
+      );
     }
   }
 
@@ -774,32 +869,35 @@ class ReactIntegration {
 
         // In the development environment, the pre-rendering of components relies on push update events.
         if (import.meta.hot) {
-          const renderComponents = reactRenderStrategy.collectLegalRenderComponents();
-          const preRenderComponents = renderComponents.filter(info =>
-            NEED_PRE_RENDER_DIRECTIVES.includes(info.renderDirective)
+          const renderComponents =
+            reactRenderStrategy.collectLegalRenderComponents();
+          const preRenderComponents = renderComponents.filter((info) =>
+            NEED_PRE_RENDER_DIRECTIVES.includes(info.renderDirective),
           );
 
           /**
            * When a route changes or the page loads for the first time,
            * all components that require SSR rendering need to be fully rendered.
            */
-          const pendingPreRenderComponents: SSRUpdateData['data'] = preRenderComponents.map(
-            info => {
+          const pendingPreRenderComponents: SSRUpdateData['data'] =
+            preRenderComponents.map((info) => {
               return {
                 renderId: info.renderId,
                 componentName: info.renderComponent,
-                props: info.props
+                props: info.props,
               };
-            }
-          );
+            });
 
           const pendingPreRenderComponentsUpdates: SSRUpdateData = {
             pathname: currentLocationPathname,
             data: pendingPreRenderComponents,
-            updateType: 'mounted'
+            updateType: 'mounted',
           };
 
-          import.meta.hot.send('vrite-ssr-update', pendingPreRenderComponentsUpdates);
+          import.meta.hot.send(
+            'vrite-ssr-update',
+            pendingPreRenderComponentsUpdates,
+          );
         }
       });
 
@@ -835,7 +933,7 @@ class ReactIntegration {
       if (this.isInitialLoad) {
         reactRenderStrategy.executeReactRuntime({
           isInitialLoad: true,
-          pageId: this.getPageId()
+          pageId: this.getPageId(),
         });
         this.isInitialLoad = false;
         currentLocationPathname = this.getPageId();
@@ -855,7 +953,7 @@ class ReactIntegration {
         currentLocationPathname = this.getPageId();
         reactRenderStrategy.executeReactRuntime({
           isInitialLoad: false,
-          pageId: this.getPageId()
+          pageId: this.getPageId(),
         });
       });
     }

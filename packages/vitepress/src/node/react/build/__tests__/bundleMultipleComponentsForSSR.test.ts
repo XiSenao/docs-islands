@@ -1,7 +1,7 @@
 import type {
   ComponentBundleInfo,
   ConfigType,
-  UsedSnippetContainerType
+  UsedSnippetContainerType,
 } from '@docs-islands/vitepress-types';
 import { resolveConfig } from '@docs-islands/vitepress-utils';
 import fs from 'node:fs';
@@ -38,12 +38,15 @@ describe('bundleMultipleComponentsForSSR', () => {
       cacheDir,
       outDir,
       srcDir: sourceDir,
-      publicDir
+      publicDir,
     };
   };
 
   const config = resolveMockConfig(defaultConfig);
-  const reactComponentSource = join(config.srcDir, '/rendering-strategy-comps/react');
+  const reactComponentSource = join(
+    config.srcDir,
+    '/rendering-strategy-comps/react',
+  );
 
   afterAll(() => {
     if (fs.existsSync(config.outDir)) {
@@ -58,31 +61,31 @@ describe('bundleMultipleComponentsForSSR', () => {
         componentPath: join(reactComponentSource, 'Landing.tsx'),
         importReference: {
           importedName: 'Landing',
-          identifier: join(reactComponentSource, 'Landing.tsx')
+          identifier: join(reactComponentSource, 'Landing.tsx'),
         },
         pendingRenderIds: new Set(['8b05459e']),
-        renderDirectives: new Set(['client:load'])
+        renderDirectives: new Set(['client:load']),
       },
       {
         componentName: 'ReactComp2',
         componentPath: join(reactComponentSource, 'ReactComp2.tsx'),
         importReference: {
           importedName: 'ReactComp2',
-          identifier: join(reactComponentSource, 'ReactComp2.tsx')
+          identifier: join(reactComponentSource, 'ReactComp2.tsx'),
         },
         pendingRenderIds: new Set(['ac62f9f7']),
-        renderDirectives: new Set(['ssr:only'])
+        renderDirectives: new Set(['ssr:only']),
       },
       {
         componentName: 'ReactComp3',
         componentPath: join(reactComponentSource, 'ReactComp3.tsx'),
         importReference: {
           importedName: 'default',
-          identifier: join(reactComponentSource, 'ReactComp3.tsx')
+          identifier: join(reactComponentSource, 'ReactComp3.tsx'),
         },
         pendingRenderIds: new Set(['af2c1304']),
-        renderDirectives: new Set(['client:load'])
-      }
+        renderDirectives: new Set(['client:load']),
+      },
     ];
 
     const usedSnippetContainer = new Map<string, UsedSnippetContainerType>([
@@ -93,8 +96,8 @@ describe('bundleMultipleComponentsForSSR', () => {
           renderId: '8b05459e',
           renderDirective: 'client:load',
           renderComponent: 'Landing',
-          useSpaSyncRender: true
-        }
+          useSpaSyncRender: true,
+        },
       ],
       [
         'ac62f9f7',
@@ -103,13 +106,13 @@ describe('bundleMultipleComponentsForSSR', () => {
             ['render-strategy', 'ssr:only'],
             ['component-name', 'ReactComp2'],
             ['page-title', 'Rendering Strategy'],
-            ['render-count', '2']
+            ['render-count', '2'],
           ]),
           renderId: 'ac62f9f7',
           renderDirective: 'ssr:only',
           renderComponent: 'ReactComp2',
-          useSpaSyncRender: true
-        }
+          useSpaSyncRender: true,
+        },
       ],
       [
         'af2c1304',
@@ -118,14 +121,14 @@ describe('bundleMultipleComponentsForSSR', () => {
             ['render-strategy', 'client:load'],
             ['component-name', 'ReactComp3'],
             ['page-title', 'Rendering Strategy'],
-            ['render-count', '3']
+            ['render-count', '3'],
           ]),
           renderId: 'af2c1304',
           renderDirective: 'client:load',
           renderComponent: 'ReactComp3',
-          useSpaSyncRender: true
-        }
-      ]
+          useSpaSyncRender: true,
+        },
+      ],
     ]);
 
     const expectedOutput = {
@@ -134,13 +137,13 @@ describe('bundleMultipleComponentsForSSR', () => {
       ac62f9f7:
         '<div class="react-comp2-demo"><strong>2<!-- -->: Rendering Strategy: <!-- -->ssr:only</strong><ol><li><strong>Component Name:</strong> <span>ReactComp2</span></li><li><strong>Page Title:</strong> <span>Rendering Strategy</span></li><li><button class="rc2-button" type="button">Click Me!</button><strong>Pre-rendering Mode Only, React Instance Count:</strong> <span>0</span></li></ol></div>',
       af2c1304:
-        '<div class="react-comp3-demo"><strong>3<!-- -->: Rendering Strategy: <!-- -->client:load</strong><ol><li><strong>Component Name:</strong> <span>ReactComp3</span></li><li><strong>Page Title:</strong> <span>Rendering Strategy</span></li><li><button class="rc3-button" type="button">Click Me!</button><strong>Pre-rendering Client Hydration Mode, React Instance Count:</strong> <span>0</span></li></ol></div>'
+        '<div class="react-comp3-demo"><strong>3<!-- -->: Rendering Strategy: <!-- -->client:load</strong><ol><li><strong>Component Name:</strong> <span>ReactComp3</span></li><li><strong>Page Title:</strong> <span>Rendering Strategy</span></li><li><button class="rc3-button" type="button">Click Me!</button><strong>Pre-rendering Client Hydration Mode, React Instance Count:</strong> <span>0</span></li></ol></div>',
     };
 
     const { renderedComponents } = await bundleMultipleComponentsForSSR(
       config,
       ssrComponents,
-      usedSnippetContainer
+      usedSnippetContainer,
     );
     const actualOutput = Object.fromEntries(renderedComponents);
     expect(actualOutput).toEqual(expectedOutput);
