@@ -93,11 +93,8 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Build Packages
-        run: pnpm build
-        env:
-          NODE_ENV: production
-          CI: true
+      - name: Build and Quality Check
+        uses: ./.github/actions/build-and-check
 
       - name: Upload Build Artifacts
         # actions/upload-artifact@v4.6.2.
@@ -139,22 +136,11 @@ jobs:
           name: packages-build-artifacts
           path: packages/
 
-      # Build if artifacts not available (CI-only changes).
-      - name: Build Packages
-        if: needs.build-artifacts.result != 'success'
-        run: pnpm build
-        env:
-          NODE_ENV: production
-          CI: true
-
-      - name: Format
-        run: pnpm format
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Type Check
-        run: pnpm typecheck
+      # Build and run quality checks.
+      - name: Build and Quality Check
+        uses: ./.github/actions/build-and-check
+        with:
+          skip-build: ${{ needs.build-artifacts.result == 'success' }}
 
   test:
     name: Test (${{ matrix.name }})
@@ -213,13 +199,11 @@ jobs:
           name: packages-build-artifacts
           path: packages/
 
-      # Build only for non-Linux or when artifacts unavailable.
-      - name: Build Packages
-        if: matrix.use-artifacts != true
-        run: pnpm build
-        env:
-          NODE_ENV: production
-          CI: true
+      # Build and run quality checks.
+      - name: Build and Quality Check
+        uses: ./.github/actions/build-and-check
+        with:
+          skip-build: ${{ matrix.use-artifacts == true }}
 
       - name: Unit Tests
         if: ${{ !(matrix.skip-pr == true && github.event_name == 'pull_request') }}

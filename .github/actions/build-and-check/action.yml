@@ -1,0 +1,55 @@
+name: "Build and Quality Check"
+description: "Build packages and run quality checks (format, lint, typecheck, publint)"
+
+inputs:
+  skip-build:
+    description: "Skip build step (e.g., when using pre-built artifacts)"
+    required: false
+    default: "false"
+  run-format:
+    description: "Run format check"
+    required: false
+    default: "true"
+  run-lint:
+    description: "Run lint check"
+    required: false
+    default: "true"
+  run-typecheck:
+    description: "Run type check"
+    required: false
+    default: "true"
+  run-lint-packages:
+    description: "Run package lint check"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Build Packages
+      if: inputs.skip-build != 'true'
+      shell: bash
+      run: pnpm build
+      env:
+        NODE_ENV: production
+        CI: true
+
+    - name: Format Check
+      if: inputs.run-format == 'true'
+      shell: bash
+      run: pnpm format
+
+    - name: Lint
+      if: inputs.run-lint == 'true'
+      shell: bash
+      run: pnpm lint
+
+    - name: Type Check
+      if: inputs.run-typecheck == 'true'
+      shell: bash
+      run: pnpm typecheck
+
+    - name: Lint Packages
+      if: inputs.run-lint-packages == 'true'
+      shell: bash
+      run: pnpm lint:packages

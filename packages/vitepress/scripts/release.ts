@@ -147,6 +147,7 @@ class ReleaseSystemManager {
       if (!this.options.skipBuild) {
         await this.buildProject();
         await this.verifyDistPackageJsonVersion(newVersion);
+        await this.verifyPublint();
       }
 
       if (!this.options.dryRun) {
@@ -267,6 +268,16 @@ class ReleaseSystemManager {
       }
     } catch {
       throw new Error('Failed to parse dist/package.json');
+    }
+  }
+
+  private async verifyPublint(): Promise<void> {
+    Logger.info('📋 Verifying publint...');
+    try {
+      execSync('pnpm lint:package', { stdio: 'inherit', cwd: this.packageRootDir });
+      Logger.success('✅ Publint passed\n');
+    } catch {
+      throw new Error('Publint failed');
     }
   }
 
