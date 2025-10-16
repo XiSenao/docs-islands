@@ -2,10 +2,11 @@ import eslint from '@eslint/js';
 import htmlESlintRules from '@html-eslint/eslint-plugin';
 import htmlESlintParser from '@html-eslint/parser';
 import typescriptESlintParser from '@typescript-eslint/parser';
+import eslintConfigPrettier from 'eslint-config-prettier';
 import eslintPluginHtml from 'eslint-plugin-html';
 import eslintPluginJsxA11y from 'eslint-plugin-jsx-a11y';
 import eslintPluginMarkdown from 'eslint-plugin-markdown';
-import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
+import eslintPluginPrettier from 'eslint-plugin-prettier';
 import eslintPluginReact from 'eslint-plugin-react';
 import eslintPluginReactHooks from 'eslint-plugin-react-hooks';
 import eslintPluginUnicorn from 'eslint-plugin-unicorn';
@@ -24,7 +25,7 @@ export const eslintConfigBase = defineConfig([
     '**/public/**',
     '**/outputs/**',
     '**/.vite/**',
-    '**/coverage/**'
+    '**/coverage/**',
   ]),
 
   // Global language configuration
@@ -32,18 +33,18 @@ export const eslintConfigBase = defineConfig([
     languageOptions: {
       globals: {
         ...globals.browser,
-        ...globals.node
-      }
+        ...globals.node,
+      },
     },
     plugins: {
       unicorn: eslintPluginUnicorn,
       '@typescript-eslint': typescriptESlint.plugin,
       react: eslintPluginReact,
       'react-hooks': eslintPluginReactHooks,
-      'jsx-a11y': eslintPluginJsxA11y
+      'jsx-a11y': eslintPluginJsxA11y,
     },
     linterOptions: {
-      reportUnusedDisableDirectives: 'error'
+      reportUnusedDisableDirectives: 'error',
     },
     rules: {
       // Core ESLint rules - Balance between code quality and practicality
@@ -57,8 +58,14 @@ export const eslintConfigBase = defineConfig([
       eqeqeq: ['error', 'always', { null: 'ignore' }],
       'guard-for-in': 'error',
       'max-depth': ['warn', 5],
-      'max-lines': ['warn', { max: 600, skipBlankLines: true, skipComments: true }],
-      'max-lines-per-function': ['warn', { max: 150, skipBlankLines: true, skipComments: true }],
+      'max-lines': [
+        'warn',
+        { max: 600, skipBlankLines: true, skipComments: true },
+      ],
+      'max-lines-per-function': [
+        'warn',
+        { max: 150, skipBlankLines: true, skipComments: true },
+      ],
       'max-nested-callbacks': ['warn', 4],
       'max-params': ['warn', 5],
       'no-alert': 'error',
@@ -68,8 +75,8 @@ export const eslintConfigBase = defineConfig([
       'no-constant-condition': [
         'error',
         {
-          checkLoops: false
-        }
+          checkLoops: false,
+        },
       ],
       'no-constructor-return': 'error',
       'no-continue': 'off',
@@ -102,7 +109,10 @@ export const eslintConfigBase = defineConfig([
       'no-sequences': 'error',
       'no-throw-literal': 'error',
       'no-unmodified-loop-condition': 'error',
-      'no-unused-expressions': ['error', { allowShortCircuit: true, allowTernary: true }],
+      'no-unused-expressions': [
+        'error',
+        { allowShortCircuit: true, allowTernary: true },
+      ],
       'no-useless-call': 'error',
       'no-useless-concat': 'error',
       'no-useless-return': 'error',
@@ -115,8 +125,8 @@ export const eslintConfigBase = defineConfig([
         'error',
         {
           destructuring: 'all',
-          ignoreReadBeforeAssign: true
-        }
+          ignoreReadBeforeAssign: true,
+        },
       ],
       'prefer-exponentiation-operator': 'error',
       'prefer-object-spread': 'error',
@@ -132,8 +142,8 @@ export const eslintConfigBase = defineConfig([
           ignoreCase: true,
           ignoreDeclarationSort: true,
           ignoreMemberSort: false,
-          memberSyntaxSortOrder: ['none', 'all', 'multiple', 'single']
-        }
+          memberSyntaxSortOrder: ['none', 'all', 'multiple', 'single'],
+        },
       ],
       'spaced-comment': ['error', 'always', { markers: ['/'] }],
       yoda: 'error',
@@ -242,8 +252,8 @@ export const eslintConfigBase = defineConfig([
       'unicorn/switch-case-braces': 'error',
       'unicorn/template-indent': 'warn',
       'unicorn/text-encoding-identifier-case': 'error',
-      'unicorn/throw-new-error': 'error'
-    }
+      'unicorn/throw-new-error': 'error',
+    },
   },
 
   // TypeScript files - Common configuration
@@ -254,11 +264,11 @@ export const eslintConfigBase = defineConfig([
       parserOptions: {
         projectService: true,
         ecmaVersion: 'latest',
-        sourceType: 'module'
+        sourceType: 'module',
       },
       globals: {
-        JSX: 'readonly'
-      }
+        JSX: 'readonly',
+      },
     },
     rules: {
       'no-unused-vars': 'off',
@@ -268,10 +278,10 @@ export const eslintConfigBase = defineConfig([
         {
           argsIgnorePattern: '^_',
           varsIgnorePattern: '^_',
-          ignoreRestSiblings: true
-        }
-      ]
-    }
+          ignoreRestSiblings: true,
+        },
+      ],
+    },
   },
 
   // JavaScript files - Common configuration
@@ -289,16 +299,19 @@ export const eslintConfigBase = defineConfig([
       'no-return-await': 'off',
       'require-await': 'off',
       complexity: 'off',
-      'max-lines': ['warn', { max: 800, skipBlankLines: true, skipComments: true }],
-      'max-lines-per-function': 'off'
-    }
+      'max-lines': [
+        'warn',
+        { max: 800, skipBlankLines: true, skipComments: true },
+      ],
+      'max-lines-per-function': 'off',
+    },
   },
 
   // Markdown files - Common configuration
   {
     files: ['**/*.md'],
     plugins: {
-      markdown: eslintPluginMarkdown
+      markdown: eslintPluginMarkdown,
     },
     processor: 'markdown/markdown',
     rules: {
@@ -306,8 +319,8 @@ export const eslintConfigBase = defineConfig([
       semi: 'off',
       'no-return-await': 'off',
       'require-await': 'off',
-      'no-unused-vars': 'off'
-    }
+      'no-unused-vars': 'off',
+    },
   },
 
   // Markdown code blocks - Common configuration
@@ -319,8 +332,8 @@ export const eslintConfigBase = defineConfig([
         // Markdown code blocks are virtual files, don't require tsconfig.json.
         projectService: false,
         ecmaVersion: 'latest',
-        sourceType: 'module'
-      }
+        sourceType: 'module',
+      },
     },
     rules: {
       '@typescript-eslint/await-thenable': 'off',
@@ -391,8 +404,8 @@ export const eslintConfigBase = defineConfig([
       'no-var': 'off',
       'prefer-rest-params': 'off',
       'no-return-await': 'off',
-      'require-await': 'off'
-    }
+      'require-await': 'off',
+    },
   },
 
   // HTML files - Common configuration
@@ -400,10 +413,10 @@ export const eslintConfigBase = defineConfig([
     files: ['**/*.html'],
     plugins: { html: eslintPluginHtml, '@html-eslint': htmlESlintRules },
     languageOptions: {
-      parser: htmlESlintParser
+      parser: htmlESlintParser,
     },
     settings: {
-      'html/javascript-mime-types': ['text/javascript', 'text/jsx']
+      'html/javascript-mime-types': ['text/javascript', 'text/jsx'],
     },
     rules: {
       '@html-eslint/indent': ['error', 2],
@@ -418,8 +431,8 @@ export const eslintConfigBase = defineConfig([
       '@html-eslint/require-closing-tags': 'error',
       '@html-eslint/require-li-container': 'error',
       '@html-eslint/no-duplicate-id': 'error',
-      '@html-eslint/no-extra-spacing-attrs': 'error'
-    }
+      '@html-eslint/no-extra-spacing-attrs': 'error',
+    },
   },
 
   // Declaration files - Common configuration
@@ -427,8 +440,8 @@ export const eslintConfigBase = defineConfig([
     files: ['**/*.d.ts', '**/*.d.mts', '**/*.d.cts'],
     languageOptions: {
       parserOptions: {
-        project: false
-      }
+        project: false,
+      },
     },
     rules: {
       '@typescript-eslint/naming-convention': 'off',
@@ -436,8 +449,8 @@ export const eslintConfigBase = defineConfig([
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       'no-unused-vars': 'off',
       'no-return-await': 'off',
-      'require-await': 'off'
-    }
+      'require-await': 'off',
+    },
   },
 
   // Test files configuration - Relaxed rules for testing
@@ -447,7 +460,7 @@ export const eslintConfigBase = defineConfig([
       '**/*.spec.{js,ts,jsx,tsx}',
       '**/tests/**/*',
       '**/__tests__/**/*',
-      '**/e2e/**/*.{ts,tsx}'
+      '**/e2e/**/*.{ts,tsx}',
     ],
     languageOptions: {
       // Tests - Parse TypeScript and provide common globals
@@ -455,7 +468,7 @@ export const eslintConfigBase = defineConfig([
       parserOptions: {
         projectService: true,
         ecmaVersion: 'latest',
-        sourceType: 'module'
+        sourceType: 'module',
       },
       globals: {
         ...globals.node,
@@ -468,8 +481,8 @@ export const eslintConfigBase = defineConfig([
         beforeEach: 'readonly',
         afterEach: 'readonly',
         page: 'readonly',
-        browser: 'readonly'
-      }
+        browser: 'readonly',
+      },
     },
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
@@ -508,7 +521,10 @@ export const eslintConfigBase = defineConfig([
       '@typescript-eslint/switch-exhaustiveness-check': 'off',
       '@typescript-eslint/unbound-method': 'off',
       'max-lines-per-function': 'off', // Tests can be very long
-      'max-lines': ['warn', { max: 800, skipBlankLines: true, skipComments: true }], // Allow longer test files
+      'max-lines': [
+        'warn',
+        { max: 800, skipBlankLines: true, skipComments: true },
+      ], // Allow longer test files
       'max-nested-callbacks': 'off',
       complexity: 'off', // Test complexity differs from production code
       'max-depth': 'off', // Test nesting can be deep
@@ -516,8 +532,8 @@ export const eslintConfigBase = defineConfig([
       'unicorn/consistent-function-scoping': 'off',
       'unicorn/no-useless-undefined': 'off',
       'no-return-await': 'off',
-      'require-await': 'off'
-    }
+      'require-await': 'off',
+    },
   },
 
   // Vue-specific configuration
@@ -528,9 +544,9 @@ export const eslintConfigBase = defineConfig([
         parser: '@typescript-eslint/parser',
         extraFileExtensions: ['.vue'],
         ecmaFeatures: {
-          jsx: true
-        }
-      }
+          jsx: true,
+        },
+      },
     },
     rules: {
       // Vue-specific quality rules (non-formatting)
@@ -589,8 +605,8 @@ export const eslintConfigBase = defineConfig([
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
       'no-return-await': 'off',
-      'require-await': 'off'
-    }
+      'require-await': 'off',
+    },
   },
 
   // React-specific configuration
@@ -598,15 +614,15 @@ export const eslintConfigBase = defineConfig([
     files: ['**/*.{jsx,tsx}'],
     settings: {
       react: {
-        version: 'detect' // Automatically detect React version
-      }
+        version: 'detect', // Automatically detect React version
+      },
     },
     languageOptions: {
       parserOptions: {
         ecmaFeatures: {
-          jsx: true
-        }
-      }
+          jsx: true,
+        },
+      },
     },
     rules: {
       // Security rules
@@ -678,9 +694,15 @@ export const eslintConfigBase = defineConfig([
       'react/jsx-one-expression-per-line': 'off',
       'react/jsx-props-no-multi-spaces': 'off',
       'react/jsx-tag-spacing': 'off',
-      'react/jsx-wrap-multilines': 'off'
-    }
+      'react/jsx-wrap-multilines': 'off',
+    },
   },
 
-  eslintPluginPrettierRecommended
+  {
+    plugins: { prettier: eslintPluginPrettier },
+    rules: {
+      'prettier/prettier': ['error', {}, { usePrettierrc: true }],
+    },
+  },
+  eslintConfigPrettier,
 ]);
