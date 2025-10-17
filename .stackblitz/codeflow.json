@@ -1,0 +1,7 @@
+{
+  "pnpm": {
+    "overrides": {
+      "@docs-islands/vitepress": "./packages/vitepress"
+    }
+  }
+}

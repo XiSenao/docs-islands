@@ -13,25 +13,25 @@
     "set:default-link": "npm pkg set devDependencies.@docs-islands/vitepress='link:../dist'",
     "clean": "del-cli node_modules .vitepress/dist .vitepress/cache .eslintcache"
   },
-  "packageManager": "pnpm@10.7.0",
+  "packageManager": "pnpm@8.15.6",
   "dependencies": {
-    "react": "catalog:dev",
-    "react-dom": "catalog:dev",
-    "vue": "catalog:prod"
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "vue": "^3.5.21"
   },
   "devDependencies": {
-    "eslint": "catalog:lint",
+    "eslint": "^9.34.0",
     "@docs-islands/eslint-config": "workspace:*",
-    "typescript": "catalog:dev",
-    "vitepress": "catalog:frameworks",
-    "vitepress-plugin-group-icons": "catalog:docs-dev",
-    "vitepress-plugin-llms": "catalog:docs-dev",
-    "@nolebase/vitepress-plugin-enhanced-mark": "catalog:docs-dev",
+    "typescript": "~5.8.3",
+    "vitepress": "^1.6.3",
+    "vitepress-plugin-group-icons": "^1.6.3",
+    "vitepress-plugin-llms": "^1.7.3",
+    "@nolebase/vitepress-plugin-enhanced-mark": "^2.18.2",
     "@docs-islands/vitepress": "link:../dist",
-    "@vitejs/plugin-react-swc": "catalog:dev",
-    "tsx": "catalog:dev",
-    "pathe": "catalog:dev",
-    "wait-on": "catalog:dev",
-    "del-cli": "catalog:dev"
+    "@vitejs/plugin-react-swc": "^3.9.0",
+    "tsx": "^4.20.5",
+    "pathe": "^2.0.3",
+    "wait-on": "^8.0.4",
+    "del-cli": "^6.0.0"
   }
 }

@@ -4,7 +4,7 @@
   "type": "module",
   "engines": {
     "node": "^20.19.0 || >=22.12.0",
-    "pnpm": ">=10.17.0"
+    "pnpm": ">=8.15.6"
   },
   "workspaces": [
     "packages/**",
@@ -35,6 +35,7 @@
     "docs:preview": "pnpm --filter @docs-islands/monorepo-docs docs:preview",
     "docs:link:dev": "pnpm run _run link:dev",
     "docs:link:prod": "pnpm run _run link:prod",
+    "dev:stackblitz": "pnpm build && pnpm --filter @docs-islands/monorepo-docs docs:dev",
     "test": "pnpm run _run test",
     "test:unit": "pnpm run _run test:unit",
     "test:e2e": "pnpm run _run test:e2e",
@@ -51,24 +52,24 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "vite": "catalog:prod",
-    "tinyglobby": "catalog:prod"
+    "vite": "^5.4.20",
+    "tinyglobby": "^0.2.15"
   },
   "//": "@playwright/test is a shared test infrastructure for E2E testing across all framework packages. Individual packages also declare it in their own package.json to maintain dependency completeness, while the root declaration ensures CI can execute playwright commands.",
   "devDependencies": {
-    "@types/node": "catalog:dev",
-    "eslint": "catalog:lint",
+    "@types/node": "^24.3.0",
+    "eslint": "^9.34.0",
     "@docs-islands/eslint-config": "workspace:*",
     "@docs-islands/utils": "workspace:*",
-    "prettier": "catalog:format",
-    "prettier-plugin-organize-imports": "catalog:format",
-    "typescript": "catalog:dev",
-    "lint-staged": "catalog:dev",
-    "vue-tsc": "catalog:dev",
-    "tsx": "catalog:dev",
-    "del-cli": "catalog:dev",
-    "husky": "catalog:dev",
-    "@playwright/test": "catalog:test"
+    "prettier": "~3.5.3",
+    "prettier-plugin-organize-imports": "^4.2.0",
+    "typescript": "~5.8.3",
+    "lint-staged": "^16.1.5",
+    "vue-tsc": "~3.0.3",
+    "tsx": "^4.20.5",
+    "del-cli": "^6.0.0",
+    "husky": "^9.1.7",
+    "@playwright/test": "^1.55.0"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,vue,mjs,cjs}": [
@@ -78,7 +79,7 @@
       "prettier --write --cache --ignore-unknown"
     ]
   },
-  "packageManager": "pnpm@10.17.0",
+  "packageManager": "pnpm@8.15.6",
   "pnpm": {
     "//": "Vite isn't updating esbuild to 0.25.0 in v5, and since the project doesn't use esbuild dev server, this can be ignored.",
     "auditConfig": {
@@ -92,5 +93,9 @@
     "patchedDependencies": {
       "vite@5.4.20": "patches/vite@5.4.20.patch"
     }
+  },
+  "stackblitz": {
+    "installDependencies": true,
+    "startCommand": "pnpm dev:stackblitz"
   }
 }
