@@ -35,7 +35,7 @@
     "docs:preview": "pnpm --filter @docs-islands/monorepo-docs docs:preview",
     "docs:link:dev": "pnpm run _run link:dev",
     "docs:link:prod": "pnpm run _run link:prod",
-    "dev:stackblitz": "pnpm build && pnpm --filter @docs-islands/monorepo-docs docs:dev",
+    "dev:stackblitz": "pnpm build && pnpm --filter @docs-islands/vitepress-docs docs:dev",
     "test": "pnpm run _run test",
     "test:unit": "pnpm run _run test:unit",
     "test:e2e": "pnpm run _run test:e2e",
