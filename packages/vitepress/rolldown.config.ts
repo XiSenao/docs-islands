@@ -55,6 +55,11 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
               ),
               fileName: 'README.zh-CN.md',
             });
+            this.emitFile({
+              type: 'asset',
+              source: await readFile(resolve(__dirname, 'LICENSE.md'), 'utf8'),
+              fileName: 'LICENSE.md',
+            });
           },
         },
       },
