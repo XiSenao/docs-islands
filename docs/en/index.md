@@ -14,28 +14,28 @@ hero:
       link: https://github.com/XiSenao/docs-islands
 
 features:
-  - title: Islands Architecture
-    details: Static-first with selective and lazy hydration. Per-component isolation avoids global state conflicts and enables progressive enhancement.
+  - title: Exceptional Performance
+    details: Static content renders instantly while interactive components load on-demand. Documentation sites achieve both the speed of static websites and the interactivity of modern applications, delivering a seamless reading experience.
     icon: '🏝️'
 
   - title: Flexible Rendering Strategies
-    details: Currently supports four rendering modes — ssr:only (default), client:load, client:visible, client:only — with extensible architecture for additional strategies.
+    details: Fine-grained control over each component's rendering and hydration timing. Supports server-side rendering, eager loading, viewport-triggered loading, and client-only rendering. Eliminates unnecessary JavaScript execution, ensuring interactions happen at precisely the right moment.
     icon: '🎯'
 
-  - title: Framework-Agnostic Design
-    details: Built on adapter model, extensible to other documentation frameworks (e.g., Docusaurus, Nextra, Rspress, etc.) and build toolchains with no lock-in.
+  - title: Extensible Architecture
+    details: Design philosophy supports extension to other mainstream documentation frameworks. Currently provides production-grade integration for VitePress, with gradual platform coverage as the community evolves, maintaining flexibility in technology choices.
     icon: '🧩'
 
-  - title: Cross-Framework UI Support
-    details: Production-ready React integration, extensible to Solid, Svelte, Preact, Angular and other mainstream UI frameworks.
+  - title: Cross-Framework Support
+    details: Freely use React, Vue, Solid, Svelte, or any preferred UI framework within documentation. Teams can leverage existing component libraries and development expertise without learning new technology stacks.
     icon: '⚛️'
 
-  - title: Zero-Friction Integration
-    details: Minimal configuration, works out of the box. Seamlessly integrates into existing documentation projects through adapters without disrupting workflows.
+  - title: Rapid Integration
+    details: Enable Islands capabilities in existing documentation projects with minimal configuration. No code refactoring required, no disruption to existing functionality—progressively enhance interactivity.
     icon: '🔌'
 
-  - title: Complete Developer Experience
-    details: Dev HMR, dev/prod consistency, MPA compatibility. Performance optimization options available for specific scenarios (e.g., SPA navigation).
+  - title: Polished Developer Experience
+    details: Instant feedback through hot module replacement in development, consistent behavior across dev and production environments. Complete TypeScript support and performance optimization options ensure a smooth experience from development to deployment.
     icon: '📦'
 ---
 

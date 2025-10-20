@@ -14,28 +14,28 @@ hero:
       link: https://github.com/XiSenao/docs-islands
 
 features:
-  - title: Islands 架构
-    details: 静态优先，选择性与懒加载注水。按组件隔离，避免全局状态冲突，渐进式增强交互能力。
+  - title: 极致性能体验
+    details: 静态内容即时呈现，交互组件按需加载。让文档站点兼具静态网站的速度与现代应用的交互体验，为用户提供流畅的阅读体验。
     icon: '🏝️'
 
   - title: 灵活的渲染策略
-    details: 目前支持四种渲染模式 — ssr:only（默认）、client:load、client:visible、client:only — 可扩展更多策略。
+    details: 灵活控制每个组件的渲染与注水时机，支持服务端渲染、立即加载、可见时加载、纯客户端等多种策略。避免不必要的 JavaScript 执行，让交互在最合适的时候发生。
     icon: '🎯'
 
-  - title: 框架无关设计
-    details: 基于适配器模型，可扩展到其他文档框架（如 Docusaurus、Nextra、Rspress 等）和构建工具链，无锁定。
+  - title: 架构可扩展
+    details: 设计理念支持扩展到其他主流文档框架。当前为 VitePress 提供生产级集成，随着社区发展逐步覆盖更多平台，保持技术栈选择的灵活性。
     icon: '🧩'
 
-  - title: 跨框架 UI 支持
-    details: 生产就绪的 React 集成，可扩展到 Solid、Svelte、Preact、Angular 等主流 UI 框架。
+  - title: 跨框架支持
+    details: 在文档中自由使用 React、Vue、Solid、Svelte 等任何喜欢的 UI 框架。团队无需学习新技术栈，直接复用现有组件库和开发经验。
     icon: '⚛️'
 
-  - title: 零摩擦集成
-    details: 最小化配置，开箱即用。通过适配器无缝接入现有文档项目，不破坏原有工作流。
+  - title: 快速集成
+    details: 最小化配置即可在现有文档项目中启用 Islands 能力。无需重构代码，不影响现有功能，渐进式增强文档交互性。
     icon: '🔌'
 
-  - title: 完整的开发体验
-    details: 开发环境 HMR、开发/生产一致性、MPA 兼容。针对特定场景提供性能优化选项（如 SPA 导航）。
+  - title: 完善开发体验
+    details: 开发环境热更新即时反馈，开发与生产环境行为一致。提供完整的类型支持和性能优化选项，确保从开发到部署的流畅体验。
     icon: '📦'
 ---
 
