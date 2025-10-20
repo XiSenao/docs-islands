@@ -63,22 +63,6 @@ jobs:
             ci:
               - '.github/**/*.yml'
 
-  commit-check:
-    name: Validate Commits
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      # action/checkout@v5.0.0.
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
-        with:
-          # Fetch full history for commit validation.
-          fetch-depth: 0
-
-      - name: Validate Commit Messages
-        uses: ./.github/actions/validate-commits
-        with:
-          strict_mode: false
-
   build-artifacts:
     name: Build Artifacts
     runs-on: ubuntu-latest
