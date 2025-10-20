@@ -7,7 +7,6 @@
 </p>
 <br/>
 <p align="center">
-  <a href="https://npmjs.com/package/@docs-islands/vitepress"><img src="https://img.shields.io/npm/v/@docs-islands/vitepress.svg" alt="npm package"></a>
   <a href="https://nodejs.org/en/about/previous-releases"><img src="https://img.shields.io/node/v/@docs-islands/vitepress.svg" alt="node compatibility"></a>
   <a href="https://github.com/XiSenao/docs-islands/actions/workflows/ci.yml"><img src="https://github.com/XiSenao/docs-islands/actions/workflows/ci.yml/badge.svg?branch=main" alt="build status"></a>
   <a href="https://pr.new/XiSenao/docs-islands/tree/stackblitz?file=docs/en/index.md"><img src="https://developer.stackblitz.com/img/start_pr_dark_small.svg" alt="Start new PR in StackBlitz Codeflow"></a>
@@ -18,18 +17,29 @@ English | [简体中文](./README.zh-CN.md)
 
 > **⚡ Project Status**: Actively developed - VitePress integration production ready.
 
-Brings cross-framework Islands Architecture to documentation frameworks with selective and lazy hydration while maintaining static-first approach. Built on adapter model design, the architecture is extensible to multiple documentation frameworks and build toolchains with no lock-in. Currently provides production-ready zero-friction integration for VitePress.
+Brings the performance benefits of Islands Architecture to documentation frameworks. Static content loads instantly while interactive components activate on-demand, enabling documentation sites to achieve both the speed of static websites and the interactivity of modern applications. Supports cross-framework UI usage, currently providing production-grade integration for VitePress.
 
 ## Key Features
 
-- **🏝️ Islands Architecture** - Static-first with selective and lazy hydration. Per-component isolation avoids global state conflicts and enables progressive enhancement.
-- **🎯 Flexible Rendering Strategies** - Currently supports four rendering modes (ssr:only, client:load, client:visible, client:only) with extensible architecture for additional strategies.
-- **🧩 Framework-Agnostic Design** - Built on adapter model, extensible to other documentation frameworks (e.g., Docusaurus, Nextra, Rspress, etc.) and build toolchains with no lock-in.
-- **⚛️ Cross-Framework UI Support** - Production-ready React integration, extensible to Solid, Svelte, Preact, Angular and other mainstream UI frameworks.
-- **🔌 Zero-Friction Integration** - Minimal configuration, works out of the box. Seamlessly integrates into existing documentation projects through adapters without disrupting workflows.
-- **📦 Complete Developer Experience** - Dev HMR, dev/prod consistency, MPA compatibility. Performance optimization options available for specific scenarios.
+- **🏝️ Exceptional Performance** - Static content renders instantly while interactive components load on-demand. Documentation sites achieve both the speed of static websites and the interactivity of modern applications, delivering a seamless reading experience.
+
+- **🎯 Flexible Rendering Strategies** - Fine-grained control over each component's rendering and hydration timing. Supports server-side rendering (`ssr:only`), eager loading (`client:load`), viewport-triggered loading (`client:visible`), and client-only rendering (`client:only`). Eliminates unnecessary JavaScript execution, ensuring interactions happen at precisely the right moment.
+
+- **🧩 Extensible Architecture** - Design philosophy supports extension to other mainstream documentation frameworks. Currently provides production-grade integration for VitePress, with gradual platform coverage as the community evolves, maintaining flexibility in technology choices.
+
+- **⚛️ Cross-Framework Support** - Freely use React, Vue, Solid, Svelte, or any preferred UI framework within documentation. Teams can leverage existing component libraries and development expertise without learning new technology stacks.
+
+- **🔌 Rapid Integration** - Enable Islands capabilities in existing documentation projects with minimal configuration. No code refactoring required, no disruption to existing functionality—progressively enhance interactivity.
+
+- **📦 Polished Developer Experience** - Instant feedback through hot module replacement in development, consistent behavior across dev and production environments. Complete TypeScript support and performance optimization options ensure a smooth experience from development to deployment.
 
 > For more details and usage guides, visit the [documentation site](https://docs.senao.me/docs-islands/).
+
+## Packages
+
+| Package                                       | Version (click for changelogs)                                                                                              |
+| --------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------- |
+| [@docs-islands/vitepress](packages/vitepress) | [![vitepress version](https://img.shields.io/npm/v/@docs-islands/vitepress.svg?label=%20)](packages/vitepress/CHANGELOG.md) |
 
 ## Contributing
 
