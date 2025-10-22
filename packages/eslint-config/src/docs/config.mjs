@@ -1,6 +1,6 @@
+import markdown from '@eslint/markdown';
 import tsParser from '@typescript-eslint/parser';
 import eslintPluginJsxA11y from 'eslint-plugin-jsx-a11y';
-import eslintPluginMarkdown from 'eslint-plugin-markdown';
 import eslintPluginReact from 'eslint-plugin-react';
 import eslintPluginReactHooks from 'eslint-plugin-react-hooks';
 import eslintPluginVue from 'eslint-plugin-vue';
@@ -262,20 +262,13 @@ export default defineConfig([
     },
   },
 
+  // Markdown
   {
-    name: 'Markdown',
     files: ['**/*.md'],
     plugins: {
-      markdown: eslintPluginMarkdown,
+      markdown,
     },
-    processor: 'markdown/markdown',
-    rules: {
-      eqeqeq: 'off',
-      semi: 'off',
-      'no-return-await': 'off',
-      'require-await': 'off',
-      'no-unused-vars': 'off',
-    },
+    extends: ['markdown/processor'],
   },
 
   {

@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "paths": {
+      "#types/*": ["./types/*"],
       "#dep-types/*": ["./src/types/*"],
       "#shared/*": ["./src/shared/*"],
       "#utils/*": ["./utils/*"],

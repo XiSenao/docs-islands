@@ -2,6 +2,7 @@ import type { Plugin } from 'rolldown';
 import packageJson from './package.json' with { type: 'json' };
 
 const supportedUIFrameworks = ['react'];
+const externalImports = ['#types'];
 
 const supportedUIFrameworksNodeEntries = new Map(
   supportedUIFrameworks.map((framework) => [
@@ -59,10 +60,13 @@ function sanitizeDevDependencies(
   return Object.fromEntries(filtered);
 }
 
+type ExportValue = string | { types?: string; default?: string };
+
 type PackageJson = Omit<Partial<typeof packageJson>, 'exports'> & {
   devDependencies?: Record<string, string>;
   files?: string[];
-  exports?: Record<string, string>;
+  exports?: Record<string, ExportValue>;
+  imports?: Record<string, string>;
 };
 
 export default function generatePackageJson(): Plugin {
@@ -73,6 +77,20 @@ export default function generatePackageJson(): Plugin {
       handler() {
         const packageJsonObject: PackageJson = { ...packageJson };
         delete packageJsonObject.scripts;
+        const imports = packageJsonObject.imports;
+        if (imports && typeof imports === 'object') {
+          const filteredImports = Object.fromEntries(
+            Object.entries(imports).filter(([key]) =>
+              externalImports.some((importPath) => key.startsWith(importPath)),
+            ),
+          );
+          if (Object.keys(filteredImports).length > 0) {
+            packageJsonObject.imports =
+              filteredImports as PackageJson['imports'];
+          } else {
+            delete packageJsonObject.imports;
+          }
+        }
         const originalExports = packageJson.exports;
         if (
           originalExports &&
@@ -81,25 +99,34 @@ export default function generatePackageJson(): Plugin {
         ) {
           packageJsonObject.exports = Object.fromEntries(
             Object.entries(originalExports)
-              .map(([key, value]) => {
+              .map(([key, value]): [string, ExportValue] => {
                 if (supportedUIFrameworksNodeEntries.has(key)) {
                   return [key, supportedUIFrameworksNodeEntries.get(key)!];
                 }
                 if (supportedUIFrameworksClientEntries.has(key)) {
                   return [key, supportedUIFrameworksClientEntries.get(key)!];
                 }
-                if (value.includes('src/')) {
-                  const targetExt = key.startsWith('./client') ? '.mjs' : '.js';
-                  return [
-                    key,
-                    value.replace('src/', '').replace('.ts', targetExt),
-                  ];
+                // Handle object-type export values (e.g., { types: "..." })
+                if (typeof value === 'object' && value !== null) {
+                  return [key, value as ExportValue];
                 }
-                if (value.endsWith('.ts')) {
-                  return [key, value.replace('.ts', '.js')];
+                // Handle string-type export values
+                if (typeof value === 'string') {
+                  if (value.includes('src/')) {
+                    const targetExt = key.startsWith('./client')
+                      ? '.mjs'
+                      : '.js';
+                    return [
+                      key,
+                      value.replace('src/', '').replace('.ts', targetExt),
+                    ];
+                  }
+                  if (value.endsWith('.ts')) {
+                    return [key, value.replace('.ts', '.js')];
+                  }
                 }
 
-                return [key, value];
+                return [key, value as ExportValue];
               })
               .filter(([key]) => !key.includes('dev')),
           );

@@ -2,20 +2,25 @@
   "name": "@docs-islands/utils",
   "private": true,
   "type": "module",
-  "exports": {
-    ".": "./index.ts",
-    "./logger": "./logger.ts"
-  },
   "scripts": {
+    "build": "rolldown --config rolldown.config.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
     "clean": "del-cli .eslintcache node_modules"
+  },
+  "dependencies": {
+    "tinyglobby": "catalog:prod"
   },
   "devDependencies": {
     "eslint": "catalog:lint",
     "@docs-islands/eslint-config": "workspace:*",
     "typescript": "catalog:dev",
     "del-cli": "catalog:dev",
-    "picocolors": "catalog:dev"
+    "picocolors": "catalog:dev",
+    "rolldown": "catalog:dev",
+    "rolldown-plugin-dts": "catalog:dev"
+  },
+  "exports": {
+    "./*": "./dist/*.js"
   }
 }
