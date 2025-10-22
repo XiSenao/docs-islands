@@ -2,7 +2,8 @@ import type { Plugin } from 'rolldown';
 import packageJson from './package.json' with { type: 'json' };
 
 const supportedUIFrameworks = ['react'];
-const externalImports = ['#types'];
+// TODO: #types is prepared for the dependent party.
+const externalImports: string[] = [];
 
 const supportedUIFrameworksNodeEntries = new Map(
   supportedUIFrameworks.map((framework) => [
