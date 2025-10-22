@@ -195,9 +195,19 @@ jobs:
         env:
           CI: true
 
+      - name: Verify Playwright Installation for E2E
+        if: ${{ !(matrix.skip-pr == true && github.event_name == 'pull_request') }}
+        run: |
+          echo "Verifying Playwright installation..."
+          echo "Browser path: $HOME/.cache/playwright"
+          export PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/playwright"
+          pnpm exec playwright install chromium --with-deps
+
       - name: E2E Tests
         if: ${{ !(matrix.skip-pr == true && github.event_name == 'pull_request') }}
-        run: pnpm test:e2e
+        run: |
+          export PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/playwright"
+          pnpm test:e2e
         env:
           CI: true
 
