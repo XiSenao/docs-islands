@@ -6,7 +6,7 @@ import type { ExtractedProps } from '../react-ssr-integration-processor';
 import { transformReactSSRIntegrationCode } from '../react-ssr-integration-processor';
 
 // Mock logger.
-vi.mock('@docs-islands/vitepress-utils/logger', () => ({
+vi.mock('#utils/logger', () => ({
   default: {
     getLoggerByGroup: () => ({
       error: vi.fn(),
@@ -64,7 +64,7 @@ describe('ReactSSRIntegrationProcessor', () => {
           "__spa_sync_render__": "true"
         });
         _createVNode("div", {
-          "__render_id__": "bbbb2222", 
+          "__render_id__": "bbbb2222",
           "__render_component__": "Component2",
           "__render_directive__": "ssr:only",
           "__spa_sync_render__": "false"
@@ -83,7 +83,7 @@ describe('ReactSSRIntegrationProcessor', () => {
       const sourceCode = `
         _createVNode("div", {
           "__render_id__": "12345678",
-          "__render_component__": "TestComponent", 
+          "__render_component__": "TestComponent",
           "__render_directive__": "client:only",
           "__spa_sync_render__": "true"
         });
@@ -125,7 +125,7 @@ describe('ReactSSRIntegrationProcessor', () => {
         _createVNode("div", {
           "__render_id__": "12345678",
           "__render_component__": "TestComponent",
-          "__render_directive__": "client:load", 
+          "__render_directive__": "client:load",
           "__spa_sync_render__": "true",
           "count": 42,
           "percentage": 3.14
@@ -149,7 +149,7 @@ describe('ReactSSRIntegrationProcessor', () => {
           "__render_id__": "12345678",
           "__render_component__": "TestComponent",
           "__render_directive__": "client:load",
-          "__spa_sync_render__": "true", 
+          "__spa_sync_render__": "true",
           "enabled": true,
           "disabled": false,
           "empty": null
@@ -286,7 +286,7 @@ describe('ReactSSRIntegrationProcessor', () => {
       const sourceCode = `
         _createVNode("div", {
           "__render_id__": "12345678",
-          "__render_component__": "TestComponent", 
+          "__render_component__": "TestComponent",
           "__render_directive__": "client:load",
           "__spa_sync_render__": "true"
         });
@@ -341,7 +341,7 @@ describe('ReactSSRIntegrationProcessor', () => {
     it('should maintain code formatting with retainLines option', () => {
       const sourceCode = `_createVNode("div", {
   "__render_id__": "12345678",
-  "__render_component__": "TestComponent", 
+  "__render_component__": "TestComponent",
   "__render_directive__": "client:load",
   "__spa_sync_render__": "true"
 });`;

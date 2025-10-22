@@ -1,16 +1,14 @@
+import type { DevComponentInfo } from '#dep-types/react';
+import type { RenderDirective } from '#dep-types/render';
+import type { SSRUpdateData, SSRUpdateRenderData } from '#dep-types/ssr';
 import {
   NEED_PRE_RENDER_DIRECTIVES,
   REACT_RENDER_STRATEGY_INJECT_RUNTIME_ID,
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
-} from '@docs-islands/vitepress-shared/constants';
-import { validateLegalRenderElements } from '@docs-islands/vitepress-shared/utils';
-import type {
-  RenderDirective,
-  SSRUpdateData,
-  SSRUpdateRenderData,
-} from '@docs-islands/vitepress-types';
-import logger from '@docs-islands/vitepress-utils/logger';
+} from '#shared/constants';
+import { validateLegalRenderElements } from '#shared/utils';
+import logger from '#utils/logger';
 import type React from 'react';
 import type ReactDOM from 'react-dom/client';
 import { getCleanPathname } from '../../shared/runtime';
@@ -33,26 +31,10 @@ const __requiresSsrDirective = (
  */
 import { inBrowser, onContentUpdated } from 'vitepress/client';
 
-interface BaseComponentInfo {
-  component: React.ComponentType<Record<string, string>> | null;
-}
-
-interface DevComponentInfo extends BaseComponentInfo {
-  path: string;
-  importedName: string;
-}
-
 interface ReactUpdateState {
   updates: Record<string, { path: string; importedName: string }>;
   missingImports: string[];
 }
-
-export type ProdComponentInfo = BaseComponentInfo;
-
-export type ReactInjectComponent = Record<
-  string,
-  Record<string, DevComponentInfo | ProdComponentInfo>
->;
 
 let currentLocationPathname = '';
 
@@ -285,15 +267,15 @@ class ReactIntegration {
                 } = memorizedState;
                 // Component reference has changed.
                 if (importedName !== memorizedImportedName || source !== path) {
-                  if (!renderUpdates[renderComponent]) {
+                  if (renderUpdates[renderComponent]) {
+                    renderUpdates[renderComponent].effectElements.push(element);
+                  } else {
                     renderUpdates[renderComponent] = {
                       component: null,
                       source: path,
                       importedName,
                       effectElements: [element],
                     };
-                  } else {
-                    renderUpdates[renderComponent].effectElements.push(element);
                   }
                 } else {
                   reuseInjectComponent.set(renderComponent, {
@@ -325,23 +307,25 @@ class ReactIntegration {
 
                     // Component reference remains the same, but props changed.
                     if (hasAttrChanged) {
-                      if (!renderUpdates[renderComponent]) {
+                      if (renderUpdates[renderComponent]) {
+                        renderUpdates[renderComponent].effectElements.push(
+                          element,
+                        );
+                      } else {
                         renderUpdates[renderComponent] = {
                           component,
                           source: path,
                           importedName,
                           effectElements: [element],
                         };
-                      } else {
-                        renderUpdates[renderComponent].effectElements.push(
-                          element,
-                        );
                       }
                     } else {
                       // If the component reference and props haven't changed, reuse the already-rendered DOM.
                       renderIdToReuseRenderedElements.set(renderId, current);
                     }
-                  } else if (!renderUpdates[renderComponent]) {
+                  } else if (renderUpdates[renderComponent]) {
+                    renderUpdates[renderComponent].effectElements.push(element);
+                  } else {
                     // Reuse the rendered component for the new container.
                     renderUpdates[renderComponent] = {
                       component,
@@ -349,11 +333,11 @@ class ReactIntegration {
                       importedName,
                       effectElements: [element],
                     };
-                  } else {
-                    renderUpdates[renderComponent].effectElements.push(element);
                   }
                 }
-              } else if (!renderUpdates[renderComponent]) {
+              } else if (renderUpdates[renderComponent]) {
+                renderUpdates[renderComponent].effectElements.push(element);
+              } else {
                 // New render component.
                 renderUpdates[renderComponent] = {
                   component: null,
@@ -361,8 +345,6 @@ class ReactIntegration {
                   importedName,
                   effectElements: [element],
                 };
-              } else {
-                renderUpdates[renderComponent].effectElements.push(element);
               }
 
               if (renderDirective === 'ssr:only') {
@@ -593,10 +575,10 @@ class ReactIntegration {
               }
             }
 
-            const promiseComponents: Array<{
+            const promiseComponents: {
               component: Promise<React.ComponentType<Record<string, string>>>;
               key: string;
-            }> = [];
+            }[] = [];
 
             for (const key of Object.keys(loadComponents)) {
               const component = loadComponents[key];
@@ -916,8 +898,8 @@ class ReactIntegration {
        */
       if (import.meta.env.MPA) {
         await reactComponentManager.loadReact();
-        this.react = window.React;
-        this.reactDOM = window.ReactDOM;
+        this.react = globalThis.React ?? null;
+        this.reactDOM = globalThis.ReactDOM ?? null;
       }
 
       /**
@@ -964,7 +946,7 @@ const reactIntegration = new ReactIntegration();
 
 export default async function reactClientIntegration(): Promise<void> {
   // Only run in browser environment to prevent Node.js execution errors
-  if (inBrowser && typeof window !== 'undefined') {
+  if (inBrowser && globalThis.window !== undefined) {
     await (import.meta.env.DEV
       ? reactIntegration.initializeInDev()
       : reactIntegration.initializeInProd());

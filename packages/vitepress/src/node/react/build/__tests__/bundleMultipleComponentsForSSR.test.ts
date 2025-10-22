@@ -1,9 +1,9 @@
 import type {
   ComponentBundleInfo,
-  ConfigType,
   UsedSnippetContainerType,
-} from '@docs-islands/vitepress-types';
-import { resolveConfig } from '@docs-islands/vitepress-utils';
+} from '#dep-types/component';
+import type { ConfigType } from '#dep-types/utils';
+import { resolveConfig } from '#utils/config';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'pathe';

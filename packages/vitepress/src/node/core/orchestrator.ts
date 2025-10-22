@@ -2,7 +2,7 @@ import type { DefaultTheme, UserConfig } from 'vitepress';
 import reactIntegration from '../react';
 
 export interface CreateRenderingStrategiesOptions {
-  frameworks?: Array<'react' | string>;
+  frameworks?: ('react' | string)[];
 }
 
 export default function createRenderingStrategies(

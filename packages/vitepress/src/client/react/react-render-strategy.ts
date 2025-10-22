@@ -1,10 +1,10 @@
+import type { RenderDirective } from '#dep-types/render';
 import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
-} from '@docs-islands/vitepress-shared/constants';
-import { validateLegalRenderElements } from '@docs-islands/vitepress-shared/utils';
-import type { RenderDirective } from '@docs-islands/vitepress-types';
-import logger from '@docs-islands/vitepress-utils/logger';
+} from '#shared/constants';
+import { validateLegalRenderElements } from '#shared/utils';
+import logger from '#utils/logger';
 import { getCleanPathname } from '../../shared/runtime';
 import { reactComponentManager } from './react-component-manager';
 
@@ -27,6 +27,17 @@ interface RenderComponent {
 export class ReactRenderStrategy {
   private renderContext: RenderContext | null = null;
   private visibilityObserver: IntersectionObserver | null = null;
+
+  /**
+   * Type guard to ensure React runtime is available
+   * The React runtime is loaded before any components are rendered
+   */
+  private isReactRuntimeAvailable(): boolean {
+    return (
+      globalThis.window?.React !== undefined &&
+      globalThis.window?.ReactDOM !== undefined
+    );
+  }
 
   private getPropsFromElement(element: Element): Record<string, string> {
     const props: Record<string, string> = {};
@@ -98,14 +109,22 @@ export class ReactRenderStrategy {
        * The React runtime is loaded and injected into the window object before any React components are loaded.
        * Therefore, once subscribeComponent is allowed to proceed, the presence of the React runtime is guaranteed.
        */
-      const reactElement = window.React.createElement(Component, props);
+      if (!this.isReactRuntimeAvailable()) {
+        Logger.error('React runtime is not available');
+        return;
+      }
+
+      const reactElement = globalThis.window.React!.createElement(
+        Component,
+        props,
+      );
       try {
-        window.ReactDOM.hydrateRoot(element, reactElement);
+        globalThis.window.ReactDOM!.hydrateRoot(element, reactElement);
       } catch (error) {
         Logger.error(
           `Hydration failed, fallback to client render, message: ${error.message}`,
         );
-        const root = window.ReactDOM.createRoot(element);
+        const root = globalThis.window.ReactDOM!.createRoot(element);
         root.render(reactElement);
       }
       Logger.success(`Component ${renderComponent} hydration completed`);
@@ -134,8 +153,16 @@ export class ReactRenderStrategy {
        * The React runtime is loaded and injected into the window object before any React components are loaded.
        * Therefore, once subscribeComponent is allowed to proceed, the presence of the React runtime is guaranteed.
        */
-      const root = window.ReactDOM.createRoot(element);
-      const reactElement = window.React.createElement(Component, props);
+      if (!this.isReactRuntimeAvailable()) {
+        Logger.error('React runtime is not available');
+        return;
+      }
+
+      const root = globalThis.window.ReactDOM!.createRoot(element);
+      const reactElement = globalThis.window.React!.createElement(
+        Component,
+        props,
+      );
       root.render(reactElement);
       Logger.success(
         `Component ${renderComponent} client-side rendering completed`,
@@ -213,7 +240,7 @@ export class ReactRenderStrategy {
       }
     }
 
-    const clientRenderTasks: Array<Promise<void>> = [];
+    const clientRenderTasks: Promise<void>[] = [];
 
     if (hydrateComponents.length > 0) {
       clientRenderTasks.push(
@@ -247,7 +274,7 @@ export class ReactRenderStrategy {
       (info) => info.renderDirective === 'client:visible',
     );
 
-    const clientRenderTasks: Array<Promise<void>> = [];
+    const clientRenderTasks: Promise<void>[] = [];
 
     if (hydrateComponents.length > 0) {
       clientRenderTasks.push(
@@ -283,13 +310,15 @@ export class ReactRenderStrategy {
     }
 
     try {
-      if (!isInitialLoad) {
+      if (isInitialLoad) {
+        await this.executeSSRInitialStrategy(renderComponents);
+      } else {
         /**
          * This is an optimization path for hydration.
          * For components with the `client:load` or `client:visible` directive and the `spa:sync-render` or `spa:sr` directive,
          * hydration work is completed during the SPA sync rendering phase.
          */
-        const [_, spaSyncHydrateComponents] = await Promise.all([
+        const [, spaSyncHydrateComponents] = await Promise.all([
           reactComponentManager.loadPageComponents(),
           this.executeSpaSyncRender(renderComponents),
         ]);
@@ -315,8 +344,6 @@ export class ReactRenderStrategy {
           renderComponents,
           spaSyncHydrateComponents,
         );
-      } else {
-        await this.executeSSRInitialStrategy(renderComponents);
       }
     } catch (error) {
       Logger.error(`React runtime execution failed, message: ${error.message}`);

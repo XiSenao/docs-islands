@@ -1,25 +1,24 @@
+import type {
+  ComponentBundleInfo,
+  UsedSnippetContainerType,
+} from '#dep-types/component';
+import type { PageMetafile } from '#dep-types/page';
+import type { RenderDirective } from '#dep-types/render';
+import type { SSRUpdateData, SSRUpdateRenderData } from '#dep-types/ssr';
+import type { ConfigType } from '#dep-types/utils';
 import {
   ALLOWED_RENDER_DIRECTIVES,
   REACT_RENDER_STRATEGY_INJECT_RUNTIME_ID,
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
-} from '@docs-islands/vitepress-shared/constants';
-import type {
-  ComponentBundleInfo,
-  ConfigType,
-  PageMetafile,
-  RenderDirective,
-  SSRUpdateData,
-  SSRUpdateRenderData,
-  UsedSnippetContainerType,
-} from '@docs-islands/vitepress-types';
-import { resolveConfig } from '@docs-islands/vitepress-utils';
-import logger from '@docs-islands/vitepress-utils/logger';
+} from '#shared/constants';
+import { resolveConfig } from '#utils/config';
+import logger from '#utils/logger';
 import reactPlugin from '@vitejs/plugin-react-swc';
 import type { CheerioAPI } from 'cheerio';
 import { load } from 'cheerio';
 import { type ImportSpecifier, init, parse } from 'es-module-lexer';
-import { default as MagicString, type SourceMap } from 'magic-string';
+import MagicString, { type SourceMap } from 'magic-string';
 import MarkdownIt from 'markdown-it';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -568,7 +567,7 @@ export default function vitepressReactRenderingStrategies(
     const s = new MagicString(code);
     // Match only script tags that start at the beginning of a line to avoid inline code like `<script lang="react">` inside Markdown text
     const scriptReactRE =
-      /^[\t ]*<script\b[^>]*lang=["']react["'][^>]*>([^]*?)<\/script>/gm;
+      /^[\t ]*<script\b[^>]+lang=["']react["'][^>]*>(.*?)<\/script>/gms;
 
     const pendingCompilationContainer =
       renderController.getCompilationContainerByMarkdownModuleId(normalizedId);
@@ -594,16 +593,16 @@ export default function vitepressReactRenderingStrategies(
     };
 
     let scriptMatch;
-    const scriptMatches: Array<{
+    const scriptMatches: {
       match: RegExpExecArray;
       content: string;
       startIndex: number;
       endIndex: number;
-    }> = [];
+    }[] = [];
 
     const md = new MarkdownIt({ html: true });
     const tokens = md.parse(code, {});
-    const codeBlockRanges: Array<{ start: number; end: number }> = [];
+    const codeBlockRanges: { start: number; end: number }[] = [];
     for (const token of tokens) {
       if (token.map) {
         const [startLine, endLine] = token.map;
@@ -664,7 +663,7 @@ export default function vitepressReactRenderingStrategies(
         string,
         { identifier: string; importedName: string }
       >();
-      let imports: ReadonlyArray<ImportSpecifier>;
+      let imports: readonly ImportSpecifier[];
       try {
         [imports] = parse(content);
       } catch (parseError) {
@@ -801,7 +800,7 @@ export default function vitepressReactRenderingStrategies(
           renderDirectiveAttributes,
         ] of renderIdToRenderDirectiveMap.entries()) {
           const [
-            _,
+            ,
             renderDirectiveSnips,
             renderComponentSnips,
             useSpaSyncRenderSnips,
@@ -816,10 +815,10 @@ export default function vitepressReactRenderingStrategies(
             .split('=')[1]
             .slice(1, -1);
 
-          if (renderDirective !== 'ssr:only') {
-            nonSSROnlyComponentNames.add(renderComponent);
-          } else {
+          if (renderDirective === 'ssr:only') {
             ssrOnlyComponentNames.add(renderComponent);
+          } else {
+            nonSSROnlyComponentNames.add(renderComponent);
           }
 
           determinedComponentReferenceNameSets.add(renderComponent);
@@ -1149,12 +1148,12 @@ export default function vitepressReactRenderingStrategies(
                 compilationContainer.importsByLocalName;
               const ssrOnlyComponentNames =
                 compilationContainer.ssrOnlyComponentNames;
-              const importedNameList: Array<string | null> = [];
-              const ssrComponentsPromise: Array<
+              const importedNameList: (string | null)[] = [];
+              const ssrComponentsPromise: (
                 | Promise<Record<string, string>>
                 | Promise<ModuleNode | undefined>
                 | undefined
-              > = [];
+              )[] = [];
               for (const preRenderComponent of data) {
                 const { componentName } = preRenderComponent;
                 const importInfo = importsByLocalName.get(componentName);
@@ -1256,7 +1255,7 @@ export default function vitepressReactRenderingStrategies(
             const originalContent = await read();
             // Match only script tags that start at the beginning of a line to avoid inline code matches inside prose
             const scriptReactRE =
-              /^[\t ]*<script\b[^>]*lang=["']react["'][^>]*>([^]*?)<\/script>/gm;
+              /^[\t ]*<script\b[^>]+lang=["']react["'][^>]*>.*?<\/script>/ms;
 
             // react container script tag needs to be parsed and removed before the Vue engine processes it, otherwise an error will occur.
             if (scriptReactRE.test(originalContent)) {
@@ -1330,7 +1329,7 @@ export default function vitepressReactRenderingStrategies(
               const missingImports = new Set<string>();
               for (const [
                 componentName,
-                _,
+                ,
               ] of oldCompilationContainerImportsByLocalName.entries()) {
                 if (
                   !compilationContainer.importsByLocalName.has(componentName)

@@ -1,4 +1,4 @@
-import type { OutputAsset, OutputChunk } from '@docs-islands/vitepress-types';
+import type { OutputAsset, OutputChunk } from '#dep-types/rollup';
 
 export function isOutputChunk(
   chunk: OutputChunk | OutputAsset,
