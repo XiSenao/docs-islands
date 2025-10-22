@@ -5,7 +5,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
 export const isWindows: boolean = process.platform === 'win32';
-export const isCI: boolean = Boolean(process.env.CI);
+export const isCI = Boolean(process.env.CI);
 
 /**
  * Platform-aware timeout values
@@ -74,7 +74,7 @@ export async function waitForElementRobust(
 export async function debugElementState(
   page: Page,
   selector: string,
-  label: string = 'Element',
+  label = 'Element',
 ): Promise<void> {
   if (!isCI) return;
 

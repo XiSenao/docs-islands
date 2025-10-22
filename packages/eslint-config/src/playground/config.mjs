@@ -5,7 +5,7 @@ export default defineConfig([
   ...eslintConfigBase,
   // E2E test files - allow test-specific patterns
   {
-    files: ['**/*.ts', '**/*.js'],
+    files: ['**/*.?([cm])[jt]s?(x)'],
     rules: {
       // Console statements are essential for debugging test failures
       'no-console': 'off',
@@ -40,7 +40,9 @@ export default defineConfig([
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-empty-function': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
+      'no-empty-function': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
 
       // Allow non-null assertions in tests (we know test data structure)
@@ -58,6 +60,8 @@ export default defineConfig([
           caughtErrorsIgnorePattern: '^_',
         },
       ],
+
+      'unicorn/prefer-module': 'off',
     },
   },
 ]);
