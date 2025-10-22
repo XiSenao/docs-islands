@@ -11,17 +11,19 @@
     "eslint": "catalog:lint",
     "eslint-config-prettier": "catalog:lint",
     "eslint-plugin-html": "catalog:lint",
+    "eslint-plugin-regexp": "catalog:lint",
     "eslint-plugin-jsx-a11y": "catalog:lint",
     "eslint-plugin-markdown": "catalog:lint",
     "eslint-plugin-prettier": "catalog:lint",
     "eslint-plugin-react": "catalog:lint",
+    "eslint-plugin-n": "catalog:lint",
     "eslint-plugin-react-hooks": "catalog:lint",
     "eslint-plugin-unicorn": "catalog:lint",
     "@html-eslint/eslint-plugin": "catalog:lint",
     "@html-eslint/parser": "catalog:lint",
     "eslint-plugin-vue": "catalog:lint",
-    "prettier": "catalog:format",
     "vue-eslint-parser": "catalog:lint",
+    "prettier": "catalog:format",
     "@typescript-eslint/parser": "catalog:lint",
     "typescript-eslint": "catalog:lint",
     "globals": "catalog:test",
@@ -30,7 +32,7 @@
   "exports": {
     ".": "./src/config.mjs",
     "./monorepo": "./config.mjs",
-    "./e2e": "./src/e2e/config.mjs",
+    "./playground": "./src/playground/config.mjs",
     "./docs": "./src/docs/config.mjs"
   }
 }

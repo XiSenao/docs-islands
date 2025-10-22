@@ -1,4 +1,4 @@
-import defaultConfig from '@docs-islands/eslint-config';
+import defaultConfig from '@docs-islands/eslint-config/docs';
 import { defineConfig } from 'eslint/config';
 
 export default defineConfig([

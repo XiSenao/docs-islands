@@ -20,11 +20,12 @@ import { eslintConfigBase } from '../base.mjs';
  */
 export default defineConfig([
   ...eslintConfigBase,
-  globalIgnores(['docs/**', 'e2e/**']),
+  globalIgnores(['docs/**', 'playground/**']),
   // Core rendering files - complex rendering logic requires flexibility
   {
     files: ['src/client/**/*.ts', 'src/node/**/*.ts'],
     rules: {
+      'no-restricted-globals': ['error', 'require', '__dirname', '__filename'],
       complexity: ['warn', { max: 50 }], // Rendering logic can be very complex
       'max-lines-per-function': [
         'warn',
