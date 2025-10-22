@@ -1,10 +1,8 @@
-import type {
-  ConfigType,
-  OutputChunk,
-  RollupOutput,
-} from '@docs-islands/vitepress-types';
-import logger from '@docs-islands/vitepress-utils/logger';
+import type { OutputChunk, RollupOutput } from '#dep-types/rollup';
+import type { ConfigType } from '#dep-types/utils';
+import logger from '#utils/logger';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'pathe';
 import type { InlineConfig, Plugin } from 'vite';
 import { build as viteBuild } from 'vite';
@@ -109,6 +107,20 @@ export const inBrowser = true;
         },
         resolve: {
           extensions: ['.ts', '.tsx', '.js', '.jsx'],
+          alias: {
+            '#dep-types': resolve(
+              dirname(fileURLToPath(import.meta.url)),
+              '../../../types',
+            ),
+            '#shared': resolve(
+              dirname(fileURLToPath(import.meta.url)),
+              '../../../shared',
+            ),
+            '#utils': resolve(
+              dirname(fileURLToPath(import.meta.url)),
+              '../../../../utils',
+            ),
+          },
         },
         esbuild: {
           target: 'es2022',

@@ -4,5 +4,3 @@ declare global {
   var page: Page;
   var goto: (path: string) => Promise<void>;
 }
-
-export {};

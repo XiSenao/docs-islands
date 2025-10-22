@@ -1,13 +1,13 @@
+import {
+  RENDER_STRATEGY_ATTRS,
+  RENDER_STRATEGY_CONSTANTS,
+} from '#shared/constants';
+import logger from '#utils/logger';
 import { generate } from '@babel/generator';
 import { parse } from '@babel/parser';
 import type { NodePath } from '@babel/traverse';
 import babelTraverse from '@babel/traverse';
 import * as t from '@babel/types';
-import {
-  RENDER_STRATEGY_ATTRS,
-  RENDER_STRATEGY_CONSTANTS,
-} from '@docs-islands/vitepress-shared/constants';
-import logger from '@docs-islands/vitepress-utils/logger';
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -495,7 +495,11 @@ class ReactSSRIntegrationProcessor {
       }
 
       // 2) Handle await call injection.
-      if (!this.hasExistingCSSRuntimeCall(validProgramNode)) {
+      if (this.hasExistingCSSRuntimeCall(validProgramNode)) {
+        Logger.info(
+          'CSS loading runtime call already exists, skipping injection',
+        );
+      } else {
         const awaitStatement = this.createCSSRuntimeCall(validCssPaths);
         const insertPosition = this.findAwaitInsertPosition(validProgramNode);
 
@@ -505,10 +509,6 @@ class ReactSSRIntegrationProcessor {
         );
 
         Logger.debug(`Injected CSS paths: ${JSON.stringify(validCssPaths)}`);
-      } else {
-        Logger.info(
-          'CSS loading runtime call already exists, skipping injection',
-        );
       }
     } catch (error) {
       Logger.error(
@@ -573,16 +573,16 @@ class ReactSSRIntegrationProcessor {
     const lastImportIndex = programNode.body.findLastIndex((node) =>
       t.isImportDeclaration(node),
     );
-    return lastImportIndex >= 0 ? lastImportIndex + 1 : 0;
+    return lastImportIndex === -1 ? 0 : lastImportIndex + 1;
   }
 
   private findAwaitInsertPosition(programNode: t.Program): number {
     const firstNonImportIndex = programNode.body.findIndex(
       (node) => !t.isImportDeclaration(node) && !t.isDirectiveLiteral(node),
     );
-    return firstNonImportIndex >= 0
-      ? firstNonImportIndex
-      : programNode.body.length;
+    return firstNonImportIndex === -1
+      ? programNode.body.length
+      : firstNonImportIndex;
   }
 
   getTransformationStats(): {

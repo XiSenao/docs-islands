@@ -1,6 +1,7 @@
+import { scanFiles } from '@docs-islands/utils/fs-utils';
 import Logger from '@docs-islands/utils/logger';
 import { existsSync, readFileSync } from 'node:fs';
-import { cp, mkdir, readdir, stat } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { glob } from 'tinyglobby';
@@ -155,9 +156,9 @@ async function mergeDistDirectories(packages: PackageInfo[]): Promise<void> {
         await mkdir(dirname(targetPath), { recursive: true });
       } catch {}
 
-      await cp(pkg.distPath, targetPath, {
-        recursive: true,
-        force: true,
+      await scanFiles(pkg.distPath, async (fileName, absolutePath) => {
+        const destPath = join(targetPath, fileName);
+        await copyFile(absolutePath, destPath);
       });
 
       Logger.getLoggerByGroup('merge-docs').success(

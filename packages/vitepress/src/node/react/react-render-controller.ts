@@ -1,7 +1,7 @@
 import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
-} from '@docs-islands/vitepress-shared/constants';
+} from '#shared/constants';
 import { RenderController } from '../core/render-controller';
 
 export class ReactRenderController extends RenderController {
@@ -19,7 +19,7 @@ export class ReactRenderController extends RenderController {
 
     const code = `
       ${compilationContainer.code}
-  
+
       ${compilationContainer.helperCode}
     `;
     return `
@@ -72,9 +72,9 @@ if (targetElements.length > 0) {
     const renderComponentName = props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLocaleLowerCase()}"];
 
     /**
-     * During development, React components default to a low-priority rendering strategy, 
+     * During development, React components default to a low-priority rendering strategy,
      * which means they periodically yield the thread.
-     * 
+     *
      * TODO: Provide a priority attribute in the future to specify the rendering priority strategy for React components.
      */
     if (__REACT_COMPONENT__) {
@@ -99,7 +99,7 @@ if (targetElements.length > 0) {
       if (props["${RENDER_STRATEGY_CONSTANTS.renderDirective.toLocaleLowerCase()}"] === 'ssr:only') {
         return;
       }
-      throw new Error('Component '+ props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLocaleLowerCase()}"] + ' not found');  
+      throw new Error('Component '+ props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLocaleLowerCase()}"] + ' not found');
     }
   });
 }

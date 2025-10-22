@@ -51,16 +51,22 @@
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:e2e": "pnpm test:e2e-dev && pnpm test:e2e-build",
-    "test:e2e:site:dev": "pnpm -F=@docs-islands/vitepress-fixtures site:dev",
-    "test:e2e:site:build": "pnpm -F=@docs-islands/vitepress-fixtures site:build",
-    "test:e2e:site:preview": "pnpm -F=@docs-islands/vitepress-fixtures site:preview",
-    "test:e2e-dev": "pnpm -F=@docs-islands/vitepress-fixtures test",
-    "test:e2e-dev:watch": "pnpm -F=@docs-islands/vitepress-fixtures test:watch",
-    "test:e2e-build": "VITE_TEST_BUILD=1 pnpm -F=@docs-islands/vitepress-fixtures test:e2e-dev",
-    "test:e2e-build:watch": "VITE_TEST_BUILD=1 pnpm -F=@docs-islands/vitepress-fixtures test:e2e-dev:watch",
+    "test:e2e:site:dev": "pnpm -F=@docs-islands/vitepress-playground site:dev",
+    "test:e2e:site:build": "pnpm -F=@docs-islands/vitepress-playground site:build",
+    "test:e2e:site:preview": "pnpm -F=@docs-islands/vitepress-playground site:preview",
+    "test:e2e-dev": "pnpm -F=@docs-islands/vitepress-playground test",
+    "test:e2e-dev:watch": "pnpm -F=@docs-islands/vitepress-playground test:watch",
+    "test:e2e-build": "VITE_TEST_BUILD=1 pnpm -F=@docs-islands/vitepress-playground test:e2e-dev",
+    "test:e2e-build:watch": "VITE_TEST_BUILD=1 pnpm -F=@docs-islands/vitepress-playground test:e2e-dev:watch",
     "clean": "pnpm clean:dist && pnpm clean:deps",
     "clean:dist": "del-cli coverage dist docs/dist docs/.vitepress/dist docs/.vitepress/cache || true",
     "clean:deps": "del-cli node_modules .eslintcache docs/node_modules \"docs/.vitepress/config.ts.timestamp-*.mjs\" || true"
+  },
+  "imports": {
+    "#types/*": "./types/*.d.ts",
+    "#dep-types/*": "./src/types/*.d.ts",
+    "#shared/*": "./src/shared/*.ts",
+    "#utils/*": "./utils/*.ts"
   },
   "dependencies": {
     "cheerio": "catalog:prod",
@@ -69,15 +75,14 @@
   "devDependencies": {
     "@types/babel__generator": "catalog:dev",
     "@types/babel__traverse": "catalog:dev",
-    "@docs-islands/vitepress-types": "link:./src/types",
     "@types/react": "catalog:dev",
     "@types/react-dom": "catalog:dev",
     "@types/estree": "catalog:dev",
     "@types/markdown-it": "catalog:dev",
-    "@types/parse5": "catalog:dev",
     "eslint": "catalog:lint",
     "@typescript-eslint/parser": "catalog:lint",
     "@docs-islands/eslint-config": "workspace:*",
+    "@docs-islands/utils": "workspace:*",
     "publint": "catalog:lint",
     "@babel/generator": "catalog:dev",
     "@babel/parser": "catalog:dev",
@@ -96,8 +101,6 @@
     "react": "catalog:dev",
     "react-dom": "catalog:dev",
     "@vitejs/plugin-react-swc": "catalog:dev",
-    "@docs-islands/vitepress-shared": "link:./src/shared",
-    "@docs-islands/vitepress-utils": "link:./utils",
     "vitest": "catalog:test",
     "jsdom": "catalog:test",
     "globals": "catalog:test",
@@ -131,6 +134,9 @@
     "./package.json": "./package.json",
     "./utils/client/logger": "./utils/logger.ts",
     "./shared/client/runtime": "./src/shared/client-runtime.ts",
-    "./shared/client/runtime-dev": "./dist/shared/client-runtime.js"
+    "./shared/client/runtime-dev": "./dist/shared/client-runtime.js",
+    "./types/*": {
+      "types": "./types/*"
+    }
   }
 }

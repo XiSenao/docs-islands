@@ -46,4 +46,20 @@ export default defineConfig([
       'require-await': 'off',
     },
   },
+  {
+    files: ['**/__tests__/**/*.ts', '**/*.test.ts', 'tests/**/*.ts'],
+    rules: {
+      // Test files are allowed to use any type for mocks and test utilities
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      // Test files can have higher complexity
+      complexity: 'off',
+      'max-lines': 'off',
+      'max-lines-per-function': 'off',
+    },
+  },
 ]);

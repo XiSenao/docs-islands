@@ -1,7 +1,5 @@
-import type {
-  PageMetafile,
-  UsedSnippetContainerType,
-} from '@docs-islands/vitepress-types';
+import type { UsedSnippetContainerType } from '#dep-types/component';
+import type { PageMetafile } from '#dep-types/page';
 
 export interface CompilationContainerType {
   // Runtime code for client component loading.

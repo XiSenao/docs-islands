@@ -1,4 +1,4 @@
-import type { RenderDirective } from '@docs-islands/vitepress-types';
+import type { RenderDirective } from '#dep-types/render';
 
 export const REACT_RENDER_STRATEGY_INJECT_RUNTIME_ID =
   'virtual:react/inject-runtime.tsx';

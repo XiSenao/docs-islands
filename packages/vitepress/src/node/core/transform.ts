@@ -1,12 +1,12 @@
+import type { RenderDirective } from '#dep-types/render';
 import {
   ALLOWED_RENDER_DIRECTIVES,
   SPA_RENDER_SYNC_OFF,
   SPA_RENDER_SYNC_ON,
-} from '@docs-islands/vitepress-shared/constants';
-import type { RenderDirective } from '@docs-islands/vitepress-types';
-import logger from '@docs-islands/vitepress-utils/logger';
+} from '#shared/constants';
+import logger from '#utils/logger';
 import type { Identifier, Literal } from 'estree';
-import { default as MagicString, type SourceMap } from 'magic-string';
+import MagicString, { type SourceMap } from 'magic-string';
 import MarkdownIt from 'markdown-it';
 import { createHash } from 'node:crypto';
 import { type DefaultTreeAdapterMap, parseFragment } from 'parse5';
@@ -123,9 +123,7 @@ export default function coreTransformComponentTags(
       const fragment = parseFragment(tokenContent, {
         sourceCodeLocationInfo: true,
       });
-      const stack: Array<DefaultTreeAdapterMap['node']> = [
-        ...fragment.childNodes,
-      ];
+      const stack: DefaultTreeAdapterMap['node'][] = [...fragment.childNodes];
       interface PendingReplacement {
         absStart: number;
         absEnd: number;
@@ -134,10 +132,10 @@ export default function coreTransformComponentTags(
       const pending: PendingReplacement[] = [];
 
       const analyze = (
-        attrs: ReadonlyArray<{ name: string; value: string }>,
+        attrs: readonly { name: string; value: string }[],
         compName: string,
       ) => {
-        const attributes: Array<{ name: string; value: string | null }> = [];
+        const attributes: { name: string; value: string | null }[] = [];
         let directive = 'ssr:only';
         let useSpaSyncRender = false;
         let forceDisableSpaSyncRender = false;
@@ -183,12 +181,12 @@ export default function coreTransformComponentTags(
         return { name: compName, attributes, directive, useSpaSyncRender };
       };
 
-      const found: Array<{
+      const found: {
         start: number;
         end: number;
-        attrs: Array<{ name: string; value: string }>;
+        attrs: { name: string; value: string }[];
         nameLower: string;
-      }> = [];
+      }[] = [];
 
       const isElementNode = (
         node: DefaultTreeAdapterMap['node'],
@@ -261,9 +259,8 @@ export default function coreTransformComponentTags(
         // Traverse normal child nodes.
         if (hasChildNodes(node)) {
           stack.push(
-            ...((node as DefaultTreeAdapterMap['element']).childNodes as Array<
-              DefaultTreeAdapterMap['node']
-            >),
+            ...((node as DefaultTreeAdapterMap['element'])
+              .childNodes as DefaultTreeAdapterMap['node'][]),
           );
         }
         // Ensure we also traverse into <template> content to discover nodes inside slots.
@@ -286,7 +283,8 @@ export default function coreTransformComponentTags(
         let startTagRaw = code.slice(absStart, absStartTagEnd);
 
         // Handle case where parse5 includes leading whitespace/newlines in the position
-        const leadingWhitespaceMatch = startTagRaw.match(/^(\s*)</);
+        const leadingWhitespaceRegex = /^(\s*)</;
+        const leadingWhitespaceMatch = leadingWhitespaceRegex.exec(startTagRaw);
         if (leadingWhitespaceMatch) {
           const leadingWhitespace = leadingWhitespaceMatch[1];
           if (leadingWhitespace.length > 0) {
@@ -299,14 +297,16 @@ export default function coreTransformComponentTags(
         // Find the actual end of the self-closing tag
         // First, let's search for the complete self-closing tag from the current position
         const remainingCode = code.slice(absStart);
-        const selfClosingTagMatch = remainingCode.match(/^<[^>]*\/>/);
+        const selfClosingTagRegex = /^<[^>]*\/>/;
+        const selfClosingTagMatch = selfClosingTagRegex.exec(remainingCode);
         let actualAbsEnd = absStartTagEnd;
 
         if (selfClosingTagMatch) {
           actualAbsEnd = absStart + selfClosingTagMatch[0].length;
         } else {
           // If no self-closing tag found, try to find any closing >
-          const tagEndMatch = remainingCode.match(/^<[^>]*>/);
+          const tagEndRegex = /^<[^>]*>/;
+          const tagEndMatch = tagEndRegex.exec(remainingCode);
           if (tagEndMatch) {
             actualAbsEnd = absStart + tagEndMatch[0].length;
           }
@@ -315,9 +315,7 @@ export default function coreTransformComponentTags(
         startTagRaw = code.slice(absStart, actualAbsEnd);
 
         // Extract the typed tag name from the raw start tag.
-        const tagNameMatch = /^<\s*([A-Z][\dA-Za-z]*[^\s/>]*)/.exec(
-          startTagRaw,
-        );
+        const tagNameMatch = /^<\s*([A-Z][^\s/>]*)/.exec(startTagRaw);
         const typedTagName = tagNameMatch ? tagNameMatch[1] : '';
 
         // 1) Enforce naming: component name must be in PascalCase.
@@ -359,12 +357,12 @@ export default function coreTransformComponentTags(
         ];
         const userElementProps: string[] = [];
         for (const attr of parsed.attributes) {
-          if (attr.value !== null) {
+          if (attr.value === null) {
+            userElementProps.push(attr.name);
+          } else {
             userElementProps.push(
               `${attr.name}="${String(attr.value).replaceAll('"', '&quot;')}"`,
             );
-          } else {
-            userElementProps.push(attr.name);
           }
         }
         renderIdToRenderDirectiveMap.set(renderId, renderDirectiveAttributes);

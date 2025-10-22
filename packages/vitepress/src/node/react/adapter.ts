@@ -1,10 +1,10 @@
+import type { ConfigType } from '#dep-types/utils';
 import {
   ALLOWED_RENDER_DIRECTIVES,
   DIRNAME_VAR_NAME,
   NEED_PRE_RENDER_DIRECTIVES,
   RENDER_STRATEGY_CONSTANTS,
-} from '@docs-islands/vitepress-shared/constants';
-import type { ConfigType } from '@docs-islands/vitepress-types';
+} from '#shared/constants';
 import reactPlugin from '@vitejs/plugin-react-swc';
 import { dirname } from 'pathe';
 import React from 'react';
@@ -83,7 +83,7 @@ export class ReactAdapter implements FrameworkAdapter {
     }
     const code = `
       ${compilationContainer.code}
-  
+
       ${compilationContainer.helperCode}
     `;
     return `
@@ -112,7 +112,7 @@ if (targetDoms.length > 0) {
         });
       }
     } else {
-      throw new Error('Component '+ props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()}"] + ' not found');  
+      throw new Error('Component '+ props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()}"] + ' not found');
     }
   });
 }

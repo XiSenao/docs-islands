@@ -1,4 +1,4 @@
-import { lightGeneralLogger } from '@docs-islands/vitepress-utils/logger';
+import { lightGeneralLogger } from '#utils/logger';
 
 type Environment = 'development' | 'production' | 'debug';
 type FailureStrategy = 'partial' | 'strict';
@@ -304,16 +304,16 @@ async function loadHighPriorityStyles(
 }
 
 const environment: Environment = (() => {
-  if (typeof window !== 'undefined') {
+  if (globalThis.window !== undefined) {
     if (
-      window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1'
+      globalThis.location.hostname === 'localhost' ||
+      globalThis.location.hostname === '127.0.0.1'
     ) {
       return 'development';
     }
     if (
-      window.location.search.includes('debug=true') ||
-      window.location.search.includes('css-debug')
+      globalThis.location.search.includes('debug=true') ||
+      globalThis.location.search.includes('css-debug')
     ) {
       return 'debug';
     }
@@ -333,9 +333,9 @@ export default async function cssLoadingRuntime(
   );
 
   if (
-    typeof window !== 'undefined' &&
-    (window.location.hostname === 'localhost' ||
-      window.location.search.includes('debug'))
+    globalThis.window !== undefined &&
+    (globalThis.location.hostname === 'localhost' ||
+      globalThis.location.search.includes('debug'))
   ) {
     if (loadResult.timedOut) {
       lightGeneralLogger(

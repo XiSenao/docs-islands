@@ -1,13 +1,11 @@
-import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/vitepress-shared/constants';
 import type {
   ComponentBundleInfo,
-  ConfigType,
   UsedSnippetContainerType,
-} from '@docs-islands/vitepress-types';
-import { isNodeLikeBuiltin } from '@docs-islands/vitepress-utils';
-import logger, {
-  lightGeneralLogger,
-} from '@docs-islands/vitepress-utils/logger';
+} from '#dep-types/component';
+import type { ConfigType } from '#dep-types/utils';
+import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
+import { isNodeLikeBuiltin } from '#utils/builtin';
+import logger, { lightGeneralLogger } from '#utils/logger';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { dirname, join } from 'pathe';
@@ -95,14 +93,14 @@ export async function bundleMultipleComponentsForBrowser(
       throw new Error('Expected a array output bundle');
     }
 
-    const componentEntries: Array<{
+    const componentEntries: {
       componentName: string;
       cssBundlePath: string[];
       assetsBundlePath: string[];
       modulePath: string;
       importReference: { importedName: string; identifier: string };
       pendingRenderIds: Set<string>;
-    }> = [];
+    }[] = [];
     const modulePreloads: string[] = [];
     const cssBundlePaths: string[] = [];
     const preRenderComponentNameToCssBundlePathsMap = new Map<
@@ -245,12 +243,12 @@ export async function bundleMultipleComponentsForBrowser(
     ${getCleanPathnameRuntime}
   )();
 
-  if (!window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"][pageId]) { 
-    window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"][pageId] = {}; 
+  if (!window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"][pageId]) {
+    window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"][pageId] = {};
   }
 
   /**
-   * Before dynamically importing React components, 
+   * Before dynamically importing React components,
    * you must inject the React runtime globally, otherwise component parsing will fail.
    */
   if (window["${RENDER_STRATEGY_CONSTANTS.componentManager}"]) {
@@ -258,7 +256,7 @@ export async function bundleMultipleComponentsForBrowser(
   } else {
     throw new Error('ReactComponentManager is not initialized');
   }
-  
+
   const componentLoaders = [
     ${componentEntries
       .map(
@@ -278,7 +276,7 @@ export async function bundleMultipleComponentsForBrowser(
       )
       .join(',')}
   ];
-  
+
   const loadResults = await Promise.allSettled(
     componentLoaders.map(async ({ name, loader }) => {
       const Component = await loader();
@@ -287,7 +285,7 @@ export async function bundleMultipleComponentsForBrowser(
           window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"][pageId][name] = {};
         }
         /**
-         * In production environment, unlike development, 
+         * In production environment, unlike development,
          * we don't need to inject path and importedName fields for HMR.
          */
         window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"][pageId][name].component = Component;
@@ -297,11 +295,11 @@ export async function bundleMultipleComponentsForBrowser(
       return { name, success: false };
     })
   );
-  
-  const successCount = loadResults.filter(result => 
+
+  const successCount = loadResults.filter(result =>
     result.status === 'fulfilled' && result.value.success
   ).length;
-  
+
       ${lightGeneralLogger('success', `Loaded \${successCount} / \${componentLoaders.length} React components for page: \${pageId}`, 'react-client-render', { immediate: false })}
 })();
     `.trim();

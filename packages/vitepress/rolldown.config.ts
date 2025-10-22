@@ -1,4 +1,5 @@
 import licensePlugin from '@docs-islands/plugin-license';
+import { scanFiles } from '@docs-islands/utils/fs-utils';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, resolve } from 'node:url';
@@ -12,6 +13,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 const getExternalDeps = () => {
   return [
+    /^#types\//,
     'react-dom/client',
     'vitepress/client',
     ...Object.keys(pkg.dependencies || {}),
@@ -29,6 +31,13 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
   return defineConfig({
     platform,
     external,
+    resolve: {
+      alias: {
+        '#deps-types': resolve(__dirname, 'src/types'),
+        '#shared': resolve(__dirname, 'src/shared'),
+        '#utils': resolve(__dirname, 'utils'),
+      },
+    },
     plugins: [
       licensePlugin(
         path.resolve(__dirname, 'LICENSE.md'),
@@ -60,6 +69,18 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
               source: await readFile(resolve(__dirname, 'LICENSE.md'), 'utf8'),
               fileName: 'LICENSE.md',
             });
+            await scanFiles(
+              resolve(__dirname, 'types'),
+              async (_, absolutePath) => {
+                const content = await readFile(absolutePath, 'utf8');
+                const relativePath = path.relative(__dirname, absolutePath);
+                this.emitFile({
+                  type: 'asset',
+                  source: content,
+                  fileName: relativePath,
+                });
+              },
+            );
           },
         },
       },
@@ -120,7 +141,7 @@ const clientConfig = defineConfig({
   },
   plugins: [dts()],
   transform: {
-    target: 'es2022',
+    target: 'es2020',
   },
 });
 
@@ -135,7 +156,7 @@ const clientRuntimeConfig = defineConfig({
   },
   plugins: [dts()],
   transform: {
-    target: 'es2022',
+    target: 'es2020',
   },
   output: {
     ...sharedBrowserOptions.output,

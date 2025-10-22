@@ -1,9 +1,6 @@
-import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/vitepress-shared/constants';
-import type {
-  ComponentInfo,
-  PageMetafile,
-} from '@docs-islands/vitepress-types';
-import logger from '@docs-islands/vitepress-utils/logger';
+import type { ComponentInfo, PageMetafile } from '#dep-types/page';
+import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
+import logger from '#utils/logger';
 import { getCleanPathname } from '../../shared/runtime';
 
 const Logger = logger.getLoggerByGroup('ReactComponentManager');
@@ -39,7 +36,7 @@ export class ReactComponentManager {
 
   public async initializeInProd(): Promise<void> {
     // Skip initialization in the Node.js environment.
-    if (typeof window === 'undefined') {
+    if (globalThis.window === undefined) {
       return;
     }
 
@@ -146,7 +143,7 @@ export class ReactComponentManager {
 
   private async loadGlobalMetafile(): Promise<void> {
     if (
-      typeof window !== 'undefined' &&
+      globalThis.window !== undefined &&
       !window[RENDER_STRATEGY_CONSTANTS.pageMetafile]
     ) {
       try {
@@ -168,14 +165,14 @@ export class ReactComponentManager {
         this.pageMetafile = {};
         window[RENDER_STRATEGY_CONSTANTS.pageMetafile] = {};
       }
-    } else if (typeof window !== 'undefined') {
+    } else if (globalThis.window !== undefined) {
       this.pageMetafile = window[RENDER_STRATEGY_CONSTANTS.pageMetafile] || {};
     }
   }
 
   private setupGlobalComponents(): void {
     if (
-      typeof window !== 'undefined' &&
+      globalThis.window !== undefined &&
       !window[RENDER_STRATEGY_CONSTANTS.injectComponent]
     ) {
       window[RENDER_STRATEGY_CONSTANTS.injectComponent] = {};
@@ -184,7 +181,7 @@ export class ReactComponentManager {
 
   private setupComponentManager(): void {
     if (
-      typeof window !== 'undefined' &&
+      globalThis.window !== undefined &&
       !window[RENDER_STRATEGY_CONSTANTS.componentManager]
     ) {
       window[RENDER_STRATEGY_CONSTANTS.componentManager] = this;
@@ -193,12 +190,12 @@ export class ReactComponentManager {
 
   private isReactAvailable(): boolean {
     return (
-      typeof window !== 'undefined' &&
-      window.React &&
-      window.ReactDOM &&
-      typeof window.React.createElement === 'function' &&
-      typeof window.ReactDOM.createRoot === 'function' &&
-      typeof window.ReactDOM.hydrateRoot === 'function'
+      globalThis.window !== undefined &&
+      globalThis.React &&
+      globalThis.ReactDOM &&
+      typeof globalThis.React.createElement === 'function' &&
+      typeof globalThis.ReactDOM.createRoot === 'function' &&
+      typeof globalThis.ReactDOM.hydrateRoot === 'function'
     );
   }
 
@@ -217,7 +214,7 @@ export class ReactComponentManager {
   }
 
   private async performReactLoad(): Promise<boolean> {
-    if (typeof window === 'undefined') {
+    if (globalThis.window === undefined) {
       throw new TypeError(
         '[ReactComponentManager] React can only be loaded in browser environment',
       );
@@ -231,8 +228,8 @@ export class ReactComponentManager {
         import('react-dom/client'),
       ]);
 
-      window.React = reactModule.default || reactModule;
-      window.ReactDOM = reactDOMModule.default || reactDOMModule;
+      globalThis.React = reactModule.default || reactModule;
+      globalThis.ReactDOM = reactDOMModule.default || reactDOMModule;
 
       if (!this.isReactAvailable()) {
         throw new Error('Failed to load React or ReactDOM');
@@ -460,7 +457,7 @@ export class ReactComponentManager {
 
     try {
       if (
-        typeof window !== 'undefined' &&
+        globalThis.window !== undefined &&
         window[RENDER_STRATEGY_CONSTANTS.injectComponent]?.[pageId]?.[
           componentName
         ]?.component
@@ -516,7 +513,7 @@ export class ReactComponentManager {
     componentName: string,
   ): ComponentInfo['Component'] | null {
     if (
-      typeof window !== 'undefined' &&
+      globalThis.window !== undefined &&
       window[RENDER_STRATEGY_CONSTANTS.injectComponent]?.[pageId]?.[
         componentName
       ]

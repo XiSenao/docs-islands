@@ -1,5 +1,5 @@
 {
-  "name": "@docs-islands/vitepress-fixtures",
+  "name": "@docs-islands/vitepress-playground",
   "private": true,
   "type": "module",
   "scripts": {
@@ -18,11 +18,13 @@
   },
   "devDependencies": {
     "eslint": "catalog:lint",
+    "@docs-islands/eslint-config": "workspace:*",
     "typescript": "catalog:dev",
     "react": "catalog:dev",
     "react-dom": "catalog:dev",
+    "vite": "catalog:prod",
     "vitepress": "catalog:frameworks",
-    "@docs-islands/vitepress": "link:../../dist",
+    "@docs-islands/vitepress": "link:../dist",
     "@vitejs/plugin-react-swc": "catalog:dev",
     "vitest": "catalog:test",
     "playwright-chromium": "catalog:test",

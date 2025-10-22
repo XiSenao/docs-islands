@@ -9,12 +9,12 @@ if (isColorSupported) {
 }
 
 const isBrowserRuntime =
-  typeof window !== 'undefined' && typeof document !== 'undefined';
+  globalThis.window !== undefined && typeof document !== 'undefined';
 const isNodeRuntime =
   typeof process !== 'undefined' &&
   Boolean(process.versions && process.versions.node);
 const isProductionEnv =
-  (typeof import.meta !== 'undefined' &&
+  (import.meta !== undefined &&
     (import.meta as unknown as { env?: { PROD?: boolean } }).env?.PROD ===
       true) ||
   (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production');
