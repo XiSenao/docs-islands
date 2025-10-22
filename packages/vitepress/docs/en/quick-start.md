@@ -184,7 +184,7 @@ Bundle size note: the size increase applies only to page client scripts loaded d
    import { join } from 'pathe';
 
    const targetPath = join(import.meta.dirname, 'local-data.json');
-   const data = JSON.parse(readFileSync(targetPath, 'utf-8')) as {
+   const data = JSON.parse(readFileSync(targetPath, 'utf8')) as {
      data: unknown;
    };
    ```

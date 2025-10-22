@@ -188,7 +188,7 @@ pnpm add react react-dom
    import { join } from 'pathe';
 
    const targetPath = join(import.meta.dirname, 'local-data.json');
-   const data = JSON.parse(readFileSync(targetPath, 'utf-8')) as {
+   const data = JSON.parse(readFileSync(targetPath, 'utf8')) as {
      data: unknown;
    };
    ```
