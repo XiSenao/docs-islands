@@ -9,7 +9,7 @@ if (process.env.NODE_ENV === 'test') {
     debug: console.debug,
   };
 
-  global.console = {
+  globalThis.console = {
     ...console,
     log: vi.fn(),
     warn: vi.fn(),
@@ -18,7 +18,7 @@ if (process.env.NODE_ENV === 'test') {
     debug: vi.fn(),
   };
 
-  (global as any).__originalConsole = originalConsole;
+  (globalThis as any).__originalConsole = originalConsole;
 }
 
 vi.mock('node:fs', async () => {
@@ -74,10 +74,10 @@ vi.setConfig({
 });
 
 // Setup global variables that are expected in the code.
-(global as any).__BASE__ = '/';
+(globalThis as any).__BASE__ = '/';
 
 // Mock import.meta.
-Object.defineProperty(global, 'import', {
+Object.defineProperty(globalThis, 'import', {
   value: {
     meta: {
       env: {
@@ -91,8 +91,8 @@ Object.defineProperty(global, 'import', {
 });
 
 // Helper to set import.meta.env values in tests.
-(global as any).__setImportMetaEnv = (env: Record<string, boolean>) => {
-  Object.defineProperty(global, 'import', {
+(globalThis as any).__setImportMetaEnv = (env: Record<string, boolean>) => {
+  Object.defineProperty(globalThis, 'import', {
     value: {
       meta: { env },
     },

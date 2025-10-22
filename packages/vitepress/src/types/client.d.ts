@@ -1,12 +1,13 @@
 /// <reference types="vite/client" />
 
-import type { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/vitepress-shared/constants';
-import type { PageMetafile } from '@docs-islands/vitepress-types';
-import type { DefaultTheme, SiteConfig } from 'vitepress';
+import type { PageMetafile } from '#dep-types/page';
 import type {
   ReactComponentManager,
   ReactInjectComponent,
-} from '../src/client/react';
+} from '#dep-types/react';
+import type { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
+import type * as ReactDOMClient from 'react-dom/client';
+import type { DefaultTheme, SiteConfig } from 'vitepress';
 
 /**
  * Compatible VitePress extension types.
@@ -21,18 +22,21 @@ declare module 'vite' {
 declare global {
   // Define-time global constant injected via bundler `define`.
   const __BASE__: string | undefined;
+
+  // Global React and ReactDOM runtime (loaded dynamically)
+  var React: typeof React | undefined;
+  var ReactDOM: typeof ReactDOMClient | undefined;
+
   interface Window {
     __VP_SITE_DATA__?: {
       base?: string;
       cleanUrls?: boolean;
     };
-    React?: import('react');
-    ReactDOM?: import('react-dom/client');
+    React?: typeof React;
+    ReactDOM?: typeof ReactDOMClient;
 
     [RENDER_STRATEGY_CONSTANTS.pageMetafile]: Record<string, PageMetafile>;
     [RENDER_STRATEGY_CONSTANTS.componentManager]?: ReactComponentManager;
     [RENDER_STRATEGY_CONSTANTS.injectComponent]: ReactInjectComponent;
   }
 }
-
-export {};

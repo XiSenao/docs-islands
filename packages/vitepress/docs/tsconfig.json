@@ -2,6 +2,7 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "jsx": "preserve",
+    "isolatedDeclarations": false,
   },
   "include": [
     ".vitepress/**/*.ts",

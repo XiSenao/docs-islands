@@ -1,10 +1,13 @@
 {
-  "name": "@docs-islands/vitepress-utils",
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "exports": {
-    ".": "./index.ts",
-    "./logger": "./logger.ts"
+  "dependencies": {
+    "vitepress": "catalog:frameworks"
+  },
+  "devDependencies": {
+    "pathe": "catalog:dev",
+    "picocolors": "catalog:dev",
+    "vite": "catalog:prod"
   }
 }

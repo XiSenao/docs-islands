@@ -1,11 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/vitepress-shared/constants';
+import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
 import { describe, expect, it, vi } from 'vitest';
 import coreTransformComponentTags, { travelImports } from '../transform';
 
-vi.mock('@docs-islands/vitepress-utils/logger', () => ({
+vi.mock('#utils/logger', () => ({
   default: {
     getLoggerByGroup: () => ({
       warn: vi.fn(),
@@ -34,7 +34,7 @@ describe('coreTransformComponentTags', () => {
         attrNames,
       );
 
-    expect(out).toMatch(/<div[\S\s]*__render_component__="HelloWorld"/);
+    expect(out).toMatch(/<div.*__render_component__="HelloWorld"/s);
     expect(out).toContain(`${attrNames.renderDirective}="ssr:only"`);
     expect(out).toContain(`${attrNames.renderWithSpaSync}="true"`);
     expect(renderIdToRenderDirectiveMap.size).toBe(1);
@@ -172,7 +172,7 @@ describe('coreTransformComponentTags', () => {
       expect(renderIdToRenderDirectiveMap.size).toBe(2);
 
       // Check that both components got converted to div elements
-      const divMatches = out.match(/<div[\S\s]*?><\/div>/g);
+      const divMatches = out.match(/<div.*?><\/div>/gs);
       expect(divMatches).toHaveLength(2);
 
       // Verify both unique IDs are preserved
@@ -200,7 +200,7 @@ describe('coreTransformComponentTags', () => {
       expect(renderIdToRenderDirectiveMap.size).toBe(2);
 
       // Verify line offset calculations work correctly with CRLF
-      const divMatches = out.match(/<div[\S\s]*?><\/div>/g);
+      const divMatches = out.match(/<div.*?><\/div>/gs);
       expect(divMatches).toHaveLength(2);
     });
 
@@ -222,7 +222,7 @@ describe('coreTransformComponentTags', () => {
       expect(renderIdToRenderDirectiveMap.size).toBe(2);
 
       // Verify the original indentation structure is preserved for the second component
-      expect(out).toMatch(/\s+<div[\S\s]*?HelloWorld[\S\s]*?><\/div>/);
+      expect(out).toMatch(/\s+<div.*?HelloWorld.*?><\/div>/s);
     });
 
     it('correctly sorts components by absolute positions (not relative)', () => {
@@ -237,7 +237,7 @@ describe('coreTransformComponentTags', () => {
       );
 
       // All components should be transformed
-      const divMatches = out.match(/<div[\S\s]*?><\/div>/g);
+      const divMatches = out.match(/<div.*?><\/div>/gs);
       expect(divMatches).toHaveLength(3);
 
       // The transformation should maintain the original order in the output

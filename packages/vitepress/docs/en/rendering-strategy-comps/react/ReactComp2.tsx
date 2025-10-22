@@ -6,11 +6,11 @@ import './css/rc2.css';
 import { renderSharedLicense } from './shared/renderSharedLicense';
 
 interface LocalData {
-  data: Array<{
+  data: {
     id: number;
     name: string;
     email: string;
-  }>;
+  }[];
 }
 
 const targetPath = join(import.meta.dirname, 'local-data.json');

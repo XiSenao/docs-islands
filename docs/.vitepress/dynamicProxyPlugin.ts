@@ -4,7 +4,7 @@ import type { ChildProcess } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
-import type { Plugin } from 'vite';
+import type { Plugin } from 'vitepress';
 
 interface ProjectInfo {
   port: number;
@@ -33,7 +33,7 @@ class ProjectManager {
   private runningProjects = new Map<string, ProjectInfo>();
   private startingProjects = new Map<string, Promise<number>>();
   private logger: Logger;
-  private cleanupHandlers: Array<() => void> = [];
+  private cleanupHandlers: (() => void)[] = [];
   private config: ProxyConfig;
 
   constructor(config: ProxyConfig, logger: Logger) {
@@ -119,7 +119,8 @@ class ProjectManager {
         const output = data.toString();
         this.logger.debug(`[${docsPackageName}] ${output.trim()}`);
 
-        const match = output.match(/https?:\/\/localhost:(\d+)/);
+        const regex = /https?:\/\/localhost:(\d+)/;
+        const match = regex.exec(output);
         if (match?.[1] && !resolved) {
           const port = Number.parseInt(match[1], 10);
           this.verifyServerHealth(port)

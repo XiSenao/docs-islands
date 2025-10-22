@@ -57,7 +57,7 @@ defineProps<{
       </div>
     </div>
     <div class="card__content">
-      <p v-for="p in testimonial.comment">{{ p }}</p>
+      <p v-for="(p, index) in testimonial.comment" :key="index">{{ p }}</p>
     </div>
   </a>
 </template>

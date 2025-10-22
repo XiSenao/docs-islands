@@ -53,14 +53,14 @@ const ChangelogManager = {
 
       // Categorize commits.
       const features = commitLines.filter((line) =>
-        /^\w+\s+(feat|feature)/.test(line),
+        /^\w+\s+feat(?:ure)?/.test(line),
       );
       const fixes = commitLines.filter((line) =>
-        /^\w+\s+(fix|bugfix)/.test(line),
+        /^\w+\s+(?:fix|bugfix)/.test(line),
       );
       const docs = commitLines.filter((line) => /^\w+\s+docs?/.test(line));
       const chores = commitLines.filter((line) =>
-        /^\w+\s+(chore|refactor|style|test)/.test(line),
+        /^\w+\s+(?:chore|refactor|style|test)/.test(line),
       );
       const others = commitLines.filter(
         (line) =>
@@ -133,7 +133,13 @@ const ChangelogManager = {
             newSection +
             existingContent.slice(headerEnd + 1);
 
-      if (!dryRun) {
+      if (dryRun) {
+        Logger.info(
+          `📝 Would update CHANGELOG.md with ${commitLines.length} commits`,
+        );
+        Logger.info('📋 Preview of new section:');
+        console.log(`\n${newSection}`);
+      } else {
         writeFileSync(changelogPath, updatedContent);
         Logger.success(
           `✅ Updated CHANGELOG.md with ${commitLines.length} commits`,
@@ -141,12 +147,6 @@ const ChangelogManager = {
         Logger.info(
           `📋 Please review the generated changelog at: ${changelogPath}`,
         );
-      } else {
-        Logger.info(
-          `📝 Would update CHANGELOG.md with ${commitLines.length} commits`,
-        );
-        Logger.info('📋 Preview of new section:');
-        console.log(`\n${newSection}`);
       }
     } catch (error) {
       Logger.error(`❌ Failed to generate changelog: ${String(error)}`);

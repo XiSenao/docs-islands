@@ -49,10 +49,11 @@ runs:
       run: |
         # Get version from root @playwright/test (used by CI)
         PLAYWRIGHT_VERSION=$(pnpm list @playwright/test --depth 0 --json 2>/dev/null | jq -r '.devDependencies["@playwright/test"].version' 2>/dev/null || echo "1.55.0")
+        BROWSERS_PATH="$HOME/.cache/playwright"
         echo "PLAYWRIGHT_VERSION=$PLAYWRIGHT_VERSION" >> $GITHUB_ENV
-        echo "PLAYWRIGHT_BROWSERS_PATH=$HOME/.cache/playwright" >> $GITHUB_ENV
+        echo "PLAYWRIGHT_BROWSERS_PATH=$BROWSERS_PATH" >> $GITHUB_ENV
         echo "Playwright version: $PLAYWRIGHT_VERSION"
-        echo "Browsers cache path: $HOME/.cache/playwright"
+        echo "Browsers cache path: $BROWSERS_PATH"
 
     - name: Cache Playwright browsers
       if: inputs.playwright == 'true'
@@ -60,7 +61,7 @@ runs:
       # actions/cache@v4.3.0.
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
       with:
-        path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+        path: ~/.cache/playwright
         key: playwright-${{ runner.os }}-v2-${{ env.PLAYWRIGHT_VERSION }}
         restore-keys: |
           playwright-${{ runner.os }}-v2-
@@ -81,4 +82,16 @@ runs:
         else
           echo "✅ Playwright browsers installed"
         fi
-        ls -la ${{ env.PLAYWRIGHT_BROWSERS_PATH }} || echo "Cache directory not found"
+        ls -la ~/.cache/playwright || echo "Cache directory not found"
+
+    - name: Ensure Playwright browsers are ready
+      if: inputs.playwright == 'true'
+      shell: bash
+      run: |
+        # Verify browser executable exists, if not reinstall
+        if ! pnpm exec playwright install --dry-run chromium 2>&1 | grep -q "is already installed"; then
+          echo "⚠️ Playwright browsers not properly installed, reinstalling..."
+          pnpm exec playwright install chromium --with-deps
+        else
+          echo "✅ Playwright browsers are ready"
+        fi

@@ -33,7 +33,8 @@ const SimpleVersionManager = {
     patch: number;
     prerelease?: string;
   } {
-    const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);
+    const versionRegex = /^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/;
+    const match = versionRegex.exec(version);
     if (!match) throw new Error(`Invalid version format: ${version}`);
 
     return {
@@ -71,11 +72,9 @@ const SimpleVersionManager = {
         break;
       }
       case 'prerelease': {
-        if (!parsed.prerelease) {
-          parsed.patch++;
-          parsed.prerelease = `${preId || 'alpha'}.0`;
-        } else {
-          const prereleaseMatch = parsed.prerelease.match(/^(.+)\.(\d+)$/);
+        if (parsed.prerelease) {
+          const prereleaseRegex = /^(.+)\.(\d+)$/;
+          const prereleaseMatch = prereleaseRegex.exec(parsed.prerelease);
           if (prereleaseMatch) {
             const prereleaseVersion =
               Number.parseInt(prereleaseMatch[2], 10) + 1;
@@ -83,6 +82,9 @@ const SimpleVersionManager = {
           } else {
             parsed.prerelease = `${parsed.prerelease}.1`;
           }
+        } else {
+          parsed.patch++;
+          parsed.prerelease = `${preId || 'alpha'}.0`;
         }
         break;
       }
@@ -97,7 +99,7 @@ const SimpleVersionManager = {
   },
 
   isValidVersion(version: string): boolean {
-    return /^\d+\.\d+\.\d+(?:-[\d.A-Za-z-]+)?$/.test(version);
+    return /^\d+\.\d+\.\d+(?:-[\d.a-z-]+)?$/i.test(version);
   },
 
   compareVersions(a: string, b: string): number {

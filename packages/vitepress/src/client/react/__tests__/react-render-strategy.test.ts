@@ -1,13 +1,13 @@
 /**
  * @vitest-environment jsdom
  */
-import type { RenderDirective } from '@docs-islands/vitepress-types';
+import type { RenderDirective } from '#dep-types/render';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RENDER_STRATEGY_CONSTANTS } from '../../../shared/constants';
 import { ReactRenderStrategy } from '../react-render-strategy';
 
 // Mock dependencies.
-vi.mock('@docs-islands/vitepress-utils/logger', () => ({
+vi.mock('#utils/logger', () => ({
   default: {
     getLoggerByGroup: () => ({
       warn: vi.fn(),
@@ -51,14 +51,14 @@ describe('ReactRenderStrategy', () => {
     document.body.innerHTML = '';
 
     // Mock window React globals.
-    Object.defineProperty(window, 'React', {
+    Object.defineProperty(globalThis, 'React', {
       writable: true,
       value: {
         createElement: vi.fn(() => ({ type: 'div', props: {} })),
       },
     });
 
-    Object.defineProperty(window, 'ReactDOM', {
+    Object.defineProperty(globalThis, 'ReactDOM', {
       writable: true,
       value: {
         createRoot: vi.fn(() => ({
@@ -152,23 +152,25 @@ describe('ReactRenderStrategy', () => {
         isInitialLoad: true,
       });
 
-      expect(window.React.createElement).toHaveBeenCalled();
-      expect(window.ReactDOM.hydrateRoot).toHaveBeenCalled();
+      expect(globalThis.React?.createElement).toHaveBeenCalled();
+      expect(globalThis.ReactDOM?.hydrateRoot).toHaveBeenCalled();
     });
 
     it('should fallback to client render on hydration failure', async () => {
       const mockRoot = { render: vi.fn() };
-      window.ReactDOM.hydrateRoot = vi.fn().mockImplementation(() => {
-        throw new Error('Hydration failed');
-      });
-      window.ReactDOM.createRoot = vi.fn().mockReturnValue(mockRoot);
+      if (globalThis.ReactDOM) {
+        globalThis.ReactDOM.hydrateRoot = vi.fn().mockImplementation(() => {
+          throw new Error('Hydration failed');
+        });
+        globalThis.ReactDOM.createRoot = vi.fn().mockReturnValue(mockRoot);
+      }
 
       await strategy.executeReactRuntime({
         pageId: '/test-page',
         isInitialLoad: true,
       });
 
-      expect(window.ReactDOM.createRoot).toHaveBeenCalled();
+      expect(globalThis.ReactDOM?.createRoot).toHaveBeenCalled();
       expect(mockRoot.render).toHaveBeenCalled();
     });
   });
@@ -192,7 +194,7 @@ describe('ReactRenderStrategy', () => {
         disconnect: vi.fn(),
       };
 
-      (global as any).IntersectionObserver = vi
+      (globalThis as any).IntersectionObserver = vi
         .fn()
         .mockImplementation((callback: any) => {
           mockIntersectionObserver.callback = callback;
@@ -206,7 +208,7 @@ describe('ReactRenderStrategy', () => {
         isInitialLoad: true,
       });
 
-      expect(global.IntersectionObserver).toHaveBeenCalled();
+      expect(globalThis.IntersectionObserver).toHaveBeenCalled();
       expect(mockIntersectionObserver.observe).toHaveBeenCalledWith(
         mockElement,
       );

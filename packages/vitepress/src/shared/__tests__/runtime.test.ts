@@ -6,19 +6,19 @@ import { GET_CLEAN_PATHNAME_RUNTIME, getCleanPathname } from '../runtime';
 
 describe('Shared Runtime - getCleanPathname', () => {
   // Store original location and window properties
-  const originalLocation = global.location;
-  const originalWindow = global.window;
+  const originalLocation = globalThis.location;
+  const originalWindow = globalThis.window;
 
   beforeEach(() => {
     // Mock window and location
-    Object.defineProperty(global, 'window', {
+    Object.defineProperty(globalThis, 'window', {
       writable: true,
       value: {
         __VP_SITE_DATA__: undefined,
       },
     });
 
-    Object.defineProperty(global, 'location', {
+    Object.defineProperty(globalThis, 'location', {
       writable: true,
       value: {
         pathname: '/',
@@ -28,14 +28,14 @@ describe('Shared Runtime - getCleanPathname', () => {
 
   afterEach(() => {
     // Restore original properties
-    global.location = originalLocation;
-    global.window = originalWindow;
+    globalThis.location = originalLocation;
+    globalThis.window = originalWindow;
   });
 
   describe('base path handling', () => {
     it('should handle root path with default base', () => {
-      (global.window as any).__VP_SITE_DATA__ = { base: '/' };
-      global.location.pathname = '/';
+      (globalThis.window as any).__VP_SITE_DATA__ = { base: '/' };
+      globalThis.location.pathname = '/';
 
       const result = getCleanPathname();
 
@@ -43,8 +43,8 @@ describe('Shared Runtime - getCleanPathname', () => {
     });
 
     it('should handle root path with custom base', () => {
-      (global.window as any).__VP_SITE_DATA__ = { base: '/docs/' };
-      global.location.pathname = '/docs/';
+      (globalThis.window as any).__VP_SITE_DATA__ = { base: '/docs/' };
+      globalThis.location.pathname = '/docs/';
 
       const result = getCleanPathname();
 
@@ -52,8 +52,8 @@ describe('Shared Runtime - getCleanPathname', () => {
     });
 
     it('should strip custom base from pathname', () => {
-      (global.window as any).__VP_SITE_DATA__ = { base: '/my-docs/' };
-      global.location.pathname = '/my-docs/guide/getting-started';
+      (globalThis.window as any).__VP_SITE_DATA__ = { base: '/my-docs/' };
+      globalThis.location.pathname = '/my-docs/guide/getting-started';
 
       const result = getCleanPathname();
 
@@ -61,8 +61,8 @@ describe('Shared Runtime - getCleanPathname', () => {
     });
 
     it('should handle base without trailing slash', () => {
-      (global.window as any).__VP_SITE_DATA__ = { base: '/docs' };
-      global.location.pathname = '/docs/guide';
+      (globalThis.window as any).__VP_SITE_DATA__ = { base: '/docs' };
+      globalThis.location.pathname = '/docs/guide';
 
       const result = getCleanPathname();
 
@@ -77,8 +77,8 @@ describe('Shared Runtime - getCleanPathname', () => {
       ['/guide/getting-started', '/guide/getting-started'],
       ['/api/reference/', '/api/reference/'],
     ])('should normalize %s to %s', (input, expected) => {
-      (global.window as any).__VP_SITE_DATA__ = { base: '/' };
-      global.location.pathname = input;
+      (globalThis.window as any).__VP_SITE_DATA__ = { base: '/' };
+      globalThis.location.pathname = input;
 
       const result = getCleanPathname();
 
@@ -86,8 +86,8 @@ describe('Shared Runtime - getCleanPathname', () => {
     });
 
     it('should preserve .html extension', () => {
-      (global.window as any).__VP_SITE_DATA__ = { base: '/' };
-      global.location.pathname = '/guide/introduction.html';
+      (globalThis.window as any).__VP_SITE_DATA__ = { base: '/' };
+      globalThis.location.pathname = '/guide/introduction.html';
 
       const result = getCleanPathname();
 
@@ -95,8 +95,8 @@ describe('Shared Runtime - getCleanPathname', () => {
     });
 
     it('should preserve index.html extension', () => {
-      (global.window as any).__VP_SITE_DATA__ = { base: '/' };
-      global.location.pathname = '/guide/index.html';
+      (globalThis.window as any).__VP_SITE_DATA__ = { base: '/' };
+      globalThis.location.pathname = '/guide/index.html';
 
       const result = getCleanPathname();
 
@@ -104,8 +104,8 @@ describe('Shared Runtime - getCleanPathname', () => {
     });
 
     it('should handle multiple consecutive slashes', () => {
-      (global.window as any).__VP_SITE_DATA__ = { base: '/' };
-      global.location.pathname = '//guide///getting-started//';
+      (globalThis.window as any).__VP_SITE_DATA__ = { base: '/' };
+      globalThis.location.pathname = '//guide///getting-started//';
 
       const result = getCleanPathname();
 
@@ -115,8 +115,8 @@ describe('Shared Runtime - getCleanPathname', () => {
 
   describe('URL decoding', () => {
     it('should decode URL-encoded characters', () => {
-      (global.window as any).__VP_SITE_DATA__ = { base: '/' };
-      global.location.pathname = '/guide/%E4%B8%AD%E6%96%87'; // Chinese characters
+      (globalThis.window as any).__VP_SITE_DATA__ = { base: '/' };
+      globalThis.location.pathname = '/guide/%E4%B8%AD%E6%96%87'; // Chinese characters
 
       const result = getCleanPathname();
 
@@ -124,8 +124,8 @@ describe('Shared Runtime - getCleanPathname', () => {
     });
 
     it('should handle special characters in path', () => {
-      (global.window as any).__VP_SITE_DATA__ = { base: '/' };
-      global.location.pathname = '/guide/hello%20world';
+      (globalThis.window as any).__VP_SITE_DATA__ = { base: '/' };
+      globalThis.location.pathname = '/guide/hello%20world';
 
       const result = getCleanPathname();
 
@@ -135,8 +135,8 @@ describe('Shared Runtime - getCleanPathname', () => {
 
   describe('edge cases', () => {
     it('should handle missing __VP_SITE_DATA__', () => {
-      (global.window as any).__VP_SITE_DATA__ = undefined;
-      global.location.pathname = '/guide/introduction';
+      (globalThis.window as any).__VP_SITE_DATA__ = undefined;
+      globalThis.location.pathname = '/guide/introduction';
 
       const result = getCleanPathname();
 
@@ -144,8 +144,8 @@ describe('Shared Runtime - getCleanPathname', () => {
     });
 
     it('should handle missing base in site data', () => {
-      (global.window as any).__VP_SITE_DATA__ = {};
-      global.location.pathname = '/guide/introduction';
+      (globalThis.window as any).__VP_SITE_DATA__ = {};
+      globalThis.location.pathname = '/guide/introduction';
 
       const result = getCleanPathname();
 
@@ -153,8 +153,8 @@ describe('Shared Runtime - getCleanPathname', () => {
     });
 
     it('should handle empty pathname', () => {
-      (global.window as any).__VP_SITE_DATA__ = { base: '/' };
-      global.location.pathname = '';
+      (globalThis.window as any).__VP_SITE_DATA__ = { base: '/' };
+      globalThis.location.pathname = '';
 
       const result = getCleanPathname();
 
@@ -162,8 +162,8 @@ describe('Shared Runtime - getCleanPathname', () => {
     });
 
     it('should handle pathname that does not start with base', () => {
-      (global.window as any).__VP_SITE_DATA__ = { base: '/docs/' };
-      global.location.pathname = '/other/path';
+      (globalThis.window as any).__VP_SITE_DATA__ = { base: '/docs/' };
+      globalThis.location.pathname = '/other/path';
 
       const result = getCleanPathname();
 
@@ -173,8 +173,8 @@ describe('Shared Runtime - getCleanPathname', () => {
 
   describe('function runtime consistency', () => {
     it('should have consistent behavior between wrapper and runtime function', () => {
-      (global.window as any).__VP_SITE_DATA__ = { base: '/docs/' };
-      global.location.pathname = '/docs/guide/test.html';
+      (globalThis.window as any).__VP_SITE_DATA__ = { base: '/docs/' };
+      globalThis.location.pathname = '/docs/guide/test.html';
 
       const wrapperResult = getCleanPathname();
       const runtimeResult = GET_CLEAN_PATHNAME_RUNTIME();
@@ -186,17 +186,17 @@ describe('Shared Runtime - getCleanPathname', () => {
 
   describe('server-side rendering compatibility', () => {
     it('should handle undefined window object', () => {
-      const originalWindow = global.window;
+      const originalWindow = globalThis.window;
 
       // @ts-expect-error - Simulating server environment.
-      global.window = undefined;
-      global.location.pathname = '/guide/test';
+      globalThis.window = undefined;
+      globalThis.location.pathname = '/guide/test';
 
       expect(() => {
         getCleanPathname();
       }).not.toThrow();
 
-      global.window = originalWindow;
+      globalThis.window = originalWindow;
     });
   });
 });

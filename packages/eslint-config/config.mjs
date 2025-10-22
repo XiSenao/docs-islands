@@ -74,8 +74,9 @@ export default defineConfig([
     languageOptions: {
       // CommonJS uses default Espree parser (not TypeScript parser)
       parserOptions: {
-        ecmaVersion: 'latest',
-        sourceType: 'script', // CommonJS modules
+        ecmaVersion: 2022,
+        sourceType: 'commonjs',
+        projectService: false,
       },
       globals: {
         ...globals.node,

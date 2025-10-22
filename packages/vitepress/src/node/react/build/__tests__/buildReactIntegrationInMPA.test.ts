@@ -1,43 +1,43 @@
-import type { ConfigType } from '@docs-islands/vitepress-types';
-import { resolveConfig } from '@docs-islands/vitepress-utils';
+import type { ConfigType } from '#dep-types/utils';
+import { resolveConfig } from '#utils/config';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'pathe';
 import { afterAll, describe, expect, it } from 'vitest';
 import { buildReactIntegrationInMPA } from '../buildReactIntegrationInMPA';
 
+const resolveMockConfig = (config: ConfigType) => {
+  const root = dirname(fileURLToPath(import.meta.url));
+  const cacheDir = join(root, 'dist/.cache');
+  const outDir = join(root, 'dist/build-react-integration-in-mpa-outputs');
+  const sourceDir = join(root, 'source');
+  const publicDir = join(root, 'source/public');
+
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+  }
+  if (!fs.existsSync(outDir)) {
+    fs.mkdirSync(outDir, { recursive: true });
+  }
+  if (!fs.existsSync(sourceDir)) {
+    fs.mkdirSync(sourceDir, { recursive: true });
+  }
+  if (!fs.existsSync(publicDir)) {
+    fs.mkdirSync(publicDir, { recursive: true });
+  }
+
+  return {
+    ...config,
+    root,
+    cacheDir,
+    outDir,
+    srcDir: sourceDir,
+    publicDir,
+  };
+};
+
 describe('buildReactIntegrationInMPA', () => {
   const defaultConfig = resolveConfig({});
-  const resolveMockConfig = (config: ConfigType) => {
-    const root = dirname(fileURLToPath(import.meta.url));
-    const cacheDir = join(root, 'dist/.cache');
-    const outDir = join(root, 'dist/build-react-integration-in-mpa-outputs');
-    const sourceDir = join(root, 'source');
-    const publicDir = join(root, 'source/public');
-
-    if (!fs.existsSync(cacheDir)) {
-      fs.mkdirSync(cacheDir, { recursive: true });
-    }
-    if (!fs.existsSync(outDir)) {
-      fs.mkdirSync(outDir, { recursive: true });
-    }
-    if (!fs.existsSync(sourceDir)) {
-      fs.mkdirSync(sourceDir, { recursive: true });
-    }
-    if (!fs.existsSync(publicDir)) {
-      fs.mkdirSync(publicDir, { recursive: true });
-    }
-
-    return {
-      ...config,
-      root,
-      cacheDir,
-      outDir,
-      srcDir: sourceDir,
-      publicDir,
-    };
-  };
-
   const config = resolveMockConfig(defaultConfig);
 
   afterAll(() => {

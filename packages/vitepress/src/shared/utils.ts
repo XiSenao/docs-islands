@@ -1,10 +1,10 @@
+import type { RenderDirective } from '#dep-types/render';
 import {
   ALLOWED_RENDER_DIRECTIVES,
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
-} from '@docs-islands/vitepress-shared/constants';
-import type { RenderDirective } from '@docs-islands/vitepress-types';
-import logger from '@docs-islands/vitepress-utils/logger';
+} from '#shared/constants';
+import logger from '#utils/logger';
 
 /**
  * TODO: The props for the container are passed as strings after being parsed by the Vue engine.

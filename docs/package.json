@@ -16,8 +16,10 @@
   "devDependencies": {
     "@types/http-proxy": "catalog:docs-dev",
     "eslint": "catalog:lint",
+    "@docs-islands/eslint-config": "workspace:*",
     "typescript": "catalog:dev",
     "http-proxy": "catalog:docs-dev",
+    "@docs-islands/utils": "workspace:*",
     "vitepress": "catalog:frameworks",
     "vitepress-plugin-group-icons": "catalog:docs-dev",
     "vitepress-plugin-llms": "catalog:docs-dev",

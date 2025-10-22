@@ -1,6 +1,6 @@
-import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/vitepress-shared/constants';
-import { getProjectRoot } from '@docs-islands/vitepress-utils';
-import logger from '@docs-islands/vitepress-utils/logger';
+import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
+import logger from '#utils/logger';
+import { getProjectRoot } from '#utils/path';
 import { dirname, extname, isAbsolute, join, relative, resolve } from 'pathe';
 import { normalizePath } from 'vite';
 import type { DefaultTheme, Plugin, SiteConfig } from 'vitepress';
@@ -83,7 +83,9 @@ class VitePressPathResolver {
   // Convert the URL to a Markdown file path.
   urlToMarkdownPath(url: string): string {
     let relativePath = url.replace(
-      new RegExp(`^${this.base.replaceAll(/[$()*+.?[\\\]^{|}]/g, '\\$&')}`),
+      new RegExp(
+        `^${this.base.replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`)}`,
+      ),
       '',
     );
     relativePath = relativePath.replace(/[#?].*$/, '');
@@ -130,7 +132,7 @@ class VitePressPathResolver {
 
     let url = `/${finalPath
       .replace(/\.md$/, this.cleanUrls ? '' : '.html')
-      .replace(/(^|\/)index(\.html)?$/, '$1')}`;
+      .replace(/(^|\/)index(?:\.html)?$/, '$1')}`;
 
     if (url === '' || url === '/index') {
       url = '/';
@@ -155,7 +157,7 @@ class VitePressPathResolver {
   normalizePath(path: string): string {
     return decodeURIComponent(path)
       .replace(/[#?].*$/, '')
-      .replace(/(^|\/)index(\.html)?$/, '$1');
+      .replace(/(^|\/)index(?:\.html)?$/, '$1');
   }
 }
 
@@ -212,7 +214,7 @@ export default function createVitePressPathResolverPlugin(): Plugin {
           logger
             .getLoggerByGroup('vitepress-path-resolver')
             .success(
-              `${id.replace(/([&?])+__INLINE_PATH_RESOLVER__/, '')} -> ${resolved}`,
+              `${id.replace(/[&?]+__INLINE_PATH_RESOLVER__/, '')} -> ${resolved}`,
             );
           resolver.cachedResolvedIds.set(cahcedKey, resolved);
         }

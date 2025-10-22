@@ -1,7 +1,5 @@
-import type {
-  ConfigType,
-  RenderDirective,
-} from '@docs-islands/vitepress-types';
+import type { RenderDirective } from '#dep-types/render';
+import type { ConfigType } from '#dep-types/utils';
 import type React from 'react';
 import type { Plugin } from 'vitepress';
 import type { RenderController } from './render-controller';

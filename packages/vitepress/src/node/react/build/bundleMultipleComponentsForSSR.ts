@@ -1,12 +1,12 @@
-import { DIRNAME_VAR_NAME } from '@docs-islands/vitepress-shared/constants';
 import type {
   ComponentBundleInfo,
-  ConfigType,
-  RollupOutput,
   UsedSnippetContainerType,
-} from '@docs-islands/vitepress-types';
-import { isNodeLikeBuiltin } from '@docs-islands/vitepress-utils';
-import logger from '@docs-islands/vitepress-utils/logger';
+} from '#dep-types/component';
+import type { RollupOutput } from '#dep-types/rollup';
+import type { ConfigType } from '#dep-types/utils';
+import { DIRNAME_VAR_NAME } from '#shared/constants';
+import { isNodeLikeBuiltin } from '#utils/builtin';
+import logger from '#utils/logger';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { join, resolve } from 'pathe';
@@ -57,7 +57,7 @@ export async function bundleMultipleComponentsForSSR(
               return true;
             }
 
-            const bareImportRE = /^(?![A-Za-z]:)[\w@](?!.*:\/\/)/;
+            const bareImportRE = /^(?![a-z]:)[\w@](?!.*:\/\/)/i;
 
             if (bareImportRE.test(id)) {
               return true;

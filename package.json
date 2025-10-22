@@ -7,10 +7,12 @@
     "pnpm": ">=10.17.0"
   },
   "workspaces": [
-    "packages/**",
+    "packages/*",
+    "packages/*/docs",
+    "packages/*/playground",
+    "packages/plugins/*",
     "docs",
-    "utils",
-    "!**/dist"
+    "utils"
   ],
   "homepage": "https://docs.senao.me/docs-islands",
   "repository": {
@@ -29,7 +31,7 @@
     "frontend"
   ],
   "scripts": {
-    "build": "pnpm --filter './packages/plugins/**' build && pnpm --filter '!./packages/plugins/**' build",
+    "build": "tsx scripts/build.ts",
     "docs:dev": "sh -c 'pnpm --filter \"@docs-islands/${1:-monorepo}-docs\" docs:dev' --",
     "docs:build": "pnpm run _run docs:build && tsx scripts/merge-docs.ts",
     "docs:preview": "pnpm --filter @docs-islands/monorepo-docs docs:preview",
@@ -38,7 +40,7 @@
     "test": "pnpm run _run test",
     "test:unit": "pnpm run _run test:unit",
     "test:e2e": "pnpm run _run test:e2e",
-    "lint": "eslint . --fix --cache --config ./eslint.config.mjs && pnpm -r --parallel run lint",
+    "lint": "eslint . --fix --cache --concurrency auto --config ./eslint.config.mjs && pnpm -r --parallel run lint",
     "lint:packages": "pnpm -r --parallel run lint:package",
     "format": "prettier --write --cache .",
     "typecheck": "pnpm -r --parallel run typecheck",
@@ -68,6 +70,7 @@
     "tsx": "catalog:dev",
     "del-cli": "catalog:dev",
     "husky": "catalog:dev",
+    "concurrently": "catalog:dev",
     "@playwright/test": "catalog:test"
   },
   "lint-staged": {

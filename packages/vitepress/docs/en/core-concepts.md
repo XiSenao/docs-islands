@@ -328,7 +328,7 @@ interface LocalData {
 const targetPath = join(import.meta.dirname, 'local-data.json');
 export function ReactComp2(props: CompProps) {
   const [count, setCount] = useState(0);
-  const data = JSON.parse(readFileSync(targetPath, 'utf-8')) as LocalData;
+  const data = JSON.parse(readFileSync(targetPath, 'utf8')) as LocalData;
   const displayLocalData = () => {
     const showLocalList = data.data.map((item) => (
       <li key={item.id}>
@@ -918,7 +918,7 @@ export default theme;
         import { readFileSync } from 'node:fs';
         const targetPath = join(import.meta.dirname, 'local-data.json'); // [!code focus]
         try {
-          const data = JSON.parse(readFileSync(targetPath, 'utf-8'));
+          const data = JSON.parse(readFileSync(targetPath, 'utf8'));
         } catch (error) {
           console.error(error);
         }
