@@ -1,6 +1,6 @@
 import Logger from '@docs-islands/utils/logger';
 import { existsSync, readFileSync } from 'node:fs';
-import { cp, mkdir, readdir, stat } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { glob } from 'tinyglobby';
@@ -16,6 +16,50 @@ interface PackageInfo {
   path: string;
   distPath: string;
   targetName: string;
+}
+
+/**
+ * Recursively copy a directory using stable Node.js APIs
+ * Compatible with Node.js 20.x without experimental features
+ */
+async function copyDirectory(
+  src: string,
+  dest: string,
+  options: { force?: boolean } = {},
+): Promise<void> {
+  const { force = false } = options;
+
+  // Create destination directory
+  await mkdir(dest, { recursive: true });
+
+  // Read source directory
+  const entries = await readdir(src, { withFileTypes: true });
+
+  // Copy each entry
+  for (const entry of entries) {
+    const srcPath = join(src, entry.name);
+    const destPath = join(dest, entry.name);
+
+    if (entry.isDirectory()) {
+      // Recursively copy subdirectory
+      await copyDirectory(srcPath, destPath, options);
+    } else if (entry.isFile() || entry.isSymbolicLink()) {
+      // Copy file
+      try {
+        await copyFile(srcPath, destPath);
+      } catch (error) {
+        if (!force) {
+          throw error;
+        }
+        // If force is true and file exists, try to overwrite
+        try {
+          await copyFile(srcPath, destPath);
+        } catch {
+          // Ignore errors when force is true
+        }
+      }
+    }
+  }
 }
 
 async function findDocsPackages(): Promise<PackageInfo[]> {
@@ -155,8 +199,7 @@ async function mergeDistDirectories(packages: PackageInfo[]): Promise<void> {
         await mkdir(dirname(targetPath), { recursive: true });
       } catch {}
 
-      await cp(pkg.distPath, targetPath, {
-        recursive: true,
+      await copyDirectory(pkg.distPath, targetPath, {
         force: true,
       });
 

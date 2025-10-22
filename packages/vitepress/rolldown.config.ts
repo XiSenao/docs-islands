@@ -29,6 +29,13 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
   return defineConfig({
     platform,
     external,
+    resolve: {
+      alias: {
+        '#deps-types': resolve(__dirname, 'src/types'),
+        '#shared': resolve(__dirname, 'src/shared'),
+        '#utils': resolve(__dirname, 'utils'),
+      },
+    },
     plugins: [
       licensePlugin(
         path.resolve(__dirname, 'LICENSE.md'),
@@ -120,7 +127,7 @@ const clientConfig = defineConfig({
   },
   plugins: [dts()],
   transform: {
-    target: 'es2022',
+    target: 'es2020',
   },
 });
 
@@ -135,7 +142,7 @@ const clientRuntimeConfig = defineConfig({
   },
   plugins: [dts()],
   transform: {
-    target: 'es2022',
+    target: 'es2020',
   },
   output: {
     ...sharedBrowserOptions.output,

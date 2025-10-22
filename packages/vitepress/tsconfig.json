@@ -1,8 +1,17 @@
 {
   "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "#dep-types/*": ["./src/types/*"],
+      "#shared/*": ["./src/shared/*"],
+      "#utils/*": ["./utils/*"],
+    },
+  },
   "include": [
     "src/**/*.ts",
-    "types/client.d.ts",
+    "utils/**/*.ts",
+    "types/**/*.ts",
+    "types/**/*.d.ts",
     "tests/*.ts",
     "scripts/*.ts",
     "*.ts",

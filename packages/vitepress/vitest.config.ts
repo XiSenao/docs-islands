@@ -1,21 +1,18 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig, type ViteUserConfig } from 'vitest/config';
 
 const config: ViteUserConfig = defineConfig({
+  resolve: {
+    alias: {
+      '#dep-types': fileURLToPath(new URL('src/types', import.meta.url)),
+      '#shared': fileURLToPath(new URL('src/shared', import.meta.url)),
+      '#utils': fileURLToPath(new URL('utils', import.meta.url)),
+    },
+  },
   test: {
     environment: 'node',
     globals: true,
-    include: [
-      'src/**/__tests__/**/*.{test,spec}.{js,ts,tsx}',
-      'src/**/*.{test,spec}.{js,ts,tsx}',
-    ],
-    exclude: [
-      'node_modules/**',
-      'dist/**',
-      'coverage/**',
-      '**/*.d.ts',
-      'e2e/**/node_modules/**',
-      'e2e/fixtures/**',
-    ],
+    include: ['src/**/__tests__/**/*.{test,spec}.{js,ts,tsx}'],
     testTimeout: 50_000,
     hookTimeout: 30_000,
     coverage: {
@@ -24,17 +21,7 @@ const config: ViteUserConfig = defineConfig({
       reportOnFailure: true,
       all: true,
       include: ['src/**/*.{js,ts,tsx}'],
-      exclude: [
-        'e2e/**',
-        '**/__tests__/**',
-        '**/*.test.{js,ts,tsx}',
-        '**/*.spec.{js,ts,tsx}',
-        '**/types/**',
-        '**/*.d.ts',
-        'scripts/**',
-        'dist/**',
-        'coverage/**',
-      ],
+      exclude: ['**/__tests__/**', '**/types/**'],
       thresholds: {
         global: {
           branches: 80,
