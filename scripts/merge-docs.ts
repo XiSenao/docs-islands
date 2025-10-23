@@ -156,8 +156,11 @@ async function mergeDistDirectories(packages: PackageInfo[]): Promise<void> {
         await mkdir(dirname(targetPath), { recursive: true });
       } catch {}
 
-      await scanFiles(pkg.distPath, async (fileName, absolutePath) => {
-        const destPath = join(targetPath, fileName);
+      await scanFiles(pkg.distPath, async (_, absolutePath) => {
+        const relativePath = path.relative(pkg.distPath, absolutePath);
+        const destPath = join(targetPath, relativePath);
+        // Ensure the parent directory exists before copying
+        await mkdir(dirname(destPath), { recursive: true });
         await copyFile(absolutePath, destPath);
       });
 
