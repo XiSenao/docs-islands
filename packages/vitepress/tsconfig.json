@@ -1,12 +1,10 @@
 {
   "extends": "../../tsconfig.json",
-  /**
-   * moduleResolution enforces TypeScript to resolve the imports field of package.json file
-   * when performing a lookup that starts with # from a file whose ancestor directory contains a package.json
-   * under the node16, nodenext, and bundler options.
-   *
-   * https://devblogs.microsoft.com/typescript/announcing-typescript-5-0/#moduleresolution-bundler
-   */
+  // moduleResolution enforces TypeScript to resolve the imports field of package.json file
+  // when performing a lookup that starts with # from a file whose ancestor directory contains a package.json
+  // under the node16, nodenext, and bundler options.
+  //
+  // https://devblogs.microsoft.com/typescript/announcing-typescript-5-0/#moduleresolution-bundler
   "include": [
     "src/**/*.ts",
     "utils/**/*.ts",
