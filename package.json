@@ -43,7 +43,7 @@
     "lint": "eslint . --fix --cache --concurrency auto --config ./eslint.config.mjs && pnpm -r --parallel run lint",
     "lint:packages": "pnpm -r --parallel run lint:package",
     "format": "prettier --write --cache .",
-    "typecheck": "pnpm -r --parallel run typecheck",
+    "typecheck": "tsc --project tsconfig.base.json --noEmit && pnpm -r --parallel run typecheck",
     "release": "sh -c 'PKG=$1; shift; pnpm --filter \"@docs-islands/$PKG\" release \"$@\"' _",
     "changelog": "sh -c 'PKG=$1; shift; pnpm --filter \"@docs-islands/$PKG\" changelog \"$@\"' _",
     "changelog:preview": "sh -c 'PKG=$1; shift; pnpm --filter \"@docs-islands/$PKG\" changelog:preview \"$@\"' _",

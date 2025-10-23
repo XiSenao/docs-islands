@@ -1,8 +1,7 @@
 import eslint from '@eslint/js';
-import htmlESlintRules from '@html-eslint/eslint-plugin';
+import htmlESlintPlugin from '@html-eslint/eslint-plugin';
 import htmlESlintParser from '@html-eslint/parser';
 import eslintConfigPrettier from 'eslint-config-prettier';
-import eslintPluginHtml from 'eslint-plugin-html';
 import eslintPluginN from 'eslint-plugin-n';
 import eslintPluginPrettier from 'eslint-plugin-prettier';
 import eslintPluginRegexp from 'eslint-plugin-regexp';
@@ -11,7 +10,9 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
 import typescriptESlint from 'typescript-eslint';
 
-export const eslintConfigBase = defineConfig([
+type Config = ReturnType<typeof defineConfig>;
+
+export const eslintConfigBase: Config = [
   eslint.configs.recommended,
   ...typescriptESlint.configs.recommended,
   ...typescriptESlint.configs.stylistic,
@@ -217,7 +218,7 @@ export const eslintConfigBase = defineConfig([
   {
     name: 'HTML',
     files: ['**/*.html'],
-    plugins: { html: eslintPluginHtml, '@html-eslint': htmlESlintRules },
+    plugins: { html: htmlESlintPlugin },
     languageOptions: {
       parser: htmlESlintParser,
     },
@@ -225,19 +226,19 @@ export const eslintConfigBase = defineConfig([
       'html/javascript-mime-types': ['text/javascript', 'text/jsx'],
     },
     rules: {
-      '@html-eslint/indent': ['error', 2],
-      '@html-eslint/quotes': ['error', 'double'],
-      '@html-eslint/no-trailing-spaces': 'error',
-      '@html-eslint/no-multiple-empty-lines': ['error', { max: 1 }],
-      '@html-eslint/require-doctype': 'error',
-      '@html-eslint/require-lang': 'error',
-      '@html-eslint/no-duplicate-attrs': 'error',
-      '@html-eslint/no-obsolete-tags': 'warn',
-      '@html-eslint/require-attrs': 'off',
-      '@html-eslint/require-closing-tags': 'error',
-      '@html-eslint/require-li-container': 'error',
-      '@html-eslint/no-duplicate-id': 'error',
-      '@html-eslint/no-extra-spacing-attrs': 'error',
+      'html/indent': ['error', 2],
+      'html/quotes': ['error', 'double'],
+      'html/no-trailing-spaces': 'error',
+      'html/no-multiple-empty-lines': ['error', { max: 1 }],
+      'html/require-doctype': 'error',
+      'html/require-lang': 'error',
+      'html/no-duplicate-attrs': 'error',
+      'html/no-obsolete-tags': 'warn',
+      'html/require-attrs': 'off',
+      'html/require-closing-tags': 'error',
+      'html/require-li-container': 'error',
+      'html/no-duplicate-id': 'error',
+      'html/no-extra-spacing-attrs': 'error',
     },
   },
 
@@ -257,4 +258,4 @@ export const eslintConfigBase = defineConfig([
     },
   },
   eslintConfigPrettier,
-]);
+];

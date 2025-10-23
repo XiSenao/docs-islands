@@ -3,14 +3,19 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint": "eslint . --config ./config.mjs --fix --cache",
-    "clean": "del-cli .eslintcache node_modules"
+    "build": "rolldown --config rolldown.config.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --config ./dist/config.js --fix --cache",
+    "clean": "del-cli .eslintcache dist node_modules"
+  },
+  "dependencies": {
+    "tinyglobby": "catalog:prod"
   },
   "devDependencies": {
+    "@types/eslint-plugin-jsx-a11y": "catalog:dev",
     "@eslint/js": "catalog:lint",
     "eslint": "catalog:lint",
     "eslint-config-prettier": "catalog:lint",
-    "eslint-plugin-html": "catalog:lint",
     "eslint-plugin-regexp": "catalog:lint",
     "eslint-plugin-jsx-a11y": "catalog:lint",
     "eslint-plugin-prettier": "catalog:lint",
@@ -26,13 +31,16 @@
     "prettier": "catalog:format",
     "@typescript-eslint/parser": "catalog:lint",
     "typescript-eslint": "catalog:lint",
+    "typescript": "catalog:dev",
+    "rolldown": "catalog:dev",
+    "rolldown-plugin-dts": "catalog:dev",
     "globals": "catalog:test",
     "del-cli": "catalog:dev"
   },
   "exports": {
-    ".": "./src/config.mjs",
-    "./monorepo": "./config.mjs",
-    "./playground": "./src/playground/config.mjs",
-    "./docs": "./src/docs/config.mjs"
+    ".": "./dist/src/config.js",
+    "./monorepo": "./dist/config.js",
+    "./playground": "./dist/src/playground/config.js",
+    "./docs": "./dist/src/docs/config.js"
   }
 }

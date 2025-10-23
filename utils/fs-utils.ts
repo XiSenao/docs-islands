@@ -1,10 +1,8 @@
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 
-const { join } = path;
-
 type FileCallback = (
-  fileName: string,
+  relativePath: string,
   absolutePath: string,
 ) => void | Promise<void>;
 
@@ -20,14 +18,14 @@ export interface ScanFilesOptions {
  * Recursively traverse a directory and call a callback for each file
  *
  * This is a generic utility that provides only the directory traversal capability.
- * The callback receives the file name and absolute path, allowing the caller to
- * decide how to process each file (copy, transform, emit, etc.).
+ * The callback receives the relative path (from the root sourceDir) and absolute path,
+ * allowing the caller to decide how to process each file (copy, transform, emit, etc.).
  *
  * Recursively traverse a directory using stable Node.js APIs
- * Compatible with Node js 20.x without experimental features
+ * Compatible with Node.js 20.x without experimental features
  *
  * @param sourceDir - Source directory path to traverse
- * @param callback - Function to call for each file found
+ * @param callback - Function to call for each file found. Receives (relativePath, absolutePath)
  * @param options - Traversal options
  */
 export async function scanFiles(
@@ -35,25 +33,35 @@ export async function scanFiles(
   callback: FileCallback,
   options: ScanFilesOptions = {},
 ): Promise<void> {
+  await scanFilesInternal(sourceDir, sourceDir, callback, options);
+}
+
+async function scanFilesInternal(
+  rootDir: string,
+  currentDir: string,
+  callback: FileCallback,
+  options: ScanFilesOptions,
+): Promise<void> {
   const { filter } = options;
 
-  if (filter && !filter(sourceDir, true)) {
+  if (filter && !filter(currentDir, true)) {
     return;
   }
 
-  const entries = await readdir(sourceDir, { withFileTypes: true });
+  const entries = await readdir(currentDir, { withFileTypes: true });
 
   for (const entry of entries) {
-    const entryPath = join(sourceDir, entry.name);
+    const entryPath = path.join(currentDir, entry.name);
 
     if (filter && !filter(entryPath, entry.isDirectory())) {
       continue;
     }
 
     if (entry.isDirectory()) {
-      await scanFiles(entryPath, callback, options);
+      await scanFilesInternal(rootDir, entryPath, callback, options);
     } else if (entry.isFile()) {
-      await callback(entry.name, entryPath);
+      const relativePath = path.relative(rootDir, entryPath);
+      await callback(relativePath, entryPath);
     }
   }
 }

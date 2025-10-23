@@ -1,6 +1,8 @@
 import typescriptESlintParser from '@typescript-eslint/parser';
 import { defineConfig, globalIgnores } from 'eslint/config';
-import { eslintConfigBase } from '../base.mjs';
+import { eslintConfigBase } from '../base';
+
+type Config = ReturnType<typeof defineConfig>;
 
 /**
  * General structure of generic output packages and lint rules:
@@ -14,11 +16,12 @@ import { eslintConfigBase } from '../base.mjs';
  *       - shared
  *       - types
  *     - utils
+ *     - types
  *     - vitest.config.ts
  *     - rolldown.config.ts
  *     - packagePlugin.ts
  */
-export default defineConfig([
+const config: Config = [
   ...eslintConfigBase,
   globalIgnores(['docs/**', 'playground/**']),
   // Core rendering files - complex rendering logic requires flexibility
@@ -105,4 +108,5 @@ export default defineConfig([
       '@typescript-eslint/unbound-method': 'off',
     },
   },
-]);
+];
+export default config;

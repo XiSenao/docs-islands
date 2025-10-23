@@ -26,17 +26,18 @@ function shouldShowOutput(output: string): boolean {
 
 function getAllMonorepoPackages(): string[] {
   try {
-    const result = execSync('pnpm -r list --depth=0 --json', {
+    const result = execSync('pnpm ls -r --depth -1 --json', {
       encoding: 'utf8',
       stdio: 'pipe',
     });
 
     const data = JSON.parse(result);
     const packages: string[] = [];
+    const ignoredPackages = new Set(['docs-islands-monorepo']);
 
     if (Array.isArray(data)) {
       for (const item of data) {
-        if (item.name && item.name.startsWith('@docs-islands/')) {
+        if (item.name && !ignoredPackages.has(item.name)) {
           packages.push(item.name);
         }
       }
@@ -76,21 +77,7 @@ function getRemainingPackages(): string[] {
     (pkg) => !configuredPackages.includes(pkg),
   );
 
-  const packagesWithBuildScript: string[] = [];
-
-  for (const pkg of remainingPackages) {
-    try {
-      execSync(`pnpm --filter "${pkg}" run build --dry-run`, {
-        encoding: 'utf8',
-        stdio: 'pipe',
-      });
-      packagesWithBuildScript.push(pkg);
-    } catch {
-      logger.warn(`Skipping ${pkg} (no build script)`);
-    }
-  }
-
-  return packagesWithBuildScript;
+  return remainingPackages;
 }
 
 async function buildPackagesParallel(packages: string[]): Promise<boolean> {
@@ -99,7 +86,7 @@ async function buildPackagesParallel(packages: string[]): Promise<boolean> {
 
     const commands = packages.map((pkg, index) => {
       const color = ['blue', 'green', 'yellow', 'magenta', 'cyan'][index % 5];
-      return `--color ${color} --label "[${pkg}]" "pnpm --filter ${pkg} build"`;
+      return `--color ${color} --label "[${pkg}]" "pnpm --filter ${pkg} --if-present build"`;
     });
 
     const concurrentlyOptions = [
