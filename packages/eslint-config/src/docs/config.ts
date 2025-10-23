@@ -1,4 +1,4 @@
-import markdown from '@eslint/markdown';
+import markdownESlintPlugin from '@eslint/markdown';
 import tsParser from '@typescript-eslint/parser';
 import eslintPluginJsxA11y from 'eslint-plugin-jsx-a11y';
 import eslintPluginReact from 'eslint-plugin-react';
@@ -7,9 +7,11 @@ import eslintPluginVue from 'eslint-plugin-vue';
 import { defineConfig } from 'eslint/config';
 import globals from 'globals';
 import vueParser from 'vue-eslint-parser';
-import { eslintConfigBase } from '../../base.mjs';
+import { eslintConfigBase } from '../../base';
 
-export default defineConfig([
+type Config = ReturnType<typeof defineConfig>;
+
+const config: Config = [
   ...eslintConfigBase,
 
   // Vue recommended config (includes plugin registration)
@@ -262,13 +264,14 @@ export default defineConfig([
     },
   },
 
+  ...markdownESlintPlugin.configs.processor,
   // Markdown
   {
+    name: 'Markdown',
     files: ['**/*.md'],
     plugins: {
-      markdown,
+      markdown: markdownESlintPlugin,
     },
-    extends: ['markdown/processor'],
   },
 
   {
@@ -368,4 +371,6 @@ export default defineConfig([
       },
     },
   },
-]);
+];
+
+export default config;

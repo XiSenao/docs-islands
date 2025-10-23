@@ -1,7 +1,9 @@
 import { defineConfig } from 'eslint/config';
-import { eslintConfigBase } from '../../base.mjs';
+import { eslintConfigBase } from '../../base';
 
-export default defineConfig([
+type Config = ReturnType<typeof defineConfig>;
+
+const config: Config = [
   ...eslintConfigBase,
   // E2E test files - allow test-specific patterns
   {
@@ -64,4 +66,6 @@ export default defineConfig([
       'unicorn/prefer-module': 'off',
     },
   },
-]);
+];
+
+export default config;

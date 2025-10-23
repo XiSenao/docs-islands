@@ -1,7 +1,9 @@
 import typescriptESlintParser from '@typescript-eslint/parser';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
-import { eslintConfigBase } from './base.mjs';
+import { eslintConfigBase } from './base';
+
+type Config = ReturnType<typeof defineConfig>;
 
 /**
  * Root Directory ESLint Configuration
@@ -19,8 +21,7 @@ import { eslintConfigBase } from './base.mjs';
  *
  * If you need to write new configuration or scripts, prefer ESM (.mjs) over CommonJS (.cjs).
  */
-
-export default defineConfig([
+const config: Config = [
   ...eslintConfigBase,
 
   globalIgnores(['packages/**', 'docs', 'utils']),
@@ -158,4 +159,6 @@ export default defineConfig([
       ],
     },
   },
-]);
+];
+
+export default config;
