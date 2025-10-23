@@ -6,7 +6,7 @@
     "build": "rolldown --config rolldown.config.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
-    "clean": "del-cli .eslintcache node_modules"
+    "clean": "del-cli .eslintcache dist node_modules"
   },
   "dependencies": {
     "tinyglobby": "catalog:prod"

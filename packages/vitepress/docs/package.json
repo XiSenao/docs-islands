@@ -11,7 +11,8 @@
     "link:dev": "del-cli ../dist --force && npm pkg set devDependencies.@docs-islands/vitepress='link:../' && pnpm install && pnpm set:default-link",
     "link:prod": "del-cli ../dist --force && pnpm set:default-link && pnpm --filter @docs-islands/vitepress build && pnpm install",
     "set:default-link": "npm pkg set devDependencies.@docs-islands/vitepress='link:../dist'",
-    "clean": "del-cli node_modules .vitepress/dist .vitepress/cache .eslintcache"
+    "clean": "pnpm clean:remaining && del-cli .vitepress/dist .vitepress/cache .eslintcache node_modules",
+    "clean:remaining": "del-cli .vitepress/config.ts.timestamp-*.mjs || true"
   },
   "packageManager": "pnpm@10.7.0",
   "dependencies": {
