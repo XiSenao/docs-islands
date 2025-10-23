@@ -46,8 +46,8 @@ catalogs:
       specifier: ^9.2.1
       version: 9.2.1
     del-cli:
-      specifier: ^6.0.0
-      version: 6.0.0
+      specifier: ^7.0.0
+      version: 7.0.0
     es-module-lexer:
       specifier: ^1.7.0
       version: 1.7.0
@@ -254,7 +254,7 @@ importers:
         version: 9.2.1
       del-cli:
         specifier: catalog:dev
-        version: 6.0.0
+        version: 7.0.0
       eslint:
         specifier: catalog:lint
         version: 9.36.0
@@ -300,7 +300,7 @@ importers:
         version: 1.17.16
       del-cli:
         specifier: catalog:dev
-        version: 6.0.0
+        version: 7.0.0
       eslint:
         specifier: catalog:lint
         version: 9.36.0
@@ -341,7 +341,7 @@ importers:
         version: 8.44.1(eslint@9.36.0)(typescript@5.8.3)
       del-cli:
         specifier: catalog:dev
-        version: 6.0.0
+        version: 7.0.0
       eslint:
         specifier: catalog:lint
         version: 9.36.0
@@ -395,7 +395,7 @@ importers:
         version: link:../../eslint-config
       del-cli:
         specifier: catalog:dev
-        version: 6.0.0
+        version: 7.0.0
       eslint:
         specifier: catalog:lint
         version: 9.36.0
@@ -471,7 +471,7 @@ importers:
         version: 3.11.0(vite@5.4.20(patch_hash=df87215c00fe178eff273f34f9c3707990258e48287ad953816e0b23f744319f)(@types/node@24.5.2)(less@4.4.1))
       del-cli:
         specifier: catalog:dev
-        version: 6.0.0
+        version: 7.0.0
       es-module-lexer:
         specifier: catalog:dev
         version: 1.7.0
@@ -547,7 +547,7 @@ importers:
         version: 3.11.0(vite@5.4.20(patch_hash=df87215c00fe178eff273f34f9c3707990258e48287ad953816e0b23f744319f)(@types/node@24.5.2)(less@4.4.1))
       del-cli:
         specifier: catalog:dev
-        version: 6.0.0
+        version: 7.0.0
       eslint:
         specifier: catalog:lint
         version: 9.36.0
@@ -596,7 +596,7 @@ importers:
         version: 3.11.0(vite@5.4.20(patch_hash=df87215c00fe178eff273f34f9c3707990258e48287ad953816e0b23f744319f)(@types/node@24.5.2)(less@4.4.1))
       del-cli:
         specifier: catalog:dev
-        version: 6.0.0
+        version: 7.0.0
       eslint:
         specifier: catalog:lint
         version: 9.36.0
@@ -636,7 +636,7 @@ importers:
         version: link:../packages/eslint-config
       del-cli:
         specifier: catalog:dev
-        version: 6.0.0
+        version: 7.0.0
       eslint:
         specifier: catalog:lint
         version: 9.36.0
@@ -3295,10 +3295,10 @@ packages:
       }
     engines: { node: '>= 0.4' }
 
-  del-cli@6.0.0:
+  del-cli@7.0.0:
     resolution:
       {
-        integrity: sha512-9nitGV2W6KLFyya4qYt4+9AKQFL+c0Ehj5K7V7IwlxTc6RMCfQUGY9E9pLG6e8TQjtwXpuiWIGGZb3mfVxyZkw==,
+        integrity: sha512-fRl4pWJYu9WFQH8jXdQUYvcD0IMtij9WEc7qmB7xOyJEweNJNuE7iKmqNeoOT1DbBUjtRjxlw8Y63qKBI/NQ1g==,
       }
     engines: { node: '>=18' }
     hasBin: true
@@ -4907,12 +4907,12 @@ packages:
         integrity: sha512-Lf+9+2r+Tdp5wXDXC4PcIBjTDtq4UKjCPMQhKIuzpJNW0b96kVqSwW0bT7FhRSfmAiFYgP+SCRvdrDozfh0U5w==,
       }
 
-  meow@13.2.0:
+  meow@14.0.0:
     resolution:
       {
-        integrity: sha512-pxQJQzB6djGPXh08dacEloMFopsOqGVRKFPYvPOt9XDZ1HasbgDZA74CJGreSU4G3Ak7EFJGoiH2auq+yXISgA==,
+        integrity: sha512-JhC3R1f6dbspVtmF3vKjAWz1EVIvwFrGGPLSdU6rK79xBwHWTuHoLnRX/t1/zHS1Ch1Y2UtIrih7DAHuH9JFJA==,
       }
-    engines: { node: '>=18' }
+    engines: { node: '>=20' }
 
   merge2@1.4.1:
     resolution:
@@ -8511,10 +8511,11 @@ snapshots:
       has-property-descriptors: 1.0.2
       object-keys: 1.1.1
 
-  del-cli@6.0.0:
+  del-cli@7.0.0:
     dependencies:
       del: 8.0.1
-      meow: 13.2.0
+      meow: 14.0.0
+      presentable-error: 0.0.1
 
   del@8.0.1:
     dependencies:
@@ -9718,7 +9719,7 @@ snapshots:
 
   mdurl@2.0.0: {}
 
-  meow@13.2.0: {}
+  meow@14.0.0: {}
 
   merge2@1.4.1: {}
 

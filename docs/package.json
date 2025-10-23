@@ -7,7 +7,8 @@
     "docs:preview": "vitepress preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
-    "clean": "del-cli .eslintcache node_modules"
+    "clean": "pnpm clean:remaining && del-cli .eslintcache .vitepress/cache .vitepress/dist node_modules",
+    "clean:remaining": "del-cli .vitepress/config.ts.timestamp-*.mjs || true"
   },
   "packageManager": "pnpm@10.7.0",
   "dependencies": {

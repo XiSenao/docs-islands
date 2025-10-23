@@ -37,7 +37,7 @@
     "docs:preview": "pnpm --filter @docs-islands/monorepo-docs docs:preview",
     "docs:link:dev": "pnpm run _run link:dev",
     "docs:link:prod": "pnpm run _run link:prod",
-    "test": "pnpm run _run test",
+    "test": "concurrently --names \"test:unit,test:e2e\" --prefix-colors \"blue,orange\" --kill-others-on-fail \"pnpm run _run test:unit\" \"pnpm run _run test:e2e\"",
     "test:unit": "pnpm run _run test:unit",
     "test:e2e": "pnpm run _run test:e2e",
     "lint": "eslint . --fix --cache --concurrency auto --config ./eslint.config.mjs && pnpm -r --parallel run lint",
@@ -47,7 +47,7 @@
     "release": "sh -c 'PKG=$1; shift; pnpm --filter \"@docs-islands/$PKG\" release \"$@\"' _",
     "changelog": "sh -c 'PKG=$1; shift; pnpm --filter \"@docs-islands/$PKG\" changelog \"$@\"' _",
     "changelog:preview": "sh -c 'PKG=$1; shift; pnpm --filter \"@docs-islands/$PKG\" changelog:preview \"$@\"' _",
-    "clean": "pnpm run _run clean && del-cli node_modules .eslintcache",
+    "clean": "pnpm run _run clean && del-cli .eslintcache node_modules",
     "_run": "sh -c 'SCRIPT=$1; shift; if [ $# -eq 0 ]; then pnpm -r --parallel --if-present run $SCRIPT; else pnpm --filter \"@docs-islands/$1\" $SCRIPT; fi' _",
     "preinstall": "npx only-allow pnpm",
     "prepare": "husky"

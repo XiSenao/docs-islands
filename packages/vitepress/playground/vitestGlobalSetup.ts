@@ -2,7 +2,7 @@ import getPort from 'get-port';
 import type { Server } from 'node:net';
 import { type BrowserServer, chromium } from 'playwright-chromium';
 import type { ViteDevServer } from 'vite';
-import { build, createServer, serve } from 'vitepress';
+import { createServer } from 'vitepress';
 
 let browserServer: BrowserServer;
 let server: ViteDevServer | Server;
@@ -20,13 +20,8 @@ export async function setup(): Promise<void> {
   const port = await getPort();
   process.env.PORT = port.toString();
 
-  if (process.env.VITE_TEST_BUILD) {
-    await build(root);
-    ({ server } = await serve({ root, port }));
-  } else {
-    server = await createServer(root, { port });
-    await server.listen();
-  }
+  server = await createServer(root, { port });
+  await server.listen();
 }
 
 export async function teardown(): Promise<void> {

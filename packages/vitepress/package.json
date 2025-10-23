@@ -47,20 +47,8 @@
     "release:beta": "tsx scripts/release.ts --type prerelease --preid beta",
     "release:alpha": "tsx scripts/release.ts --type prerelease --preid alpha",
     "release:dry": "tsx scripts/release.ts --dry-run --type patch",
-    "test": "pnpm build && pnpm --aggregate-output --reporter=append-only '/^test:(unit|e2e)$/'",
     "test:unit": "vitest run",
-    "test:unit:watch": "vitest",
-    "test:e2e": "pnpm test:e2e-dev && pnpm test:e2e-build",
-    "test:e2e:site:dev": "pnpm -F=@docs-islands/vitepress-playground site:dev",
-    "test:e2e:site:build": "pnpm -F=@docs-islands/vitepress-playground site:build",
-    "test:e2e:site:preview": "pnpm -F=@docs-islands/vitepress-playground site:preview",
-    "test:e2e-dev": "pnpm -F=@docs-islands/vitepress-playground test",
-    "test:e2e-dev:watch": "pnpm -F=@docs-islands/vitepress-playground test:watch",
-    "test:e2e-build": "VITE_TEST_BUILD=1 pnpm -F=@docs-islands/vitepress-playground test:e2e-dev",
-    "test:e2e-build:watch": "VITE_TEST_BUILD=1 pnpm -F=@docs-islands/vitepress-playground test:e2e-dev:watch",
-    "clean": "pnpm clean:dist && pnpm clean:deps",
-    "clean:dist": "del-cli coverage dist docs/dist docs/.vitepress/dist docs/.vitepress/cache || true",
-    "clean:deps": "del-cli node_modules .eslintcache docs/node_modules \"docs/.vitepress/config.ts.timestamp-*.mjs\" || true"
+    "clean": "del-cli .eslintcache dist coverage node_modules"
   },
   "imports": {
     "#types/*": "./types/*.d.ts",

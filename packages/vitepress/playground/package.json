@@ -3,14 +3,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run",
-    "test:watch": "DEBUG=1 vitest",
-    "site:dev": "vitepress dev",
-    "site:build": "vitepress build",
-    "site:preview": "vitepress preview",
+    "docs:dev": "vitepress dev",
+    "docs:build": "vitepress build",
+    "docs:preview": "vitepress preview",
+    "test:e2e": "vitest run",
+    "test:e2e:watch": "DEBUG=1 vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
-    "clean": "del-cli node_modules .eslintcache"
+    "clean": "pnpm clean:remaining && del-cli .eslintcache .vitepress/dist .vitepress/cache node_modules",
+    "clean:remaining": "del-cli .vitepress/config.ts.timestamp-*.mjs || true"
   },
   "dependencies": {
     "vue": "catalog:prod",
