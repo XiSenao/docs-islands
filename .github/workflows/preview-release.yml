@@ -1,0 +1,67 @@
+name: Preview release
+
+# This workflow automatically publishes preview versions of the package
+# for testing on main branch pushes and labeled PRs.
+
+env:
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+permissions:
+  # Only need write access to create PR comments
+  pull-requests: write
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    # Trigger on PR open, updates, or when labeled
+    types: [opened, synchronize, labeled]
+
+jobs:
+  preview:
+    name: Build and Publish Preview
+    # Security: Only run on official repository and:
+    # 1. Push to main branch (automatic)
+    # 2. Pull requests with 'trigger: preview' label
+    if: >
+      github.repository == 'XiSenao/docs-islands' &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'trigger: preview')))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        # actions/checkout@v5.0.0.
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+      - name: Install pnpm
+        # pnpm/action-setup@v4.2.0.
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061
+
+      - name: Set node version to 20
+        # actions/setup-node@v5.0.0.
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+          # Security: Disable cache to avoid cache poisoning attacks
+          # Reference: https://docs.zizmor.sh/audits/#cache-poisoning
+          package-manager-cache: false
+
+      - name: Disallow installation scripts
+        run: yq '.onlyBuiltDependencies = []' -i pnpm-workspace.yaml
+
+      - name: Install dependencies
+        run: pnpm install
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+      - name: Build packages
+        working-directory: .
+        run: pnpm build
+
+      - name: Publish @docs-islands/vitepress preview release to pkg.pr.new
+        # pkg.pr.new: Temporary package hosting service by StackBlitz
+        # Generates a unique URL like: https://pkg.pr.new/@docs-islands/vitepress@abc123
+        # Users can install with: pnpm add https://pkg.pr.new/@docs-islands/vitepress@abc123
+        run: pnpm dlx pkg-pr-new@0.0 publish --compact --pnpm ./packages/vitepress/dist
