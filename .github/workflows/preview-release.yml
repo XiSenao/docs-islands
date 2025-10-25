@@ -64,4 +64,15 @@ jobs:
         # pkg.pr.new: Temporary package hosting service by StackBlitz
         # Generates a unique URL like: https://pkg.pr.new/@docs-islands/vitepress@abc123
         # Users can install with: pnpm add https://pkg.pr.new/@docs-islands/vitepress@abc123
+        #
+        # IMPORTANT: Publish from dist/ directory (not package root) because:
+        # 1. dist/package.json has been cleaned by packagePlugin.ts during build
+        #    - scripts field removed (no build/release scripts)
+        #    - imports field removed (internal path mappings)
+        #    - devDependencies filtered (workspace: and catalog: protocols removed)
+        # 2. Matches production release behavior
+        # 3. Users get a clean package.json without development artifacts
+        #
+        # If published from package root, the uncleaned package.json would be included
+        # in the tarball with unnecessary fields (scripts, imports, etc.)
         run: pnpm dlx pkg-pr-new@0.0 publish --compact --pnpm ./packages/vitepress/dist

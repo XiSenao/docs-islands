@@ -12,6 +12,17 @@ onlyBuiltDependencies:
   - '@swc/core'
   - playwright-chromium
 
+# "Vite isn't updating esbuild to 0.25.0 in v5, and since the project doesn't use esbuild dev server, this can be ignored."
+auditConfig:
+  ignoreGhsas:
+    - GHSA-67mh-4wv8-2f99
+
+overrides:
+  axios@<1.12.0: '>=1.12.0'
+
+patchedDependencies:
+  vite: patches/vite@5.4.21.patch
+
 autoInstallPeers: false
 
 dedupeInjectedDeps: false
@@ -19,9 +30,6 @@ dedupeInjectedDeps: false
 hoist: false
 
 loglevel: info
-
-patchedDependencies:
-  vite: patches/vite@5.4.20.patch
 
 shellEmulator: true
 
@@ -88,7 +96,7 @@ catalogs:
     'concurrently': '^9.2.1'
 
   prod:
-    'vite': '^5.4.20'
+    'vite': '^5.4.21'
     'tinyglobby': '^0.2.15'
     'cheerio': '^1.1.0'
     'vue': '^3.5.21'
@@ -103,11 +111,11 @@ catalogs:
 
   # Integrated Framework versions (shared across docs)
   frameworks:
-    'vitepress': '^1.6.3'
+    'vitepress': '^1.6.4'
 
   test:
-    'playwright-chromium': '1.55.0'
-    '@playwright/test': '1.55.0'
+    'playwright-chromium': '1.56.1'
+    '@playwright/test': '1.56.1'
     'get-port': '^7.1.0'
     'globals': '^16.3.0'
     'jsdom': '^25.0.0'
