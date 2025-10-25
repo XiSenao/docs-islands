@@ -1,6 +1,9 @@
 [build.environment]
   NODE_VERSION = "20"
+  # don't need playwright for docs build
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
+  # docs site deployment requires generating llm text
+  RELEASE = "1"
 
 [build]
   publish = "docs/.vitepress/dist"
