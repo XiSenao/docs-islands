@@ -81,19 +81,5 @@
       "prettier --write --cache --ignore-unknown"
     ]
   },
-  "packageManager": "pnpm@10.17.0",
-  "pnpm": {
-    "//": "Vite isn't updating esbuild to 0.25.0 in v5, and since the project doesn't use esbuild dev server, this can be ignored.",
-    "auditConfig": {
-      "ignoreGhsas": [
-        "GHSA-67mh-4wv8-2f99"
-      ]
-    },
-    "overrides": {
-      "axios@<1.12.0": ">=1.12.0"
-    },
-    "patchedDependencies": {
-      "vite@5.4.20": "patches/vite@5.4.20.patch"
-    }
-  }
+  "packageManager": "pnpm@10.17.0"
 }
