@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
 import { glob } from 'tinyglobby';
@@ -34,7 +35,7 @@ const dtsConfigs: RolldownOptions[] = modules.map((module) =>
     platform: 'node',
     external: [/^[\w@][^:]/],
     output: {
-      dir: 'dist',
+      dir: `dist/${path.dirname(module)}`,
     },
     plugins: [
       dts({

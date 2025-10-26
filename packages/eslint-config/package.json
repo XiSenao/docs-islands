@@ -5,7 +5,7 @@
   "scripts": {
     "build": "rolldown --config rolldown.config.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . --config ./dist/config.js --fix --cache",
+    "lint": "eslint . --config ./dist/src/config.js --fix --cache",
     "clean": "del-cli .eslintcache dist node_modules"
   },
   "dependencies": {
@@ -23,11 +23,14 @@
     "eslint-plugin-n": "catalog:lint",
     "eslint-plugin-react-hooks": "catalog:lint",
     "eslint-plugin-unicorn": "catalog:lint",
+    "eslint-plugin-pnpm": "catalog:lint",
     "@eslint/markdown": "catalog:lint",
     "@html-eslint/eslint-plugin": "catalog:lint",
     "@html-eslint/parser": "catalog:lint",
     "eslint-plugin-vue": "catalog:lint",
     "vue-eslint-parser": "catalog:lint",
+    "jsonc-eslint-parser": "catalog:lint",
+    "yaml-eslint-parser": "catalog:lint",
     "prettier": "catalog:format",
     "@typescript-eslint/parser": "catalog:lint",
     "typescript-eslint": "catalog:lint",
