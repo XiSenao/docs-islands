@@ -39,6 +39,7 @@ jobs:
       src: ${{ steps.filter.outputs.src }}
       docs: ${{ steps.filter.outputs.docs }}
       deps: ${{ steps.filter.outputs.deps }}
+      style: ${{ steps.filter.outputs.style }}
       ci: ${{ steps.filter.outputs.ci }}
     steps:
       # action/checkout@v5.0.0.
@@ -54,17 +55,41 @@ jobs:
           filters: |
             src:
               - 'packages/**'
-              - '!packages/**/docs/**'
               - 'utils/**'
-              - '*.config.*'
+              - 'scripts/**'
+              # --- Exclusions ---
+              - '!packages/**/*.md'
+              - '!packages/*/docs/**'
+              - '!packages/*/playground/**'
+              - '!**/package.json'
+              - '!packages/**/tsconfig*.json'
+              - '!packages/**/eslint.config.{js,mjs,ts}'
+              - '!packages/eslint-config/**/*.ts'
+              - '!utils/**/tsconfig*.json'
+              - '!utils/**/eslint.config.{js,mjs,ts}'
+
             docs:
               - 'docs/**'
-              - 'packages/**/docs/**'
+              - 'packages/*/docs/**'
+              - 'packages/vitepress/docs/.vitepress/**'
+
             deps:
+              - 'pnpm-workspace.yaml'
               - 'pnpm-lock.yaml'
               - '**/package.json'
+              - 'patches/**'
+
+            style:
+              - 'tsconfig*.json'
+              - 'packages/**/tsconfig*.json'
+              - 'packages/**/eslint.config.{js,mjs,ts}'
+              - 'packages/eslint-config/**/*.ts'
+              - '.prettierrc.json'
+              - '.editorconfig'
+
             ci:
               - '.github/**/*.yml'
+              - 'packages/*/playground/**'
 
   build-artifacts:
     name: Build Artifacts
@@ -89,10 +114,10 @@ jobs:
         with:
           name: packages-build-artifacts
           path: |
-            packages/
-            packages/**/.vitepress/
-            !packages/**/coverage
-            !packages/**/.vitepress/cache
+            packages/**
+            packages/vitepress/docs/.vitepress
+            !packages/vitepress/docs/.vitepress/cache
+            !packages/*/coverage
           retention-days: 1
 
   quality:
@@ -104,7 +129,7 @@ jobs:
       always() &&
       !cancelled() &&
       !contains(needs.*.result, 'failure') &&
-      (needs.changes.outputs.src == 'true' || needs.changes.outputs.ci == 'true')
+      (needs.changes.outputs.src == 'true' || needs.changes.outputs.style == 'true')
     steps:
       # action/checkout@v5.0.0.
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8

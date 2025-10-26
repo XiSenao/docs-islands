@@ -1,4 +1,5 @@
 import typescriptESlintParser from '@typescript-eslint/parser';
+import eslintPluginPnpm from 'eslint-plugin-pnpm';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
 import { eslintConfigBase } from './base';
@@ -157,6 +158,18 @@ const config: Config = [
           ignorePropertyModificationsFor: ['pkg'], // Required for pnpm readPackage hook
         },
       ],
+    },
+  },
+
+  // pnpm-workspace.yaml specific rules
+  {
+    name: 'Pnpm Workspace',
+    files: ['pnpm-workspace.yaml'],
+    languageOptions: { parser: await import('yaml-eslint-parser') },
+    plugins: { pnpm: eslintPluginPnpm },
+    rules: {
+      'pnpm/yaml-no-duplicate-catalog-item': 'error',
+      'pnpm/yaml-no-unused-catalog-item': 'error',
     },
   },
 ];

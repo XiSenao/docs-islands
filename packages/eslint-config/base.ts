@@ -3,6 +3,7 @@ import htmlESlintPlugin from '@html-eslint/eslint-plugin';
 import htmlESlintParser from '@html-eslint/parser';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import eslintPluginN from 'eslint-plugin-n';
+import eslintPluginPnpm from 'eslint-plugin-pnpm';
 import eslintPluginPrettier from 'eslint-plugin-prettier';
 import eslintPluginRegexp from 'eslint-plugin-regexp';
 import eslintPluginUnicorn from 'eslint-plugin-unicorn';
@@ -24,8 +25,6 @@ export const eslintConfigBase: Config = [
     '**/cache/**',
     '**/dist/**',
     '**/public/**',
-    '**/outputs/**',
-    '**/.vite/**',
     '**/coverage/**',
   ]),
 
@@ -248,6 +247,18 @@ export const eslintConfigBase: Config = [
     rules: {
       '@typescript-eslint/consistent-indexed-object-style': 'off',
       '@typescript-eslint/triple-slash-reference': 'off',
+    },
+  },
+
+  {
+    name: 'Pnpm Package.json',
+    files: ['package.json', '**/package.json'],
+    languageOptions: { parser: await import('jsonc-eslint-parser') },
+    plugins: { pnpm: eslintPluginPnpm },
+    rules: {
+      'pnpm/json-enforce-catalog': 'error',
+      'pnpm/json-prefer-workspace-settings': 'error',
+      'pnpm/json-valid-catalog': 'error',
     },
   },
 
