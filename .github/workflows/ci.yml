@@ -1,7 +1,7 @@
 name: CI
 
 env:
-  # Reduce memory usage - 4GB is typically sufficient.
+  # Reduce memory usage - 4GB is typically sufficient
   NODE_OPTIONS: --max-old-space-size=4096
   NODE_VERSION: "20"
   # Install playwright binary manually (because pnpm only runs install script once)
@@ -42,31 +42,26 @@ jobs:
       style: ${{ steps.filter.outputs.style }}
       ci: ${{ steps.filter.outputs.ci }}
     steps:
-      # action/checkout@v5.0.0.
+      # actions/checkout@v5.0.0
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
-          # Fetch full history for change detection.
+          # Fetch full history for change detection
           fetch-depth: 0
 
-      # dorny/paths-filter@v3.0.2.
+      # dorny/paths-filter@v3.0.2
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
         id: filter
         with:
           filters: |
             src:
-              - 'packages/**'
-              - 'utils/**'
+              # Source code from packages directory (excluding docs, playground, dist, node_modules, and eslint-config)
+              - 'packages/!(eslint-config)/!(docs|playground|dist|node_modules)/**/*.{js,ts,tsx,jsx,vue}'
+
+              # Source code from utilities directory (excluding configuration files)
+              - 'utils/**/*.{js,ts,tsx,jsx,mjs}'
+
+              # All script files
               - 'scripts/**'
-              # --- Exclusions ---
-              - '!packages/**/*.md'
-              - '!packages/*/docs/**'
-              - '!packages/*/playground/**'
-              - '!**/package.json'
-              - '!packages/**/tsconfig*.json'
-              - '!packages/**/eslint.config.{js,mjs,ts}'
-              - '!packages/eslint-config/**/*.ts'
-              - '!utils/**/tsconfig*.json'
-              - '!utils/**/eslint.config.{js,mjs,ts}'
 
             docs:
               - 'docs/**'
@@ -76,14 +71,26 @@ jobs:
             deps:
               - 'pnpm-workspace.yaml'
               - 'pnpm-lock.yaml'
-              - '**/package.json'
+              - 'package.json'                      # Root package.json
+              - 'packages/**/package.json'           # Direct package manifests
+              - 'utils/*/package.json'              # Utility package manifests
               - 'patches/**'
 
             style:
+              # TypeScript configuration files
               - 'tsconfig*.json'
               - 'packages/**/tsconfig*.json'
+              - 'utils/**/tsconfig*.json'
+
+              # ESLint configuration files
               - 'packages/**/eslint.config.{js,mjs,ts}'
-              - 'packages/eslint-config/**/*.ts'
+              - 'utils/**/eslint.config.{js,mjs,ts}'
+              - 'eslint.config.{js,mjs,ts}'         # Root ESLint configuration
+
+              # ESLint configuration package (all files)
+              - 'packages/eslint-config/**'
+
+              # Code formatting configuration
               - '.prettierrc.json'
               - '.editorconfig'
 
@@ -97,7 +104,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
     steps:
-      # action/checkout@v5.0.0.
+      # actions/checkout@v5.0.0
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
 
       - name: Setup Environment
@@ -109,7 +116,7 @@ jobs:
         uses: ./.github/actions/build-and-check
 
       - name: Upload Build Artifacts
-        # actions/upload-artifact@v4.6.2.
+        # actions/upload-artifact@v4.6.2
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa024
         with:
           name: packages-build-artifacts
@@ -124,14 +131,14 @@ jobs:
     name: Code Quality
     runs-on: ubuntu-latest
     needs: [changes, build-artifacts]
-    # Run even if build-artifacts was skipped (e.g., only CI files changed).
+    # Run even if build-artifacts was skipped (e.g., only CI files changed)
     if: |
       always() &&
       !cancelled() &&
       !contains(needs.*.result, 'failure') &&
       (needs.changes.outputs.src == 'true' || needs.changes.outputs.style == 'true')
     steps:
-      # action/checkout@v5.0.0.
+      # action/checkout@v5.0.0
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
 
       - name: Setup Environment
@@ -139,16 +146,16 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      # Download artifacts if available (when src files changed).
+      # Download artifacts if available (when src files changed)
       - name: Download Build Artifacts
         if: needs.build-artifacts.result == 'success'
-        # actions/download-artifact@v5.0.0.
+        # actions/download-artifact@v5.0.0
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce04
         with:
           name: packages-build-artifacts
           path: packages/
 
-      # Build and run quality checks.
+      # Build and run quality checks
       - name: Build and Quality Check
         uses: ./.github/actions/build-and-check
         with:
@@ -164,18 +171,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Primary test environment (reuse build).
+          # Primary test environment (reuse build)
           - name: "Linux / Node 22"
             os: ubuntu-latest
             node: 22
             coverage: true
             use-artifacts: true
-          # LTS version (reuse build).
+          # LTS version (reuse build)
           - name: "Linux / Node 20"
             os: ubuntu-latest
             node: 20
             use-artifacts: true
-          # Cross-platform tests (standalone build, main branch only).
+          # Cross-platform tests (standalone build, main branch only)
           - name: "macOS / Node 22"
             os: macos-latest
             node: 22
@@ -184,7 +191,7 @@ jobs:
             os: windows-latest
             node: 22
             skip-pr: true
-          # Latest Node (allow failure).
+          # Latest Node (allow failure)
           - name: "Linux / Node Latest"
             os: ubuntu-latest
             node: 24
@@ -193,7 +200,7 @@ jobs:
 
     continue-on-error: ${{ matrix.continue-on-error || false }}
     steps:
-      # action/checkout@v5.0.0.
+      # action/checkout@v5.0.0
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
 
       - name: Setup Environment
@@ -202,16 +209,16 @@ jobs:
           node-version: ${{ matrix.node }}
           playwright: true
 
-      # Download pre-built artifacts for Linux environments.
+      # Download pre-built artifacts for Linux environments
       - name: Download Build Artifacts
         if: matrix.use-artifacts == true
-        # actions/download-artifact@v5.0.0.
+        # actions/download-artifact@v5.0.0
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce04
         with:
           name: packages-build-artifacts
           path: packages/
 
-      # Build and run quality checks.
+      # Build and run quality checks
       - name: Build and Quality Check
         uses: ./.github/actions/build-and-check
         with:
@@ -229,20 +236,20 @@ jobs:
         env:
           CI: true
 
-      # Collect test coverage.
+      # Collect test coverage
       - name: Upload Coverage
         if: matrix.coverage
-        # codecov/codecov-action@v5.5.1.
+        # codecov/codecov-action@v5.5.1
         uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: unit
           fail_ci_if_error: false
 
-      # Upload test failure artifacts.
+      # Upload test failure artifacts
       - name: Upload Test Results
         if: failure()
-        # actions/upload-artifact@v4.6.2.
+        # actions/upload-artifact@v4.6.2
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa024
         with:
           name: test-results-${{ matrix.name }}
@@ -257,7 +264,7 @@ jobs:
     needs: [changes, build-artifacts]
     if: needs.changes.outputs.docs == 'true' || needs.changes.outputs.src == 'true'
     steps:
-      # action/checkout@v5.0.0.
+      # action/checkout@v5.0.0
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
 
       - name: Setup Environment
@@ -265,9 +272,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      # Download pre-built packages.
+      # Download pre-built packages
       - name: Download Build Artifacts
-        # actions/download-artifact@v5.0.0.
+        # actions/download-artifact@v5.0.0
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce04
         with:
           name: packages-build-artifacts
@@ -276,9 +283,9 @@ jobs:
       - name: Build Docs
         run: pnpm docs:build
 
-      # Upload documentation build artifacts.
+      # Upload documentation build artifacts
       - name: Upload Docs Artifacts
-        # actions/upload-artifact@v4.6.2.
+        # actions/upload-artifact@v4.6.2
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: docs-dist
