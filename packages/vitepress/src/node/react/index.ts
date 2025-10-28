@@ -96,7 +96,7 @@ const getClientRuntimeMetafile = async (): Promise<ClientRuntimeMetafile> => {
   const fileExtension = extname(currentFilePath);
   const __require = createRequire(import.meta.url);
   let clientRuntimePath = __require.resolve(
-    '@docs-islands/vitepress/shared/client/runtime',
+    '@docs-islands/vitepress/client-shared/runtime',
   );
   if (fileExtension !== '.js') {
     /**
@@ -106,7 +106,7 @@ const getClientRuntimeMetafile = async (): Promise<ClientRuntimeMetafile> => {
      */
     try {
       clientRuntimePath = __require.resolve(
-        '@docs-islands/vitepress/shared/client/runtime-dev',
+        '@docs-islands/vitepress/client-shared/runtime-dev',
       );
     } catch {
       logger
@@ -1364,10 +1364,10 @@ export default function vitepressReactRenderingStrategies(
           if (normalized.includes(REACT_RENDER_STRATEGY_INJECT_RUNTIME_ID)) {
             return normalized;
           }
-          if (normalized === '@docs-islands/vitepress/utils/client/logger') {
+          if (normalized === '@docs-islands/vitepress/client-utils/logger') {
             const __require = createRequire(import.meta.url);
             return __require.resolve(
-              '@docs-islands/vitepress/utils/client/logger',
+              '@docs-islands/vitepress/client-utils/logger',
             );
           }
           return null;

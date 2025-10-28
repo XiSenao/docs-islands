@@ -96,10 +96,10 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
     output: {
       dir: './dist',
       entryFileNames: (chunkInfo: PreRenderedChunk) => {
-        if (chunkInfo.name === 'logger') {
+        if (['logger', 'logger.d'].includes(chunkInfo.name)) {
           return 'utils/[name].js';
         }
-        if (chunkInfo.name === 'client-runtime') {
+        if (['client-runtime', 'client-runtime.d'].includes(chunkInfo.name)) {
           return 'shared/[name].js';
         }
         return `${baseDir}/[name].${chunkFileExt}`;

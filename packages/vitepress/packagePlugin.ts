@@ -114,7 +114,7 @@ export default function generatePackageJson(): Plugin {
                 // Handle string-type export values
                 if (typeof value === 'string') {
                   if (value.includes('src/')) {
-                    const targetExt = key.startsWith('./client')
+                    const targetExt = /^\.\/client(?:\/.+)?$/.test(key)
                       ? '.mjs'
                       : '.js';
                     return [
