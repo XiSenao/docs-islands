@@ -45,7 +45,7 @@ const config: Config = [
         parser: tsParser,
         extraFileExtensions: ['.vue'],
         sourceType: 'module',
-        ecmaVersion: 2022,
+        ecmaVersion: 2020,
       },
     },
     rules: {
@@ -109,28 +109,34 @@ const config: Config = [
     },
   },
 
-  // React Hooks and JSX A11y plugins (not included in React recommended)
-  {
-    name: 'React Hooks & A11y Plugins',
-    plugins: {
-      'react-hooks': eslintPluginReactHooks,
-      'jsx-a11y': eslintPluginJsxA11y,
-    },
-  },
+  // React recommended configurations
+  eslintPluginReact.configs.flat.recommended,
+  eslintPluginReactHooks.configs.flat.recommended,
+  eslintPluginJsxA11y.flatConfigs.recommended,
 
-  // React configuration with recommended rules
+  // React shared settings - applied globally to all files
   {
-    name: 'React',
-    files: ['**/*.{jsx,mjsx,tsx,mtsx}'],
-    ...eslintPluginReact.configs.flat.recommended,
-    ...eslintPluginReact.configs.flat['jsx-runtime'],
+    name: 'React Settings',
     settings: {
       react: {
         version: 'detect',
       },
     },
+  },
+
+  // React configuration overrides and customization
+  {
+    name: 'React',
+    files: ['**/*.{jsx,mjsx,tsx,mtsx}'],
     languageOptions: {
-      ...eslintPluginReact.configs.flat.recommended.languageOptions,
+      parser: tsParser,
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+        sourceType: 'module',
+        ecmaVersion: 2020,
+      },
       globals: {
         ...globals.serviceworker,
         ...globals.browser,

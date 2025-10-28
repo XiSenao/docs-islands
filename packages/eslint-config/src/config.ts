@@ -75,7 +75,7 @@ const config: Config = [
       parser: typescriptESlintParser,
       parserOptions: {
         projectService: true,
-        ecmaVersion: 'latest',
+        ecmaVersion: '2020',
         sourceType: 'module',
       },
     },

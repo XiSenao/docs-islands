@@ -176,7 +176,7 @@ ${dependencyLicenseTexts}`;
 }
 
 function sortDependencies(dependencies: Dependency[]) {
-  return dependencies.sort(({ name: nameA }, { name: nameB }) => {
+  return dependencies.toSorted(({ name: nameA }, { name: nameB }) => {
     return nameA! > nameB! ? 1 : nameB! > nameA! ? -1 : 0;
   });
 }
@@ -191,8 +191,8 @@ function sortLicenses(licenses: Set<string>) {
       noParenthesis.push(license);
     }
   }
-  withParenthesis = withParenthesis.sort();
-  noParenthesis = noParenthesis.sort();
+  withParenthesis = withParenthesis.toSorted();
+  noParenthesis = noParenthesis.toSorted();
   return [...noParenthesis, ...withParenthesis];
 }
 
