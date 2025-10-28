@@ -23,14 +23,58 @@ const getExternalDeps = () => {
   ];
 };
 
-const external = getExternalDeps();
+const externalDeps = getExternalDeps();
+
+const nodePlugins: RolldownOptions['plugins'] = [
+  licensePlugin(
+    path.resolve(__dirname, 'LICENSE.md'),
+    '@docs-islands/vitepress license',
+    '@docs-islands/vitepress',
+  ),
+  generatePackageJson(),
+  {
+    name: 'rolldown-plugin-copy-readme',
+    generateBundle: {
+      order: 'post',
+      async handler() {
+        this.emitFile({
+          type: 'asset',
+          source: await readFile(resolve(__dirname, 'README.md'), 'utf8'),
+          fileName: 'README.md',
+        });
+        this.emitFile({
+          type: 'asset',
+          source: await readFile(resolve(__dirname, 'README.zh-CN.md'), 'utf8'),
+          fileName: 'README.zh-CN.md',
+        });
+        this.emitFile({
+          type: 'asset',
+          source: await readFile(resolve(__dirname, 'LICENSE.md'), 'utf8'),
+          fileName: 'LICENSE.md',
+        });
+        await scanFiles(
+          resolve(__dirname, 'types'),
+          async (_, absolutePath) => {
+            const content = await readFile(absolutePath, 'utf8');
+            const relativePath = path.relative(__dirname, absolutePath);
+            this.emitFile({
+              type: 'asset',
+              source: content,
+              fileName: relativePath,
+            });
+          },
+        );
+      },
+    },
+  },
+];
 
 const getSharedOptions = (platform: 'node' | 'browser') => {
   const baseDir = platform === 'node' ? 'node' : 'client';
   const chunkFileExt = platform === 'node' ? 'js' : 'mjs';
   return defineConfig({
     platform,
-    external,
+    external: externalDeps,
     resolve: {
       alias: {
         '#deps-types': resolve(__dirname, 'src/types'),
@@ -38,53 +82,6 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
         '#utils': resolve(__dirname, 'utils'),
       },
     },
-    plugins: [
-      licensePlugin(
-        path.resolve(__dirname, 'LICENSE.md'),
-        '@docs-islands/vitepress license',
-        '@docs-islands/vitepress',
-      ),
-      dts(),
-      generatePackageJson(),
-      {
-        name: 'rolldown-plugin-copy-readme',
-        generateBundle: {
-          order: 'post',
-          async handler() {
-            this.emitFile({
-              type: 'asset',
-              source: await readFile(resolve(__dirname, 'README.md'), 'utf8'),
-              fileName: 'README.md',
-            });
-            this.emitFile({
-              type: 'asset',
-              source: await readFile(
-                resolve(__dirname, 'README.zh-CN.md'),
-                'utf8',
-              ),
-              fileName: 'README.zh-CN.md',
-            });
-            this.emitFile({
-              type: 'asset',
-              source: await readFile(resolve(__dirname, 'LICENSE.md'), 'utf8'),
-              fileName: 'LICENSE.md',
-            });
-            await scanFiles(
-              resolve(__dirname, 'types'),
-              async (_, absolutePath) => {
-                const content = await readFile(absolutePath, 'utf8');
-                const relativePath = path.relative(__dirname, absolutePath);
-                this.emitFile({
-                  type: 'asset',
-                  source: content,
-                  fileName: relativePath,
-                });
-              },
-            );
-          },
-        },
-      },
-    ],
     treeshake: {
       moduleSideEffects: [
         {
@@ -96,10 +93,16 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
     output: {
       dir: './dist',
       entryFileNames: (chunkInfo: PreRenderedChunk) => {
-        if (['logger', 'logger.d'].includes(chunkInfo.name)) {
+        /**
+         * The entry modules logger and client-runtime are runtime-injected
+         * artifacts that are not designed for direct consumption by end
+         * users, therefore separate .d.ts type declaration files are not
+         * required.
+         */
+        if (['logger'].includes(chunkInfo.name)) {
           return 'utils/[name].js';
         }
-        if (['client-runtime', 'client-runtime.d'].includes(chunkInfo.name)) {
+        if (['client-runtime'].includes(chunkInfo.name)) {
           return 'shared/[name].js';
         }
         return `${baseDir}/[name].${chunkFileExt}`;
@@ -122,6 +125,7 @@ const nodeConfig = defineConfig({
     index: resolve(__dirname, 'src/node/index.ts'),
     react: resolve(__dirname, 'src/node/react/index.ts'),
   },
+  plugins: nodePlugins,
   output: {
     ...sharedNodeOptions.output,
     minify: {
@@ -132,6 +136,19 @@ const nodeConfig = defineConfig({
   },
 });
 
+const nodeDtsConfig = defineConfig({
+  ...sharedNodeOptions,
+  input: {
+    index: resolve(__dirname, 'src/node/index.ts'),
+    react: resolve(__dirname, 'src/node/react/index.ts'),
+  },
+  plugins: [
+    dts({
+      emitDtsOnly: true,
+    }),
+  ],
+});
+
 const clientConfig = defineConfig({
   ...sharedBrowserOptions,
   input: {
@@ -139,7 +156,22 @@ const clientConfig = defineConfig({
     index: resolve(__dirname, 'src/client/index.ts'),
     react: resolve(__dirname, 'src/client/react/index.ts'),
   },
-  plugins: [dts()],
+  transform: {
+    target: 'es2020',
+  },
+});
+
+const clientDtsConfig = defineConfig({
+  ...sharedBrowserOptions,
+  input: {
+    index: resolve(__dirname, 'src/client/index.ts'),
+    react: resolve(__dirname, 'src/client/react/index.ts'),
+  },
+  plugins: [
+    dts({
+      emitDtsOnly: true,
+    }),
+  ],
   transform: {
     target: 'es2020',
   },
@@ -154,7 +186,6 @@ const clientRuntimeConfig = defineConfig({
   input: {
     'client-runtime': resolve(__dirname, 'src/shared/client-runtime.ts'),
   },
-  plugins: [dts()],
   transform: {
     target: 'es2020',
   },
@@ -172,7 +203,9 @@ const clientRuntimeConfig = defineConfig({
 
 const configs: RolldownOptions[] = [
   nodeConfig,
+  nodeDtsConfig,
   clientConfig,
+  clientDtsConfig,
   clientRuntimeConfig,
 ];
 
