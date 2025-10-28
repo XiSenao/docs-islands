@@ -87,7 +87,7 @@ describe('bundleMultipleComponentsForBrowser', () => {
     [
       '8b05459e',
       {
-        props: new Map([]),
+        props: new Map(),
         renderId: '8b05459e',
         renderDirective: 'client:load',
         renderComponent: 'Landing',

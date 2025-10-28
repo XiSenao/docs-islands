@@ -370,7 +370,7 @@ export default function coreTransformComponentTags(
         pending.push({ absStart, absEnd, replacement });
       }
 
-      for (const r of pending.sort((a, b) => b.absStart - a.absStart)) {
+      for (const r of pending.toSorted((a, b) => b.absStart - a.absStart)) {
         s.overwrite(r.absStart, r.absEnd, r.replacement);
       }
     }
