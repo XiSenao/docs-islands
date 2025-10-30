@@ -99,10 +99,10 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
          * users, therefore separate .d.ts type declaration files are not
          * required.
          */
-        if (['logger'].includes(chunkInfo.name)) {
+        if (['logger', 'logger.d'].includes(chunkInfo.name)) {
           return 'utils/[name].js';
         }
-        if (['client-runtime'].includes(chunkInfo.name)) {
+        if (['client-runtime', 'client-runtime.d'].includes(chunkInfo.name)) {
           return 'shared/[name].js';
         }
         return `${baseDir}/[name].${chunkFileExt}`;
@@ -164,6 +164,7 @@ const clientConfig = defineConfig({
 const clientDtsConfig = defineConfig({
   ...sharedBrowserOptions,
   input: {
+    logger: resolve(__dirname, 'utils/logger.ts'),
     index: resolve(__dirname, 'src/client/index.ts'),
     react: resolve(__dirname, 'src/client/react/index.ts'),
   },
@@ -189,6 +190,7 @@ const clientRuntimeConfig = defineConfig({
   transform: {
     target: 'es2020',
   },
+  plugins: [dts()],
   output: {
     ...sharedBrowserOptions.output,
     /**
