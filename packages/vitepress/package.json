@@ -120,9 +120,9 @@
     "./react": "./src/node/react/index.ts",
     "./react/client": "./src/client/react/index.ts",
     "./package.json": "./package.json",
-    "./client-utils/logger": "./utils/logger.ts",
-    "./client-shared/runtime": "./src/shared/client-runtime.ts",
-    "./client-shared/runtime-dev": "./dist/shared/client-runtime.js",
+    "./internal/logger": "./utils/logger.ts",
+    "./internal/runtime": "./src/shared/client-runtime.ts",
+    "./internal/runtime-dev": "./dist/shared/client-runtime.js",
     "./types/*": {
       "types": "./types/*"
     }
