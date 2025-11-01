@@ -9,21 +9,6 @@ const BUILD_PIPELINE: (string | string[])[] = [
 
 const logger = Logger.getLoggerByGroup('build');
 
-function shouldShowOutput(output: string): boolean {
-  const filteredPatterns = [
-    'npm warn',
-    'Unknown env config',
-    'Unknown project config',
-    'None of the selected packages has a "build" script',
-    'npm info using',
-    'npm info ok',
-    'npm http fetch',
-    'npm cache',
-  ];
-
-  return !filteredPatterns.some((pattern) => output.includes(pattern));
-}
-
 function getAllMonorepoPackages(): string[] {
   try {
     const result = execSync('pnpm ls -r --depth -1 --json', {
@@ -97,23 +82,21 @@ async function buildPackagesParallel(packages: string[]): Promise<boolean> {
       '--raw',
     ];
 
-    const child = spawn('npx', ['concurrently', ...concurrentlyOptions], {
-      stdio: ['inherit', 'pipe', 'pipe'],
-      shell: true,
-    });
+    const child = spawn(
+      'pnpm',
+      ['exec', 'concurrently', ...concurrentlyOptions],
+      {
+        stdio: ['inherit', 'pipe', 'pipe'],
+        shell: true,
+      },
+    );
 
     child.stdout.on('data', (data) => {
-      const output = data.toString();
-      if (shouldShowOutput(output)) {
-        process.stdout.write(output);
-      }
+      process.stdout.write(data);
     });
 
     child.stderr.on('data', (data) => {
-      const output = data.toString();
-      if (shouldShowOutput(output)) {
-        process.stderr.write(output);
-      }
+      process.stderr.write(data);
     });
 
     return new Promise((resolve) => {
@@ -143,17 +126,11 @@ async function buildPackagesSerial(packageName: string): Promise<boolean> {
     });
 
     child.stdout.on('data', (data) => {
-      const output = data.toString();
-      if (shouldShowOutput(output)) {
-        process.stdout.write(output);
-      }
+      process.stdout.write(data);
     });
 
     child.stderr.on('data', (data) => {
-      const output = data.toString();
-      if (shouldShowOutput(output)) {
-        process.stderr.write(output);
-      }
+      process.stderr.write(data);
     });
 
     return new Promise((resolve) => {
