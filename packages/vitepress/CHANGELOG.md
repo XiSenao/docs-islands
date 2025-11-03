@@ -6,6 +6,50 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2025-11-03
+
+### ⚠️ BREAKING CHANGES
+
+- **refactor(core)!: align internal api paths to `internal/*` namespace** ([f44616b](https://github.com/XiSenao/docs-islands/commit/f44616b))
+  - `client-utils/logger` → `internal/logger`
+  - `client-shared/runtime` → `internal/runtime`
+  - Note: These paths were internal implementation details and not part of the public API
+
+### Bug Fixes
+
+- fix(deps): downgrade @swc/core version to v1.13.5 ([7ce0985](https://github.com/XiSenao/docs-islands/commit/7ce0985)) - Resolves known compatibility issues
+- fix(scripts): target path parsing exception ([f10084f](https://github.com/XiSenao/docs-islands/commit/f10084f))
+- fix(typescript): comments contain nbsp, causing tsconfck parsing to fail ([31b3345](https://github.com/XiSenao/docs-islands/commit/31b3345))
+
+### Documentation
+
+- docs: refine project introduction and key features ([9355f61](https://github.com/XiSenao/docs-islands/commit/9355f61))
+- docs: improve stackblitz codeflow integration links ([6c453b9](https://github.com/XiSenao/docs-islands/commit/6c453b9))
+
+### Maintenance
+
+- chore(vitepress): handle internal runtime modules with empty type declarations ([0cb15e6](https://github.com/XiSenao/docs-islands/commit/0cb15e6))
+- refactor(build): use pnpm exec and remove output filtering ([9550a05](https://github.com/XiSenao/docs-islands/commit/9550a05))
+- chore(deps): bump actions and dev dependencies ([5b15f84](https://github.com/XiSenao/docs-islands/commit/5b15f84))
+- chore(config): add npmrc and refactor client export paths ([c56ad4f](https://github.com/XiSenao/docs-islands/commit/c56ad4f))
+- chore: enhance pnpm lint constraints and optimize toolchain ([f070dac](https://github.com/XiSenao/docs-islands/commit/f070dac))
+- chore(deps): upgrade dependencies and migrate pnpm config to workspace ([6b6250b](https://github.com/XiSenao/docs-islands/commit/6b6250b))
+- chore: refactor scripts and upgrade del-cli to v7 ([ccdcfba](https://github.com/XiSenao/docs-islands/commit/ccdcfba))
+- chore(typescript): remove support for subpaths in tsconfig.json ([565a011](https://github.com/XiSenao/docs-islands/commit/565a011))
+- refactor: restructure project architecture and rename e2e to playground (#26) ([b1af90f](https://github.com/XiSenao/docs-islands/commit/b1af90f)) - Major structural improvements for better code organization
+- chore(npm): @docs-islands/vitepress uses self-generated license ([11225ae](https://github.com/XiSenao/docs-islands/commit/11225ae))
+- refactor: standardize code formatting with prettier (#12) ([0bc714e](https://github.com/XiSenao/docs-islands/commit/0bc714e)) - Unified code style across the entire codebase
+- chore(test): reset the residual artifacts during e2e execution ([b7d1821](https://github.com/XiSenao/docs-islands/commit/b7d1821))
+
+### Build & CI
+
+- build(vitepress): separate dts generation and optimize plugins ([d258b8c](https://github.com/XiSenao/docs-islands/commit/d258b8c)) - Improved build performance
+- build(eslint-config): migrate to typescript and fix file operations ([21d6f57](https://github.com/XiSenao/docs-islands/commit/21d6f57))
+- ci(workflow): fix paths-filter exclusion patterns and improve filter accuracy ([16c93e5](https://github.com/XiSenao/docs-islands/commit/16c93e5))
+- ci: pkg.pr.new preview with label and comment ([a672df2](https://github.com/XiSenao/docs-islands/commit/a672df2)) - Enable PR preview deployments
+- ci: optimize playwright ci configuration ([56902ca](https://github.com/XiSenao/docs-islands/commit/56902ca))
+- ci: migrate to semantic-pull-request action ([42b43c9](https://github.com/XiSenao/docs-islands/commit/42b43c9))
+
 ## [0.1.1] - 2025-10-16
 
 ### Maintenance
