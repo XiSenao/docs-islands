@@ -30,19 +30,6 @@ const BROWSER_STYLES = {
   default: '',
 } as const;
 
-/**
- * @internal **Internal runtime helper - Do not import directly**
- *
- * This module is automatically injected by the plugin at build time.
- * It is not part of the public API and may change without warning.
- *
- * @example
- * // ❌ DON'T: Direct import from package users
- * import logger from '@docs-islands/vitepress/internal/logger'
- *
- * // ✅ For package contributors only
- * import logger from '#utils/logger'  // Works inside the package
- */
 class Logger {
   readonly #main: string;
   static readonly #groupMap = new Map<string, Logger>();

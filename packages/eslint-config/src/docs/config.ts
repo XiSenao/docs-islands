@@ -109,25 +109,29 @@ const config: Config = [
     },
   },
 
-  // React recommended configurations
-  eslintPluginReact.configs.flat.recommended,
-  eslintPluginReactHooks.configs.flat.recommended,
-  eslintPluginJsxA11y.flatConfigs.recommended,
-
-  // React shared settings - applied globally to all files
+  // React recommended configurations - only apply to React files
   {
-    name: 'React Settings',
-    settings: {
-      react: {
-        version: 'detect',
-      },
-    },
+    files: ['**/*.{jsx,mjsx,tsx,mtsx}'],
+    ...eslintPluginReact.configs.flat.recommended,
+  },
+  {
+    files: ['**/*.{jsx,mjsx,tsx,mtsx}'],
+    ...eslintPluginReactHooks.configs.flat.recommended,
+  },
+  {
+    files: ['**/*.{jsx,mjsx,tsx,mtsx}'],
+    ...eslintPluginJsxA11y.flatConfigs.recommended,
   },
 
   // React configuration overrides and customization
   {
     name: 'React',
     files: ['**/*.{jsx,mjsx,tsx,mtsx}'],
+    settings: {
+      react: {
+        version: 'detect',
+      },
+    },
     languageOptions: {
       parser: tsParser,
       parserOptions: {

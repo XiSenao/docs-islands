@@ -1,10 +1,20 @@
 import defaultConfig from '@docs-islands/eslint-config';
 import typescriptESlintParser from '@typescript-eslint/parser';
-import { defineConfig } from 'eslint/config';
+import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
 
 export default defineConfig([
   ...defaultConfig,
+
+  // Ignore intentionally empty .d.ts files for runtime modules
+  globalIgnores(['src/shared/client-runtime.d.ts', 'utils/logger.d.ts']),
+
+  {
+    rules: {
+      // https://typescript-eslint.io/rules/no-inferrable-types/#when-not-to-use-it
+      '@typescript-eslint/no-inferrable-types': 'off',
+    },
+  },
   {
     files: ['scripts/*.ts'],
     languageOptions: {

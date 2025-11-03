@@ -99,10 +99,10 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
          * users, therefore separate .d.ts type declaration files are not
          * required.
          */
-        if (['logger', 'logger.d'].includes(chunkInfo.name)) {
+        if (['logger'].includes(chunkInfo.name)) {
           return 'utils/[name].js';
         }
-        if (['client-runtime', 'client-runtime.d'].includes(chunkInfo.name)) {
+        if (['client-runtime'].includes(chunkInfo.name)) {
           return 'shared/[name].js';
         }
         return `${baseDir}/[name].${chunkFileExt}`;
@@ -164,7 +164,6 @@ const clientConfig = defineConfig({
 const clientDtsConfig = defineConfig({
   ...sharedBrowserOptions,
   input: {
-    logger: resolve(__dirname, 'utils/logger.ts'),
     index: resolve(__dirname, 'src/client/index.ts'),
     react: resolve(__dirname, 'src/client/react/index.ts'),
   },
@@ -190,7 +189,35 @@ const clientRuntimeConfig = defineConfig({
   transform: {
     target: 'es2020',
   },
-  plugins: [dts()],
+  plugins: [
+    {
+      name: 'rolldown-plugin-copy-runtime-dts',
+      generateBundle: {
+        order: 'post',
+        async handler() {
+          const clientRuntimeDtsContent = await readFile(
+            resolve(__dirname, 'src/shared/client-runtime.d.ts'),
+            'utf8',
+          );
+          this.emitFile({
+            type: 'asset',
+            fileName: 'shared/client-runtime.d.ts',
+            source: clientRuntimeDtsContent,
+          });
+
+          const loggerDtsContent = await readFile(
+            resolve(__dirname, 'utils/logger.d.ts'),
+            'utf8',
+          );
+          this.emitFile({
+            type: 'asset',
+            fileName: 'utils/logger.d.ts',
+            source: loggerDtsContent,
+          });
+        },
+      },
+    },
+  ],
   output: {
     ...sharedBrowserOptions.output,
     /**

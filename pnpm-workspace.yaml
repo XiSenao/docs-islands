@@ -24,6 +24,10 @@ overrides:
   # https://github.com/swc-project/swc/issues/11129
   '@swc/core': '1.13.5'
 
+nodeVersion: 20.19.0
+
+engineStrict: true
+
 patchedDependencies:
   vite: patches/vite@5.4.21.patch
 
