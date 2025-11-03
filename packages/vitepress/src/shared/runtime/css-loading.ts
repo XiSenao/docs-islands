@@ -324,19 +324,6 @@ const environment: Environment = (() => {
 const cssLoadingConfig: CSSLoadingConfig = createCSSLoadingConfig(environment);
 
 // TODO: Export CSS loading config to users.
-/**
- * @internal **Internal client runtime - Do not import directly**
- *
- * This module is copied to the user's build output by the plugin.
- * It is not part of the public API and may change without warning.
- *
- * @example
- * // ❌ DON'T: Direct import from package users
- * import runtime from '@docs-islands/vitepress/internal/runtime'
- *
- * // ✅ For package contributors only
- * import runtime from '#shared/client-runtime'  // Works inside the package
- */
 export default async function cssLoadingRuntime(
   highPriorityRenderStyles: string[],
 ): Promise<StyleLoadResult> {

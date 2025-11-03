@@ -47,6 +47,7 @@
     "release:beta": "tsx scripts/release.ts --type prerelease --preid beta",
     "release:alpha": "tsx scripts/release.ts --type prerelease --preid alpha",
     "release:dry": "tsx scripts/release.ts --dry-run --type patch",
+    "test": "pnpm test:unit && pnpm --filter @docs-islands/vitepress-playground test:e2e",
     "test:unit": "vitest run",
     "clean": "del-cli .eslintcache dist coverage node_modules"
   },
