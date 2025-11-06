@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "isolatedDeclarations": true,
+    "declaration": true,
+    "stripInternal": true,
+    // https://github.com/microsoft/TypeScript/wiki/Node-Target-Mapping#node-20
+    "lib": ["ES2023"],
+    "types": ["node"],
+  },
+  "include": ["./", "../types"],
+  "exclude": ["./**/__tests__/**"],
+}

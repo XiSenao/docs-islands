@@ -1,5 +1,6 @@
 import type { ComponentInfo, PageMetafile } from '#dep-types/page';
 import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
+import { formatErrorMessage } from '#utils/console';
 import logger from '#utils/logger';
 import { getCleanPathname } from '../../shared/runtime';
 
@@ -160,7 +161,7 @@ export class ReactComponentManager {
         }
       } catch (error) {
         Logger.warn(
-          `Failed to load global page metafile, message: ${error.message}`,
+          `Failed to load global page metafile, message: ${formatErrorMessage(error)}`,
         );
         this.pageMetafile = {};
         window[RENDER_STRATEGY_CONSTANTS.pageMetafile] = {};
@@ -239,7 +240,9 @@ export class ReactComponentManager {
       Logger.success('React lazy loading completed');
       return true;
     } catch (error) {
-      Logger.error(`React lazy loading failed, message: ${error.message}`);
+      Logger.error(
+        `React lazy loading failed, message: ${formatErrorMessage(error)}`,
+      );
       this.reactLoadPromise = null;
       throw error;
     }
@@ -395,7 +398,9 @@ export class ReactComponentManager {
         document.head.append(script);
       });
     } catch (error) {
-      Logger.error(`Component loading error, message: ${error.message}`);
+      Logger.error(
+        `Component loading error, message: ${formatErrorMessage(error)}`,
+      );
       return false;
     }
   }
@@ -446,7 +451,7 @@ export class ReactComponentManager {
       });
     } catch (error) {
       Logger.error(
-        `Failed to subscribe to component, message: ${error.message}`,
+        `Failed to subscribe to component, message: ${formatErrorMessage(error)}`,
       );
       throw error;
     }
@@ -480,7 +485,7 @@ export class ReactComponentManager {
             subscriber.resolve(true);
           } catch (error) {
             Logger.error(
-              `Subscription callback execution error, message: ${error.message}`,
+              `Subscription callback execution error, message: ${formatErrorMessage(error)}`,
             );
           }
         }
@@ -489,7 +494,7 @@ export class ReactComponentManager {
       }
     } catch (error) {
       Logger.error(
-        `Component load notification failed, message: ${error.message}`,
+        `Component load notification failed, message: ${formatErrorMessage(error)}`,
       );
       this.rejectSubscriptions(key, new Error('Component loading failed'));
     }
@@ -549,7 +554,7 @@ export class ReactComponentManager {
           subscriber.reject(error);
         } catch (rejectionError) {
           Logger.error(
-            `Subscription rejection handling error, message: ${rejectionError.message}`,
+            `Subscription rejection handling error, message: ${formatErrorMessage(rejectionError)}`,
           );
         }
       }

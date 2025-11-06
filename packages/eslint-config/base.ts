@@ -25,6 +25,7 @@ export const eslintConfigBase: Config = [
     '**/cache/**',
     '**/dist/**',
     '**/public/**',
+    '**/__tests__/**',
     '**/coverage/**',
   ]),
 

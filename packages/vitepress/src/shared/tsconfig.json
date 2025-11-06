@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "isolatedDeclarations": false,
+    "declaration": false,
+    "stripInternal": true,
+    "lib": ["ESNext", "DOM"],
+  },
+  "include": ["./", "../types/"],
+  "exclude": ["./**/__tests__/**"],
+}

@@ -2,6 +2,7 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
+import { formatErrorMessage } from '#utils/console';
 import logger from '#utils/logger';
 import { generate } from '@babel/generator';
 import { parse } from '@babel/parser';
@@ -43,17 +44,6 @@ interface TransformWithStatsResult extends ProcessResult {
     totalTransformations: number;
     transformedNodes: TransformStatsEntry[];
   };
-}
-
-function formatErrorMessage(
-  error: Error | string | number | boolean | null | undefined,
-): string {
-  if (error instanceof Error) return error.message;
-  try {
-    return String(error);
-  } catch {
-    return 'Unknown error';
-  }
 }
 
 // @babel/traverse only exposes a CommonJS package and does not use the 'exports.traverse' method to expose named interfaces.
