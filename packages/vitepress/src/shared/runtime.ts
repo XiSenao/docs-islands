@@ -1,19 +1,25 @@
+// This function is injected as a string into browser runtime via function.toString()
+// It will never execute in Node.js environment, but needs DOM types for compilation
+/// <reference lib="dom" />
+
 export const GET_CLEAN_PATHNAME_RUNTIME = function getCleanPathname(): string {
   const siteData =
     globalThis.window === undefined
       ? undefined
-      : globalThis.window.__VP_SITE_DATA__;
+      : (globalThis as Window & typeof globalThis).__VP_SITE_DATA__;
   let rawBase = '/';
   if (siteData?.base) {
     rawBase = siteData.base;
-  } else if ('__BASE__' in globalThis && typeof __BASE__ === 'string') {
+  } else if (typeof __BASE__ !== 'undefined' && typeof __BASE__ === 'string') {
     // Development mode, __BASE__ is defined in the globalThis.
     rawBase = __BASE__;
   }
 
   const base = rawBase.endsWith('/') ? rawBase : `${rawBase}/`;
 
-  let pathname = decodeURI(location.pathname);
+  // location is available in browser environment where this code runs
+  let pathname =
+    typeof location === 'undefined' ? '/' : decodeURI(location.pathname);
   if (pathname.startsWith(base)) pathname = pathname.slice(base.length - 1);
   if (!pathname.startsWith('/')) pathname = `/${pathname}`;
   pathname = pathname.replaceAll(/\/{2,}/g, '/');

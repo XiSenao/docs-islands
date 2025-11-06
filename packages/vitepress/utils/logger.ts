@@ -1,3 +1,7 @@
+// Logger utility for isomorphic code - imported by both Node.js and browser code
+// Needs DOM types for browser environment detection
+/// <reference lib="dom" />
+
 import picocolors from 'picocolors';
 
 const isColorSupported = Boolean(picocolors.isColorSupported);

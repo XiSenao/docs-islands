@@ -5,9 +5,9 @@
     "isolatedDeclarations": false,
   },
   "include": [
+    "./",
     ".vitepress/**/*.ts",
     ".vitepress/**/*.vue",
-    "**/*.ts",
     "en/**/*.vue",
     "zh/**/*.vue",
     "en/**/*.tsx",

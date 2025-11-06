@@ -1,15 +1,12 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "types": ["node", "vitest/globals"],
     "jsx": "preserve",
     "isolatedDeclarations": false,
+    "declaration": false,
   },
-  "include": [
-    "*.ts",
-    "**/*.test.ts",
-    ".vitepress/**/*.ts",
-    "components/react/*.tsx",
-    "client.d.ts",
-  ],
+  "include": ["./", "./.vitepress/**/*.ts"],
+  "exclude": [".vitepress/cache"],
 }

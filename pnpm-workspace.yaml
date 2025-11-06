@@ -23,6 +23,7 @@ overrides:
   # Since @swc/core@1.13.21 is broken, the version is temporarily locked to v1.13.5.
   # https://github.com/swc-project/swc/issues/11129
   '@swc/core': '1.13.5'
+  '@types/node': '^22.19.0'
 
 nodeVersion: 20.19.0
 
@@ -82,7 +83,7 @@ catalogs:
     '@types/estree': '^1.0.8'
     '@types/markdown-it': '^14.1.2'
     '@types/eslint-plugin-jsx-a11y': '^6.10.1'
-    '@types/node': '^24.3.0'
+    '@types/node': '^22.19.0'
     '@types/react': '^18.2.0'
     '@types/react-dom': '^18.2.0'
     'del-cli': '^7.0.0'

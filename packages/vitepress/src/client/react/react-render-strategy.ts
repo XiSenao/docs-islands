@@ -4,6 +4,7 @@ import {
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
 import { validateLegalRenderElements } from '#shared/utils';
+import { formatErrorMessage } from '#utils/console';
 import logger from '#utils/logger';
 import { getCleanPathname } from '../../shared/runtime';
 import { reactComponentManager } from './react-component-manager';
@@ -122,14 +123,16 @@ export class ReactRenderStrategy {
         globalThis.window.ReactDOM!.hydrateRoot(element, reactElement);
       } catch (error) {
         Logger.error(
-          `Hydration failed, fallback to client render, message: ${error.message}`,
+          `Hydration failed, fallback to client render, message: ${formatErrorMessage(error)}`,
         );
         const root = globalThis.window.ReactDOM!.createRoot(element);
         root.render(reactElement);
       }
       Logger.success(`Component ${renderComponent} hydration completed`);
     } catch (error) {
-      Logger.error(`Component hydration failed, message: ${error.message}`);
+      Logger.error(
+        `Component hydration failed, message: ${formatErrorMessage(error)}`,
+      );
     }
   }
 
@@ -169,7 +172,7 @@ export class ReactRenderStrategy {
       );
     } catch (error) {
       Logger.error(
-        `Component client-side rendering failed, message: ${error.message}`,
+        `Component client-side rendering failed, message: ${formatErrorMessage(error)}`,
       );
     }
   }
@@ -209,7 +212,7 @@ export class ReactRenderStrategy {
               props,
             }).catch((error) => {
               Logger.error(
-                `Visibility rendering failed, message: ${error.message}`,
+                `Visibility rendering failed, message: ${formatErrorMessage(error)}`,
               );
             });
           }
@@ -346,7 +349,9 @@ export class ReactRenderStrategy {
         );
       }
     } catch (error) {
-      Logger.error(`React runtime execution failed, message: ${error.message}`);
+      Logger.error(
+        `React runtime execution failed, message: ${formatErrorMessage(error)}`,
+      );
     }
   }
 
