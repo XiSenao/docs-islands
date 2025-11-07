@@ -1,10 +1,10 @@
 import type { ComponentInfo, PageMetafile } from '#dep-types/page';
 import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
-import { formatErrorMessage } from '#utils/console';
-import logger from '#utils/logger';
+import logger from '#shared/logger';
+import { formatErrorMessage } from '@docs-islands/utils/console';
 import { getCleanPathname } from '../../shared/runtime';
 
-const Logger = logger.getLoggerByGroup('ReactComponentManager');
+const Logger = logger.getLoggerByGroup('react-component-manager');
 
 interface ComponentSubscription {
   resolve: (value: boolean) => void;

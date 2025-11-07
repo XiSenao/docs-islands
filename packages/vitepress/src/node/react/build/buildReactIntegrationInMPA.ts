@@ -1,6 +1,6 @@
 import type { OutputChunk, RollupOutput } from '#dep-types/rollup';
 import type { ConfigType } from '#dep-types/utils';
-import logger from '#utils/logger';
+import logger from '#shared/logger';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'pathe';
@@ -10,7 +10,7 @@ import type { FrameworkAdapter } from '../../core/framework-adapter';
 import { reactAdapter } from '../adapter';
 import { isOutputChunk } from './shared';
 
-const Logger = logger.getLoggerByGroup('buildReactIntegrationInMPA');
+const Logger = logger.getLoggerByGroup('build-react-integration-in-mpa');
 
 let buildPromise: Promise<{
   entryPoint: string;
@@ -108,6 +108,10 @@ export const inBrowser = true;
         resolve: {
           extensions: ['.ts', '.tsx', '.js', '.jsx'],
           alias: {
+            '#types': resolve(
+              dirname(fileURLToPath(import.meta.url)),
+              '../../../../types',
+            ),
             '#dep-types': resolve(
               dirname(fileURLToPath(import.meta.url)),
               '../../../types',
@@ -115,10 +119,6 @@ export const inBrowser = true;
             '#shared': resolve(
               dirname(fileURLToPath(import.meta.url)),
               '../../../shared',
-            ),
-            '#utils': resolve(
-              dirname(fileURLToPath(import.meta.url)),
-              '../../../../utils',
             ),
           },
         },

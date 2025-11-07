@@ -2,13 +2,13 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
-import { formatErrorMessage } from '#utils/console';
-import logger from '#utils/logger';
+import logger from '#shared/logger';
 import { generate } from '@babel/generator';
 import { parse } from '@babel/parser';
 import type { NodePath } from '@babel/traverse';
 import babelTraverse from '@babel/traverse';
 import * as t from '@babel/types';
+import { formatErrorMessage } from '@docs-islands/utils/console';
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -123,7 +123,7 @@ class ReactSSRIntegrationProcessor {
       };
     } catch (error) {
       logger
-        .getLoggerByGroup('ReactSSRIntegrationProcessor')
+        .getLoggerByGroup('react-ssr-integration-processor')
         .error(`AST processing failed: ${formatErrorMessage(error)}`);
       return {
         code: this.sourceCode,
@@ -185,7 +185,7 @@ class ReactSSRIntegrationProcessor {
           }
         } catch (error) {
           logger
-            .getLoggerByGroup('ReactSSRIntegrationProcessor')
+            .getLoggerByGroup('react-ssr-integration-processor')
             .error(
               `Transform error, catch error: ${formatErrorMessage(error)}`,
             );
@@ -425,13 +425,15 @@ class ReactSSRIntegrationProcessor {
     // Input validation.
     if (!ast) {
       logger
-        .getLoggerByGroup('applyCssInjectionTransformation')
+        .getLoggerByGroup('apply-css-injection-transformation')
         .warn('Invalid AST provided, skipping CSS injection');
       return;
     }
 
     const cssPathsArray = [...ssrCssBundlePaths];
-    const Logger = logger.getLoggerByGroup('applyCssInjectionTransformation');
+    const Logger = logger.getLoggerByGroup(
+      'apply-css-injection-transformation',
+    );
 
     // Validate CSS paths.
     const validCssPaths = cssPathsArray.filter((path) => {

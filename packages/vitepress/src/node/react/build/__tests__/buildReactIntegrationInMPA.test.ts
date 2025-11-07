@@ -1,5 +1,5 @@
 import type { ConfigType } from '#dep-types/utils';
-import { resolveConfig } from '#utils/config';
+import { resolveConfig } from '#shared/config';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'pathe';

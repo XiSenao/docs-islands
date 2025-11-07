@@ -1,24 +1,39 @@
+/**
+ * Logger utility for isomorphic code - imported by both Node.js and browser code
+ * Needs DOM types for browser environment detection
+ */
+/// <reference lib="dom" />
+
 import picocolors from 'picocolors';
 
-const isColorSupported = Boolean(picocolors.isColorSupported);
-const MAIN_NAME = 'docs-islands';
+/** Available log levels */
+export type LogLevel = 'log' | 'warn' | 'error' | 'debug';
 
-let colors: typeof picocolors | null = null;
-if (isColorSupported) {
-  colors = picocolors;
+/** Available log kinds */
+export type LogKind = 'info' | 'success' | 'warn' | 'error' | 'debug';
+
+/** Options for light general logger */
+export interface LightGeneralLoggerOptions {
+  /** Whether to immediately log to console (default: true) */
+  immediate?: boolean;
 }
 
-const isBrowserRuntime =
-  globalThis.window !== undefined && typeof document !== 'undefined';
-const isNodeRuntime =
-  typeof process !== 'undefined' &&
-  Boolean(process.versions && process.versions.node);
-const isProductionEnv =
-  (import.meta !== undefined &&
-    (import.meta as unknown as { env?: { PROD?: boolean } }).env?.PROD ===
-      true) ||
-  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production');
+// ============================================================================
+// Constants
+// ============================================================================
 
+const MAIN_NAME = 'docs-islands';
+
+/** Icons for different log kinds */
+const LOG_ICONS = {
+  success: '✓',
+  warn: '⚠',
+  error: '✗',
+  info: 'info',
+  debug: 'debug',
+} as const;
+
+/** Browser CSS styles for different log kinds */
 const BROWSER_STYLES = {
   main: 'color: #007bff; font-weight: bold;',
   group: 'color: #ff8c00;',
@@ -30,214 +45,337 @@ const BROWSER_STYLES = {
   default: '',
 } as const;
 
+/** Light logger style configuration */
+const LIGHT_LOGGER_STYLES = {
+  success: {
+    icon: '✓',
+    iconColor: 'color: #13ef3e',
+    messageColor: 'color: #2ba245',
+  },
+  error: {
+    icon: '✗',
+    iconColor: 'color: rgb(233, 63, 80)',
+    messageColor: 'color: #dc3545',
+  },
+  info: {
+    icon: 'info',
+    iconColor: 'color: rgb(149, 155, 160)',
+    messageColor: 'color: #6c757d',
+  },
+  warn: {
+    icon: '⚠',
+    iconColor: 'color: rgb(255, 248, 32)',
+    messageColor: 'color: #ffc107',
+  },
+  debug: {
+    icon: 'debug',
+    iconColor: 'color: rgb(149, 155, 160)',
+    messageColor: 'color: #6c757d',
+  },
+} as const;
+
+const isBrowserRuntime =
+  typeof globalThis !== 'undefined' &&
+  globalThis.window !== undefined &&
+  typeof document !== 'undefined';
+
+const isProductionEnv = (() => {
+  // Check Vite's import.meta.env.PROD
+  // Using typeof check is necessary to avoid ReferenceError in non-ESM environments
+  // eslint-disable-next-line unicorn/no-typeof-undefined
+  if (typeof import.meta !== 'undefined') {
+    const env = (import.meta as { env?: { PROD?: boolean } }).env;
+    if (env?.PROD === true) return true;
+  }
+  // Check Node.js NODE_ENV
+  if (
+    typeof process !== 'undefined' &&
+    process.env?.NODE_ENV === 'production'
+  ) {
+    return true;
+  }
+  return false;
+})();
+
+interface PicocolorsType {
+  isColorSupported: boolean;
+  bold: (str: string) => string;
+  blueBright: (str: string) => string;
+  yellowBright: (str: string) => string;
+  dim: (str: string) => string;
+  green: (str: string) => string;
+  yellow: (str: string) => string;
+  red: (str: string) => string;
+  gray: (str: string) => string;
+}
+
+let colors: PicocolorsType | null = null;
+let isColorSupported = false;
+
+isColorSupported = Boolean(picocolors.isColorSupported);
+colors = isColorSupported ? (picocolors as PicocolorsType) : null;
+
+/**
+ * Checks if a log should be suppressed based on environment and kind
+ */
+function shouldSuppressLog(kind: LogKind): boolean {
+  // In browser production, suppress all logs
+  if (isBrowserRuntime && isProductionEnv) {
+    return true;
+  }
+  // Suppress non-critical logs in production environment
+  if (
+    isProductionEnv &&
+    (kind === 'info' || kind === 'success' || kind === 'debug')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Formats a message with icon and color for Node.js terminal
+ */
+function formatNodeMessage(
+  kind: LogKind,
+  message: string,
+): { icon: string; message: string } {
+  if (!isColorSupported) {
+    return { icon: LOG_ICONS[kind], message };
+  }
+
+  const iconColorMap = {
+    success: colors!.green,
+    warn: colors!.yellow,
+    error: colors!.red,
+    info: (s: string) => s,
+    debug: colors!.gray,
+  };
+
+  const messageColorMap = {
+    success: colors!.green,
+    warn: colors!.yellow,
+    error: colors!.red,
+    info: (s: string) => s,
+    debug: colors!.gray,
+  };
+
+  return {
+    icon: iconColorMap[kind](LOG_ICONS[kind]),
+    message: messageColorMap[kind](message),
+  };
+}
+
+/**
+ * Main logger class for both Node.js and browser environments
+ * @example
+ * ```ts
+ * const logger = new Logger();
+ * logger.info('Information message');
+ * logger.success('Success message');
+ * logger.warn('Warning message');
+ * logger.error('Error message');
+ *
+ * // With group
+ * const groupLogger = logger.getLoggerByGroup('my-module');
+ * groupLogger.info('Grouped message');
+ * ```
+ */
 class Logger {
   readonly #main: string;
-  static readonly #groupMap = new Map<string, Logger>();
   #group = '';
 
-  constructor(main: string) {
+  /** Cache for grouped loggers */
+  static readonly #groupMap = new Map<string, Logger>();
+
+  constructor(main: string = MAIN_NAME) {
     this.#main = main;
   }
 
-  static getLoggerByGroup(group: string): Logger {
+  /**
+   * Gets or creates a logger for a specific group
+   * @param group - The group identifier
+   * @returns Logger instance for the group
+   */
+  getLoggerByGroup(group: string): Logger {
     if (Logger.#groupMap.has(group)) {
       return Logger.#groupMap.get(group)!;
     }
-    const logger = new Logger(MAIN_NAME);
+    const logger = new Logger(this.#main);
     logger.setGroup(group);
     Logger.#groupMap.set(group, logger);
     return logger;
   }
 
+  /**
+   * Sets the group for this logger
+   * @param group - The group identifier
+   * @returns This logger instance for chaining
+   */
   setGroup(group: string): this {
     this.#group = group;
     return this;
   }
 
-  #log(
-    level: 'log' | 'warn' | 'error' | 'debug',
-    kind: 'info' | 'success' | 'warn' | 'error' | 'debug',
-    ...parts: string[]
-  ): void {
-    // In browser production, suppress all logs.
-    if (isBrowserRuntime && isProductionEnv) {
+  /**
+   * Formats the prefix for Node.js terminal output
+   */
+  #formatNodePrefix(): string {
+    if (!colors)
+      return `${this.#main}${this.#group ? `[${this.#group}]` : ''}: `;
+
+    const logMain = colors.bold(colors.blueBright(this.#main));
+    const group = this.#group
+      ? colors.dim('[') + colors.yellowBright(this.#group) + colors.dim(']')
+      : '';
+    const splitter = this.#group ? colors.dim(' » ') : colors.dim(': ');
+
+    return logMain + group + splitter;
+  }
+
+  /**
+   * Formats the prefix for browser console output
+   */
+  #formatBrowserPrefix(): { texts: string[]; styles: string[] } {
+    const texts: string[] = [];
+    const styles: string[] = [];
+
+    texts.push(`%c${this.#main}`);
+    styles.push(BROWSER_STYLES.main);
+
+    if (this.#group) {
+      texts.push('%c[', `%c${this.#group}`, '%c]', '%c » ');
+      styles.push(
+        BROWSER_STYLES.dim,
+        BROWSER_STYLES.group,
+        BROWSER_STYLES.dim,
+        BROWSER_STYLES.dim,
+      );
+    } else {
+      texts.push('%c: ');
+      styles.push(BROWSER_STYLES.dim);
+    }
+
+    return { texts, styles };
+  }
+
+  #log(level: LogLevel, kind: LogKind, ...parts: string[]): void {
+    if (shouldSuppressLog(kind)) {
       return;
     }
-    // Suppress non-critical logs in production environment.
-    if (
-      isProductionEnv &&
-      (kind === 'info' || kind === 'success' || kind === 'debug')
-    ) {
-      return;
-    }
-    if (isNodeRuntime && isColorSupported && colors) {
-      const logMain = colors.bold(colors.blueBright(this.#main));
-      const group = this.#group
-        ? colors.dim(`[`) + colors.yellowBright(this.#group) + colors.dim(`]`)
-        : '';
-      const splitter = this.#group ? colors.dim(' » ') : colors.dim(': ');
 
-      const prefix = logMain + group + splitter;
-      const message = parts.join(' ');
+    const message = parts.join(' ');
 
+    if (isColorSupported) {
+      // Node.js with color support
+      const prefix = this.#formatNodePrefix();
       console[level](`${prefix}${message}`);
     } else {
-      const texts: string[] = [];
-      const styles: string[] = [];
+      // Browser or Node.js without color support
+      const { texts, styles } = this.#formatBrowserPrefix();
 
-      texts.push(`%c${this.#main}`);
-      styles.push(BROWSER_STYLES.main);
-
-      if (this.#group) {
-        texts.push(`%c[`);
-        styles.push(BROWSER_STYLES.dim);
-        texts.push(`%c${this.#group}`);
-        styles.push(BROWSER_STYLES.group);
-        texts.push(`%c]`);
-        styles.push(BROWSER_STYLES.dim);
-        texts.push(`%c » `);
-        styles.push(BROWSER_STYLES.dim);
-      } else {
-        texts.push(`%c: `);
-        styles.push(BROWSER_STYLES.dim);
-      }
-
-      texts.push(`%c${parts.join(' ')}`);
-      switch (kind) {
-        case 'success': {
-          styles.push(BROWSER_STYLES.success);
-          break;
-        }
-        case 'warn': {
-          styles.push(BROWSER_STYLES.warn);
-          break;
-        }
-        case 'error': {
-          styles.push(BROWSER_STYLES.error);
-          break;
-        }
-        case 'debug': {
-          styles.push(BROWSER_STYLES.debug);
-          break;
-        }
-        default: {
-          styles.push(BROWSER_STYLES.default);
-        }
-      }
+      texts.push(`%c${message}`);
+      const styleKey = kind === 'info' ? 'default' : kind;
+      styles.push(BROWSER_STYLES[styleKey]);
 
       console[level](texts.join(''), ...styles);
     }
   }
 
+  /**
+   * Logs an informational message
+   * @param message - The message to log
+   */
   public info(message: string): void {
     this.#log('log', 'info', message);
   }
 
+  /**
+   * Logs a success message with a checkmark icon
+   * @param message - The message to log
+   */
   public success(message: string): void {
-    let icon = '✓';
-    let msg = message;
-    if (isColorSupported && colors) {
-      icon = colors.green('✓');
-      msg = colors.green(message);
-    }
+    const { icon, message: msg } = formatNodeMessage('success', message);
     this.#log('log', 'success', icon, msg);
   }
 
+  /**
+   * Logs a warning message with a warning icon
+   * @param message - The message to log
+   */
   public warn(message: string): void {
-    let icon = '⚠';
-    let msg = message;
-    if (isColorSupported && colors) {
-      icon = colors.yellow('⚠');
-      msg = colors.yellow(message);
-    }
+    const { icon, message: msg } = formatNodeMessage('warn', message);
     this.#log('warn', 'warn', icon, msg);
   }
 
+  /**
+   * Logs an error message with an error icon
+   * @param message - The message to log
+   */
   public error(message: string): void {
-    let icon = '✗';
-    let msg = message;
-    if (isColorSupported && colors) {
-      icon = colors.red('✗');
-      msg = colors.red(message);
-    }
+    const { icon, message: msg } = formatNodeMessage('error', message);
     this.#log('error', 'error', icon, msg);
   }
 
+  /**
+   * Logs a debug message
+   * @param message - The message to log
+   */
   public debug(message: string): void {
-    const icon = isColorSupported && colors ? colors.gray('debug') : 'debug';
-    const msg = isColorSupported && colors ? colors.gray(message) : message;
+    const { icon, message: msg } = formatNodeMessage('debug', message);
     this.#log('debug', 'debug', icon, msg);
   }
 }
 
 export default Logger;
 
-interface LightGeneralLoggerOptions {
-  immediate?: boolean;
-}
+// ============================================================================
+// Light General Logger (for dynamic code generation)
+// ============================================================================
 
-export const lightGeneralLogger = (
-  type: 'success' | 'info' | 'error' | 'warn' | 'debug',
+/**
+ * Lightweight logger function that can optionally return executable code string
+ * Primarily used for generating log statements to inject into client-side code
+ *
+ * @param logMain - Log subject
+ * @param type - The type of log message
+ * @param message - The message to log
+ * @param group - Optional group identifier
+ * @param options - Configuration options
+ * @returns Code string if immediate is false, void otherwise
+ *
+ * @example
+ * ```ts
+ * // Immediate logging
+ * lightGeneralLogger('success', 'Build completed', 'build');
+ *
+ * // Generate code string for injection
+ * const logCode = lightGeneralLogger('error', 'Build failed', 'build', { immediate: false });
+ * ```
+ */
+export function lightGeneralLogger(
+  logMain: string = MAIN_NAME,
+  type: LogKind,
   message: string,
   group?: string,
   options?: LightGeneralLoggerOptions,
-): string | void => {
+): string | void {
   const { immediate = true } = options || {};
+  const config = LIGHT_LOGGER_STYLES[type];
 
-  let icon = '✓';
-  let iconColor = 'color: #13ef3e';
-  let messageColor = 'color: #2ba245';
-  switch (type) {
-    case 'success': {
-      icon = '✓';
-      iconColor = 'color: #13ef3e';
-      messageColor = 'color: #2ba245';
-      break;
-    }
-    case 'error': {
-      icon = '✗';
-      iconColor = 'color:rgb(233, 63, 80)';
-      messageColor = 'color: #dc3545';
-      break;
-    }
-    case 'info': {
-      icon = 'info';
-      iconColor = 'color:rgb(149, 155, 160)';
-      messageColor = 'color: #6c757d';
-      break;
-    }
-    case 'warn': {
-      icon = '⚠';
-      iconColor = 'color:rgb(255, 248, 32)';
-      messageColor = 'color: #ffc107';
-      break;
-    }
-    case 'debug': {
-      icon = 'debug';
-      iconColor = 'color:rgb(149, 155, 160)';
-      messageColor = 'color: #6c757d';
-      break;
-    }
-  }
-  const groupDisplayText = group || '';
+  const groupText = group ? `[${group}]` : '';
+
   if (immediate) {
     console.log(
-      `%c${MAIN_NAME}%c${groupDisplayText ? `[${groupDisplayText}]` : ''}%c: » %c${icon}%c ${message}`,
+      `%c${logMain}%c${groupText}%c: » %c${config.icon}%c ${message}`,
       'color: #2579d9; font-weight: bold;',
       'color: #e28a00; font-weight: bold;',
       'color: gray;',
-      iconColor,
-      messageColor,
+      config.iconColor,
+      config.messageColor,
     );
   }
-  return `
-    console.log(
-      \`%c${MAIN_NAME}%c${groupDisplayText ? `[${groupDisplayText}]` : ''}%c: » %c${icon}%c ${message}\`,
-      'color: #2579d9; font-weight: bold;',
-      'color: #e28a00; font-weight: bold;', 
-      'color: gray;',                      
-      '${iconColor};',
-      '${messageColor};'
-    );
-  `;
-};
+
+  // Return executable code string for injection
+  return `console.log(\`%c${logMain}%c${groupText}%c: » %c${config.icon}%c ${message}\`,'color: #2579d9; font-weight: bold;','color: #e28a00; font-weight: bold;','color: gray;','${config.iconColor}','${config.messageColor}');`;
+}

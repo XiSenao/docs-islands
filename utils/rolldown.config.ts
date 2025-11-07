@@ -4,11 +4,11 @@ import { dts } from 'rolldown-plugin-dts';
 import { glob } from 'tinyglobby';
 
 async function getModuleFiles(): Promise<string[]> {
-  const files = await glob(['**/*.ts'], {
+  const files = await glob(['*.ts'], {
     cwd: process.cwd(),
     absolute: false,
     onlyFiles: true,
-    ignore: ['**/*.d.ts', 'rolldown.config.ts', '**/node_modules/**'],
+    ignore: ['rolldown.config.ts'],
   });
 
   return files.map((file) => file.replace('.ts', ''));
@@ -19,7 +19,7 @@ const modules = await getModuleFiles();
 const moduleConfigs: RolldownOptions[] = modules.map((module) =>
   defineConfig({
     input: `./${module}.ts`,
-    platform: 'node',
+    platform: 'neutral',
     external: [/^[\w@][^:]/],
     output: {
       dir: 'dist',
@@ -32,7 +32,7 @@ const moduleConfigs: RolldownOptions[] = modules.map((module) =>
 const dtsConfigs: RolldownOptions[] = modules.map((module) =>
   defineConfig({
     input: `./${module}.ts`,
-    platform: 'node',
+    platform: 'neutral',
     external: [/^[\w@][^:]/],
     output: {
       dir: `dist/${path.dirname(module)}`,

@@ -3,10 +3,9 @@
 /// <reference lib="dom" />
 
 export const GET_CLEAN_PATHNAME_RUNTIME = function getCleanPathname(): string {
-  const siteData =
-    globalThis.window === undefined
-      ? undefined
-      : (globalThis as Window & typeof globalThis).__VP_SITE_DATA__;
+  const siteData = globalThis.window
+    ? globalThis.window.__VP_SITE_DATA__
+    : undefined;
   let rawBase = '/';
   if (siteData?.base) {
     rawBase = siteData.base;

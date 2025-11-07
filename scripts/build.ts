@@ -1,5 +1,7 @@
 import { execSync, spawn } from 'node:child_process';
-import Logger, { lightGeneralLogger } from '../utils/logger';
+import logger, { lightGeneralLogger } from '../utils/logger';
+
+const MAIN_NAME = 'docs-islands';
 
 const BUILD_PIPELINE: (string | string[])[] = [
   ['@docs-islands/plugin-license', '@docs-islands/utils'],
@@ -7,7 +9,7 @@ const BUILD_PIPELINE: (string | string[])[] = [
   '...',
 ];
 
-const logger = Logger.getLoggerByGroup('build');
+const Logger = new logger().getLoggerByGroup('build');
 
 function getAllMonorepoPackages(): string[] {
   try {
@@ -30,7 +32,7 @@ function getAllMonorepoPackages(): string[] {
 
     return packages;
   } catch {
-    logger.warn('Failed to get monorepo packages, using fallback method');
+    Logger.warn('Failed to get monorepo packages, using fallback method');
     return [
       '@docs-islands/plugin-license',
       '@docs-islands/utils',
@@ -67,7 +69,7 @@ function getRemainingPackages(): string[] {
 
 async function buildPackagesParallel(packages: string[]): Promise<boolean> {
   try {
-    logger.info(`Building in parallel: [${packages.join(', ')}]`);
+    Logger.info(`Building in parallel: [${packages.join(', ')}]`);
 
     const commands = packages.map((pkg, index) => {
       const color = ['blue', 'green', 'yellow', 'magenta', 'cyan'][index % 5];
@@ -102,23 +104,23 @@ async function buildPackagesParallel(packages: string[]): Promise<boolean> {
     return new Promise((resolve) => {
       child.on('close', (code) => {
         if (code === 0) {
-          logger.success(`Parallel build completed successfully`);
+          Logger.success(`Parallel build completed successfully`);
           resolve(true);
         } else {
-          logger.error(`Parallel build failed with code ${code}`);
+          Logger.error(`Parallel build failed with code ${code}`);
           resolve(false);
         }
       });
     });
   } catch (error) {
-    logger.error(`Parallel build failed: ${error}`);
+    Logger.error(`Parallel build failed: ${error}`);
     return false;
   }
 }
 
 async function buildPackagesSerial(packageName: string): Promise<boolean> {
   try {
-    logger.info(`Building: ${packageName}`);
+    Logger.info(`Building: ${packageName}`);
 
     const child = spawn('pnpm', ['--filter', packageName, 'build'], {
       stdio: ['inherit', 'pipe', 'pipe'],
@@ -136,16 +138,16 @@ async function buildPackagesSerial(packageName: string): Promise<boolean> {
     return new Promise((resolve) => {
       child.on('close', (code) => {
         if (code === 0) {
-          logger.success(`Build completed successfully`);
+          Logger.success(`Build completed successfully`);
           resolve(true);
         } else {
-          logger.error(`Build failed with code ${code}`);
+          Logger.error(`Build failed with code ${code}`);
           resolve(false);
         }
       });
     });
   } catch (error) {
-    logger.error(`Build failed: ${error}`);
+    Logger.error(`Build failed: ${error}`);
     return false;
   }
 }
@@ -158,19 +160,23 @@ async function buildPackages(packages: string | string[]): Promise<boolean> {
 }
 
 async function main() {
-  logger.info('Starting optimized build process...\n');
+  Logger.info('Starting optimized build process...\n');
 
   const remainingPackages = getRemainingPackages();
   if (remainingPackages.length > 0) {
-    logger.info(
+    Logger.info(
       `Found ${remainingPackages.length} remaining packages:
 
 ${remainingPackages.map((pkg) => `- ${pkg}`).join('\n')}
 `,
     );
   } else {
-    logger.info(
-      lightGeneralLogger('info', 'No remaining packages found') as string,
+    Logger.info(
+      lightGeneralLogger(
+        MAIN_NAME,
+        'info',
+        'No remaining packages found',
+      ) as string,
     );
   }
 
@@ -190,19 +196,19 @@ ${remainingPackages.map((pkg) => `- ${pkg}`).join('\n')}
     }
   }
 
-  logger.info('Build Pipeline:');
+  Logger.info('Build Pipeline:');
   for (const [index, phase] of fullPipeline.entries()) {
     if (Array.isArray(phase)) {
-      logger.info(`  Phase ${index + 1}: [${phase.join(', ')}] (parallel)`);
+      Logger.info(`  Phase ${index + 1}: [${phase.join(', ')}] (parallel)`);
     } else if (phase === '...') {
-      logger.info(
+      Logger.info(
         `  Phase ${index + 1}: [${remainingPackages.join(', ')}] (parallel - auto-discovered)`,
       );
     } else {
-      logger.info(`  Phase ${index + 1}: ${phase}`);
+      Logger.info(`  Phase ${index + 1}: ${phase}`);
     }
   }
-  logger.info('');
+  Logger.info('');
 
   let successCount = 0;
   const totalPhases = fullPipeline.length;
@@ -215,25 +221,29 @@ ${remainingPackages.map((pkg) => `- ${pkg}`).join('\n')}
     if (await buildPackages(phase)) {
       successCount++;
     } else {
-      logger.error(`Phase ${i + 1} failed`);
+      Logger.error(`Phase ${i + 1} failed`);
       process.exit(1);
     }
 
-    logger.info('');
+    Logger.info('');
   }
 
   if (successCount === totalPhases) {
-    logger.success('All packages built successfully!');
+    Logger.success('All packages built successfully!');
     process.exit(0);
   } else {
-    logger.warn('Some phases failed');
+    Logger.warn('Some phases failed');
     process.exit(1);
   }
 }
 
 main().catch((error) => {
-  logger.error(
-    lightGeneralLogger('error', `Build process failed: ${error}`) as string,
+  Logger.error(
+    lightGeneralLogger(
+      MAIN_NAME,
+      'error',
+      `Build process failed: ${error}`,
+    ) as string,
   );
   process.exit(1);
 });

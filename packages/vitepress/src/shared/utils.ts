@@ -4,7 +4,7 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
-import logger from '#utils/logger';
+import logger from '#shared/logger';
 
 /**
  * TODO: The props for the container are passed as strings after being parsed by the Vue engine.
@@ -19,7 +19,7 @@ import logger from '#utils/logger';
  * @param element - The element to validate.
  */
 export const validateLegalRenderElements = (element: Element): boolean => {
-  const Logger = logger.getLoggerByGroup('validateLegalRenderElements');
+  const Logger = logger.getLoggerByGroup('validate-legal-render-elements');
   const renderStrategyProps: Record<string, string> = {};
 
   // Must include all render strategy attrs.

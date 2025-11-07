@@ -1,8 +1,8 @@
+import type { ConfigType } from '#dep-types/utils';
+import { getProjectRoot, slash } from '@docs-islands/utils/path';
 import { join, resolve } from 'pathe';
 import { normalizePath } from 'vite';
 import type { DefaultTheme, UserConfig } from 'vitepress';
-import type { ConfigType } from '../src/types/utils';
-import { getProjectRoot, slash } from './path';
 
 export const resolveConfig = (
   rawVitepressConfig: UserConfig<DefaultTheme.Config>,

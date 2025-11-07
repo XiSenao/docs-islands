@@ -1,4 +1,4 @@
-import { lightGeneralLogger } from '#utils/logger';
+import { LightGeneralLogger } from '#shared/logger';
 
 type Environment = 'development' | 'production' | 'debug';
 type FailureStrategy = 'partial' | 'strict';
@@ -141,7 +141,7 @@ async function loadHighPriorityStyles(
         performanceMetrics.totalLoadTime = endTime - startTime;
 
         if (enablePerformanceMonitoring) {
-          lightGeneralLogger(
+          LightGeneralLogger(
             'warn',
             `CSS loading timeout after ${timeout}ms. Loaded: ${loadedCount}/${totalStyles}, Failed: ${failedCount}`,
             'css-loading-runtime',
@@ -171,14 +171,14 @@ async function loadHighPriorityStyles(
         performanceMetrics.totalLoadTime = endTime - startTime;
 
         if (enablePerformanceMonitoring) {
-          lightGeneralLogger(
+          LightGeneralLogger(
             'success',
             `Success rate: ${loadedCount}/${totalStyles} (${((loadedCount / totalStyles) * 100).toFixed(1)}%)`,
             'css-loading-runtime',
           );
 
           if (performanceMetrics.duplicatesDetected > 0) {
-            lightGeneralLogger(
+            LightGeneralLogger(
               'info',
               `Detected and skipped ${performanceMetrics.duplicatesDetected} duplicate CSS files`,
               'css-loading-runtime',
@@ -186,7 +186,7 @@ async function loadHighPriorityStyles(
           }
 
           if (performanceMetrics.retriesPerformed > 0) {
-            lightGeneralLogger(
+            LightGeneralLogger(
               'info',
               `Performed ${performanceMetrics.retriesPerformed} retries`,
               'css-loading-runtime',
@@ -237,7 +237,7 @@ async function loadHighPriorityStyles(
         loadResults.set(styleUrl, { success: true, loadTime, retries });
 
         if (enablePerformanceMonitoring && loadTime > 1000) {
-          lightGeneralLogger(
+          LightGeneralLogger(
             'warn',
             `Slow CSS loading detected: ${styleUrl} took ${loadTime.toFixed(2)}ms`,
             'css-loading-runtime',
@@ -250,7 +250,7 @@ async function loadHighPriorityStyles(
       const onError = (): void => {
         if (retries < retryCount) {
           performanceMetrics.retriesPerformed++;
-          lightGeneralLogger(
+          LightGeneralLogger(
             'error',
             `CSS loading failed for ${styleUrl}, retrying (${retries + 1}/${retryCount})`,
             'css-loading-runtime',
@@ -279,7 +279,7 @@ async function loadHighPriorityStyles(
           });
 
           if (enablePerformanceMonitoring) {
-            lightGeneralLogger(
+            LightGeneralLogger(
               'error',
               `CSS loading failed permanently: ${styleUrl} after ${retries} retries`,
               'css-loading-runtime',
@@ -338,13 +338,13 @@ export default async function cssLoadingRuntime(
       globalThis.location.search.includes('debug'))
   ) {
     if (loadResult.timedOut) {
-      lightGeneralLogger(
+      LightGeneralLogger(
         'error',
         `CSS loading timed out. Loaded: ${loadResult.loadedCount}/${loadResult.totalCount}`,
         'css-loading-runtime',
       );
     } else if (loadResult.failedCount > 0) {
-      lightGeneralLogger(
+      LightGeneralLogger(
         'error',
         `Some CSS files failed to load: ${loadResult.failedCount}/${loadResult.totalCount} failed`,
         'css-loading-runtime',
@@ -352,7 +352,7 @@ export default async function cssLoadingRuntime(
     }
 
     if (loadResult.metrics?.totalLoadTime) {
-      lightGeneralLogger(
+      LightGeneralLogger(
         'success',
         `Total CSS loading time: ${loadResult.metrics.totalLoadTime.toFixed(2)}ms`,
         'css-loading-runtime',

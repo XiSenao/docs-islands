@@ -21,6 +21,6 @@
  * // The logger will be available in the runtime context
  *
  * // ✅ For package contributors only (development)
- * import { lightGeneralLogger } from '#utils/logger'  // Works inside the package
+ * import { lightGeneralLogger } from '#shared/logger'  // Works inside the package
  */
 export {};

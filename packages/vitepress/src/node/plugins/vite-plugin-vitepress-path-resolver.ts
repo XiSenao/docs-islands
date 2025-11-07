@@ -1,6 +1,6 @@
 import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
-import logger from '#utils/logger';
-import { getProjectRoot } from '#utils/path';
+import logger from '#shared/logger';
+import { getProjectRoot } from '@docs-islands/utils/path';
 import { dirname, extname, isAbsolute, join, relative, resolve } from 'pathe';
 import { normalizePath } from 'vite';
 import type { DefaultTheme, Plugin, SiteConfig } from 'vitepress';

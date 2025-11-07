@@ -7,8 +7,8 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
+import logger from '#shared/logger';
 import { validateLegalRenderElements } from '#shared/utils';
-import logger from '#utils/logger';
 import type React from 'react';
 import type ReactDOM from 'react-dom/client';
 import { getCleanPathname } from '../../shared/runtime';
@@ -76,7 +76,7 @@ class ReactIntegration {
        * the browser will not detect the change on subsequent route transitions.
        */
       import(/* @vite-ignore */ scriptPath).then(() => {
-        const Logger = logger.getLoggerByGroup('loadDevRenderRuntime');
+        const Logger = logger.getLoggerByGroup('load-dev-render-runtime');
         Logger.success('Development render runtime loaded successfully');
       });
     }
@@ -200,7 +200,7 @@ class ReactIntegration {
         memoizedUpdateState.pendingMissingImports =
           memoizedUpdateState.pendingMissingImports || [];
 
-        const Logger = logger.getLoggerByGroup('vite:afterUpdate');
+        const Logger = logger.getLoggerByGroup('vite:after-update');
         const renderComponentDOMContainers = document.querySelectorAll(
           `[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}]`,
         );
@@ -743,7 +743,7 @@ class ReactIntegration {
                 }
                 element.innerHTML = ssrHtml;
                 logger
-                  .getLoggerByGroup('HotUpdated')
+                  .getLoggerByGroup('hot-updated')
                   .success('ssr:only component HMR completed.');
               }
             }
