@@ -16,6 +16,7 @@
     "eslint": "catalog:lint",
     "@docs-islands/eslint-config": "workspace:*",
     "typescript": "catalog:dev",
+    "pathe": "catalog:dev",
     "del-cli": "catalog:dev",
     "picocolors": "catalog:dev",
     "rolldown": "catalog:dev",

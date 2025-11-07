@@ -3,6 +3,7 @@
   "compilerOptions": {
     "jsx": "preserve",
     "isolatedDeclarations": false,
+    "declaration": false,
   },
   "include": [
     "./",

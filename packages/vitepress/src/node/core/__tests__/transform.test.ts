@@ -5,7 +5,7 @@ import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
 import { describe, expect, it, vi } from 'vitest';
 import coreTransformComponentTags, { travelImports } from '../transform';
 
-vi.mock('#utils/logger', () => ({
+vi.mock('#shared/logger', () => ({
   default: {
     getLoggerByGroup: () => ({
       warn: vi.fn(),

@@ -1,4 +1,11 @@
 {
   "extends": "../tsconfig.base.json",
-  "include": ["**/*.ts"],
+  "compilerOptions": {
+    "isolatedDeclarations": true,
+    "declaration": true,
+    "lib": ["ESNext", "DOM"],
+    "types": ["node"],
+  },
+  "include": ["./", "../types/", "./logger.d.ts"],
+  "exclude": ["./**/__tests__/**"],
 }

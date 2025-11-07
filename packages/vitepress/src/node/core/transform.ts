@@ -4,7 +4,7 @@ import {
   SPA_RENDER_SYNC_OFF,
   SPA_RENDER_SYNC_ON,
 } from '#shared/constants';
-import logger from '#utils/logger';
+import logger from '#shared/logger';
 import type { Identifier, Literal } from 'estree';
 import MagicString, { type SourceMap } from 'magic-string';
 import MarkdownIt from 'markdown-it';

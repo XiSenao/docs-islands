@@ -1,7 +1,5 @@
 import fs from 'node:fs';
-import { dirname, join, relative } from 'pathe';
-import { normalizePath } from 'vite';
-import type { ConfigType } from '../src/types/utils';
+import { dirname, join } from 'pathe';
 
 export function slash(p: string): string {
   return p.replaceAll('\\', '/');
@@ -33,23 +31,3 @@ export function getProjectRoot(): string {
 
   return process.cwd();
 }
-
-export const getPathnameByMarkdownModuleId = (
-  markdownModuleId: string,
-  siteConfig: ConfigType,
-): string => {
-  const relativePath = normalizePath(
-    relative(siteConfig.srcDir, markdownModuleId),
-  );
-  let pathname = `/${relativePath
-    .replace(/\.md$/, siteConfig.cleanUrls ? '' : '.html')
-    .replace(/(^|\/)index(?:\.html)?$/, '$1')}`;
-
-  if (pathname === '' || pathname === '/index') {
-    pathname = '/';
-  }
-
-  return siteConfig.base === '/'
-    ? pathname
-    : siteConfig.base.slice(0, -1) + pathname;
-};

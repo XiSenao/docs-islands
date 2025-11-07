@@ -4,9 +4,9 @@ import { defineConfig, type ViteUserConfig } from 'vitest/config';
 const config: ViteUserConfig = defineConfig({
   resolve: {
     alias: {
+      '#types': fileURLToPath(new URL('types', import.meta.url)),
       '#dep-types': fileURLToPath(new URL('src/types', import.meta.url)),
       '#shared': fileURLToPath(new URL('src/shared', import.meta.url)),
-      '#utils': fileURLToPath(new URL('utils', import.meta.url)),
     },
   },
   test: {

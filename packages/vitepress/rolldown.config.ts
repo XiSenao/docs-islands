@@ -77,9 +77,9 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
     external: externalDeps,
     resolve: {
       alias: {
+        '#types': fileURLToPath(new URL('types', import.meta.url)),
         '#deps-types': resolve(__dirname, 'src/types'),
         '#shared': resolve(__dirname, 'src/shared'),
-        '#utils': resolve(__dirname, 'utils'),
       },
     },
     treeshake: {
@@ -99,10 +99,7 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
          * users, therefore separate .d.ts type declaration files are not
          * required.
          */
-        if (['logger'].includes(chunkInfo.name)) {
-          return 'utils/[name].js';
-        }
-        if (['client-runtime'].includes(chunkInfo.name)) {
+        if (['logger', 'client-runtime'].includes(chunkInfo.name)) {
           return 'shared/[name].js';
         }
         return `${baseDir}/[name].${chunkFileExt}`;
@@ -152,7 +149,7 @@ const nodeDtsConfig = defineConfig({
 const clientConfig = defineConfig({
   ...sharedBrowserOptions,
   input: {
-    logger: resolve(__dirname, 'utils/logger.ts'),
+    logger: resolve(__dirname, 'src/shared/logger.ts'),
     index: resolve(__dirname, 'src/client/index.ts'),
     react: resolve(__dirname, 'src/client/react/index.ts'),
   },
@@ -206,12 +203,12 @@ const clientRuntimeConfig = defineConfig({
           });
 
           const loggerDtsContent = await readFile(
-            resolve(__dirname, 'utils/logger.d.ts'),
+            resolve(__dirname, 'src/shared/logger.d.ts'),
             'utf8',
           );
           this.emitFile({
             type: 'asset',
-            fileName: 'utils/logger.d.ts',
+            fileName: 'shared/logger.d.ts',
             source: loggerDtsContent,
           });
         },

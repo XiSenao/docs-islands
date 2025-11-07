@@ -4,8 +4,8 @@ import type {
 } from '#dep-types/component';
 import type { ConfigType } from '#dep-types/utils';
 import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
-import { isNodeLikeBuiltin } from '#utils/builtin';
-import logger, { lightGeneralLogger } from '#utils/logger';
+import logger, { LightGeneralLogger } from '#shared/logger';
+import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { dirname, join } from 'pathe';
@@ -16,7 +16,9 @@ import type { FrameworkAdapter } from '../../core/framework-adapter';
 import { reactAdapter } from '../adapter';
 import { isOutputAsset, isOutputChunk } from './shared';
 
-const Logger = logger.getLoggerByGroup('bundleMultipleComponentsForBrowser');
+const Logger = logger.getLoggerByGroup(
+  'bundle-multiple-components-for-browser',
+);
 
 export async function bundleMultipleComponentsForBrowser(
   config: ConfigType,
@@ -268,7 +270,7 @@ export async function bundleMultipleComponentsForBrowser(
           const module = await import('${wrapBaseUrl(entry.modulePath)}');
           return ${getExportExpression(entry.importReference)};
         } catch (error) {
-          ${lightGeneralLogger('error', `Failed to load component ${entry.componentName}: error.message`, 'react-client-render', { immediate: false })}
+          ${LightGeneralLogger('error', `Failed to load component ${entry.componentName}: error.message`, 'react-client-render', { immediate: false })}
           return null;
         }
       }
@@ -300,7 +302,7 @@ export async function bundleMultipleComponentsForBrowser(
     result.status === 'fulfilled' && result.value.success
   ).length;
 
-      ${lightGeneralLogger('success', `Loaded \${successCount} / \${componentLoaders.length} React components for page: \${pageId}`, 'react-client-render', { immediate: false })}
+      ${LightGeneralLogger('success', `Loaded \${successCount} / \${componentLoaders.length} React components for page: \${pageId}`, 'react-client-render', { immediate: false })}
 })();
     `.trim();
 

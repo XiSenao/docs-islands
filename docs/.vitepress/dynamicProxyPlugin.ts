@@ -1,4 +1,4 @@
-import Logger from '@docs-islands/utils/logger';
+import logger from '@docs-islands/utils/logger';
 import httpProxy from 'http-proxy';
 import type { ChildProcess } from 'node:child_process';
 import { spawn } from 'node:child_process';
@@ -29,14 +29,16 @@ const DEFAULT_CONFIG: ProxyConfig = {
   shutdownTimeout: 5000,
 };
 
+const Logger = new logger();
+
 class ProjectManager {
   private runningProjects = new Map<string, ProjectInfo>();
   private startingProjects = new Map<string, Promise<number>>();
-  private logger: Logger;
+  private logger: typeof Logger;
   private cleanupHandlers: (() => void)[] = [];
   private config: ProxyConfig;
 
-  constructor(config: ProxyConfig, logger: Logger) {
+  constructor(config: ProxyConfig, logger: typeof Logger) {
     this.config = config;
     this.logger = logger;
   }
@@ -229,14 +231,14 @@ class ProjectManager {
 
 class ProxyHandler {
   private proxy: httpProxy;
-  private logger: Logger;
+  private logger: typeof Logger;
   private config: ProxyConfig;
   private projectManager: ProjectManager;
 
   constructor(
     config: ProxyConfig,
     projectManager: ProjectManager,
-    logger: Logger,
+    logger: typeof Logger,
   ) {
     this.config = config;
     this.projectManager = projectManager;

@@ -3,13 +3,13 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
+import logger from '#shared/logger';
 import { validateLegalRenderElements } from '#shared/utils';
-import { formatErrorMessage } from '#utils/console';
-import logger from '#utils/logger';
+import { formatErrorMessage } from '@docs-islands/utils/console';
 import { getCleanPathname } from '../../shared/runtime';
 import { reactComponentManager } from './react-component-manager';
 
-const Logger = logger.getLoggerByGroup('ReactRenderStrategy');
+const Logger = logger.getLoggerByGroup('react-render-strategy');
 
 interface RenderContext {
   pageId: string;

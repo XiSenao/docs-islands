@@ -35,7 +35,7 @@
   "scripts": {
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
     "lint:package": "publint ./dist --strict --pack pnpm",
-    "typecheck": "tsc --noEmit && tsc -p src/node --noEmit && tsc -p src/client --noEmit && tsc -p utils --noEmit && tsc -p src/shared --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p src/node --noEmit && tsc -p src/client --noEmit && tsc -p src/shared --noEmit",
     "build": "rolldown --config rolldown.config.ts",
     "build:watch": "enableClientRuntimeSourcemap=1 rolldown --config rolldown.config.ts --watch",
     "changelog": "tsx scripts/changelog.ts",
@@ -54,8 +54,7 @@
   "imports": {
     "#types/*": "./types/*.d.ts",
     "#dep-types/*": "./src/types/*.d.ts",
-    "#shared/*": "./src/shared/*.ts",
-    "#utils/*": "./utils/*.ts"
+    "#shared/*": "./src/shared/*.ts"
   },
   "dependencies": {
     "cheerio": "catalog:prod",
@@ -126,7 +125,7 @@
     "./react": "./src/node/react/index.ts",
     "./react/client": "./src/client/react/index.ts",
     "./package.json": "./package.json",
-    "./internal/logger": "./utils/logger.ts",
+    "./internal/logger": "./src/shared/logger.ts",
     "./internal/runtime": "./src/shared/client-runtime.ts",
     "./internal/runtime-dev": "./dist/shared/client-runtime.js",
     "./types/*": {

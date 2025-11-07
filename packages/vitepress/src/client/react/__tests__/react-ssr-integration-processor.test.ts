@@ -6,7 +6,7 @@ import type { ExtractedProps } from '../react-ssr-integration-processor';
 import { transformReactSSRIntegrationCode } from '../react-ssr-integration-processor';
 
 // Mock logger.
-vi.mock('#utils/logger', () => ({
+vi.mock('#shared/logger', () => ({
   default: {
     getLoggerByGroup: () => ({
       error: vi.fn(),
