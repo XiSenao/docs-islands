@@ -6,6 +6,5 @@
     "lib": ["ESNext", "DOM"],
     "types": ["node"],
   },
-  "include": ["./", "../types/", "./logger.d.ts"],
-  "exclude": ["./**/__tests__/**"],
+  "include": ["./", "./logger.d.ts"],
 }

@@ -7,5 +7,4 @@
     "lib": ["ESNext", "DOM"],
   },
   "include": ["./", "../types/"],
-  "exclude": ["./**/__tests__/**"],
 }

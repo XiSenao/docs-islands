@@ -8,5 +8,4 @@
     "declaration": false,
   },
   "include": ["./", "./.vitepress/**/*.ts"],
-  "exclude": [".vitepress/cache"],
 }
