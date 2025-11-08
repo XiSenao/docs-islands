@@ -8,5 +8,4 @@
     "jsx": "preserve",
   },
   "include": ["./", "../types"],
-  "exclude": ["./**/__tests__/**"],
 }

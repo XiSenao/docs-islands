@@ -20,5 +20,5 @@
     "skipLibCheck": true,
     "stripInternal": true
   },
-  "exclude": ["dist", "node_modules"]
+  "exclude": ["**/*cache", "**/*dist", "**/__tests__/**"]
 }

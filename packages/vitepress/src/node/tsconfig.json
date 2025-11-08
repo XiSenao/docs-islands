@@ -9,5 +9,4 @@
     "types": ["node"],
   },
   "include": ["./", "../types"],
-  "exclude": ["./**/__tests__/**"],
 }
