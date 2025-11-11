@@ -37,6 +37,14 @@ function readPackage(pkg) {
     };
   }
 
+  // Ensure the integrity of type detection.
+  if (pkg.name === '@vue/compiler-core' || pkg.name === '@vue/compiler-sfc') {
+    pkg.dependencies = {
+      ...pkg.dependencies,
+      '@babel/types': '*',
+    };
+  }
+
   return pkg;
 }
 

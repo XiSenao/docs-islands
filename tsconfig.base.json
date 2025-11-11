@@ -17,6 +17,7 @@
     "verbatimModuleSyntax": true,
     "forceConsistentCasingInFileNames": true,
     "erasableSyntaxOnly": true,
+    // lib check is only for build output artifacts.
     "skipLibCheck": true,
     "stripInternal": true
   },
