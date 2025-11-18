@@ -43,7 +43,7 @@ jobs:
       ci: ${{ steps.filter.outputs.ci }}
     steps:
       # actions/checkout@v5.0.0
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
         with:
           # Fetch full history for change detection
           fetch-depth: 0
@@ -105,7 +105,7 @@ jobs:
     if: needs.changes.outputs.src == 'true' || needs.changes.outputs.deps == 'true'
     steps:
       # actions/checkout@v5.0.0
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -139,7 +139,7 @@ jobs:
       (needs.changes.outputs.src == 'true' || needs.changes.outputs.style == 'true')
     steps:
       # action/checkout@v5.0.0
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -201,7 +201,7 @@ jobs:
     continue-on-error: ${{ matrix.continue-on-error || false }}
     steps:
       # action/checkout@v5.0.0
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -265,7 +265,7 @@ jobs:
     if: needs.changes.outputs.docs == 'true' || needs.changes.outputs.src == 'true'
     steps:
       # action/checkout@v5.0.0
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env

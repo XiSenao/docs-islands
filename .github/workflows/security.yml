@@ -36,7 +36,7 @@ jobs:
       issues: write
     steps:
       # action/checkout@v5.0.0.
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
         with:
           fetch-depth: 0
 
@@ -98,7 +98,7 @@ jobs:
       high_count: ${{ steps.audit.outputs.high_count }}
     steps:
       # action/checkout@v5.0.0.
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -224,7 +224,7 @@ jobs:
       updates_available: ${{ steps.outdated.outputs.updates_available }}
     steps:
       # action/checkout@v5.0.0.
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -340,7 +340,7 @@ jobs:
       has_incompatible: ${{ steps.license.outputs.has_incompatible }}
     steps:
       # action/checkout@v5.0.0.
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -417,7 +417,7 @@ jobs:
       contents: read
     steps:
       # action/checkout@v5.0.0.
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
 
       - name: Setup Environment
         uses: ./.github/actions/setup-env
@@ -434,7 +434,7 @@ jobs:
 
       - name: Generate SBOM with Syft
         # anchore/sbom-action@v0.20.9.
-        uses: anchore/sbom-action@8e94d75ddd33f69f691467e42275782e4bfefe84
+        uses: anchore/sbom-action@fbfd9c6c189226748411491745178e0c2017392d
         with:
           path: .
           output-file: sbom.json
