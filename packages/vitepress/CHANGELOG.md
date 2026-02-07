@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-02-07
+
+### Bug Fixes
+
+- fix(vitepress): preserve query string in module ID to avoid processing Vue SFC sub-modules as Markdown ([f1b43bd](https://github.com/XiSenao/docs-islands/commit/f1b43bd))
+
+### Maintenance
+
+- refactor(tsconfig): streamline include patterns and centralize exclude rules ([4673f47](https://github.com/XiSenao/docs-islands/commit/4673f47))
+- refactor(vitepress): consolidate utils to monorepo and reorganize shared modules ([4a327af](https://github.com/XiSenao/docs-islands/commit/4a327af))
+- refactor(tsconfig): modularize typescript configuration by module ([0bdff19](https://github.com/XiSenao/docs-islands/commit/0bdff19))
+
+### Other Changes
+
+- build(vitepress): enforce type check for package dist with skipLibCheck best practice ([7369a70](https://github.com/XiSenao/docs-islands/commit/7369a70))
+
 ## [0.1.2] - 2025-11-03
 
 ### ⚠️ BREAKING CHANGES
