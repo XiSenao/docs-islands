@@ -552,16 +552,31 @@ export default function vitepressReactRenderingStrategies(
     id: string,
     ctx: TransformContext,
   ): Promise<{ code: string; map: SourceMap | null }> {
-    // Normalize and clean the id to ensure consistent behavior across platforms (e.g., Windows adds ?v=...)
-    const cleanedId = normalizePath(id.split('?')[0].replace(/#.*$/, ''));
+    /**
+     * Only normalize path separators (backslash → forward slash) without stripping
+     * query strings or hash fragments. This is intentional:
+     *
+     * VitePress compiles Markdown files into Vue SFCs. When a Markdown file contains
+     * `<style>` blocks, `@vitejs/plugin-vue` generates sub-module requests with query
+     * suffixes appended to the original `.md` path, e.g.:
+     *
+     *   /path/to/page.md?vue&type=style&index=0&lang.css
+     *
+     * By preserving the full module ID, the `.endsWith('.md')` guard below correctly
+     * skips these style (and template/script) sub-modules, which carry CSS—not
+     * Markdown—content. Stripping the query string would cause them to pass the guard
+     * and be incorrectly processed as Markdown.
+     *
+     * This is consistent with VitePress's own approach (see vitepress/src/node/plugin.ts).
+     */
+    const normalizedId = normalizePath(id);
 
-    if (!cleanedId.endsWith('.md')) {
+    if (!normalizedId.endsWith('.md')) {
       return {
         code,
         map: null,
       };
     }
-    const normalizedId = cleanedId;
     await init;
 
     const s = new MagicString(code);
