@@ -8,7 +8,7 @@ import type { InlineConfig, Plugin } from 'vite';
 import { build as viteBuild } from 'vite';
 import type { FrameworkAdapter } from '../../core/framework-adapter';
 import { reactAdapter } from '../adapter';
-import { isOutputChunk } from './shared';
+import { isOutputChunk, resolveSafeOutputPath } from './shared';
 
 const Logger = logger.getLoggerByGroup('build-react-integration-in-mpa');
 
@@ -147,7 +147,10 @@ export const inBrowser = true;
           }
 
           if (isOutputChunk(chunk)) {
-            const fullOutputPath = join(outDir, chunk.fileName);
+            const fullOutputPath = resolveSafeOutputPath(
+              outDir,
+              chunk.fileName,
+            );
             const code = chunk.code;
             if (!fs.existsSync(dirname(fullOutputPath))) {
               fs.mkdirSync(dirname(fullOutputPath), { recursive: true });
@@ -170,10 +173,7 @@ export const inBrowser = true;
       throw new Error('vite did not generate output file');
     } catch (error) {
       Logger.error(`ReactIntegration build failed: ${error}`);
-      return {
-        entryPoint: '',
-        modulePreloads: [],
-      };
+      throw error;
     } finally {
       try {
         if (fs.existsSync(tempEntryPath)) {

@@ -938,18 +938,18 @@ export default function vitepressReactRenderingStrategies(
                 ssrOnlyComponentNames.has(inlineComponentReference.localName)
               ) {
                 return `
-                  ${RENDER_STRATEGY_CONSTANTS.reactInlineComponentReference}['${inlineComponentReference.localName}'] = {
+                  ${RENDER_STRATEGY_CONSTANTS.reactInlineComponentReference}[${JSON.stringify(inlineComponentReference.localName)}] = {
                     component: null,
-                    path: '${inlineComponentReference.path}',
-                    importedName: '${inlineComponentReference.importedName}'
+                    path: ${JSON.stringify(inlineComponentReference.path)},
+                    importedName: ${JSON.stringify(inlineComponentReference.importedName)}
                   }
                 `;
               }
               return `
-                ${RENDER_STRATEGY_CONSTANTS.reactInlineComponentReference}['${inlineComponentReference.localName}'] = {
+                ${RENDER_STRATEGY_CONSTANTS.reactInlineComponentReference}[${JSON.stringify(inlineComponentReference.localName)}] = {
                   component: ${inlineComponentReference.localName},
-                  path: '${inlineComponentReference.path}',
-                  importedName: '${inlineComponentReference.importedName}'
+                  path: ${JSON.stringify(inlineComponentReference.path)},
+                  importedName: ${JSON.stringify(inlineComponentReference.importedName)}
                 }
               `;
             }
@@ -977,7 +977,7 @@ export default function vitepressReactRenderingStrategies(
 
         if (resolvedCompilationContainer) {
           renderController.markdownModuleIdToPendingResolvedCompilationContainerMap.delete(
-            id,
+            normalizedId,
           );
           resolvedCompilationContainer(compilationContainer);
         }
@@ -994,7 +994,7 @@ export default function vitepressReactRenderingStrategies(
       );
       if (resolvedCompilationContainer) {
         renderController.markdownModuleIdToPendingResolvedCompilationContainerMap.delete(
-          id,
+          normalizedId,
         );
         resolvedCompilationContainer(compilationContainer);
       }
@@ -1121,20 +1121,23 @@ export default function vitepressReactRenderingStrategies(
             return null;
           }
           hasVisited.add(module.id);
-          const { importedModules, id } = module;
-          if (!id || id.includes('node_modules')) {
+          const { importedModules, id: moduleId } = module;
+          if (!moduleId || moduleId.includes('node_modules')) {
             return null;
           }
-          if (id.endsWith('.css')) {
-            return [id.replace(siteConfig.srcDir, '')];
+          if (moduleId.endsWith('.css')) {
+            return [moduleId.replace(siteConfig.srcDir, '')];
           }
           const collectCssModules = new Set<string>();
           if (importedModules.size > 0) {
-            for (const module of importedModules) {
-              const collected = collectCssModulesInSSR(module, hasVisited);
+            for (const importedModule of importedModules) {
+              const collected = collectCssModulesInSSR(
+                importedModule,
+                hasVisited,
+              );
               if (collected) {
-                for (const id of collected) {
-                  collectCssModules.add(id);
+                for (const cssPath of collected) {
+                  collectCssModules.add(cssPath);
                 }
               }
             }

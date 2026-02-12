@@ -6,7 +6,7 @@ import {
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
 import reactPlugin from '@vitejs/plugin-react-swc';
-import { dirname } from 'pathe';
+import { dirname, join } from 'pathe';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import type { Plugin, PluginOption } from 'vite';
@@ -72,7 +72,7 @@ export class ReactAdapter implements FrameworkAdapter {
     cfg: ConfigType,
     rc: RenderController,
   ): Promise<string> {
-    const resolveId = `${cfg.base}/${cfg.srcDir}/${pathname}.md`.replaceAll(
+    const resolveId = join(cfg.base, cfg.srcDir, `${pathname}.md`).replaceAll(
       '\\',
       '/',
     );

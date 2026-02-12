@@ -14,7 +14,7 @@ import { build } from 'vite';
 import { GET_CLEAN_PATHNAME_RUNTIME } from '../../../shared/runtime';
 import type { FrameworkAdapter } from '../../core/framework-adapter';
 import { reactAdapter } from '../adapter';
-import { isOutputAsset, isOutputChunk } from './shared';
+import { isOutputAsset, isOutputChunk, resolveSafeOutputPath } from './shared';
 
 const Logger = logger.getLoggerByGroup(
   'bundle-multiple-components-for-browser',
@@ -163,7 +163,7 @@ export async function bundleMultipleComponentsForBrowser(
       }
 
       if (isOutputChunk(chunk)) {
-        const fullOutputPath = join(outDir, chunk.fileName);
+        const fullOutputPath = resolveSafeOutputPath(outDir, chunk.fileName);
         const code = chunk.code;
         if (!fs.existsSync(dirname(fullOutputPath))) {
           fs.mkdirSync(dirname(fullOutputPath), { recursive: true });
@@ -174,7 +174,7 @@ export async function bundleMultipleComponentsForBrowser(
       }
 
       if (isOutputAsset(chunk)) {
-        const fullOutputPath = join(outDir, chunk.fileName);
+        const fullOutputPath = resolveSafeOutputPath(outDir, chunk.fileName);
         const code = chunk.source;
         if (!fs.existsSync(dirname(fullOutputPath))) {
           fs.mkdirSync(dirname(fullOutputPath), { recursive: true });
@@ -311,7 +311,10 @@ export async function bundleMultipleComponentsForBrowser(
       .digest('hex')
       .slice(0, 8);
     const loaderFileName = `unified-loader.${hash}.js`;
-    const loaderFullPath = join(outDir, assetsDir, loaderFileName);
+    const loaderFullPath = resolveSafeOutputPath(
+      outDir,
+      join(assetsDir, loaderFileName),
+    );
     fs.writeFileSync(loaderFullPath, unifiedLoaderCode);
     const loaderScriptRelativePath = join('/', assetsDir, loaderFileName);
 
@@ -322,7 +325,10 @@ export async function bundleMultipleComponentsForBrowser(
         .digest('hex')
         .slice(0, 8);
       const ssrInjectFileName = `ssr-inject-code.${ssrInjectCodeHash}.js`;
-      const ssrInjectFullPath = join(outDir, assetsDir, ssrInjectFileName);
+      const ssrInjectFullPath = resolveSafeOutputPath(
+        outDir,
+        join(assetsDir, ssrInjectFileName),
+      );
       fs.writeFileSync(ssrInjectFullPath, ssrInjectCodeSnippet.join('\n'));
       ssrInjectScriptRelativePath = join('/', assetsDir, ssrInjectFileName);
     }
