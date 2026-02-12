@@ -49,6 +49,7 @@ if (targetElements.length > 0) {
           } catch (error) {
             Logger.error(\`Component \${ renderComponentName } lazy hydration failed: \${error}\`);
           } finally {
+            clientVisibleObserver.unobserve(entry.target);
             __PENDING_HYDRATION_COMPONENT_MAP__.delete(entry.target);
           }
         });
