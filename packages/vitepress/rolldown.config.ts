@@ -128,7 +128,11 @@ const nodeConfig = defineConfig({
     minify: {
       compress: true,
       mangle: false,
-      removeWhitespace: false,
+      // Do not minify whitespace for ES lib output since that would remove
+      // pure annotations and break tree-shaking
+      codegen: {
+        removeWhitespace: false,
+      },
     },
   },
 });
