@@ -1,5 +1,5 @@
 diff --git a/dist/node/chunks/dep-BK3b2jBa.js b/dist/node/chunks/dep-BK3b2jBa.js
-index 7992b2f430e08577b7b4ae9e9d28c0d306707ca7..c4ef399d7635b9e177abfb51044e3fb5a61206fa 100644
+index 7992b2f430e08577b7b4ae9e9d28c0d306707ca7..a8ebb69021827c827254ed2a0287935efb5d1d59 100644
 --- a/dist/node/chunks/dep-BK3b2jBa.js
 +++ b/dist/node/chunks/dep-BK3b2jBa.js
 @@ -724,7 +724,7 @@ var constants$6 = {
@@ -254,7 +254,34 @@ index 7992b2f430e08577b7b4ae9e9d28c0d306707ca7..c4ef399d7635b9e177abfb51044e3fb5
   *          Dante - The Divine Comedy (Canto III)
   */
  
-@@ -66921,6 +66921,20 @@ async function bundleConfigFile(fileName, isESM) {
+@@ -66897,6 +66897,26 @@ async function bundleConfigFile(fileName, isESM) {
+                 return { external: true };
+               }
+               const isImport = isESM || kind === "dynamic-import";
++              // Handle # subpath imports (package.json "imports" field)
++              if (id.startsWith('#')) {
++                const resolvedImport = resolveSubpathImports(id, importer, {
++                  packageCache,
++                  conditions: [],
++                  overrideConditions: ["node"],
++                  isProduction: true,
++                  isRequire: !isImport
++                }, false);
++                if (resolvedImport) {
++                  if (resolvedImport.startsWith('.') || path$n.isAbsolute(resolvedImport)) {
++                    const absPath = path$n.resolve(path$n.dirname(importer), resolvedImport);
++                    if (isInNodeModules(absPath)) {
++                      return { path: absPath, external: true };
++                    }
++                    return { path: absPath };
++                  }
++                  id = resolvedImport;
++                }
++              }
+               let idFsPath;
+               try {
+                 idFsPath = resolveByViteResolver(id, importer, !isImport);
+@@ -66921,6 +66941,20 @@ async function bundleConfigFile(fileName, isESM) {
                  }
                  throw e;
                }

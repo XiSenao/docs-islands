@@ -1,3 +1,4 @@
+import inspector from 'node:inspector';
 import path from 'node:path';
 import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
@@ -21,6 +22,11 @@ const moduleConfigs: RolldownOptions[] = modules.map((module) =>
     input: `./${module}.ts`,
     platform: 'neutral',
     external: [/^[\w@][^:]/],
+    transform: {
+      define: {
+        __DEBUG__: String(inspector.url() !== undefined),
+      },
+    },
     output: {
       dir: 'dist',
       format: 'esm',

@@ -128,7 +128,10 @@
     "./package.json": "./package.json",
     "./internal/logger": "./src/shared/logger.ts",
     "./internal/runtime": "./src/shared/client-runtime.ts",
-    "./internal/runtime-dev": "./dist/shared/client-runtime.js",
+    "./internal-helper/runtime": "./dist/shared/client-runtime.js",
+    "./internal-helper/imports/types/*": "./types/*.d.ts",
+    "./internal-helper/imports/dep-types/*": "./src/types/*.d.ts",
+    "./internal-helper/imports/shared/*": "./src/shared/*.ts",
     "./types/*": {
       "types": "./types/*"
     }
