@@ -49,6 +49,25 @@ import { bundleMultipleComponentsForBrowser } from './build/bundleMultipleCompon
 import { bundleMultipleComponentsForSSR } from './build/bundleMultipleComponentsForSSR';
 import { ReactRenderController } from './react-render-controller';
 
+/**
+ * Shared MarkdownIt instance for extracting html_block tokens from Markdown.
+ *
+ * markdown-it classifies block-level HTML (including `<script>`) as `html_block`
+ * tokens, while code fences and indented code blocks become `fence` / `code_block`
+ * tokens. By only inspecting `html_block` tokens, code-block exclusion is
+ * structurally guaranteed — no post-filtering needed.
+ *
+ * This is the same strategy used by VitePress upstream (@mdit-vue/plugin-sfc).
+ */
+const scriptTagExtractorMd = new MarkdownIt({ html: true });
+
+/** Matches a `<script ...>...</script>` block, capturing `attrs` and inner `content`. */
+const scriptBlockRE =
+  /[\t ]*<script\b(?<attrs>[^>]*)>(?<content>.*?)<\/script\s*>/is;
+
+/** Validates that an attribute string contains `lang="react"` (or `lang='react'`) with matched quotes. */
+const langReactAttrRE = /\blang=(?<q>["'])react\k<q>/;
+
 interface ClientRuntimeMetafile {
   fileName: string;
   content: string;
@@ -106,7 +125,7 @@ const getClientRuntimeMetafile = async (): Promise<ClientRuntimeMetafile> => {
      */
     try {
       clientRuntimePath = __require.resolve(
-        '@docs-islands/vitepress/internal/runtime-dev',
+        '@docs-islands/vitepress/internal-helper/runtime',
       );
     } catch {
       logger
@@ -580,9 +599,6 @@ export default function vitepressReactRenderingStrategies(
     await init;
 
     const s = new MagicString(code);
-    // Match only script tags that start at the beginning of a line to avoid inline code like `<script lang="react">` inside Markdown text
-    const scriptReactRE =
-      /^[\t ]*<script\b[^>]+lang=["']react["'][^>]*>(.*?)<\/script>/gms;
 
     const pendingCompilationContainer =
       renderController.getCompilationContainerByMarkdownModuleId(normalizedId);
@@ -607,52 +623,60 @@ export default function vitepressReactRenderingStrategies(
       ssrOnlyComponentNames: new Set<string>(),
     };
 
-    let scriptMatch;
+    const tokens = scriptTagExtractorMd.parse(code, {});
+
+    // Precompute line start offsets for mapping token.map lines → character positions.
+    // \r\n safety: markdown-it internally normalizes \r\n to \n, but token.map line
+    // numbers still correspond 1-to-1 with code.split('\n') indices (line count is
+    // unchanged). We always slice from the original `code` below, so character offsets
+    // stay in the same coordinate space as MagicString.
+    const lines = code.split('\n');
+    const lineOffsets: number[] = [];
+    let offset = 0;
+    for (const line of lines) {
+      lineOffsets.push(offset);
+      offset += line.length + 1;
+    }
+
     const scriptMatches: {
-      match: RegExpExecArray;
       content: string;
       startIndex: number;
       endIndex: number;
     }[] = [];
 
-    const md = new MarkdownIt({ html: true });
-    const tokens = md.parse(code, {});
-    const codeBlockRanges: { start: number; end: number }[] = [];
     for (const token of tokens) {
-      if (token.map) {
-        const [startLine, endLine] = token.map;
-        const lines = code.split('\n');
-        const tokenStart = lines
-          .slice(0, startLine)
-          .reduce((acc, line) => acc + line.length + 1, 0);
-        const tokenEnd =
-          lines
-            .slice(0, endLine)
-            .reduce((acc, line) => acc + line.length + 1, 0) - 1;
-        if (token.type === 'code_block' || token.type === 'fence') {
-          codeBlockRanges.push({ start: tokenStart, end: tokenEnd });
+      if (token.type !== 'html_block' || !token.map) continue;
+
+      // Extract the raw source slice from the original code using token.map,
+      // rather than relying on token.content which may have leading indentation
+      // stripped by markdown-it's getLines() when blkIndent > 0 (e.g. inside
+      // blockquotes or lists), breaking offset alignment.
+      const [startLine, endLine] = token.map;
+      const rawStart = lineOffsets[startLine];
+      const rawEnd =
+        endLine < lineOffsets.length ? lineOffsets[endLine] : code.length;
+      const rawSlice = code.slice(rawStart, rawEnd);
+
+      // A single html_block may contain multiple <script> tags on the same line.
+      // Scan all script blocks to enforce the single react-script invariant.
+      const scriptBlockMatcher = new RegExp(`${scriptBlockRE.source}`, 'gis');
+      for (const blockMatch of rawSlice.matchAll(scriptBlockMatcher)) {
+        if (
+          !blockMatch.groups ||
+          !langReactAttrRE.test(blockMatch.groups.attrs)
+        ) {
+          continue;
         }
+
+        const startIndex = rawStart + blockMatch.index;
+        const endIndex = startIndex + blockMatch[0].length;
+
+        scriptMatches.push({
+          content: blockMatch.groups.content,
+          startIndex,
+          endIndex,
+        });
       }
-    }
-
-    const isInCodeBlock = (position: number): boolean => {
-      return codeBlockRanges.some(
-        (range) => position >= range.start && position <= range.end,
-      );
-    };
-
-    // Find all script tags, but filter out those within code blocks
-    while ((scriptMatch = scriptReactRE.exec(code)) !== null) {
-      const content = scriptMatch[1];
-      const startIndex = scriptMatch.index;
-      const endIndex = startIndex + scriptMatch[0].length;
-
-      // Skip this match if it's within a code block
-      if (isInCodeBlock(startIndex)) {
-        continue;
-      }
-
-      scriptMatches.push({ match: scriptMatch, content, startIndex, endIndex });
     }
 
     if (scriptMatches.length > 1) {
@@ -661,9 +685,6 @@ export default function vitepressReactRenderingStrategies(
       );
     }
 
-    // Process script tags in reverse order to maintain correct indices
-    let hasScriptTransformation = false;
-
     const inlineComponentReferenceMap = new Map<
       string,
       { localName: string; path: string; importedName: string }
@@ -671,7 +692,6 @@ export default function vitepressReactRenderingStrategies(
     // The <script lang="react"> element only declares React components, reducing complexity while maintaining consistency with <script setup>.
     if (scriptMatches.length === 1) {
       const { content, startIndex, endIndex } = scriptMatches[0];
-      hasScriptTransformation = true;
 
       const lowerCaseComponentNamesToOriginalNames = new Map<string, string>();
       const maybeComponentReferenceMap = new Map<
@@ -797,12 +817,7 @@ export default function vitepressReactRenderingStrategies(
         } = transformComponentTags(currentCode, maybeReactComponentNames, id);
         currentCode = transformedCode;
 
-        // Combine source maps if we have both script and component transformations.
-        if (hasScriptTransformation && componentMap) {
-          // For now, we'll use the component map as the final map since it's the last transformation.
-          // In a more sophisticated implementation, we could chain the source maps.
-          finalMap = componentMap;
-        } else if (componentMap) {
+        if (componentMap) {
           finalMap = componentMap;
         }
 
