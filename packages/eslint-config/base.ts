@@ -177,7 +177,13 @@ export const eslintConfigBase: Config = [
       ],
       'n/process-exit-as-throw': 'error',
       'n/hashbang': 'error',
-      'n/no-extraneous-import': 'error',
+      'n/no-extraneous-import': [
+        'error',
+        {
+          allowModules: ['@docs-islands/utils'],
+          resolvePaths: [],
+        },
+      ],
       'n/no-extraneous-require': 'error',
       'regexp/prefer-regexp-exec': 'error',
       'regexp/prefer-regexp-test': 'error',

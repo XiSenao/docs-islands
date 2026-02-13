@@ -70,6 +70,13 @@ type PackageJson = Omit<Partial<typeof packageJson>, 'exports'> & {
   imports?: Record<string, string>;
 };
 
+const filterExports = (key: string) => {
+  if (key.startsWith('./internal-helper')) {
+    return true;
+  }
+  return false;
+};
+
 export default function generatePackageJson(): Plugin {
   return {
     name: 'rolldown-plugin-generate-package-json',
@@ -129,7 +136,7 @@ export default function generatePackageJson(): Plugin {
 
                 return [key, value as ExportValue];
               })
-              .filter(([key]) => !key.includes('dev')),
+              .filter(([key]) => !filterExports(key)),
           );
         }
         const sanitized = sanitizeDevDependencies(

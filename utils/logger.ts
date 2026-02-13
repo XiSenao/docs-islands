@@ -97,6 +97,11 @@ const isProductionEnv = (() => {
   return false;
 })();
 
+declare const __DEBUG__: boolean;
+
+// Injected via rolldown `define` (utils build).
+const isDebugEnabled: boolean = __DEBUG__;
+
 interface PicocolorsType {
   isColorSupported: boolean;
   bold: (str: string) => string;
@@ -123,11 +128,12 @@ function shouldSuppressLog(kind: LogKind): boolean {
   if (isBrowserRuntime && isProductionEnv) {
     return true;
   }
+  // Debug logs are opt-in: only show when DEBUG env/localStorage is set
+  if (kind === 'debug') {
+    return !isDebugEnabled;
+  }
   // Suppress non-critical logs in production environment
-  if (
-    isProductionEnv &&
-    (kind === 'info' || kind === 'success' || kind === 'debug')
-  ) {
+  if (isProductionEnv && (kind === 'info' || kind === 'success')) {
     return true;
   }
   return false;
