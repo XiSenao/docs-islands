@@ -12,6 +12,73 @@ import { createHash } from 'node:crypto';
 import { type DefaultTreeAdapterMap, parseFragment } from 'parse5';
 import { parseAst } from 'vite';
 
+/**
+ * Shared MarkdownIt instance for identifying html_block tokens.
+ * Stateless after construction — safe to reuse across calls.
+ */
+const componentTagExtractorMd = new MarkdownIt({ html: true });
+
+/** Extracts the PascalCase tag name from a raw start tag string. */
+const tagNameRE = /^<\s*([A-Z][\dA-Za-z]*)/;
+
+/** Tests whether a raw start tag is self-closing (`/>` at the end). */
+const selfClosingRE = /\/\s*>\s*$/;
+
+/** Escapes text for safe use inside a double-quoted HTML attribute value. */
+const escapeHtmlAttribute = (value: string): string =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+
+const isElementNode = (
+  node: DefaultTreeAdapterMap['node'],
+): node is DefaultTreeAdapterMap['element'] => 'tagName' in node;
+
+const isStartTagOffsets = (
+  x: { startOffset?: number; endOffset?: number } | null | undefined,
+): x is StartTagOffsets =>
+  typeof x === 'object' &&
+  x !== null &&
+  typeof x.startOffset === 'number' &&
+  typeof x.endOffset === 'number';
+
+const getStartTagOffsets = (
+  loc:
+    | DefaultTreeAdapterMap['element']['sourceCodeLocation']
+    | null
+    | undefined,
+): StartTagOffsets | null => {
+  if (!loc || typeof loc !== 'object') return null;
+  const startTag = (
+    loc as {
+      startTag?:
+        | { startOffset?: number; endOffset?: number }
+        | null
+        | undefined;
+    }
+  ).startTag;
+  return isStartTagOffsets(startTag) ? startTag : null;
+};
+
+const hasChildNodes = (
+  node: DefaultTreeAdapterMap['node'],
+): node is
+  | DefaultTreeAdapterMap['element']
+  | DefaultTreeAdapterMap['document']
+  | DefaultTreeAdapterMap['documentFragment'] =>
+  'childNodes' in (node as DefaultTreeAdapterMap['element']) &&
+  Array.isArray(
+    (node as DefaultTreeAdapterMap['element']).childNodes as unknown[],
+  );
+
+const isTemplateNode = (
+  node: DefaultTreeAdapterMap['node'],
+): node is DefaultTreeAdapterMap['template'] =>
+  node?.nodeName === 'template' && 'content' in node;
+
 export interface ImportNameSpecifier {
   importedName: string;
   localName: string;
@@ -87,8 +154,7 @@ export default function coreTransformComponentTags(
   map: SourceMap | null;
 } {
   const Logger = logger.getLoggerByGroup('coreTransformComponentTags');
-  const md = new MarkdownIt({ html: true });
-  const tokens = md.parse(code, {});
+  const tokens = componentTagExtractorMd.parse(code, {});
 
   const s = new MagicString(code);
   const renderIdToRenderDirectiveMap = new Map<string, string[]>();
@@ -96,283 +162,213 @@ export default function coreTransformComponentTags(
     maybeReactComponentNames.map((n) => n.toLowerCase()),
   );
 
-  // Handle different line ending types properly
+  // Precompute line start offsets for mapping token.map lines to character positions.
+  // \r\n safety: token.map line numbers correspond 1-to-1 with code.split('\n')
+  // indices regardless of line-ending style (line count is unchanged).
   const lines = code.split('\n');
-  const lineOffsets: number[] = [0];
-  for (let i = 0; i < lines.length - 1; i++) {
-    // For each line (except the last), add line content length + 1 (for \n separator)
-    // The \r (if present) is already included in the line content after split('\n')
-    lineOffsets.push(lineOffsets[i] + lines[i].length + 1);
+  const lineOffsets: number[] = [];
+  let offset = 0;
+  for (const line of lines) {
+    lineOffsets.push(offset);
+    offset += line.length + 1;
   }
 
-  const findOffset = (line: number, col: number) =>
-    line >= lineOffsets.length ? -1 : lineOffsets[line] + col;
   let usedReactComponentCount = 0;
 
+  interface PendingReplacement {
+    absStart: number;
+    absEnd: number;
+    replacement: string;
+  }
+
+  const analyze = (
+    attrs: readonly { name: string; value: string }[],
+    compName: string,
+  ) => {
+    const attributes: { name: string; value: string | null }[] = [];
+    let directive = 'ssr:only';
+    let useSpaSyncRender = false;
+    let forceDisableSpaSyncRender = false;
+    for (const { name, value } of attrs) {
+      const attrName = name;
+      if (ALLOWED_RENDER_DIRECTIVES.includes(attrName as RenderDirective)) {
+        directive = attrName;
+        continue;
+      }
+      if (
+        SPA_RENDER_SYNC_ON.includes(
+          attrName as (typeof SPA_RENDER_SYNC_ON)[number],
+        )
+      ) {
+        useSpaSyncRender = true;
+        continue;
+      }
+      if (
+        SPA_RENDER_SYNC_OFF.includes(
+          attrName as (typeof SPA_RENDER_SYNC_OFF)[number],
+        )
+      ) {
+        forceDisableSpaSyncRender = true;
+        continue;
+      }
+      attributes.push({ name: attrName, value });
+    }
+    if (forceDisableSpaSyncRender) {
+      useSpaSyncRender = false;
+    } else if (directive === 'ssr:only') {
+      /**
+       * When the 'ssr:only' directive is enabled, if 'spa:sync-render' is not explicitly disabled,
+       * then the 'spa:sync-render' mode is enabled by default.
+       */
+      useSpaSyncRender = true;
+    }
+    if (directive === 'client:only' && useSpaSyncRender) {
+      Logger.warn(
+        `'spa:sync-render' is not supported for 'client:only' directive, disabling 'spa:sync-render'`,
+      );
+      useSpaSyncRender = false;
+    }
+    return { name: compName, attributes, directive, useSpaSyncRender };
+  };
+
   for (const token of tokens) {
+    const hasInlineHtml =
+      token.type === 'inline' &&
+      Array.isArray(token.children) &&
+      token.children.some((child) => child.type === 'html_inline');
     if (
-      (token.type === 'html_block' || token.type === 'html_inline') &&
-      token.map &&
-      token.content
+      (token.type !== 'html_block' && !hasInlineHtml) ||
+      !token.map ||
+      !token.content
     ) {
-      const tokenContent = token.content;
-      const startLine = token.map[0];
-      const startOffset = findOffset(startLine, token.meta?.col || 0);
-      if (startOffset === -1) continue;
+      continue;
+    }
 
-      const fragment = parseFragment(tokenContent, {
-        sourceCodeLocationInfo: true,
-      });
-      const stack: DefaultTreeAdapterMap['node'][] = [...fragment.childNodes];
-      interface PendingReplacement {
-        absStart: number;
-        absEnd: number;
-        replacement: string;
+    const startLine = token.map[0];
+    if (startLine >= lineOffsets.length) continue;
+    const endLine = token.map[1];
+    const rawStart = lineOffsets[startLine];
+    const rawEnd =
+      endLine < lineOffsets.length ? lineOffsets[endLine] : code.length;
+    const rawSlice = code.slice(rawStart, rawEnd);
+
+    const fragment = parseFragment(rawSlice, {
+      sourceCodeLocationInfo: true,
+    });
+    const stack: DefaultTreeAdapterMap['node'][] = [...fragment.childNodes];
+    const pending: PendingReplacement[] = [];
+
+    const found: {
+      start: number;
+      end: number;
+      attrs: { name: string; value: string }[];
+      nameLower: string;
+    }[] = [];
+
+    while (stack.length > 0) {
+      const node = stack.pop()!;
+      if (node?.nodeName) {
+        const nameLower = node.nodeName;
+        if (maybeReactComponentNameSets.has(nameLower) && isElementNode(node)) {
+          const loc = node.sourceCodeLocation;
+          const st = getStartTagOffsets(loc);
+          if (st) {
+            found.push({
+              start: st.startOffset,
+              end: st.endOffset,
+              attrs: node.attrs.map((attribute) => ({
+                name: attribute.name,
+                value: attribute.value,
+              })),
+              nameLower,
+            });
+          }
+        }
       }
-      const pending: PendingReplacement[] = [];
-
-      const analyze = (
-        attrs: readonly { name: string; value: string }[],
-        compName: string,
-      ) => {
-        const attributes: { name: string; value: string | null }[] = [];
-        let directive = 'ssr:only';
-        let useSpaSyncRender = false;
-        let forceDisableSpaSyncRender = false;
-        for (const { name, value } of attrs) {
-          const attrName = name;
-          if (ALLOWED_RENDER_DIRECTIVES.includes(attrName as RenderDirective)) {
-            directive = attrName;
-            continue;
-          }
-          if (
-            SPA_RENDER_SYNC_ON.includes(
-              attrName as (typeof SPA_RENDER_SYNC_ON)[number],
-            )
-          ) {
-            useSpaSyncRender = true;
-            continue;
-          }
-          if (
-            SPA_RENDER_SYNC_OFF.includes(
-              attrName as (typeof SPA_RENDER_SYNC_OFF)[number],
-            )
-          ) {
-            forceDisableSpaSyncRender = true;
-            continue;
-          }
-          attributes.push({ name: attrName, value });
-        }
-        if (forceDisableSpaSyncRender) {
-          useSpaSyncRender = false;
-        } else if (directive === 'ssr:only') {
-          /**
-           * When the 'ssr:only' directive is enabled, if 'spa:sync-render' is not explicitly disabled,
-           * then the 'spa:sync-render' mode is enabled by default.
-           */
-          useSpaSyncRender = true;
-        }
-        if (directive === 'client:only' && useSpaSyncRender) {
-          Logger.warn(
-            `'spa:sync-render' is not supported for 'client:only' directive, disabling 'spa:sync-render'`,
-          );
-          useSpaSyncRender = false;
-        }
-        return { name: compName, attributes, directive, useSpaSyncRender };
-      };
-
-      const found: {
-        start: number;
-        end: number;
-        attrs: { name: string; value: string }[];
-        nameLower: string;
-      }[] = [];
-
-      const isElementNode = (
-        node: DefaultTreeAdapterMap['node'],
-      ): node is DefaultTreeAdapterMap['element'] => 'tagName' in node;
-
-      const isStartTagOffsets = (
-        x: { startOffset?: number; endOffset?: number } | null | undefined,
-      ): x is StartTagOffsets =>
-        typeof x === 'object' &&
-        x !== null &&
-        typeof x.startOffset === 'number' &&
-        typeof x.endOffset === 'number';
-
-      const getStartTagOffsets = (
-        loc:
-          | DefaultTreeAdapterMap['element']['sourceCodeLocation']
-          | null
-          | undefined,
-      ): StartTagOffsets | null => {
-        if (!loc || typeof loc !== 'object') return null;
-        const startTag = (
-          loc as {
-            startTag?:
-              | { startOffset?: number; endOffset?: number }
-              | null
-              | undefined;
-          }
-        ).startTag;
-        return isStartTagOffsets(startTag) ? startTag : null;
-      };
-
-      const hasChildNodes = (
-        node: DefaultTreeAdapterMap['node'],
-      ): node is
-        | DefaultTreeAdapterMap['element']
-        | DefaultTreeAdapterMap['document']
-        | DefaultTreeAdapterMap['documentFragment'] =>
-        'childNodes' in (node as DefaultTreeAdapterMap['element']) &&
-        Array.isArray(
-          (node as DefaultTreeAdapterMap['element']).childNodes as unknown[],
+      // Traverse normal child nodes.
+      if (hasChildNodes(node)) {
+        stack.push(
+          ...((node as DefaultTreeAdapterMap['element'])
+            .childNodes as DefaultTreeAdapterMap['node'][]),
         );
+      }
+      // Ensure we also traverse into <template> content to discover nodes inside slots.
+      if (isTemplateNode(node)) {
+        stack.push(...node.content.childNodes);
+      }
+    }
 
-      const isTemplateNode = (
-        node: DefaultTreeAdapterMap['node'],
-      ): node is DefaultTreeAdapterMap['template'] =>
-        node?.nodeName === 'template' && 'content' in node;
-      while (stack.length > 0) {
-        const node = stack.pop()!;
-        if (node?.nodeName) {
-          const nameLower = node.nodeName;
-          if (
-            maybeReactComponentNameSets.has(nameLower) &&
-            isElementNode(node)
-          ) {
-            const loc = node.sourceCodeLocation;
-            const st = getStartTagOffsets(loc);
-            if (st) {
-              found.push({
-                start: st.startOffset,
-                end: st.endOffset,
-                attrs: node.attrs.map((attribute) => ({
-                  name: attribute.name,
-                  value: attribute.value,
-                })),
-                nameLower,
-              });
-            }
-          }
-        }
-        // Traverse normal child nodes.
-        if (hasChildNodes(node)) {
-          stack.push(
-            ...((node as DefaultTreeAdapterMap['element'])
-              .childNodes as DefaultTreeAdapterMap['node'][]),
-          );
-        }
-        // Ensure we also traverse into <template> content to discover nodes inside slots.
-        if (isTemplateNode(node)) {
-          stack.push(...node.content.childNodes);
-        }
+    found.sort((a, b) => a.start - b.start);
+
+    for (const item of found) {
+      const originalName =
+        maybeReactComponentNames.find(
+          (n) => n.toLowerCase() === item.nameLower,
+        ) || item.nameLower;
+
+      // parse5's startTag offsets are authoritative — they correctly handle
+      // attributes containing '>' characters, multiline tags, and leading
+      // whitespace (emitted as separate #text nodes with distinct offsets).
+      const absStart = rawStart + item.start;
+      const absEnd = rawStart + item.end;
+      const startTagRaw = code.slice(absStart, absEnd);
+
+      // Extract the typed tag name from the raw start tag.
+      const tagNameMatch = tagNameRE.exec(startTagRaw);
+      const typedTagName = tagNameMatch ? tagNameMatch[1] : '';
+
+      // 1) Enforce naming: component name must be in PascalCase.
+      if (!typedTagName) {
+        Logger.error(
+          `Component name must be in PascalCase. Found "${typedTagName || startTagRaw}" in ${id}, skipping compilation!`,
+        );
+        continue;
       }
 
-      found.sort((a, b) => a.start - b.start);
+      // 2) Enforce exact local import name match: no aliasing by different casing.
+      if (typedTagName !== originalName) {
+        Logger.error(
+          `React component tag "${typedTagName}" does not match imported local name "${originalName}" in ${id}, skipping compilation!`,
+        );
+        continue;
+      }
 
-      for (const item of found) {
-        const originalName =
-          maybeReactComponentNames.find(
-            (n) => n.toLowerCase() === item.nameLower,
-          ) || item.nameLower;
+      // 3) Enforce self-closing syntax only: <Comp ... />.
+      if (!selfClosingRE.test(startTagRaw)) {
+        Logger.error(
+          `React component tag must be self-closing. Use "<${typedTagName} ... />". Found in ${id}, skipping compilation!`,
+        );
+        continue;
+      }
 
-        // Compute absolute positions of the start tag for validation.
-        let absStart = startOffset + item.start;
-        const absStartTagEnd = startOffset + item.end;
-        let startTagRaw = code.slice(absStart, absStartTagEnd);
-
-        // Handle case where parse5 includes leading whitespace/newlines in the position
-        const leadingWhitespaceRegex = /^(\s*)</;
-        const leadingWhitespaceMatch = leadingWhitespaceRegex.exec(startTagRaw);
-        if (leadingWhitespaceMatch) {
-          const leadingWhitespace = leadingWhitespaceMatch[1];
-          if (leadingWhitespace.length > 0) {
-            // Adjust positions to exclude leading whitespace
-            absStart = absStart + leadingWhitespace.length;
-            startTagRaw = code.slice(absStart, absStartTagEnd);
-          }
-        }
-
-        // Find the actual end of the self-closing tag
-        // First, let's search for the complete self-closing tag from the current position
-        const remainingCode = code.slice(absStart);
-        const selfClosingTagRegex = /^<[^>]*\/>/;
-        const selfClosingTagMatch = selfClosingTagRegex.exec(remainingCode);
-        let actualAbsEnd = absStartTagEnd;
-
-        if (selfClosingTagMatch) {
-          actualAbsEnd = absStart + selfClosingTagMatch[0].length;
+      const parsed = analyze(item.attrs, originalName);
+      const renderId = createHash('sha256')
+        .update(`${id}_${usedReactComponentCount++}`)
+        .digest('hex')
+        .slice(0, 8);
+      const renderDirectiveAttributes = [
+        `${attrNames.renderId}="${renderId}"`,
+        `${attrNames.renderDirective}="${parsed.directive}"`,
+        `${attrNames.renderComponent}="${parsed.name}"`,
+        `${attrNames.renderWithSpaSync}="${parsed.useSpaSyncRender}"`,
+      ];
+      const userElementProps: string[] = [];
+      for (const attr of parsed.attributes) {
+        if (attr.value === null) {
+          userElementProps.push(attr.name);
         } else {
-          // If no self-closing tag found, try to find any closing >
-          const tagEndRegex = /^<[^>]*>/;
-          const tagEndMatch = tagEndRegex.exec(remainingCode);
-          if (tagEndMatch) {
-            actualAbsEnd = absStart + tagEndMatch[0].length;
-          }
-        }
-
-        startTagRaw = code.slice(absStart, actualAbsEnd);
-
-        // Extract the typed tag name from the raw start tag.
-        const tagNameMatch = /^<\s*([A-Z][^\s/>]*)/.exec(startTagRaw);
-        const typedTagName = tagNameMatch ? tagNameMatch[1] : '';
-
-        // 1) Enforce naming: component name must be in PascalCase.
-        if (!typedTagName) {
-          Logger.error(
-            `Component name must be in PascalCase. Found "${typedTagName || startTagRaw}" in ${id}, skipping compilation!`,
+          userElementProps.push(
+            `${attr.name}="${escapeHtmlAttribute(attr.value)}"`,
           );
-          continue;
         }
-
-        // 2) Enforce exact local import name match: no aliasing by different casing.
-        if (typedTagName !== originalName) {
-          Logger.error(
-            `React component tag "${typedTagName}" does not match imported local name "${originalName}" in ${id}, skipping compilation!`,
-          );
-          continue;
-        }
-
-        // 3) Enforce self-closing syntax only: <Comp ... />.
-        const isSelfClosing = /\/\s*>\s*$/.test(startTagRaw);
-        if (!isSelfClosing) {
-          Logger.error(
-            `React component tag must be self-closing. Use "<${typedTagName} ... />". Found in ${id}, skipping compilation!`,
-          );
-          continue;
-        }
-        const absEnd = actualAbsEnd;
-
-        const parsed = analyze(item.attrs, originalName);
-        const renderId = createHash('sha256')
-          .update(`${id}_${usedReactComponentCount++}`)
-          .digest('hex')
-          .slice(0, 8);
-        const renderDirectiveAttributes = [
-          `${attrNames.renderId}="${renderId}"`,
-          `${attrNames.renderDirective}="${parsed.directive}"`,
-          `${attrNames.renderComponent}="${parsed.name}"`,
-          `${attrNames.renderWithSpaSync}="${parsed.useSpaSyncRender}"`,
-        ];
-        const userElementProps: string[] = [];
-        for (const attr of parsed.attributes) {
-          if (attr.value === null) {
-            userElementProps.push(attr.name);
-          } else {
-            userElementProps.push(
-              `${attr.name}="${String(attr.value).replaceAll('"', '&quot;')}"`,
-            );
-          }
-        }
-        renderIdToRenderDirectiveMap.set(renderId, renderDirectiveAttributes);
-        const replacement = `<div\n ${[...renderDirectiveAttributes, ...userElementProps].join('\n  ')}\n></div>`;
-        pending.push({ absStart, absEnd, replacement });
       }
+      renderIdToRenderDirectiveMap.set(renderId, renderDirectiveAttributes);
+      const replacement = `<div\n ${[...renderDirectiveAttributes, ...userElementProps].join('\n  ')}\n></div>`;
+      pending.push({ absStart, absEnd, replacement });
+    }
 
-      for (const r of pending.toSorted((a, b) => b.absStart - a.absStart)) {
-        s.overwrite(r.absStart, r.absEnd, r.replacement);
-      }
+    for (const r of pending.toSorted((a, b) => b.absStart - a.absStart)) {
+      s.overwrite(r.absStart, r.absEnd, r.replacement);
     }
   }
 

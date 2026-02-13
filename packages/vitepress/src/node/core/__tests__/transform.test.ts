@@ -122,6 +122,46 @@ describe('coreTransformComponentTags', () => {
     expect(out).toContain(attrNames.renderComponent);
   });
 
+  it('escapes user props with HTML-safe encoding for attribute values', () => {
+    const code = `# Title
+
+<HelloWorld title='He said "hello" & goodbye' description="it's fine" />`;
+    const { code: out } = coreTransformComponentTags(
+      code,
+      ['HelloWorld'],
+      '/docs/escape-props.md',
+      attrNames,
+    );
+
+    expect(out).toContain('title="He said &quot;hello&quot; &amp; goodbye"');
+    expect(out).toContain('description="it&#39;s fine"');
+    expect(out).not.toContain('\\"');
+  });
+
+  it('transforms multiline self-closing component tags parsed as html_inline', () => {
+    const code = `<HelloWorld
+  client:only
+  uniqueid="escape-attr-e2e"
+  title='He said "hello" & goodbye'
+  data-note="it's fine"
+/>`;
+
+    const { code: out, renderIdToRenderDirectiveMap } =
+      coreTransformComponentTags(
+        code,
+        ['HelloWorld'],
+        '/docs/escaped-props-inline.md',
+        attrNames,
+      );
+
+    expect(renderIdToRenderDirectiveMap.size).toBe(1);
+    expect(out).toContain(`${attrNames.renderDirective}="client:only"`);
+    expect(out).toContain('uniqueid="escape-attr-e2e"');
+    expect(out).toContain('title="He said &quot;hello&quot; &amp; goodbye"');
+    expect(out).toContain('data-note="it&#39;s fine"');
+    expect(out).not.toContain('<helloworld');
+  });
+
   it('skips non self-closing tags and leaves original markup', () => {
     const code = `# Title
 
