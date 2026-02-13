@@ -46,6 +46,70 @@ describe('Error Handling and Edge Cases', () => {
     });
   });
 
+  describe('Script Processing Guardrails', () => {
+    test('Should return a build error when multiple react scripts are declared in one html block', async () => {
+      const expectedError =
+        'Single file can contain only one <script lang="react"> element.';
+      const consoleErrors: string[] = [];
+
+      const onConsole = (msg: { type: () => string; text: () => string }) => {
+        if (msg.type() === 'error') {
+          consoleErrors.push(msg.text());
+        }
+      };
+      const onPageError = (error: Error) => {
+        consoleErrors.push(error.message);
+      };
+
+      page.on('console', onConsole);
+      page.on('pageerror', onPageError);
+      try {
+        const response = await page.goto(
+          `http://localhost:${process.env.PORT}/error-handling/multiple-react-scripts`,
+        );
+        await page.waitForTimeout(300);
+
+        expect(response).toBeTruthy();
+
+        const responseText = await response?.text();
+        const hasExpectedConsoleError = consoleErrors.some((message) =>
+          message.includes(expectedError),
+        );
+        const hasExpectedResponseError = Boolean(
+          responseText?.includes(expectedError),
+        );
+
+        expect(hasExpectedConsoleError || hasExpectedResponseError).toBe(true);
+      } finally {
+        page.off('console', onConsole);
+        page.off('pageerror', onPageError);
+      }
+    });
+  });
+
+  describe('Attribute Escaping', () => {
+    test('Should preserve special characters in component tag attributes', async () => {
+      await goto('/error-handling/escaped-props');
+
+      const heading = page.locator('h1');
+      await expect(heading).toBeVisible();
+      expect(await heading.textContent()).toContain('Escaped Props');
+
+      const renderContainer = page.locator('[uniqueid="escape-attr-e2e"]');
+      await expect(renderContainer).toBeVisible();
+      await expect(renderContainer).toHaveAttribute(
+        'title',
+        'He said "hello" & goodbye',
+      );
+      await expect(renderContainer).toHaveAttribute('data-note', "it's fine");
+
+      const renderedComponent = page.locator(
+        '[data-unique-id="escape-attr-e2e"]',
+      );
+      await expect(renderedComponent).toBeVisible();
+    });
+  });
+
   describe('Component Name Mismatches', () => {
     test('Should cause the page to crash', async () => {
       await goto('/error-handling/component-name-mismatch');
