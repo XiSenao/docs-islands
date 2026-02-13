@@ -66,7 +66,23 @@ class ReactIntegration {
     if (this.detectRenderElementsInDev()) {
       const timestamp = Date.now();
       const base = typeof __BASE__ === 'string' ? __BASE__ : '/';
-      const scriptPath = `${base}${REACT_RENDER_STRATEGY_INJECT_RUNTIME_ID}?${RENDER_STRATEGY_CONSTANTS.renderClientInDev}=${this.getPageId()}&t=${timestamp}`;
+      /**
+       * The `@vite-ignore` comment is intentionally placed on the template
+       * literal rather than inside `import()`. During minification, rolldown
+       * inlines this const variable — replacing the Identifier node (which
+       * would lose any attached comments) with the initializer's AST node.
+       * Attaching the comment to the TemplateLiteral ensures it survives
+       * inlining and appears in the final `import()` call, preventing Vite
+       * from emitting a dynamic import analysis warning.
+       *
+       * Note: Destructured variables (e.g. `const { source } = obj`) are NOT
+       * inlined, so placing `@vite-ignore` inside `import()` preserves the
+       * comment as-is — only simple const declarations with literal
+       * initializers trigger this issue.
+       *
+       * @see https://github.com/rolldown/rolldown/issues/8248
+       */
+      const scriptPath = /* @vite-ignore */ `${base}${REACT_RENDER_STRATEGY_INJECT_RUNTIME_ID}?${RENDER_STRATEGY_CONSTANTS.renderClientInDev}=${this.getPageId()}&t=${timestamp}`;
 
       /**
        * During development, client-side caching should be disabled. A request to the server must be made on each route change
@@ -75,7 +91,7 @@ class ReactIntegration {
        * Otherwise, when the script within the `<script lang="react">` tag changes,
        * the browser will not detect the change on subsequent route transitions.
        */
-      import(/* @vite-ignore */ scriptPath).then(() => {
+      import(scriptPath).then(() => {
         const Logger = logger.getLoggerByGroup('load-dev-render-runtime');
         Logger.success('Development render runtime loaded successfully');
       });
