@@ -1,6 +1,6 @@
 import logger, {
   lightGeneralLogger,
-  type LightGeneralLoggerOptions,
+  type LightGeneralLoggerReturn,
   type LogKind,
 } from '@docs-islands/utils/logger';
 
@@ -12,8 +12,7 @@ type BoundLightGeneralLogger = (
   type: LogKind,
   message: string,
   group?: string,
-  options?: LightGeneralLoggerOptions,
-) => string | void;
+) => LightGeneralLoggerReturn;
 
 export const LightGeneralLogger: BoundLightGeneralLogger =
   lightGeneralLogger.bind(null, MAIN_NAME);

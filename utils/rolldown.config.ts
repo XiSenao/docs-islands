@@ -24,6 +24,7 @@ const moduleConfigs: RolldownOptions[] = modules.map((module) =>
     external: [/^[\w@][^:]/],
     transform: {
       define: {
+        __PROD__: String(process.env.NODE_ENV === 'production'),
         __DEBUG__: String(inspector.url() !== undefined),
       },
     },
