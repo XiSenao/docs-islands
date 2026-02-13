@@ -145,7 +145,7 @@ async function loadHighPriorityStyles(
             'warn',
             `CSS loading timeout after ${timeout}ms. Loaded: ${loadedCount}/${totalStyles}, Failed: ${failedCount}`,
             'css-loading-runtime',
-          );
+          ).log();
         }
 
         resolve({
@@ -175,14 +175,14 @@ async function loadHighPriorityStyles(
             'success',
             `Success rate: ${loadedCount}/${totalStyles} (${((loadedCount / totalStyles) * 100).toFixed(1)}%)`,
             'css-loading-runtime',
-          );
+          ).log();
 
           if (performanceMetrics.duplicatesDetected > 0) {
             LightGeneralLogger(
               'info',
               `Detected and skipped ${performanceMetrics.duplicatesDetected} duplicate CSS files`,
               'css-loading-runtime',
-            );
+            ).log();
           }
 
           if (performanceMetrics.retriesPerformed > 0) {
@@ -190,7 +190,7 @@ async function loadHighPriorityStyles(
               'info',
               `Performed ${performanceMetrics.retriesPerformed} retries`,
               'css-loading-runtime',
-            );
+            ).log();
           }
         }
 
@@ -241,7 +241,7 @@ async function loadHighPriorityStyles(
             'warn',
             `Slow CSS loading detected: ${styleUrl} took ${loadTime.toFixed(2)}ms`,
             'css-loading-runtime',
-          );
+          ).log();
         }
 
         checkCompletion();
@@ -254,7 +254,7 @@ async function loadHighPriorityStyles(
             'error',
             `CSS loading failed for ${styleUrl}, retrying (${retries + 1}/${retryCount})`,
             'css-loading-runtime',
-          );
+          ).log();
 
           // Remove the failed link element.
           if (link.parentNode) {
@@ -283,7 +283,7 @@ async function loadHighPriorityStyles(
               'error',
               `CSS loading failed permanently: ${styleUrl} after ${retries} retries`,
               'css-loading-runtime',
-            );
+            ).log();
           }
 
           checkCompletion();
@@ -342,13 +342,13 @@ export default async function cssLoadingRuntime(
         'error',
         `CSS loading timed out. Loaded: ${loadResult.loadedCount}/${loadResult.totalCount}`,
         'css-loading-runtime',
-      );
+      ).log();
     } else if (loadResult.failedCount > 0) {
       LightGeneralLogger(
         'error',
         `Some CSS files failed to load: ${loadResult.failedCount}/${loadResult.totalCount} failed`,
         'css-loading-runtime',
-      );
+      ).log();
     }
 
     if (loadResult.metrics?.totalLoadTime) {
@@ -356,7 +356,7 @@ export default async function cssLoadingRuntime(
         'success',
         `Total CSS loading time: ${loadResult.metrics.totalLoadTime.toFixed(2)}ms`,
         'css-loading-runtime',
-      );
+      ).log();
     }
   }
   return loadResult;

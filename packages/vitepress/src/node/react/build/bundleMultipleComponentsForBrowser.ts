@@ -270,7 +270,7 @@ export async function bundleMultipleComponentsForBrowser(
           const module = await import('${wrapBaseUrl(entry.modulePath)}');
           return ${getExportExpression(entry.importReference)};
         } catch (error) {
-          ${LightGeneralLogger('error', `Failed to load component ${entry.componentName}: error.message`, 'react-client-render', { immediate: false })}
+          ${LightGeneralLogger('error', `Failed to load component ${entry.componentName}: error.message`, 'react-client-render').formatText}
           return null;
         }
       }
@@ -302,7 +302,7 @@ export async function bundleMultipleComponentsForBrowser(
     result.status === 'fulfilled' && result.value.success
   ).length;
 
-      ${LightGeneralLogger('success', `Loaded \${successCount} / \${componentLoaders.length} React components for page: \${pageId}`, 'react-client-render', { immediate: false })}
+      ${LightGeneralLogger('success', `Loaded \${successCount} / \${componentLoaders.length} React components for page: \${pageId}`, 'react-client-render').formatText}
 })();
     `.trim();
 
