@@ -82,7 +82,7 @@
     "magic-string": "catalog:dev",
     "markdown-it": "catalog:dev",
     "pathe": "catalog:dev",
-    "parse5": "catalog:dev",
+    "htmlparser2": "catalog:dev",
     "picocolors": "catalog:dev",
     "rolldown": "catalog:dev",
     "rolldown-plugin-dts": "catalog:dev",

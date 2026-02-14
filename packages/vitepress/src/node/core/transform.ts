@@ -6,10 +6,10 @@ import {
 } from '#shared/constants';
 import logger from '#shared/logger';
 import type { Identifier, Literal } from 'estree';
+import { Parser } from 'htmlparser2';
 import MagicString, { type SourceMap } from 'magic-string';
 import MarkdownIt from 'markdown-it';
 import { createHash } from 'node:crypto';
-import { type DefaultTreeAdapterMap, parseFragment } from 'parse5';
 import { parseAst } from 'vite';
 
 /**
@@ -33,60 +33,9 @@ const escapeHtmlAttribute = (value: string): string =>
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;');
 
-const isElementNode = (
-  node: DefaultTreeAdapterMap['node'],
-): node is DefaultTreeAdapterMap['element'] => 'tagName' in node;
-
-const isStartTagOffsets = (
-  x: { startOffset?: number; endOffset?: number } | null | undefined,
-): x is StartTagOffsets =>
-  typeof x === 'object' &&
-  x !== null &&
-  typeof x.startOffset === 'number' &&
-  typeof x.endOffset === 'number';
-
-const getStartTagOffsets = (
-  loc:
-    | DefaultTreeAdapterMap['element']['sourceCodeLocation']
-    | null
-    | undefined,
-): StartTagOffsets | null => {
-  if (!loc || typeof loc !== 'object') return null;
-  const startTag = (
-    loc as {
-      startTag?:
-        | { startOffset?: number; endOffset?: number }
-        | null
-        | undefined;
-    }
-  ).startTag;
-  return isStartTagOffsets(startTag) ? startTag : null;
-};
-
-const hasChildNodes = (
-  node: DefaultTreeAdapterMap['node'],
-): node is
-  | DefaultTreeAdapterMap['element']
-  | DefaultTreeAdapterMap['document']
-  | DefaultTreeAdapterMap['documentFragment'] =>
-  'childNodes' in (node as DefaultTreeAdapterMap['element']) &&
-  Array.isArray(
-    (node as DefaultTreeAdapterMap['element']).childNodes as unknown[],
-  );
-
-const isTemplateNode = (
-  node: DefaultTreeAdapterMap['node'],
-): node is DefaultTreeAdapterMap['template'] =>
-  node?.nodeName === 'template' && 'content' in node;
-
 export interface ImportNameSpecifier {
   importedName: string;
   localName: string;
-}
-
-interface StartTagOffsets {
-  startOffset: number;
-  endOffset: number;
 }
 
 function getIdentifierNameOrLiteralValue(
@@ -158,9 +107,7 @@ export default function coreTransformComponentTags(
 
   const s = new MagicString(code);
   const renderIdToRenderDirectiveMap = new Map<string, string[]>();
-  const maybeReactComponentNameSets = new Set(
-    maybeReactComponentNames.map((n) => n.toLowerCase()),
-  );
+  const componentNameSet = new Set(maybeReactComponentNames);
 
   // Precompute line start offsets for mapping token.map lines to character positions.
   // \r\n safety: token.map line numbers correspond 1-to-1 with code.split('\n')
@@ -252,63 +199,48 @@ export default function coreTransformComponentTags(
       endLine < lineOffsets.length ? lineOffsets[endLine] : code.length;
     const rawSlice = code.slice(rawStart, rawEnd);
 
-    const fragment = parseFragment(rawSlice, {
-      sourceCodeLocationInfo: true,
-    });
-    const stack: DefaultTreeAdapterMap['node'][] = [...fragment.childNodes];
-    const pending: PendingReplacement[] = [];
-
     const found: {
       start: number;
       end: number;
       attrs: { name: string; value: string }[];
-      nameLower: string;
+      name: string;
     }[] = [];
 
-    while (stack.length > 0) {
-      const node = stack.pop()!;
-      if (node?.nodeName) {
-        const nameLower = node.nodeName;
-        if (maybeReactComponentNameSets.has(nameLower) && isElementNode(node)) {
-          const loc = node.sourceCodeLocation;
-          const st = getStartTagOffsets(loc);
-          if (st) {
+    const parser = new Parser(
+      {
+        onopentag(name, attribs) {
+          if (componentNameSet.has(name)) {
             found.push({
-              start: st.startOffset,
-              end: st.endOffset,
-              attrs: node.attrs.map((attribute) => ({
-                name: attribute.name,
-                value: attribute.value,
+              start: parser.startIndex,
+              end: parser.endIndex + 1,
+              attrs: Object.entries(attribs).map(([k, v]) => ({
+                name: k,
+                value: v,
               })),
-              nameLower,
+              name,
             });
           }
-        }
-      }
-      // Traverse normal child nodes.
-      if (hasChildNodes(node)) {
-        stack.push(
-          ...((node as DefaultTreeAdapterMap['element'])
-            .childNodes as DefaultTreeAdapterMap['node'][]),
-        );
-      }
-      // Ensure we also traverse into <template> content to discover nodes inside slots.
-      if (isTemplateNode(node)) {
-        stack.push(...node.content.childNodes);
-      }
-    }
+        },
+      },
+      {
+        lowerCaseTags: false,
+        lowerCaseAttributeNames: false,
+        recognizeSelfClosing: true,
+      },
+    );
+
+    parser.write(rawSlice);
+    parser.end();
+
+    const pending: PendingReplacement[] = [];
 
     found.sort((a, b) => a.start - b.start);
 
     for (const item of found) {
-      const originalName =
-        maybeReactComponentNames.find(
-          (n) => n.toLowerCase() === item.nameLower,
-        ) || item.nameLower;
+      const originalName = item.name;
 
-      // parse5's startTag offsets are authoritative — they correctly handle
-      // attributes containing '>' characters, multiline tags, and leading
-      // whitespace (emitted as separate #text nodes with distinct offsets).
+      // htmlparser2's startIndex/endIndex are authoritative — they correctly
+      // handle attributes containing '>' characters and multiline tags.
       const absStart = rawStart + item.start;
       const absEnd = rawStart + item.end;
       const startTagRaw = code.slice(absStart, absEnd);

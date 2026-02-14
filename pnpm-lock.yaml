@@ -51,6 +51,9 @@ catalogs:
     es-module-lexer:
       specifier: ^2.0.0
       version: 2.0.0
+    htmlparser2:
+      specifier: ^10.0.0
+      version: 10.1.0
     husky:
       specifier: ^9.1.7
       version: 9.1.7
@@ -63,9 +66,6 @@ catalogs:
     markdown-it:
       specifier: ^14.1.1
       version: 14.1.1
-    parse5:
-      specifier: ^8.0.0
-      version: 8.0.0
     pathe:
       specifier: ^2.0.3
       version: 2.0.3
@@ -521,6 +521,9 @@ importers:
       globals:
         specifier: catalog:test
         version: 17.3.0
+      htmlparser2:
+        specifier: catalog:dev
+        version: 10.1.0
       jsdom:
         specifier: catalog:test
         version: 28.0.0
@@ -530,9 +533,6 @@ importers:
       markdown-it:
         specifier: catalog:dev
         version: 14.1.1
-      parse5:
-        specifier: catalog:dev
-        version: 8.0.0
       pathe:
         specifier: catalog:dev
         version: 2.0.3
