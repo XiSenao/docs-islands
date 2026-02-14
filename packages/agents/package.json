@@ -1,0 +1,9 @@
+{
+  "name": "@docs-islands/agents",
+  "private": true,
+  "type": "module",
+  "description": "Shared AI assistant instructions and skills for Claude Code, Cursor, GitHub Copilot, and other AI coding tools",
+  "scripts": {
+    "postinstall": "node scripts/link.js"
+  }
+}
