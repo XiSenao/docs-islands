@@ -5168,13 +5168,6 @@ packages:
         integrity: sha512-1I+1qpDt4idfgLQG+BNWmrqku+7/2bi5nLf4YwF8y8zXvmfiTBY3PV3ZibfrjBueCByROpuBjLLFCajqkgYoLQ==,
       }
 
-  markdown-it@14.1.0:
-    resolution:
-      {
-        integrity: sha512-a54IwgWPaeBCAAsv13YgmALOF1elABB08FxO9i+r4VFk5Vl4pKokRPeX8u5TCgSsPi6ec1otfLjdOpVcgbpshg==,
-      }
-    hasBin: true
-
   markdown-it@14.1.1:
     resolution:
       {
@@ -10281,15 +10274,6 @@ snapshots:
 
   mark.js@8.11.1: {}
 
-  markdown-it@14.1.0:
-    dependencies:
-      argparse: 2.0.1
-      entities: 4.5.0
-      linkify-it: 5.0.0
-      mdurl: 2.0.0
-      punycode.js: 2.3.1
-      uc.micro: 2.1.0
-
   markdown-it@14.1.1:
     dependencies:
       argparse: 2.0.1
@@ -11656,7 +11640,7 @@ snapshots:
   vitepress-plugin-llms@1.11.0:
     dependencies:
       gray-matter: 4.0.3
-      markdown-it: 14.1.0
+      markdown-it: 14.1.1
       markdown-title: 1.0.2
       mdast-util-from-markdown: 2.0.2
       millify: 6.1.0
