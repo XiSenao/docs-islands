@@ -335,6 +335,8 @@ importers:
         specifier: catalog:docs-dev
         version: 1.11.0
 
+  packages/agents: {}
+
   packages/core: {}
 
   packages/eslint-config:

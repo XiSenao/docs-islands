@@ -9,3 +9,10 @@ cache
 # when vitepress fails to build config.ts, 
 # it will remain in the workspace.
 packages/vitepress/docs/.vitepress/config.ts.timestamp-*.mjs
+
+# The skills for AI tools are provided by the @docs-islands/agents subpackage 
+# and are injected during the post-hook stage of pnpm install.
+.claude/skills
+.cursor/skills
+.agent/skills
+.github/skills
