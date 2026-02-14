@@ -216,8 +216,8 @@ describe('coreTransformComponentTags', () => {
       expect(divMatches).toHaveLength(2);
 
       // Verify both unique IDs are preserved
-      expect(out).toContain('uniqueid="invalid-directive"');
-      expect(out).toContain('uniqueid="client-invalid"');
+      expect(out).toContain('uniqueId="invalid-directive"');
+      expect(out).toContain('uniqueId="client-invalid"');
 
       // Both should default to ssr:only due to invalid directives
       expect(out).toMatch(
@@ -244,8 +244,8 @@ describe('coreTransformComponentTags', () => {
       expect(divMatches).toHaveLength(2);
     });
 
-    it('handles Parse5 position adjustments with leading whitespace', () => {
-      // Test case where Parse5 includes leading whitespace in positions
+    it('handles position adjustments with leading whitespace', () => {
+      // Test case where leading whitespace affects positions
       // Use HTML blocks that MarkdownIt will actually parse as HTML
       const codeWithWhitespace = `<HelloWorld />
     <HelloWorld attr="value" />`;
@@ -305,7 +305,7 @@ describe('coreTransformComponentTags', () => {
 
       // Verify props are preserved correctly
       expect(out).toContain('prop="value"');
-      expect(out).toContain('booleanprop');
+      expect(out).toContain('booleanProp');
     });
 
     it('maintains component processing order consistency across platforms', () => {

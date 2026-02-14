@@ -557,6 +557,24 @@ function registerBuildHelper(
   };
 }
 
+interface ScriptMatch {
+  content: string;
+  startIndex: number;
+  endIndex: number;
+}
+
+// Replace the entire script tag with empty lines to preserve line numbers.
+function cleanScriptByMatches(s: MagicString, matches: ScriptMatch[]) {
+  const code = s.toString();
+  for (const scriptMatch of matches) {
+    const { startIndex, endIndex } = scriptMatch;
+    const replacement = '\n'.repeat(
+      code.slice(startIndex, endIndex).split('\n').length - 1,
+    );
+    s.overwrite(startIndex, endIndex, replacement);
+  }
+}
+
 export default function vitepressReactRenderingStrategies(
   vitepressConfig: UserConfig<DefaultTheme.Config>,
 ): void {
@@ -638,11 +656,7 @@ export default function vitepressReactRenderingStrategies(
       offset += line.length + 1;
     }
 
-    const scriptMatches: {
-      content: string;
-      startIndex: number;
-      endIndex: number;
-    }[] = [];
+    const scriptMatches: ScriptMatch[] = [];
 
     for (const token of tokens) {
       if (token.type !== 'html_block' || !token.map) continue;
@@ -680,9 +694,16 @@ export default function vitepressReactRenderingStrategies(
     }
 
     if (scriptMatches.length > 1) {
-      throw new Error(
-        'Single file can contain only one <script lang="react"> element.',
-      );
+      logger
+        .getLoggerByGroup('react-plugin')
+        .error(
+          'Single file can contain only one <script lang="react"> element.',
+        );
+      cleanScriptByMatches(s, scriptMatches);
+      return {
+        code: s.toString(),
+        map: s.generateMap({ source: id, file: id, includeContent: true }),
+      };
     }
 
     const inlineComponentReferenceMap = new Map<
@@ -691,9 +712,8 @@ export default function vitepressReactRenderingStrategies(
     >();
     // The <script lang="react"> element only declares React components, reducing complexity while maintaining consistency with <script setup>.
     if (scriptMatches.length === 1) {
-      const { content, startIndex, endIndex } = scriptMatches[0];
+      const { content } = scriptMatches[0];
 
-      const lowerCaseComponentNamesToOriginalNames = new Map<string, string>();
       const maybeComponentReferenceMap = new Map<
         string,
         { identifier: string; importedName: string }
@@ -706,16 +726,12 @@ export default function vitepressReactRenderingStrategies(
         // This allows the build to continue with other valid components.
         logger
           .getLoggerByGroup('react-plugin')
-          .warn(
+          .error(
             `Failed to parse JavaScript in ${id}: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
           );
 
         // Remove the problematic script tag entirely to prevent further processing errors.
-        const { startIndex, endIndex } = scriptMatches[0];
-        const replacement = '\n'.repeat(
-          code.slice(startIndex, endIndex).split('\n').length - 1,
-        );
-        s.overwrite(startIndex, endIndex, replacement);
+        cleanScriptByMatches(s, scriptMatches);
 
         // Ensure we exit script processing and return clean Markdown.
         return {
@@ -758,29 +774,6 @@ export default function vitepressReactRenderingStrategies(
         for (const importSet of importSets) {
           const { importedName, localName } = importSet;
           if (/^[A-Z][\dA-Za-z]*$/.test(localName)) {
-            /**
-             * The HTML module is case-insensitive and standardizes to lowercase.
-             * An error will be thrown in the following scenarios:
-             *
-             * import HelloWorld from './HelloWorld';
-             * import Helloworld from './HelloWorld'; // X
-             *
-             * <HelloWorld />
-             * <Helloworld />
-             */
-            const lowerCaseLocalName = localName.toLowerCase();
-            if (
-              lowerCaseComponentNamesToOriginalNames.has(lowerCaseLocalName)
-            ) {
-              throw new Error(
-                `[@docs-islands/vitepress] Duplicate component name ${localName} in ${id}, please use the same case as the import statement.`,
-              );
-            }
-            lowerCaseComponentNamesToOriginalNames.set(
-              lowerCaseLocalName,
-              localName,
-            );
-
             maybeComponentReferenceMap.set(localName, {
               identifier,
               importedName,
@@ -794,11 +787,7 @@ export default function vitepressReactRenderingStrategies(
         }
       }
 
-      // Replace the entire script tag with empty lines to preserve line numbers.
-      const replacement = '\n'.repeat(
-        code.slice(startIndex, endIndex).split('\n').length - 1,
-      );
-      s.overwrite(startIndex, endIndex, replacement);
+      cleanScriptByMatches(s, scriptMatches);
 
       let currentCode = s.toString();
       let finalMap = s.generateMap({
