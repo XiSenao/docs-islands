@@ -6,7 +6,7 @@ type FileCallback = (
   absolutePath: string,
 ) => void | Promise<void>;
 
-export interface ScanFilesOptions {
+interface ScanFilesOptions {
   /**
    * Filter function to exclude certain files/directories
    * Return false to exclude the entry

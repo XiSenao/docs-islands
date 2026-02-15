@@ -1,5 +1,4 @@
 import inspector from 'node:inspector';
-import path from 'node:path';
 import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
 import { glob } from 'tinyglobby';
@@ -9,7 +8,7 @@ async function getModuleFiles(): Promise<string[]> {
     cwd: process.cwd(),
     absolute: false,
     onlyFiles: true,
-    ignore: ['rolldown.config.ts'],
+    ignore: ['*.config.ts', '*.test.ts', '*.spec.ts'],
   });
 
   return files.map((file) => file.replace('.ts', ''));
@@ -17,41 +16,37 @@ async function getModuleFiles(): Promise<string[]> {
 
 const modules = await getModuleFiles();
 
-const moduleConfigs: RolldownOptions[] = modules.map((module) =>
-  defineConfig({
-    input: `./${module}.ts`,
-    platform: 'neutral',
-    external: [/^[\w@][^:]/],
-    transform: {
-      define: {
-        __PROD__: String(process.env.NODE_ENV === 'production'),
-        __DEBUG__: String(inspector.url() !== undefined),
-      },
+const moduleConfigs: RolldownOptions = defineConfig({
+  input: './index.ts',
+  platform: 'neutral',
+  external: [/^[\w@][^:]/],
+  transform: {
+    define: {
+      __PROD__: String(process.env.NODE_ENV === 'production'),
+      __DEBUG__: String(inspector.url() !== undefined),
     },
-    output: {
-      dir: 'dist',
-      format: 'esm',
-      entryFileNames: `${module}.js`,
-    },
-  }),
-);
+  },
+  output: {
+    dir: 'dist',
+    format: 'esm',
+    preserveModules: true,
+  },
+});
 
-const dtsConfigs: RolldownOptions[] = modules.map((module) =>
-  defineConfig({
-    input: `./${module}.ts`,
-    platform: 'neutral',
-    external: [/^[\w@][^:]/],
-    output: {
-      dir: `dist/${path.dirname(module)}`,
-    },
-    plugins: [
-      dts({
-        emitDtsOnly: true,
-      }),
-    ],
-  }),
-);
+const dtsConfig: RolldownOptions = defineConfig({
+  input: Object.fromEntries(modules.map((m) => [m, `./${m}.ts`])),
+  platform: 'neutral',
+  external: [/^[\w@][^:]/],
+  output: {
+    dir: 'dist',
+  },
+  plugins: [
+    dts({
+      emitDtsOnly: true,
+    }),
+  ],
+});
 
-const rolldownConfig: RolldownOptions[] = [...moduleConfigs, ...dtsConfigs];
+const rolldownConfig: RolldownOptions[] = [moduleConfigs, dtsConfig];
 
 export default rolldownConfig;
