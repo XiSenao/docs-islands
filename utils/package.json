@@ -26,6 +26,14 @@
     "rolldown-plugin-dts": "catalog:dev"
   },
   "exports": {
-    "./*": "./dist/*.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js"
+    },
+    "./package.json": "./package.json"
   }
 }

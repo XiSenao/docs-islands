@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 /**
  * Git guard wrapper for link:dev / link:prod scripts.
  *

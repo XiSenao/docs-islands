@@ -42,9 +42,26 @@
     "del-cli": "catalog:dev"
   },
   "exports": {
-    ".": "./dist/src/config.js",
-    "./monorepo": "./dist/config.js",
-    "./playground": "./dist/src/playground/config.js",
-    "./docs": "./dist/src/docs/config.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./monorepo": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js"
+    },
+    "./playground": {
+      "types": "./dist/src/playground/config.d.ts",
+      "import": "./dist/src/playground/config.js"
+    },
+    "./docs": {
+      "types": "./dist/src/docs/config.d.ts",
+      "import": "./dist/src/docs/config.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js"
+    },
+    "./package.json": "./package.json"
   }
 }
