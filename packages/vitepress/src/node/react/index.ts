@@ -700,6 +700,12 @@ export default function vitepressReactRenderingStrategies(
           'Single file can contain only one <script lang="react"> element.',
         );
       cleanScriptByMatches(s, scriptMatches);
+      if (resolvedCompilationContainer) {
+        renderController.markdownModuleIdToPendingResolvedCompilationContainerMap.delete(
+          normalizedId,
+        );
+        resolvedCompilationContainer(compilationContainer);
+      }
       return {
         code: s.toString(),
         map: s.generateMap({ source: id, file: id, includeContent: true }),
@@ -732,6 +738,13 @@ export default function vitepressReactRenderingStrategies(
 
         // Remove the problematic script tag entirely to prevent further processing errors.
         cleanScriptByMatches(s, scriptMatches);
+
+        if (resolvedCompilationContainer) {
+          renderController.markdownModuleIdToPendingResolvedCompilationContainerMap.delete(
+            normalizedId,
+          );
+          resolvedCompilationContainer(compilationContainer);
+        }
 
         // Ensure we exit script processing and return clean Markdown.
         return {
