@@ -22,12 +22,10 @@ const moduleConfigs: RolldownOptions = defineConfig({
   external: [/^[\w@][^:]/],
   transform: {
     define: {
-      __PROD__: String(
-        process.env.CI !== 'true' && process.env.NODE_ENV === 'production',
+      __SILENCE_LOG__: String(
+        !process.env.CI && process.env.NODE_ENV === 'production',
       ),
-      __DEBUG__: String(
-        process.env.CI === 'true' || inspector.url() !== undefined,
-      ),
+      __DEBUG__: String(process.env.CI || inspector.url() !== undefined),
     },
   },
   output: {
