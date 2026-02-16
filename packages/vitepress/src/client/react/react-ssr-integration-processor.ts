@@ -89,6 +89,9 @@ const traverse: typeof babelTraverse =
 class ReactSSRIntegrationProcessor {
   private readonly sourceCode: string;
   private readonly callback: ReactSSRIntegrationCallback;
+  private readonly Logger = logger.getLoggerByGroup(
+    'react-ssr-integration-processor',
+  );
   private transformations: TransformationRecord[] = [];
 
   constructor(sourceCode: string, callback: ReactSSRIntegrationCallback) {
@@ -122,9 +125,7 @@ class ReactSSRIntegrationProcessor {
         transformCount: this.transformations.length,
       };
     } catch (error) {
-      logger
-        .getLoggerByGroup('react-ssr-integration-processor')
-        .error(`AST processing failed: ${formatErrorMessage(error)}`);
+      this.Logger.error(`AST processing failed: ${formatErrorMessage(error)}`);
       return {
         code: this.sourceCode,
         transformCount: 0,
@@ -184,11 +185,9 @@ class ReactSSRIntegrationProcessor {
             }
           }
         } catch (error) {
-          logger
-            .getLoggerByGroup('react-ssr-integration-processor')
-            .error(
-              `Transform error, catch error: ${formatErrorMessage(error)}`,
-            );
+          this.Logger.error(
+            `Transform error, catch error: ${formatErrorMessage(error)}`,
+          );
         }
       },
     });
@@ -284,9 +283,10 @@ class ReactSSRIntegrationProcessor {
       const injectSSRPrerenderedContent = this.callback(props);
 
       if (typeof injectSSRPrerenderedContent.ssrHtml !== 'string') {
-        throw new TypeError(
-          '[ReactSSRIntegrationProcessor] Failed to inject pre-rendered content, callback return value is not a string.',
+        this.Logger.error(
+          'Failed to inject pre-rendered content, callback return value is not a string.',
         );
+        return null;
       }
 
       return {
@@ -297,12 +297,14 @@ class ReactSSRIntegrationProcessor {
           injectSSRPrerenderedContent.clientRuntimeFileName,
       };
     } catch (error) {
-      throw new Error(
-        `[ReactSSRIntegrationProcessor] Failed to inject pre-rendered content, catch error: ${formatErrorMessage(
+      this.Logger.error(
+        `Failed to inject pre-rendered content, catch error: ${formatErrorMessage(
           error,
         )}`,
       );
     }
+
+    return null;
   }
 
   private extractProps(propsNode: t.Node): ExtractedProps {

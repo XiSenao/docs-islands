@@ -94,7 +94,7 @@ function linkSkillsForTool(projectRoot, skillsBase, toolDir, toolName) {
 }
 
 function main() {
-  console.log('\n📦 @vrite/ai-instructions - Setting up AI tool symlinks\n');
+  console.log('\n📦 @docs-islands/agents - Setting up AI tool symlinks\n');
   const projectRoot = findProjectRoot();
   const skillsBase = join(__dirname, '..', 'skills');
 
