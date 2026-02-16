@@ -95,7 +95,15 @@ export class ReactRenderStrategy {
     const pageId = this.getCurrentPageId();
 
     try {
-      await reactComponentManager.subscribeComponent(pageId, renderComponent);
+      const subscribed = await reactComponentManager.subscribeComponent(
+        pageId,
+        renderComponent,
+      );
+
+      if (!subscribed) {
+        Logger.error(`Component ${renderComponent} subscription failed`);
+        return;
+      }
 
       const Component = reactComponentManager.getComponent(
         pageId,
@@ -141,7 +149,15 @@ export class ReactRenderStrategy {
     const pageId = this.getCurrentPageId();
 
     try {
-      await reactComponentManager.subscribeComponent(pageId, renderComponent);
+      const subscribed = await reactComponentManager.subscribeComponent(
+        pageId,
+        renderComponent,
+      );
+
+      if (!subscribed) {
+        Logger.error(`Component ${renderComponent} subscription failed`);
+        return;
+      }
 
       const Component = reactComponentManager.getComponent(
         pageId,

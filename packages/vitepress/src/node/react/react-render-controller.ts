@@ -2,6 +2,7 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
+import { LightGeneralLogger } from '#shared/logger';
 import { RenderController } from '../core/render-controller';
 
 export class ReactRenderController extends RenderController {
@@ -100,7 +101,7 @@ if (targetElements.length > 0) {
       if (props["${RENDER_STRATEGY_CONSTANTS.renderDirective.toLocaleLowerCase()}"] === 'ssr:only') {
         return;
       }
-      throw new Error('Component '+ props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLocaleLowerCase()}"] + ' not found');
+      ${LightGeneralLogger('error', `'Component '+ props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLocaleLowerCase()}"] + ' not found'`, 'generate-client-runtime-in-dev').formatText}
     }
   });
 }
