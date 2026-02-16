@@ -263,7 +263,15 @@ class ReleaseSystemManager {
   private async buildProject(): Promise<void> {
     Logger.info('📦 Building project...');
     try {
-      execSync('pnpm build', { stdio: 'inherit', cwd: this.packageRootDir });
+      execSync('pnpm build', {
+        stdio: 'inherit',
+        cwd: this.packageRootDir,
+        env: {
+          ...process.env,
+          NODE_ENV: 'production',
+          CI: 'false',
+        },
+      });
       Logger.success('✅ Build completed\n');
     } catch {
       throw new Error('Build failed');
