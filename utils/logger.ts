@@ -12,7 +12,7 @@ export type LogLevel = 'log' | 'warn' | 'error' | 'debug';
 /** Available log kinds */
 export type LogKind = 'info' | 'success' | 'warn' | 'error' | 'debug';
 
-declare const __PROD__: boolean;
+declare const __SILENCE_LOG__: boolean;
 declare const __DEBUG__: boolean;
 
 const MAIN_NAME = 'docs-islands';
@@ -72,7 +72,7 @@ const LIGHT_LOGGER_STYLES = {
  * this package exposes `dist` for external consumption,
  * and the `pnpm build` command must be re-executed if the environment changes.
  */
-const isProductionEnv: boolean = __PROD__;
+const isSilentLogEnabled: boolean = __SILENCE_LOG__;
 const isDebugEnabled: boolean = __DEBUG__;
 
 interface PicocolorsType {
@@ -99,7 +99,7 @@ colors = isColorSupported ? (picocolors as PicocolorsType) : null;
 function shouldSuppressLog(kind: LogKind): boolean {
   // Suppress non-critical logs in production environment.
   if (
-    isProductionEnv &&
+    isSilentLogEnabled &&
     (kind === 'info' || kind === 'success' || kind === 'debug')
   ) {
     return true;

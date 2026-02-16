@@ -134,6 +134,7 @@ class ReleaseSystemManager {
       Logger.info('🚀 Starting release process...\n');
 
       await this.preReleaseCheck();
+      await this.buildWorkspaceDependencies(true);
 
       if (!this.options.skipTests) {
         await this.runTests();
@@ -260,7 +261,65 @@ class ReleaseSystemManager {
     }
   }
 
+  private getWorkspaceDependencies(): string[] {
+    const deps: string[] = [];
+    const allDeps: Record<string, string> = {
+      ...(this.pkg.dependencies as Record<string, string>),
+      ...(this.pkg.devDependencies as Record<string, string>),
+    };
+
+    // Packages only needed for linting/testing, not for the build output.
+    const buildExcludePatterns = ['eslint'];
+
+    for (const [name, version] of Object.entries(allDeps)) {
+      if (
+        typeof version === 'string' &&
+        version.startsWith('workspace:') &&
+        !buildExcludePatterns.some((pattern) => name.includes(pattern))
+      ) {
+        deps.push(name);
+      }
+    }
+
+    return deps;
+  }
+
+  private async buildWorkspaceDependencies(
+    isCI: boolean = false,
+  ): Promise<void> {
+    Logger.info('📦 Building workspace dependencies...');
+
+    const workspaceDeps = this.getWorkspaceDependencies();
+    if (workspaceDeps.length === 0) {
+      Logger.info('ℹ️  No workspace dependencies found');
+      return;
+    }
+
+    Logger.info(`Found workspace dependencies: ${workspaceDeps.join(', ')}`);
+
+    for (const dep of workspaceDeps) {
+      Logger.info(`📦 Building ${dep}...`);
+      try {
+        execSync(`pnpm --filter ${dep} build`, {
+          stdio: 'inherit',
+          cwd: this.packageRootDir,
+          env: {
+            ...process.env,
+            NODE_ENV: 'production',
+            CI: isCI ? '1' : undefined,
+          },
+        });
+        Logger.success(`✅ ${dep} built successfully`);
+      } catch {
+        throw new Error(`Failed to build workspace dependency: ${dep}`);
+      }
+    }
+
+    Logger.success('✅ All workspace dependencies built\n');
+  }
+
   private async buildProject(): Promise<void> {
+    await this.buildWorkspaceDependencies();
     Logger.info('📦 Building project...');
     try {
       execSync('pnpm build', {
@@ -269,7 +328,7 @@ class ReleaseSystemManager {
         env: {
           ...process.env,
           NODE_ENV: 'production',
-          CI: 'false',
+          CI: undefined,
         },
       });
       Logger.success('✅ Build completed\n');
