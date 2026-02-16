@@ -6,6 +6,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-02-16
+
+### Features
+
+- feat(build): support package exclusions in build pipeline ([7d30224](https://github.com/XiSenao/docs-islands/commit/7d30224))
+
+### Bug Fixes
+
+- fix(build): disable logger production suppression in CI for e2e test compatibility ([c418dc6](https://github.com/XiSenao/docs-islands/commit/c418dc6))
+- fix(vitepress): resolve pending compilation container Promise on error early returns ([09e8916](https://github.com/XiSenao/docs-islands/commit/09e8916))
+- fix(vitepress): stabilize flaky HMR e2e tests with reload fallback ([0476d59](https://github.com/XiSenao/docs-islands/commit/0476d59))
+- fix(vitepress): preserve @vite-ignore through rolldown const inlining ([284ec0b](https://github.com/XiSenao/docs-islands/commit/284ec0b))
+- fix(build): enable minify other than codegen for ES lib mode ([441185b](https://github.com/XiSenao/docs-islands/commit/441185b))
+- fix(vitepress): harden react integration against path traversal, code injection and state leaks ([802b78d](https://github.com/XiSenao/docs-islands/commit/802b78d))
+
+### Maintenance
+
+- chore(vitepress): replace throws with graceful error logging in React runtime ([84a59d7](https://github.com/XiSenao/docs-islands/commit/84a59d7))
+- refactor(build): optimize rolldown configs with unified entry and consolidated DTS ([46f26b0](https://github.com/XiSenao/docs-islands/commit/46f26b0))
+- chore(deps): bump markdown-it version and patch audit issues ([fbbaa7c](https://github.com/XiSenao/docs-islands/commit/fbbaa7c))
+- refactor: centralize AI agent instructions into shared agents package ([e552dd8](https://github.com/XiSenao/docs-islands/commit/e552dd8))
+- refactor(vitepress): replace parse5 with htmlparser2 for case-sensitive component tag parsing ([ca9f137](https://github.com/XiSenao/docs-islands/commit/ca9f137))
+- refactor(vitepress): replace regex script extraction with structural tokenization ([24aeabf](https://github.com/XiSenao/docs-islands/commit/24aeabf))
+- refactor(vitepress): harden component tag transform with attribute escaping and html_inline support ([679cbba](https://github.com/XiSenao/docs-islands/commit/679cbba))
+- refactor(vitepress): streamline package dev workflow with subpath imports and link-guard ([9e3e7eb](https://github.com/XiSenao/docs-islands/commit/9e3e7eb))
+- chore(deps): bump outdated dependency versions and patch audit issues ([7626a68](https://github.com/XiSenao/docs-islands/commit/7626a68))
+
+### Other Changes
+
+- release(vitepress): auto-build workspace dependencies before release build ([e5fbe42](https://github.com/XiSenao/docs-islands/commit/e5fbe42))
+
 ## [0.1.3] - 2026-02-07
 
 ### Bug Fixes
