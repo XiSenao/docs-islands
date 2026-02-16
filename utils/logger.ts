@@ -17,6 +17,9 @@ declare const __DEBUG__: boolean;
 
 const MAIN_NAME = 'docs-islands';
 
+/* eslint { no-empty-function: "off", @typescript-eslint/no-empty-function: "off" } */
+const noop = function () {};
+
 /** Icons for different log kinds */
 const LOG_ICONS = {
   success: '✓',
@@ -326,6 +329,13 @@ export function lightGeneralLogger(
   message: string,
   group?: string,
 ): LightGeneralLoggerReturn {
+  if (shouldSuppressLog(type)) {
+    return {
+      log: noop,
+      formatText: '',
+    };
+  }
+
   const config = LIGHT_LOGGER_STYLES[type];
 
   const groupText = group ? `[${group}]` : '';
