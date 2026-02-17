@@ -4,6 +4,10 @@
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
   # docs site deployment requires generating llm text
   RELEASE = "1"
+  NODE_ENV = "production"
+  # override Netlify's default CI=true so that shouldSuppressLog
+  # correctly silences non-critical logs in production builds
+  CI = ""
 
 [build]
   publish = "docs/.vitepress/dist"
