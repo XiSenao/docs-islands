@@ -22,6 +22,7 @@
     "pathe": "catalog:dev",
     "del-cli": "catalog:dev",
     "picocolors": "catalog:dev",
+    "vite": "catalog:prod",
     "rolldown": "catalog:dev",
     "rolldown-plugin-dts": "catalog:dev"
   },

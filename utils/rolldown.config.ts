@@ -1,7 +1,7 @@
 import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
 import { glob } from 'tinyglobby';
-import { loadEnv } from '../scripts/load-env';
+import { loadEnv } from './load-env';
 
 const { enableSourcemap, enableMinify, silenceLog, debug } = loadEnv();
 
