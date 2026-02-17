@@ -1,7 +1,9 @@
-import inspector from 'node:inspector';
 import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
 import { glob } from 'tinyglobby';
+import { loadEnv } from '../scripts/load-env';
+
+const { enableSourcemap, enableMinify, silenceLog, debug } = loadEnv();
 
 async function getModuleFiles(): Promise<string[]> {
   const files = await glob(['**/*.ts'], {
@@ -30,16 +32,22 @@ const moduleConfig: RolldownOptions = defineConfig({
   external: [/^[\w@][^:]/],
   transform: {
     define: {
-      __SILENCE_LOG__: String(
-        !process.env.CI && process.env.NODE_ENV === 'production',
-      ),
-      __DEBUG__: String(process.env.CI || inspector.url() !== undefined),
+      __SILENCE_LOG__: String(silenceLog),
+      __DEBUG__: String(debug),
     },
   },
   output: {
     dir: 'dist',
     format: 'esm',
     preserveModules: true,
+    sourcemap: enableSourcemap,
+    ...(enableMinify && {
+      minify: {
+        compress: true,
+        mangle: false,
+        codegen: { removeWhitespace: false },
+      },
+    }),
   },
 });
 
