@@ -1,12 +1,11 @@
 import licensePlugin from '@docs-islands/plugin-license';
-import { scanFiles } from '@docs-islands/utils/fs-utils';
+import { loadEnv, scanFiles } from '@docs-islands/utils';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, resolve } from 'node:url';
 import type { PreRenderedChunk } from 'rolldown';
 import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
-import { loadEnv } from '../../scripts/load-env';
 import pkg from './package.json' with { type: 'json' };
 import generatePackageJson from './packagePlugin';
 

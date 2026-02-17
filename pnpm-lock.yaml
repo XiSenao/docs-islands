@@ -697,6 +697,9 @@ importers:
       typescript:
         specifier: catalog:dev
         version: 5.9.3
+      vite:
+        specifier: catalog:prod
+        version: 5.4.21(patch_hash=758bde5f8f286933b3d221e62bfaf685e9b635c448ca22a941a82086cf70107c)(@types/node@22.19.0)(less@4.4.2)
 
 packages:
   '@acemir/cssom@0.9.31':
