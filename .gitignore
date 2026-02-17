@@ -16,3 +16,6 @@ packages/vitepress/docs/.vitepress/config.ts.timestamp-*.mjs
 .cursor/skills
 .agent/skills
 .github/skills
+
+# Local environment overrides
+*.local

@@ -100,15 +100,14 @@ colors = isColorSupported ? (picocolors as PicocolorsType) : null;
  * Checks if a log should be suppressed based on environment and kind.
  */
 function shouldSuppressLog(kind: LogKind): boolean {
-  // Suppress non-critical logs in production environment.
-  if (
-    isSilentLogEnabled &&
-    (kind === 'info' || kind === 'success' || kind === 'debug')
-  ) {
-    return true;
-  }
+  // Debug logs are independently controlled by __DEBUG__:
+  // RELEASE → always off; otherwise → inspector attachment.
   if (kind === 'debug') {
     return !isDebugEnabled;
+  }
+  // Suppress info/success in production (non-CI) and release.
+  if (isSilentLogEnabled && (kind === 'info' || kind === 'success')) {
+    return true;
   }
   return false;
 }

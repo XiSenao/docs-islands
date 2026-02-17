@@ -6,8 +6,11 @@ import { fileURLToPath, resolve } from 'node:url';
 import type { PreRenderedChunk } from 'rolldown';
 import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
+import { loadEnv } from '../../scripts/load-env';
 import pkg from './package.json' with { type: 'json' };
 import generatePackageJson from './packagePlugin';
+
+const { enableSourcemap, enableMinify } = loadEnv();
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -108,7 +111,7 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
       exports: 'named',
       format: 'esm',
       externalLiveBindings: false,
-      sourcemap: false,
+      sourcemap: enableSourcemap,
     },
   });
 };
@@ -125,15 +128,17 @@ const nodeConfig = defineConfig({
   plugins: nodePlugins,
   output: {
     ...sharedNodeOptions.output,
-    minify: {
-      compress: true,
-      mangle: false,
-      // Do not minify whitespace for ES lib output since that would remove
-      // pure annotations and break tree-shaking
-      codegen: {
-        removeWhitespace: false,
+    ...(enableMinify && {
+      minify: {
+        compress: true,
+        mangle: false,
+        // Do not minify whitespace for ES lib output since that would remove
+        // pure annotations and break tree-shaking
+        codegen: {
+          removeWhitespace: false,
+        },
       },
-    },
+    }),
   },
 });
 
