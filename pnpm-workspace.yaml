@@ -31,6 +31,9 @@ overrides:
   # Override to 4.1.1 to pick up the security patch.
   # Remove once @eslint/eslintrc updates its js-yaml dependency.
   '@eslint/eslintrc>js-yaml': '4.1.1'
+  'minimatch@^3.0.0': '^3.1.4'
+  'minimatch@^9.0.0': '^9.0.7'
+  'minimatch@^10.0.0': '^10.2.3'
 
 nodeVersion: 20.19.0
 
