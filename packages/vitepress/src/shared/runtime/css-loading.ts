@@ -46,37 +46,38 @@ interface LoadStyleOptions {
   failureStrategy?: FailureStrategy;
 }
 
-function createCSSLoadingConfig(
-  environment: Environment = 'production',
-): CSSLoadingConfig {
-  const baseConfig: Record<Environment, CSSLoadingConfig> = {
-    development: {
-      timeout: 10_000,
-      retryCount: 3,
-      retryDelay: 1000,
-      enablePerformanceMonitoring: true,
-      enableDuplicateDetection: true,
-      failureStrategy: 'partial' as const,
-    },
-    production: {
-      timeout: 6000,
-      retryCount: 1,
-      retryDelay: 300,
-      enablePerformanceMonitoring: false,
-      enableDuplicateDetection: true,
-      failureStrategy: 'partial' as const,
-    },
-    debug: {
-      timeout: 15_000,
-      retryCount: 3,
-      retryDelay: 500,
-      enablePerformanceMonitoring: true,
-      enableDuplicateDetection: true,
-      failureStrategy: 'strict' as const,
-    },
+function createCSSLoadingConfig(): CSSLoadingConfig {
+  const developmentConfig = {
+    timeout: 10_000,
+    retryCount: 3,
+    retryDelay: 1000,
+    enablePerformanceMonitoring: true,
+    enableDuplicateDetection: true,
+    failureStrategy: 'partial' as const,
   };
-
-  return baseConfig[environment] ?? baseConfig.production;
+  const productionConfig = {
+    timeout: 6000,
+    retryCount: 1,
+    retryDelay: 300,
+    enablePerformanceMonitoring: false,
+    enableDuplicateDetection: true,
+    failureStrategy: 'partial' as const,
+  };
+  const debugConfig = {
+    timeout: 15_000,
+    retryCount: 3,
+    retryDelay: 500,
+    enablePerformanceMonitoring: true,
+    enableDuplicateDetection: true,
+    failureStrategy: 'strict' as const,
+  };
+  if (__DEBUG__) {
+    return debugConfig;
+  }
+  if (__ENV__ === 'development') {
+    return developmentConfig;
+  }
+  return productionConfig;
 }
 
 /**
@@ -303,25 +304,10 @@ async function loadHighPriorityStyles(
   });
 }
 
-const environment: Environment = (() => {
-  if (globalThis.window !== undefined) {
-    if (
-      globalThis.location.hostname === 'localhost' ||
-      globalThis.location.hostname === '127.0.0.1'
-    ) {
-      return 'development';
-    }
-    if (
-      globalThis.location.search.includes('debug=true') ||
-      globalThis.location.search.includes('css-debug')
-    ) {
-      return 'debug';
-    }
-  }
-  return 'production';
-})() as Environment;
+declare const __ENV__: Environment;
+declare const __DEBUG__: boolean;
 
-const cssLoadingConfig: CSSLoadingConfig = createCSSLoadingConfig(environment);
+const cssLoadingConfig: CSSLoadingConfig = createCSSLoadingConfig();
 
 // TODO: Export CSS loading config to users.
 export default async function cssLoadingRuntime(

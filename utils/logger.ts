@@ -308,6 +308,8 @@ class Logger {
 
 export default Logger;
 
+export type LoggerType = InstanceType<typeof Logger>;
+
 export interface LightGeneralLoggerReturn {
   log: () => void;
   formatText: string;

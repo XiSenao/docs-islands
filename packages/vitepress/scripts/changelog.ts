@@ -1,11 +1,12 @@
-import logger from '#shared/logger';
+import getLoggerInstance from '#shared/logger';
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import packageJson from '../package.json' with { type: 'json' };
 
-const Logger = logger.getLoggerByGroup('changelog');
+const loggerInstance = getLoggerInstance();
+const Logger = loggerInstance.getLoggerByGroup('changelog');
 
 interface ChangelogOptions {
   version?: string;

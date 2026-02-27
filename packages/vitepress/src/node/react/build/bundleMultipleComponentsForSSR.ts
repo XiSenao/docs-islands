@@ -5,7 +5,7 @@ import type {
 import type { RollupOutput } from '#dep-types/rollup';
 import type { ConfigType } from '#dep-types/utils';
 import { DIRNAME_VAR_NAME } from '#shared/constants';
-import logger from '#shared/logger';
+import getLoggerInstance from '#shared/logger';
 import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -16,7 +16,10 @@ import type { FrameworkAdapter } from '../../core/framework-adapter';
 import { reactAdapter } from '../adapter';
 import { isOutputChunk } from './shared';
 
-const Logger = logger.getLoggerByGroup('bundle-multiple-components-for-ssr');
+const loggerInstance = getLoggerInstance();
+const Logger = loggerInstance.getLoggerByGroup(
+  'bundle-multiple-components-for-ssr',
+);
 
 export async function bundleMultipleComponentsForSSR(
   config: ConfigType,

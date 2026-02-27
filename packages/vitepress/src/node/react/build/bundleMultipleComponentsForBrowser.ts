@@ -4,7 +4,7 @@ import type {
 } from '#dep-types/component';
 import type { ConfigType } from '#dep-types/utils';
 import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
-import logger, { LightGeneralLogger } from '#shared/logger';
+import getLoggerInstance, { LightGeneralLogger } from '#shared/logger';
 import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -16,7 +16,8 @@ import type { FrameworkAdapter } from '../../core/framework-adapter';
 import { reactAdapter } from '../adapter';
 import { isOutputAsset, isOutputChunk, resolveSafeOutputPath } from './shared';
 
-const Logger = logger.getLoggerByGroup(
+const loggerInstance = getLoggerInstance();
+const Logger = loggerInstance.getLoggerByGroup(
   'bundle-multiple-components-for-browser',
 );
 

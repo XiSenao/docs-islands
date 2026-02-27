@@ -2,7 +2,7 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
-import logger from '#shared/logger';
+import getLoggerInstance from '#shared/logger';
 import { generate } from '@babel/generator';
 import { parse } from '@babel/parser';
 import type { NodePath } from '@babel/traverse';
@@ -52,6 +52,7 @@ const traverse: typeof babelTraverse =
   // @ts-expect-error No type checking is needed here.
   babelTraverse?.default ?? babelTraverse;
 
+const loggerInstance = getLoggerInstance();
 /**
  * This is an optimization specifically for the rendering pipeline triggered by route changes in VitePress projects.
  * By default, a dynamic rendering approach is used. On route change, embedding the React server-rendered output is triggered only after Vue rendering completes.
@@ -89,7 +90,7 @@ const traverse: typeof babelTraverse =
 class ReactSSRIntegrationProcessor {
   private readonly sourceCode: string;
   private readonly callback: ReactSSRIntegrationCallback;
-  private readonly Logger = logger.getLoggerByGroup(
+  private readonly Logger = loggerInstance.getLoggerByGroup(
     'react-ssr-integration-processor',
   );
   private transformations: TransformationRecord[] = [];
@@ -426,14 +427,14 @@ class ReactSSRIntegrationProcessor {
 
     // Input validation.
     if (!ast) {
-      logger
+      loggerInstance
         .getLoggerByGroup('apply-css-injection-transformation')
         .warn('Invalid AST provided, skipping CSS injection');
       return;
     }
 
     const cssPathsArray = [...ssrCssBundlePaths];
-    const Logger = logger.getLoggerByGroup(
+    const Logger = loggerInstance.getLoggerByGroup(
       'apply-css-injection-transformation',
     );
 
