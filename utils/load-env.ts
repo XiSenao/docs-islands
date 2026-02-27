@@ -24,11 +24,14 @@ function parseEnvKeys(filePath: string): Set<string> {
   return keys;
 }
 
+export type Environment = 'development' | 'production' | 'debug';
+
 export interface EnvConfig {
   enableSourcemap: boolean;
   enableMinify: boolean;
   silenceLog: boolean;
   debug: boolean;
+  env: Environment;
 }
 
 /**
@@ -48,7 +51,7 @@ export interface EnvConfig {
 export function loadEnv(
   envDir: string = path.resolve(__dirname, '..'),
 ): EnvConfig {
-  const mode = process.env.NODE_ENV || 'development';
+  const mode = (process.env.NODE_ENV || 'development') as Environment;
 
   // ── Step 1: snapshot runtime env (always highest priority) ──
   const runtimeKeys = new Set(Object.keys(process.env));
@@ -110,5 +113,6 @@ export function loadEnv(
     enableMinify: process.env.DOCS_ISLANDS_MINIFY === 'true',
     silenceLog: process.env.DOCS_ISLANDS_SILENCE_LOG === 'true',
     debug: process.env.DOCS_ISLANDS_DEBUG === 'true',
+    env: mode,
   };
 }

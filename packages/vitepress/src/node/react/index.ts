@@ -13,7 +13,7 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
-import logger from '#shared/logger';
+import getLoggerInstance from '#shared/logger';
 import reactPlugin from '@vitejs/plugin-react-swc';
 import type { CheerioAPI } from 'cheerio';
 import { load } from 'cheerio';
@@ -67,6 +67,8 @@ const scriptBlockRE =
 
 /** Validates that an attribute string contains `lang="react"` (or `lang='react'`) with matched quotes. */
 const langReactAttrRE = /\blang=(?<q>["'])react\k<q>/;
+
+const loggerInstance = getLoggerInstance();
 
 interface ClientRuntimeMetafile {
   fileName: string;
@@ -128,7 +130,7 @@ const getClientRuntimeMetafile = async (): Promise<ClientRuntimeMetafile> => {
         '@docs-islands/vitepress/internal-helper/runtime',
       );
     } catch {
-      logger
+      loggerInstance
         .getLoggerByGroup('client-runtime-metafile')
         .error(
           'This is developer mode, you need to build the @docs-islands/vitepress project first (pnpm build) to complete the build.',
@@ -212,7 +214,7 @@ function registerBuildHelper(
   vitepressConfig.transformHtml = async (html, id, ctx) => {
     const pageName = ctx.page;
     const pendingResolvedId = join('/', pageName.replace('.md', ''));
-    const Logger = logger.getLoggerByGroup('transform-html');
+    const Logger = loggerInstance.getLoggerByGroup('transform-html');
     const transformedHtml = preHtmlTransform
       ? await Promise.resolve(preHtmlTransform(html, id, ctx))
       : html;
@@ -490,7 +492,7 @@ function registerBuildHelper(
   vitepressConfig.buildEnd = async () => {
     const { outDir, assetsDir } = config;
     const matafileDir = join(outDir, assetsDir);
-    const Logger = logger.getLoggerByGroup('build-end');
+    const Logger = loggerInstance.getLoggerByGroup('build-end');
     const { fileName, content } = await getClientRuntimeMetafile();
     const clientRuntimeFilePath = join(matafileDir, `chunks/${fileName}`);
     fs.writeFileSync(clientRuntimeFilePath, content);
@@ -539,14 +541,15 @@ function registerBuildHelper(
             };
           });
         if (stats.totalTransformations > 0) {
-          logger.getLoggerByGroup('react-ssr-integration-processor').success(`
+          loggerInstance.getLoggerByGroup('react-ssr-integration-processor')
+            .success(`
             Complete ${stats.totalTransformations} pre-rendering injections for page ${markdownModuleId}
 
             ${stats.transformedNodes.map((node) => `- Line ${node.line}, Column ${node.column}`).join('\n')}
           `);
           fs.writeFileSync(join(outDir, outputPath), transformedCode);
         } else {
-          logger
+          loggerInstance
             .getLoggerByGroup('react-ssr-integration-processor')
             .info(
               `No transformations performed, preserve original code for ${markdownModuleId}.`,
@@ -694,7 +697,7 @@ export default function vitepressReactRenderingStrategies(
     }
 
     if (scriptMatches.length > 1) {
-      logger
+      loggerInstance
         .getLoggerByGroup('react-plugin')
         .error(
           'Single file can contain only one <script lang="react"> element.',
@@ -730,7 +733,7 @@ export default function vitepressReactRenderingStrategies(
       } catch (parseError) {
         // Log a warning instead of throwing an error for parse failures.
         // This allows the build to continue with other valid components.
-        logger
+        loggerInstance
           .getLoggerByGroup('react-plugin')
           .error(
             `Failed to parse JavaScript in ${id}: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
@@ -762,7 +765,7 @@ export default function vitepressReactRenderingStrategies(
         } else {
           // Log an error instead of throwing during failed import resolution.
           // This allows the build to continue and lets the bundler handle the error.
-          logger
+          loggerInstance
             .getLoggerByGroup('react-plugin')
             .error(
               `Failed to resolve import ${identifier} in ${id}, skipping component registration`,
@@ -776,7 +779,7 @@ export default function vitepressReactRenderingStrategies(
           importSets = travelImports(exp) || [];
         } catch (importParseError) {
           // Log a warning and skip this import if parsing fails.
-          logger
+          loggerInstance
             .getLoggerByGroup('react-plugin')
             .warn(
               `Failed to parse import statement in ${id}: ${importParseError instanceof Error ? importParseError.message : String(importParseError)}`,
@@ -1281,7 +1284,7 @@ export default function vitepressReactRenderingStrategies(
         order: 'pre',
         async handler(ctx) {
           const { file, modules, server, read } = ctx;
-          const Logger = logger.getLoggerByGroup('handle-hot-update');
+          const Logger = loggerInstance.getLoggerByGroup('handle-hot-update');
 
           // Markdown level hot update
           if (file.endsWith('.md')) {

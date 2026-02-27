@@ -7,13 +7,15 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
-import logger from '#shared/logger';
+import getLoggerInstance from '#shared/logger';
 import { validateLegalRenderElements } from '#shared/utils';
 import type React from 'react';
 import type ReactDOM from 'react-dom/client';
 import { getCleanPathname } from '../../shared/runtime';
 import { reactComponentManager } from './react-component-manager';
 import { reactRenderStrategy } from './react-render-strategy';
+
+const loggerInstance = getLoggerInstance();
 
 // Hoisted predicate to satisfy unicorn/consistent-function-scoping.
 const __requiresSsrDirective = (
@@ -92,7 +94,9 @@ class ReactIntegration {
        * the browser will not detect the change on subsequent route transitions.
        */
       import(scriptPath).then(() => {
-        const Logger = logger.getLoggerByGroup('load-dev-render-runtime');
+        const Logger = loggerInstance.getLoggerByGroup(
+          'load-dev-render-runtime',
+        );
         Logger.success('Development render runtime loaded successfully');
       });
     }
@@ -216,7 +220,7 @@ class ReactIntegration {
         memoizedUpdateState.pendingMissingImports =
           memoizedUpdateState.pendingMissingImports || [];
 
-        const Logger = logger.getLoggerByGroup('vite:after-update');
+        const Logger = loggerInstance.getLoggerByGroup('vite:after-update');
         const renderComponentDOMContainers = document.querySelectorAll(
           `[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}]`,
         );
@@ -758,7 +762,7 @@ class ReactIntegration {
                   }
                 }
                 element.innerHTML = ssrHtml;
-                logger
+                loggerInstance
                   .getLoggerByGroup('hot-updated')
                   .success('ssr:only component HMR completed.');
               }

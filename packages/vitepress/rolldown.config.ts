@@ -9,7 +9,7 @@ import { dts } from 'rolldown-plugin-dts';
 import pkg from './package.json' with { type: 'json' };
 import generatePackageJson from './packagePlugin';
 
-const { enableSourcemap, enableMinify } = loadEnv();
+const { enableSourcemap, enableMinify, debug, env } = loadEnv();
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -162,7 +162,7 @@ const clientConfig = defineConfig({
     react: resolve(__dirname, 'src/client/react/index.ts'),
   },
   transform: {
-    target: 'es2020',
+    target: 'es2022',
   },
 });
 
@@ -178,7 +178,7 @@ const clientDtsConfig = defineConfig({
     }),
   ],
   transform: {
-    target: 'es2020',
+    target: 'es2022',
   },
 });
 
@@ -192,7 +192,11 @@ const clientRuntimeConfig = defineConfig({
     'client-runtime': resolve(__dirname, 'src/shared/client-runtime.ts'),
   },
   transform: {
-    target: 'es2020',
+    target: 'es2022',
+    define: {
+      __DEBUG__: String(debug),
+      __ENV__: JSON.stringify(env),
+    },
   },
   plugins: [
     {

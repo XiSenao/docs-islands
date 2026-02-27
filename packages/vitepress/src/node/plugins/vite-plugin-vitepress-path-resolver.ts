@@ -1,9 +1,11 @@
 import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
-import logger from '#shared/logger';
+import getLoggerInstance from '#shared/logger';
 import { getProjectRoot } from '@docs-islands/utils/path';
 import { dirname, extname, isAbsolute, join, relative, resolve } from 'pathe';
 import { normalizePath } from 'vite';
 import type { DefaultTheme, Plugin, SiteConfig } from 'vitepress';
+
+const loggerInstance = getLoggerInstance();
 
 class VitePressPathResolver {
   private readonly base: string;
@@ -211,7 +213,7 @@ export default function createVitePressPathResolverPlugin(): Plugin {
         const resolved = resolver.resolveId(id, importer);
 
         if (resolved) {
-          logger
+          loggerInstance
             .getLoggerByGroup('vitepress-path-resolver')
             .success(
               `${id.replace(/[&?]+__INLINE_PATH_RESOLVER__/, '')} -> ${resolved}`,

@@ -1,4 +1,4 @@
-import logger from '#shared/logger';
+import getLoggerInstance from '#shared/logger';
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { normalizePath } from 'vite';
 import packageJson from '../package.json' with { type: 'json' };
 
-const Logger = logger.getLoggerByGroup('release');
+const loggerInstance = getLoggerInstance();
+const Logger = loggerInstance.getLoggerByGroup('release');
 
 type PackageJson = typeof packageJson;
 

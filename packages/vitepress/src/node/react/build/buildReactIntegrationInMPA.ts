@@ -1,6 +1,6 @@
 import type { OutputChunk, RollupOutput } from '#dep-types/rollup';
 import type { ConfigType } from '#dep-types/utils';
-import logger from '#shared/logger';
+import getLoggerInstance from '#shared/logger';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'pathe';
@@ -10,7 +10,10 @@ import type { FrameworkAdapter } from '../../core/framework-adapter';
 import { reactAdapter } from '../adapter';
 import { isOutputChunk, resolveSafeOutputPath } from './shared';
 
-const Logger = logger.getLoggerByGroup('build-react-integration-in-mpa');
+const loggerInstance = getLoggerInstance();
+const Logger = loggerInstance.getLoggerByGroup(
+  'build-react-integration-in-mpa',
+);
 
 let buildPromise: Promise<{
   entryPoint: string;

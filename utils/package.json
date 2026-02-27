@@ -36,5 +36,6 @@
       "import": "./dist/*.js"
     },
     "./package.json": "./package.json"
-  }
+  },
+  "sideEffects": false
 }

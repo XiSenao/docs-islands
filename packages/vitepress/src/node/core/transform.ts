@@ -4,7 +4,7 @@ import {
   SPA_RENDER_SYNC_OFF,
   SPA_RENDER_SYNC_ON,
 } from '#shared/constants';
-import logger from '#shared/logger';
+import getLoggerInstance from '#shared/logger';
 import type { Identifier, Literal } from 'estree';
 import { Parser } from 'htmlparser2';
 import MagicString, { type SourceMap } from 'magic-string';
@@ -87,6 +87,8 @@ export const travelImports = (
   return undefined;
 };
 
+const loggerInstance = getLoggerInstance();
+
 export default function coreTransformComponentTags(
   code: string,
   maybeReactComponentNames: string[],
@@ -102,7 +104,7 @@ export default function coreTransformComponentTags(
   renderIdToRenderDirectiveMap: Map<string, string[]>;
   map: SourceMap | null;
 } {
-  const Logger = logger.getLoggerByGroup('coreTransformComponentTags');
+  const Logger = loggerInstance.getLoggerByGroup('coreTransformComponentTags');
   const tokens = componentTagExtractorMd.parse(code, {});
 
   const s = new MagicString(code);
