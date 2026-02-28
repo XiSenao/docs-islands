@@ -26,9 +26,9 @@ export class ReactRenderController extends RenderController {
     return `
 import { createRoot as __react_client_render__, hydrateRoot as __react_hydrate__ } from 'react-dom/client';
 import { startTransition as __start_transition__ } from 'react';
-import logger from '@docs-islands/vitepress/internal/logger';
+import getLoggerInstance from '@docs-islands/vitepress/internal/logger';
 
-const Logger = logger.getLoggerByGroup('ReactRenderController');
+const Logger = getLoggerInstance().getLoggerByGroup('ReactRenderController');
 
 ${code}
 

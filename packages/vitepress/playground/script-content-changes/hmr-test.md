@@ -1,7 +1,1 @@
-# HMR Directive Change Test
-
-<script lang="react">
-  import HelloWorld from '../components/react/HelloWorld.tsx';
-</script>
-
-<HelloWorld ssr:only uniqueid="directive-test-component" />
+<!-- This file is used to test the HMR of markdown content changes. -->

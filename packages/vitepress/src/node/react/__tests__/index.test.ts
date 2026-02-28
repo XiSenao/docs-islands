@@ -13,7 +13,7 @@ vi.mock('@vitejs/plugin-react-swc', () => ({
 }));
 
 vi.mock('#shared/logger', () => ({
-  default: {
+  default: () => ({
     getLoggerByGroup: () => ({
       error: mockError,
       warn: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock('#shared/logger', () => ({
       success: vi.fn(),
       debug: vi.fn(),
     }),
-  },
+  }),
 }));
 
 function findPluginByName(

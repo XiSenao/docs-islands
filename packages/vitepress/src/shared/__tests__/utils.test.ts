@@ -6,11 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { validateLegalRenderElements } from '../utils';
 
 vi.mock('#shared/logger', () => ({
-  default: {
+  default: () => ({
     getLoggerByGroup: () => ({
       warn: vi.fn(),
     }),
-  },
+  }),
 }));
 
 describe('Shared Utils - validateLegalRenderElements Simple', () => {
