@@ -6,14 +6,14 @@ import { describe, expect, it, vi } from 'vitest';
 import coreTransformComponentTags, { travelImports } from '../transform';
 
 vi.mock('#shared/logger', () => ({
-  default: {
+  default: () => ({
     getLoggerByGroup: () => ({
       warn: vi.fn(),
       error: vi.fn(),
       info: vi.fn(),
       success: vi.fn(),
     }),
-  },
+  }),
 }));
 
 const attrNames = {
