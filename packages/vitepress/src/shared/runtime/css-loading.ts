@@ -1,6 +1,6 @@
 import { LightGeneralLogger } from '#shared/logger';
 
-type Environment = 'development' | 'production' | 'debug';
+type Environment = 'development' | 'production';
 type FailureStrategy = 'partial' | 'strict';
 
 interface CSSLoadingConfig {

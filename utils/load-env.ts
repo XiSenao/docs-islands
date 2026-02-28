@@ -1,8 +1,9 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import inspector from 'node:inspector';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadEnv as viteLoadEnv } from 'vite';
+import { findMonorepoRoot, isSubpath } from './path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,7 +25,19 @@ function parseEnvKeys(filePath: string): Set<string> {
   return keys;
 }
 
-export type Environment = 'development' | 'production' | 'debug';
+export type Environment = 'development' | 'production';
+
+const VALID_ENVIRONMENTS = new Set<string>(['development', 'production']);
+
+function resolveEnvironment(): Environment {
+  const raw = process.env.NODE_ENV || 'development';
+  if (!VALID_ENVIRONMENTS.has(raw)) {
+    throw new Error(
+      `Invalid NODE_ENV="${raw}". Expected one of: ${[...VALID_ENVIRONMENTS].join(', ')}`,
+    );
+  }
+  return raw as Environment;
+}
 
 export interface EnvConfig {
   enableSourcemap: boolean;
@@ -32,6 +45,34 @@ export interface EnvConfig {
   silenceLog: boolean;
   debug: boolean;
   env: Environment;
+}
+
+function findNearestEnv(): string {
+  let dir = realpathSync(__dirname);
+  while (true) {
+    if (existsSync(path.join(dir, '.env'))) break;
+    const parent = path.dirname(dir);
+    if (parent === dir) {
+      throw new Error(
+        `No .env file found from ${__dirname} to filesystem root`,
+      );
+    }
+    dir = parent;
+  }
+
+  const root = findMonorepoRoot(__dirname);
+
+  if (!root) {
+    throw new Error('Monorepo root directory not found');
+  }
+
+  if (!isSubpath(root, dir)) {
+    console.warn(
+      `[docs-islands] .env found at "${dir}" is outside the monorepo root "${root}". This may cause unexpected behavior.`,
+    );
+  }
+
+  return dir;
 }
 
 /**
@@ -45,13 +86,11 @@ export interface EnvConfig {
  *   4. `.env.[mode]`        (mode defaults)
  *   5. `.env`               (base defaults)
  *
- * @param envDir Directory containing `.env` files (default: project root)
  * @returns Pre-computed build configuration values.
  */
-export function loadEnv(
-  envDir: string = path.resolve(__dirname, '..'),
-): EnvConfig {
-  const mode = (process.env.NODE_ENV || 'development') as Environment;
+export function loadEnv(): EnvConfig {
+  const envDir = findNearestEnv();
+  const mode = resolveEnvironment();
 
   // ── Step 1: snapshot runtime env (always highest priority) ──
   const runtimeKeys = new Set(Object.keys(process.env));

@@ -302,3 +302,24 @@ index 7992b2f430e08577b7b4ae9e9d28c0d306707ca7..a8ebb69021827c827254ed2a0287935e
                if (idFsPath && isImport) {
                  idFsPath = pathToFileURL(idFsPath).href;
                }
+diff --git a/dist/node/index.d.ts b/dist/node/index.d.ts
+--- a/dist/node/index.d.ts
++++ b/dist/node/index.d.ts
+@@ -3156,14 +3156,14 @@ interface Plugin<A = any> extends rollup.Plugin<A> {
+     resolveId?: ObjectHook<(this: PluginContext, source: string, importer: string | undefined, options: {
+         attributes: Record<string, string>;
+         custom?: CustomPluginOptions;
+-        ssr?: boolean;
++        ssr?: boolean | undefined;
+         isEntry: boolean;
+     }) => Promise<ResolveIdResult> | ResolveIdResult>;
+     load?: ObjectHook<(this: PluginContext, id: string, options?: {
+-        ssr?: boolean;
++        ssr?: boolean | undefined;
+     }) => Promise<LoadResult> | LoadResult>;
+     transform?: ObjectHook<(this: TransformPluginContext, code: string, id: string, options?: {
+-        ssr?: boolean;
++        ssr?: boolean | undefined;
+     }) => Promise<rollup.TransformResult> | rollup.TransformResult>;
+ }
+ type HookHandler<T> = T extends ObjectHook<infer H> ? H : T;
