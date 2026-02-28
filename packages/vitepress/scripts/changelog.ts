@@ -139,7 +139,7 @@ const ChangelogManager = {
           `📝 Would update CHANGELOG.md with ${commitLines.length} commits`,
         );
         Logger.info('📋 Preview of new section:');
-        console.log(`\n${newSection}`);
+        Logger.info(`\n${newSection}`);
       } else {
         writeFileSync(changelogPath, updatedContent);
         Logger.success(
@@ -229,7 +229,7 @@ async function main() {
         break;
       }
       case '--help': {
-        console.log(`
+        Logger.info(`
 Usage: pnpm changelog [options]
 
 Options:

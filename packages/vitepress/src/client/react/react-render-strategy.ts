@@ -5,7 +5,7 @@ import {
 } from '#shared/constants';
 import getLoggerInstance from '#shared/logger';
 import { validateLegalRenderElements } from '#shared/utils';
-import { formatErrorMessage } from '@docs-islands/utils/console';
+import { formatErrorMessage } from '@docs-islands/utils/logger';
 import { getCleanPathname } from '../../shared/runtime';
 import { reactComponentManager } from './react-component-manager';
 
