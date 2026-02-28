@@ -2,7 +2,11 @@
  * Platform-specific test utilities for handling Windows CI issues
  */
 
+import Logger from '@docs-islands/utils/logger';
 import { expect, type Locator, type Page } from '@playwright/test';
+
+const logger = new Logger();
+const TestLogger = logger.getLoggerByGroup('platform-helpers');
 
 export const isWindows: boolean = process.platform === 'win32';
 export const isCI = Boolean(process.env.CI);
@@ -99,14 +103,16 @@ export async function debugElementState(
       )
       .catch(() => []);
 
-    console.log(`[DEBUG] ${label} (${selector}):`, {
-      platform: process.platform,
-      isAttached,
-      isVisible,
-      elements: attributes.length,
-      details: attributes,
-    });
+    TestLogger.debug(
+      `${label} (${selector}): ${JSON.stringify({
+        platform: process.platform,
+        isAttached,
+        isVisible,
+        elements: attributes.length,
+        details: attributes,
+      })}`,
+    );
   } catch (error) {
-    console.log(`[DEBUG] ${label} debug failed:`, error);
+    TestLogger.debug(`${label} debug failed: ${String(error)}`);
   }
 }

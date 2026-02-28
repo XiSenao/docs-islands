@@ -1,7 +1,7 @@
 import type { ComponentInfo, PageMetafile } from '#dep-types/page';
 import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
 import getLoggerInstance from '#shared/logger';
-import { formatErrorMessage } from '@docs-islands/utils/console';
+import { formatErrorMessage } from '@docs-islands/utils/logger';
 import { getCleanPathname } from '../../shared/runtime';
 
 const loggerInstance = getLoggerInstance();

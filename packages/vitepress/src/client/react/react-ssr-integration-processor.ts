@@ -8,7 +8,7 @@ import { parse } from '@babel/parser';
 import type { NodePath } from '@babel/traverse';
 import babelTraverse from '@babel/traverse';
 import * as t from '@babel/types';
-import { formatErrorMessage } from '@docs-islands/utils/console';
+import { formatErrorMessage } from '@docs-islands/utils/logger';
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };

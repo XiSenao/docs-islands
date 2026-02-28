@@ -612,7 +612,7 @@ async function main() {
         break;
       }
       case '--help': {
-        console.log(`
+        Logger.info(`
 Usage: pnpm release [options]
 
 Options:

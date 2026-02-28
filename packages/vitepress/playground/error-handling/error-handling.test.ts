@@ -1,8 +1,12 @@
+import Logger from '@docs-islands/utils/logger';
 import { expect } from '@playwright/test';
 import {
   debugElementState,
   waitForElementRobust,
 } from '../test-utils/platform-helpers';
+
+const logger = new Logger();
+const TestLogger = logger.getLoggerByGroup('error-handling-test');
 
 describe('Error Handling and Edge Cases', () => {
   describe('Import Resolution Errors', () => {
@@ -22,9 +26,9 @@ describe('Error Handling and Edge Cases', () => {
 
       await page.waitForTimeout(1000);
 
-      console.log('Console messages for missing component:');
+      TestLogger.debug('Console messages for missing component:');
       for (const [i, log] of consoleLogs.entries()) {
-        console.log(`${i}: ${log}`);
+        TestLogger.debug(`${i}: ${log}`);
       }
 
       // Basic functionality should still work.
@@ -150,7 +154,7 @@ describe('Error Handling and Edge Cases', () => {
 
       const loadTime = Date.now() - startTime;
 
-      console.log(`Page load time: ${loadTime}ms`);
+      TestLogger.debug(`Page load time: ${loadTime}ms`);
 
       // The page should load within 10 seconds even with errors.
       expect(loadTime).toBeLessThan(10_000);

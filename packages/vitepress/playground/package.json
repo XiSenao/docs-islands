@@ -20,6 +20,7 @@
   "devDependencies": {
     "eslint": "catalog:lint",
     "@docs-islands/eslint-config": "workspace:*",
+    "@docs-islands/utils": "workspace:*",
     "typescript": "catalog:dev",
     "react": "catalog:dev",
     "react-dom": "catalog:dev",

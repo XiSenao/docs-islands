@@ -1,14 +1,6 @@
 import { afterEach, expect, vi } from 'vitest';
 
 if (process.env.NODE_ENV === 'test') {
-  const originalConsole = {
-    log: console.log,
-    warn: console.warn,
-    error: console.error,
-    info: console.info,
-    debug: console.debug,
-  };
-
   globalThis.console = {
     ...console,
     log: vi.fn(),
@@ -17,8 +9,6 @@ if (process.env.NODE_ENV === 'test') {
     info: vi.fn(),
     debug: vi.fn(),
   };
-
-  (globalThis as any).__originalConsole = originalConsole;
 }
 
 vi.mock('node:fs', async () => {
