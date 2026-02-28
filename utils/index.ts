@@ -8,4 +8,4 @@ export {
   type LogKind,
   type LogLevel,
 } from './logger';
-export { getProjectRoot, slash } from './path';
+export { findMonorepoRoot, getProjectRoot, isSubpath, slash } from './path';
