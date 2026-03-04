@@ -291,10 +291,18 @@ class ReleaseSystemManager {
     return deps;
   }
 
+  private cleanDist(): void {
+    const distDir = path.join(this.packageRootDir, 'dist');
+    if (existsSync(distDir)) {
+      execSync('del-cli dist', { stdio: 'pipe', cwd: this.packageRootDir });
+    }
+  }
+
   private async buildProject(options: BuildOptions = {}): Promise<void> {
     Logger.info('📦 Building workspace dependencies...');
 
     const { localTest = false } = options;
+    this.cleanDist();
     const workspaceDeps = this.getWorkspaceDependencies();
     if (workspaceDeps.length === 0) {
       Logger.info('ℹ️  No workspace dependencies found');
