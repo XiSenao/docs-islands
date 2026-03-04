@@ -34,7 +34,9 @@
   },
   "scripts": {
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
-    "lint:package": "publint ./dist --strict --pack pnpm",
+    "lint:package": "tsx scripts/lint-package.ts",
+    "lint:package:publint": "tsx scripts/lint-package.ts --tool publint",
+    "lint:package:attw": "tsx scripts/lint-package.ts --tool attw",
     "typecheck": "tsc --noEmit && tsc -p src/node --noEmit && tsc -p src/client --noEmit && tsc -p src/shared --noEmit",
     "build": "rolldown --config rolldown.config.ts && pnpm build-types-check",
     "build-types-check": "tsc -p tsconfig.check.json",
@@ -74,6 +76,8 @@
     "@docs-islands/eslint-config": "workspace:*",
     "@docs-islands/utils": "workspace:*",
     "publint": "catalog:lint",
+    "@publint/pack": "catalog:lint",
+    "@arethetypeswrong/core": "catalog:lint",
     "@babel/generator": "catalog:dev",
     "@babel/parser": "catalog:dev",
     "@babel/traverse": "catalog:dev",
@@ -134,6 +138,26 @@
     "./internal-helper/imports/shared/*": "./src/shared/*.ts",
     "./types/*": {
       "types": "./types/*"
+    }
+  },
+  "types": "./node/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "client": [
+        "./client/index.d.mts"
+      ],
+      "react": [
+        "./node/react.d.ts"
+      ],
+      "react/client": [
+        "./client/react.d.mts"
+      ],
+      "internal/logger": [
+        "./shared/logger.d.ts"
+      ],
+      "internal/runtime": [
+        "./shared/client-runtime.d.ts"
+      ]
     }
   }
 }

@@ -152,7 +152,7 @@ class ReleaseSystemManager {
       if (!this.options.skipBuild) {
         await this.buildProject();
         await this.verifyDistPackageJsonVersion(newVersion);
-        await this.verifyPublint();
+        await this.verifyPackageLint();
       }
 
       if (!this.options.dryRun) {
@@ -358,16 +358,16 @@ class ReleaseSystemManager {
     }
   }
 
-  private async verifyPublint(): Promise<void> {
-    Logger.info('📋 Verifying publint...');
+  private async verifyPackageLint(): Promise<void> {
+    Logger.info('📋 Verifying package lint (publint + attw)...');
     try {
       execSync('pnpm lint:package', {
         stdio: 'inherit',
         cwd: this.packageRootDir,
       });
-      Logger.success('✅ Publint passed\n');
+      Logger.success('✅ Package lint passed\n');
     } catch {
-      throw new Error('Publint failed');
+      throw new Error('Package lint failed');
     }
   }
 

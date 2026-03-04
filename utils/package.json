@@ -20,6 +20,7 @@
     "@docs-islands/eslint-config": "workspace:*",
     "typescript": "catalog:dev",
     "pathe": "catalog:dev",
+    "is-in-ci": "catalog:dev",
     "del-cli": "catalog:dev",
     "picocolors": "catalog:dev",
     "vite": "catalog:prod",

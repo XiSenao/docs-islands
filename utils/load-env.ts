@@ -1,3 +1,4 @@
+import isInCi from 'is-in-ci';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import inspector from 'node:inspector';
 import path from 'node:path';
@@ -45,6 +46,7 @@ export interface EnvConfig {
   silenceLog: boolean;
   debug: boolean;
   env: Environment;
+  isInCi: boolean;
 }
 
 function findNearestEnv(): string {
@@ -112,7 +114,7 @@ export function loadEnv(): EnvConfig {
 
   // ── Step 3: CI / RELEASE adjustments ──
   // Override mode defaults, but respect user overrides (runtime + .local).
-  const isCI = Boolean(process.env.CI);
+  const isCI = isInCi;
   const isRelease = process.env.RELEASE === '1';
 
   // CI mode: re-enable info/success logs, suppress sourcemap, enable minify
@@ -153,5 +155,6 @@ export function loadEnv(): EnvConfig {
     silenceLog: process.env.DOCS_ISLANDS_SILENCE_LOG === 'true',
     debug: process.env.DOCS_ISLANDS_DEBUG === 'true',
     env: mode,
+    isInCi,
   };
 }
