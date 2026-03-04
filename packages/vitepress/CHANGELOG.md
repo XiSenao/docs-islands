@@ -6,6 +6,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-03-04
+
+### Features
+
+- feat(vitepress): add package lint gate and normalize CI env detection ([ef387cf](https://github.com/XiSenao/docs-islands/commit/ef387cf))
+
+### Bug Fixes
+
+- fix(vitepress): adapt test mocks and client codegen to getLoggerInstance API ([b73d1bc](https://github.com/XiSenao/docs-islands/commit/b73d1bc))
+- fix(build): preserve default export signatures in rolldown DTS output ([6d71b50](https://github.com/XiSenao/docs-islands/commit/6d71b50))
+
+### Maintenance
+
+- refactor(utils): rewrite env module with Zod validation and namespaced API ([34ab243](https://github.com/XiSenao/docs-islands/commit/34ab243))
+- refactor: unify logging through Logger and remove console module ([1dfb5f2](https://github.com/XiSenao/docs-islands/commit/1dfb5f2))
+- refactor(utils): add recursive .env discovery and fix vite Plugin type compat ([4596e2b](https://github.com/XiSenao/docs-islands/commit/4596e2b))
+- chore(deps): bump dependency version and patch audit issues ([5f2d220](https://github.com/XiSenao/docs-islands/commit/5f2d220))
+- chore(build): enable tree-shaking of Logger class in client-runtime bundle ([dad39b4](https://github.com/XiSenao/docs-islands/commit/dad39b4))
+- refactor(utils): move loadEnv into utils package as public export ([d1bc28b](https://github.com/XiSenao/docs-islands/commit/d1bc28b))
+- refactor(build): centralize env management with loadEnv and .env files ([207f046](https://github.com/XiSenao/docs-islands/commit/207f046))
+- chore(utils): apply shouldSuppressLog constraint to lightGeneralLogger ([f2c9782](https://github.com/XiSenao/docs-islands/commit/f2c9782))
+
 ## [0.2.0] - 2026-02-16
 
 ### Features
