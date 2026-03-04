@@ -9,7 +9,8 @@ import { dts } from 'rolldown-plugin-dts';
 import pkg from './package.json' with { type: 'json' };
 import generatePackageJson from './packagePlugin';
 
-const { enableSourcemap, enableMinify, debug, env } = loadEnv();
+const { config, debug, env } = loadEnv();
+const { sourcemap, minify } = config;
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -110,7 +111,7 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
       exports: 'named',
       format: 'esm',
       externalLiveBindings: false,
-      sourcemap: enableSourcemap,
+      sourcemap,
     },
   });
 };
@@ -127,7 +128,7 @@ const nodeConfig = defineConfig({
   plugins: nodePlugins,
   output: {
     ...sharedNodeOptions.output,
-    ...(enableMinify && {
+    ...(minify && {
       minify: {
         compress: true,
         mangle: false,
@@ -182,10 +183,6 @@ const clientDtsConfig = defineConfig({
   },
 });
 
-const enableClientRuntimeSourcemap = Boolean(
-  process.env.enableClientRuntimeSourcemap,
-);
-
 const clientRuntimeConfig = defineConfig({
   ...sharedBrowserOptions,
   input: {
@@ -235,7 +232,7 @@ const clientRuntimeConfig = defineConfig({
      * therefore it does not include chunks dependencies temporarily.
      */
     manualChunks: undefined,
-    sourcemap: enableClientRuntimeSourcemap ? 'inline' : false,
+    sourcemap: sourcemap ? 'inline' : false,
   },
 });
 

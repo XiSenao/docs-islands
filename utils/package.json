@@ -21,6 +21,7 @@
     "typescript": "catalog:dev",
     "pathe": "catalog:dev",
     "is-in-ci": "catalog:dev",
+    "zod": "catalog:dev",
     "del-cli": "catalog:dev",
     "picocolors": "catalog:dev",
     "vite": "catalog:prod",

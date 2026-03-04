@@ -85,9 +85,6 @@ export async function bundleMultipleComponentsForBrowser(
         cssCodeSplit: true,
       },
       plugins: adapter.browserBundlerPlugins(),
-      define: {
-        'process.env.NODE_ENV': '"production"',
-      },
       logLevel: 'warn',
     };
 

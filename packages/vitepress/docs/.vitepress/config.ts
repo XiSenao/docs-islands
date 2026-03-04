@@ -1,3 +1,4 @@
+import { loadEnv } from '@docs-islands/utils';
 import vitepressRenderingStrategiesPackageJson from '@docs-islands/vitepress/package.json' with { type: 'json' };
 import vitepressReactRenderingStrategies from '@docs-islands/vitepress/react';
 import { join } from 'pathe';
@@ -10,7 +11,7 @@ import llmstxt from 'vitepress-plugin-llms';
 import enConfig from '../en/config';
 import zhConfig from '../zh/config';
 
-const release = Boolean(process.env.RELEASE);
+const { release } = loadEnv();
 
 const base = `/${vitepressRenderingStrategiesPackageJson.name.replace('@', '')}/`;
 

@@ -27,6 +27,10 @@ interface ReleaseOptions {
   registry?: string;
 }
 
+interface BuildOptions {
+  localTest?: boolean;
+}
+
 const SimpleVersionManager = {
   parseVersion(version: string): {
     major: number;
@@ -135,7 +139,6 @@ class ReleaseSystemManager {
       Logger.info('🚀 Starting release process...\n');
 
       await this.preReleaseCheck();
-      await this.buildWorkspaceDependencies(true);
 
       if (!this.options.skipTests) {
         await this.runTests();
@@ -255,6 +258,9 @@ class ReleaseSystemManager {
     Logger.info('🧪 Running test suite...');
 
     try {
+      await this.buildProject({
+        localTest: true,
+      });
       execSync('pnpm test', { stdio: 'inherit', cwd: this.packageRootDir });
       Logger.success('✅ All tests passed\n');
     } catch {
@@ -285,11 +291,10 @@ class ReleaseSystemManager {
     return deps;
   }
 
-  private async buildWorkspaceDependencies(
-    isCI: boolean = false,
-  ): Promise<void> {
+  private async buildProject(options: BuildOptions = {}): Promise<void> {
     Logger.info('📦 Building workspace dependencies...');
 
+    const { localTest = false } = options;
     const workspaceDeps = this.getWorkspaceDependencies();
     if (workspaceDeps.length === 0) {
       Logger.info('ℹ️  No workspace dependencies found');
@@ -306,8 +311,8 @@ class ReleaseSystemManager {
           cwd: this.packageRootDir,
           env: {
             ...process.env,
-            NODE_ENV: 'production',
-            CI: isCI ? '1' : undefined,
+            DOCS_ISLANDS_MODE: 'production',
+            DOCS_ISLANDS_TEST: localTest ? '1' : '0',
           },
         });
         Logger.success(`✅ ${dep} built successfully`);
@@ -317,10 +322,7 @@ class ReleaseSystemManager {
     }
 
     Logger.success('✅ All workspace dependencies built\n');
-  }
 
-  private async buildProject(): Promise<void> {
-    await this.buildWorkspaceDependencies();
     Logger.info('📦 Building project...');
     try {
       execSync('pnpm build', {
@@ -328,8 +330,7 @@ class ReleaseSystemManager {
         cwd: this.packageRootDir,
         env: {
           ...process.env,
-          NODE_ENV: 'production',
-          CI: undefined,
+          DOCS_ISLANDS_MODE: 'production',
         },
       });
       Logger.success('✅ Build completed\n');

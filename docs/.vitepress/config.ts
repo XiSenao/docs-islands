@@ -1,3 +1,4 @@
+import { loadEnv } from '@docs-islands/utils';
 import type { DefaultTheme, UserConfig } from 'vitepress';
 import { defineConfig } from 'vitepress';
 import {
@@ -9,7 +10,7 @@ import enConfig from '../en/config';
 import zhConfig from '../zh/config';
 import { dynamicProxyPlugin } from './dynamicProxyPlugin';
 
-const release = Boolean(process.env.RELEASE);
+const { release } = loadEnv();
 
 const base = '/docs-islands/';
 

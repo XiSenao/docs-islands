@@ -90,6 +90,7 @@ catalogs:
   dev:
     'husky': '^9.1.7'
     'lint-staged': '^16.1.5'
+    'zod': '^4.3.6'
     'typescript': '~5.9.3'
     'vue-tsc': '~3.2.4'
     '@types/babel__generator': '^7.27.0'

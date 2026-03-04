@@ -3,8 +3,8 @@
   # don't need playwright for docs build
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
   # docs site deployment requires generating llm text
-  RELEASE = "1"
-  NODE_ENV = "production"
+  DOCS_ISLANDS_RELEASE = "1"
+  DOCS_ISLANDS_MODE = "production"
 
 [build]
   publish = "docs/.vitepress/dist"

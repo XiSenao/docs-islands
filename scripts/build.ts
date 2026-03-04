@@ -1,11 +1,12 @@
+import { loadEnv } from '@docs-islands/utils/env';
 import logger from '@docs-islands/utils/logger';
 import { execSync, spawn } from 'node:child_process';
 
 type BuildPhase = string | string[];
 
 const AUTO_DISCOVER_PLACEHOLDER = '...';
-const SKIP_PACKAGES_ENV_KEY = 'DOCS_ISLANDS_BUILD_SKIP_PACKAGES';
 const SKIP_ARG_KEYS = new Set(['--skip', '--exclude']);
+const { build } = loadEnv();
 
 const BUILD_PIPELINE: BuildPhase[] = [
   '@docs-islands/plugin-license',
@@ -57,7 +58,7 @@ function parseSkippedPackages(argv = process.argv.slice(2)): Set<string> {
     index++;
   }
 
-  const envValue = process.env[SKIP_PACKAGES_ENV_KEY];
+  const envValue = build.skipPackages;
   if (envValue) {
     for (const pkg of parsePackageList(envValue)) {
       skippedPackages.add(pkg);
