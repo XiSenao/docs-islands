@@ -1,3 +1,4 @@
+import { loadEnv } from '@docs-islands/utils/env';
 import Logger from '@docs-islands/utils/logger';
 import { expect } from '@playwright/test';
 import {
@@ -7,6 +8,7 @@ import {
 
 const logger = new Logger();
 const TestLogger = logger.getLoggerByGroup('error-handling-test');
+const { test: TEST } = loadEnv();
 
 describe('Error Handling and Edge Cases', () => {
   describe('Import Resolution Errors', () => {
@@ -53,7 +55,7 @@ describe('Error Handling and Edge Cases', () => {
   describe('Script Processing Guardrails', () => {
     test('Should gracefully handle multiple react scripts by stripping them and rendering the page', async () => {
       const response = await page.goto(
-        `http://localhost:${process.env.PORT}/error-handling/multiple-react-scripts`,
+        `http://localhost:${TEST.port}/error-handling/multiple-react-scripts`,
       );
 
       expect(response).toBeTruthy();

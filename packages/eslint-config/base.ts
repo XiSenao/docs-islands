@@ -59,6 +59,16 @@ export const eslintConfigBase: Config = [
       reportUnusedDisableDirectives: 'error',
     },
     rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "MemberExpression[object.name='process'][property.name='env']",
+          message:
+            'Direct process access is restricted. Import helpers from @docs-islands/utils instead.',
+        },
+      ],
+
       // Core ESLint rules - Balance between code quality and practicality
       'array-callback-return': ['error', { allowImplicit: true }],
       'block-scoped-var': 'error',

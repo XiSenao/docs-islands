@@ -105,7 +105,6 @@ export const inBrowser = true;
           'import.meta.hot': 'false',
           'import.meta.env.MPA': 'true',
           'import.meta.env.PROD': 'true',
-          'process.env.NODE_ENV': '"production"',
           __BASE__: JSON.stringify(base),
         },
         resolve: {

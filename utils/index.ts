@@ -22,8 +22,14 @@
  */
 
 export { isNodeLikeBuiltin } from './builtin';
+export {
+  injectEnv,
+  injectEnvs,
+  loadEnv,
+  type EnvConfig,
+  type InjectableKey,
+} from './env';
 export { scanFiles } from './fs-utils';
-export { loadEnv } from './load-env';
 export {
   default as Logger,
   formatErrorMessage,

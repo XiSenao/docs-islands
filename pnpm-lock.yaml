@@ -102,6 +102,9 @@ catalogs:
     wait-on:
       specifier: ^9.0.3
       version: 9.0.3
+    zod:
+      specifier: ^4.3.6
+      version: 4.3.6
   docs-dev:
     '@nolebase/vitepress-plugin-enhanced-mark':
       specifier: ^2.18.2
@@ -145,6 +148,9 @@ catalogs:
     '@html-eslint/parser':
       specifier: ^0.47.0
       version: 0.47.1
+    '@publint/pack':
+      specifier: ^0.1.4
+      version: 0.1.4
     '@typescript-eslint/parser':
       specifier: ^8.55.0
       version: 8.55.0
@@ -184,9 +190,6 @@ catalogs:
     jsonc-eslint-parser:
       specifier: ^2.4.1
       version: 2.4.1
-    '@publint/pack':
-      specifier: ^0.1.4
-      version: 0.1.4
     publint:
       specifier: ^0.3.17
       version: 0.3.17
@@ -724,6 +727,9 @@ importers:
       vite:
         specifier: catalog:prod
         version: 5.4.21(patch_hash=81ba500186ae82f86c658c8d9dc564b4a0f0445774e36538ee197ea92b9ee78a)(@types/node@22.19.0)(less@4.4.2)
+      zod:
+        specifier: catalog:dev
+        version: 4.3.6
 
 packages:
   '@acemir/cssom@0.9.31':
@@ -7499,6 +7505,12 @@ packages:
         integrity: sha512-JInaHOamG8pt5+Ey8kGmdcAcg3OL9reK8ltczgHTAwNhMys/6ThXHityHxVV2p3fkw/c+MAvBHFVYHFZDmjMCQ==,
       }
 
+  zod@4.3.6:
+    resolution:
+      {
+        integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==,
+      }
+
   zwitch@2.0.4:
     resolution:
       {
@@ -12062,5 +12074,7 @@ snapshots:
       zod: 4.1.12
 
   zod@4.1.12: {}
+
+  zod@4.3.6: {}
 
   zwitch@2.0.4: {}

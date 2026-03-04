@@ -84,7 +84,6 @@ export async function bundleMultipleComponentsForSSR(
       },
       plugins: adapter.ssrBundlerPlugins(),
       define: {
-        'process.env.NODE_ENV': '"production"',
         'import.meta.dirname': DIRNAME_VAR_NAME,
       },
       logLevel: 'warn',

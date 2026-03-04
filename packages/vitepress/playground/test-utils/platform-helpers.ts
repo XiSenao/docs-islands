@@ -2,16 +2,16 @@
  * Platform-specific test utilities for handling Windows CI issues
  */
 
-import { loadEnv } from '@docs-islands/utils/load-env';
+import { loadEnv } from '@docs-islands/utils/env';
 import Logger from '@docs-islands/utils/logger';
 import { expect, type Locator, type Page } from '@playwright/test';
 
-const { isInCi } = loadEnv();
+const { ci } = loadEnv();
 const logger = new Logger();
 const TestLogger = logger.getLoggerByGroup('platform-helpers');
 
 export const isWindows: boolean = process.platform === 'win32';
-export const isCI = isInCi;
+export const isCI = ci;
 
 /**
  * Platform-aware timeout values

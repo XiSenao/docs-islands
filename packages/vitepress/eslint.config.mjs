@@ -57,6 +57,12 @@ export default defineConfig([
     },
   },
   {
+    files: ['scripts/release.ts'],
+    rules: {
+      'no-restricted-syntax': 'off',
+    },
+  },
+  {
     files: ['**/__tests__/**/*.ts', '**/*.test.ts', 'tests/**/*.ts'],
     rules: {
       // Test files are allowed to use any type for mocks and test utilities
