@@ -1,10 +1,11 @@
 import type { ComponentInfo, PageMetafile } from '#dep-types/page';
 import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
-import logger from '#shared/logger';
-import { formatErrorMessage } from '@docs-islands/utils/console';
+import getLoggerInstance from '#shared/logger';
+import { formatErrorMessage } from '@docs-islands/utils/logger';
 import { getCleanPathname } from '../../shared/runtime';
 
-const Logger = logger.getLoggerByGroup('react-component-manager');
+const loggerInstance = getLoggerInstance();
+const Logger = loggerInstance.getLoggerByGroup('react-component-manager');
 
 interface ComponentSubscription {
   resolve: (value: boolean) => void;
@@ -216,9 +217,8 @@ export class ReactComponentManager {
 
   private async performReactLoad(): Promise<boolean> {
     if (globalThis.window === undefined) {
-      throw new TypeError(
-        '[ReactComponentManager] React can only be loaded in browser environment',
-      );
+      Logger.warn('React can only be loaded in browser environment');
+      return false;
     }
 
     try {
@@ -233,7 +233,8 @@ export class ReactComponentManager {
       globalThis.ReactDOM = reactDOMModule.default || reactDOMModule;
 
       if (!this.isReactAvailable()) {
-        throw new Error('Failed to load React or ReactDOM');
+        Logger.error('Failed to load React or ReactDOM');
+        return false;
       }
 
       this.reactLoaded = true;
@@ -244,8 +245,8 @@ export class ReactComponentManager {
         `React lazy loading failed, message: ${formatErrorMessage(error)}`,
       );
       this.reactLoadPromise = null;
-      throw error;
     }
+    return false;
   }
 
   public getAllInitialModulePreloadScripts(): string[] {
@@ -451,10 +452,10 @@ export class ReactComponentManager {
       });
     } catch (error) {
       Logger.error(
-        `Failed to subscribe to component, message: ${formatErrorMessage(error)}`,
+        `Failed to subscribe to component ${componentName}, message: ${formatErrorMessage(error)}`,
       );
-      throw error;
     }
+    return false;
   }
 
   public notifyComponentLoaded(pageId: string, componentName: string): void {

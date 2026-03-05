@@ -13,7 +13,7 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
-import logger from '#shared/logger';
+import getLoggerInstance from '#shared/logger';
 import reactPlugin from '@vitejs/plugin-react-swc';
 import type { CheerioAPI } from 'cheerio';
 import { load } from 'cheerio';
@@ -48,6 +48,27 @@ import { buildReactIntegrationInMPA } from './build/buildReactIntegrationInMPA';
 import { bundleMultipleComponentsForBrowser } from './build/bundleMultipleComponentsForBrowser';
 import { bundleMultipleComponentsForSSR } from './build/bundleMultipleComponentsForSSR';
 import { ReactRenderController } from './react-render-controller';
+
+/**
+ * Shared MarkdownIt instance for extracting html_block tokens from Markdown.
+ *
+ * markdown-it classifies block-level HTML (including `<script>`) as `html_block`
+ * tokens, while code fences and indented code blocks become `fence` / `code_block`
+ * tokens. By only inspecting `html_block` tokens, code-block exclusion is
+ * structurally guaranteed — no post-filtering needed.
+ *
+ * This is the same strategy used by VitePress upstream (@mdit-vue/plugin-sfc).
+ */
+const scriptTagExtractorMd = new MarkdownIt({ html: true });
+
+/** Matches a `<script ...>...</script>` block, capturing `attrs` and inner `content`. */
+const scriptBlockRE =
+  /[\t ]*<script\b(?<attrs>[^>]*)>(?<content>.*?)<\/script\s*>/is;
+
+/** Validates that an attribute string contains `lang="react"` (or `lang='react'`) with matched quotes. */
+const langReactAttrRE = /\blang=(?<q>["'])react\k<q>/;
+
+const loggerInstance = getLoggerInstance();
 
 interface ClientRuntimeMetafile {
   fileName: string;
@@ -106,10 +127,10 @@ const getClientRuntimeMetafile = async (): Promise<ClientRuntimeMetafile> => {
      */
     try {
       clientRuntimePath = __require.resolve(
-        '@docs-islands/vitepress/internal/runtime-dev',
+        '@docs-islands/vitepress/internal-helper/runtime',
       );
     } catch {
-      logger
+      loggerInstance
         .getLoggerByGroup('client-runtime-metafile')
         .error(
           'This is developer mode, you need to build the @docs-islands/vitepress project first (pnpm build) to complete the build.',
@@ -193,7 +214,7 @@ function registerBuildHelper(
   vitepressConfig.transformHtml = async (html, id, ctx) => {
     const pageName = ctx.page;
     const pendingResolvedId = join('/', pageName.replace('.md', ''));
-    const Logger = logger.getLoggerByGroup('transform-html');
+    const Logger = loggerInstance.getLoggerByGroup('transform-html');
     const transformedHtml = preHtmlTransform
       ? await Promise.resolve(preHtmlTransform(html, id, ctx))
       : html;
@@ -471,7 +492,7 @@ function registerBuildHelper(
   vitepressConfig.buildEnd = async () => {
     const { outDir, assetsDir } = config;
     const matafileDir = join(outDir, assetsDir);
-    const Logger = logger.getLoggerByGroup('build-end');
+    const Logger = loggerInstance.getLoggerByGroup('build-end');
     const { fileName, content } = await getClientRuntimeMetafile();
     const clientRuntimeFilePath = join(matafileDir, `chunks/${fileName}`);
     fs.writeFileSync(clientRuntimeFilePath, content);
@@ -520,14 +541,15 @@ function registerBuildHelper(
             };
           });
         if (stats.totalTransformations > 0) {
-          logger.getLoggerByGroup('react-ssr-integration-processor').success(`
+          loggerInstance.getLoggerByGroup('react-ssr-integration-processor')
+            .success(`
             Complete ${stats.totalTransformations} pre-rendering injections for page ${markdownModuleId}
 
             ${stats.transformedNodes.map((node) => `- Line ${node.line}, Column ${node.column}`).join('\n')}
           `);
           fs.writeFileSync(join(outDir, outputPath), transformedCode);
         } else {
-          logger
+          loggerInstance
             .getLoggerByGroup('react-ssr-integration-processor')
             .info(
               `No transformations performed, preserve original code for ${markdownModuleId}.`,
@@ -536,6 +558,24 @@ function registerBuildHelper(
       }
     }
   };
+}
+
+interface ScriptMatch {
+  content: string;
+  startIndex: number;
+  endIndex: number;
+}
+
+// Replace the entire script tag with empty lines to preserve line numbers.
+function cleanScriptByMatches(s: MagicString, matches: ScriptMatch[]) {
+  const code = s.toString();
+  for (const scriptMatch of matches) {
+    const { startIndex, endIndex } = scriptMatch;
+    const replacement = '\n'.repeat(
+      code.slice(startIndex, endIndex).split('\n').length - 1,
+    );
+    s.overwrite(startIndex, endIndex, replacement);
+  }
 }
 
 export default function vitepressReactRenderingStrategies(
@@ -552,22 +592,34 @@ export default function vitepressReactRenderingStrategies(
     id: string,
     ctx: TransformContext,
   ): Promise<{ code: string; map: SourceMap | null }> {
-    // Normalize and clean the id to ensure consistent behavior across platforms (e.g., Windows adds ?v=...)
-    const cleanedId = normalizePath(id.split('?')[0].replace(/#.*$/, ''));
+    /**
+     * Only normalize path separators (backslash → forward slash) without stripping
+     * query strings or hash fragments. This is intentional:
+     *
+     * VitePress compiles Markdown files into Vue SFCs. When a Markdown file contains
+     * `<style>` blocks, `@vitejs/plugin-vue` generates sub-module requests with query
+     * suffixes appended to the original `.md` path, e.g.:
+     *
+     *   /path/to/page.md?vue&type=style&index=0&lang.css
+     *
+     * By preserving the full module ID, the `.endsWith('.md')` guard below correctly
+     * skips these style (and template/script) sub-modules, which carry CSS—not
+     * Markdown—content. Stripping the query string would cause them to pass the guard
+     * and be incorrectly processed as Markdown.
+     *
+     * This is consistent with VitePress's own approach (see vitepress/src/node/plugin.ts).
+     */
+    const normalizedId = normalizePath(id);
 
-    if (!cleanedId.endsWith('.md')) {
+    if (!normalizedId.endsWith('.md')) {
       return {
         code,
         map: null,
       };
     }
-    const normalizedId = cleanedId;
     await init;
 
     const s = new MagicString(code);
-    // Match only script tags that start at the beginning of a line to avoid inline code like `<script lang="react">` inside Markdown text
-    const scriptReactRE =
-      /^[\t ]*<script\b[^>]+lang=["']react["'][^>]*>(.*?)<\/script>/gms;
 
     const pendingCompilationContainer =
       renderController.getCompilationContainerByMarkdownModuleId(normalizedId);
@@ -592,62 +644,76 @@ export default function vitepressReactRenderingStrategies(
       ssrOnlyComponentNames: new Set<string>(),
     };
 
-    let scriptMatch;
-    const scriptMatches: {
-      match: RegExpExecArray;
-      content: string;
-      startIndex: number;
-      endIndex: number;
-    }[] = [];
+    const tokens = scriptTagExtractorMd.parse(code, {});
 
-    const md = new MarkdownIt({ html: true });
-    const tokens = md.parse(code, {});
-    const codeBlockRanges: { start: number; end: number }[] = [];
-    for (const token of tokens) {
-      if (token.map) {
-        const [startLine, endLine] = token.map;
-        const lines = code.split('\n');
-        const tokenStart = lines
-          .slice(0, startLine)
-          .reduce((acc, line) => acc + line.length + 1, 0);
-        const tokenEnd =
-          lines
-            .slice(0, endLine)
-            .reduce((acc, line) => acc + line.length + 1, 0) - 1;
-        if (token.type === 'code_block' || token.type === 'fence') {
-          codeBlockRanges.push({ start: tokenStart, end: tokenEnd });
-        }
-      }
+    // Precompute line start offsets for mapping token.map lines → character positions.
+    // \r\n safety: markdown-it internally normalizes \r\n to \n, but token.map line
+    // numbers still correspond 1-to-1 with code.split('\n') indices (line count is
+    // unchanged). We always slice from the original `code` below, so character offsets
+    // stay in the same coordinate space as MagicString.
+    const lines = code.split('\n');
+    const lineOffsets: number[] = [];
+    let offset = 0;
+    for (const line of lines) {
+      lineOffsets.push(offset);
+      offset += line.length + 1;
     }
 
-    const isInCodeBlock = (position: number): boolean => {
-      return codeBlockRanges.some(
-        (range) => position >= range.start && position <= range.end,
-      );
-    };
+    const scriptMatches: ScriptMatch[] = [];
 
-    // Find all script tags, but filter out those within code blocks
-    while ((scriptMatch = scriptReactRE.exec(code)) !== null) {
-      const content = scriptMatch[1];
-      const startIndex = scriptMatch.index;
-      const endIndex = startIndex + scriptMatch[0].length;
+    for (const token of tokens) {
+      if (token.type !== 'html_block' || !token.map) continue;
 
-      // Skip this match if it's within a code block
-      if (isInCodeBlock(startIndex)) {
-        continue;
+      // Extract the raw source slice from the original code using token.map,
+      // rather than relying on token.content which may have leading indentation
+      // stripped by markdown-it's getLines() when blkIndent > 0 (e.g. inside
+      // blockquotes or lists), breaking offset alignment.
+      const [startLine, endLine] = token.map;
+      const rawStart = lineOffsets[startLine];
+      const rawEnd =
+        endLine < lineOffsets.length ? lineOffsets[endLine] : code.length;
+      const rawSlice = code.slice(rawStart, rawEnd);
+
+      // A single html_block may contain multiple <script> tags on the same line.
+      // Scan all script blocks to enforce the single react-script invariant.
+      const scriptBlockMatcher = new RegExp(`${scriptBlockRE.source}`, 'gis');
+      for (const blockMatch of rawSlice.matchAll(scriptBlockMatcher)) {
+        if (
+          !blockMatch.groups ||
+          !langReactAttrRE.test(blockMatch.groups.attrs)
+        ) {
+          continue;
+        }
+
+        const startIndex = rawStart + blockMatch.index;
+        const endIndex = startIndex + blockMatch[0].length;
+
+        scriptMatches.push({
+          content: blockMatch.groups.content,
+          startIndex,
+          endIndex,
+        });
       }
-
-      scriptMatches.push({ match: scriptMatch, content, startIndex, endIndex });
     }
 
     if (scriptMatches.length > 1) {
-      throw new Error(
-        'Single file can contain only one <script lang="react"> element.',
-      );
+      loggerInstance
+        .getLoggerByGroup('react-plugin')
+        .error(
+          'Single file can contain only one <script lang="react"> element.',
+        );
+      cleanScriptByMatches(s, scriptMatches);
+      if (resolvedCompilationContainer) {
+        renderController.markdownModuleIdToPendingResolvedCompilationContainerMap.delete(
+          normalizedId,
+        );
+        resolvedCompilationContainer(compilationContainer);
+      }
+      return {
+        code: s.toString(),
+        map: s.generateMap({ source: id, file: id, includeContent: true }),
+      };
     }
-
-    // Process script tags in reverse order to maintain correct indices
-    let hasScriptTransformation = false;
 
     const inlineComponentReferenceMap = new Map<
       string,
@@ -655,10 +721,8 @@ export default function vitepressReactRenderingStrategies(
     >();
     // The <script lang="react"> element only declares React components, reducing complexity while maintaining consistency with <script setup>.
     if (scriptMatches.length === 1) {
-      const { content, startIndex, endIndex } = scriptMatches[0];
-      hasScriptTransformation = true;
+      const { content } = scriptMatches[0];
 
-      const lowerCaseComponentNamesToOriginalNames = new Map<string, string>();
       const maybeComponentReferenceMap = new Map<
         string,
         { identifier: string; importedName: string }
@@ -669,18 +733,21 @@ export default function vitepressReactRenderingStrategies(
       } catch (parseError) {
         // Log a warning instead of throwing an error for parse failures.
         // This allows the build to continue with other valid components.
-        logger
+        loggerInstance
           .getLoggerByGroup('react-plugin')
-          .warn(
+          .error(
             `Failed to parse JavaScript in ${id}: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
           );
 
         // Remove the problematic script tag entirely to prevent further processing errors.
-        const { startIndex, endIndex } = scriptMatches[0];
-        const replacement = '\n'.repeat(
-          code.slice(startIndex, endIndex).split('\n').length - 1,
-        );
-        s.overwrite(startIndex, endIndex, replacement);
+        cleanScriptByMatches(s, scriptMatches);
+
+        if (resolvedCompilationContainer) {
+          renderController.markdownModuleIdToPendingResolvedCompilationContainerMap.delete(
+            normalizedId,
+          );
+          resolvedCompilationContainer(compilationContainer);
+        }
 
         // Ensure we exit script processing and return clean Markdown.
         return {
@@ -698,7 +765,7 @@ export default function vitepressReactRenderingStrategies(
         } else {
           // Log an error instead of throwing during failed import resolution.
           // This allows the build to continue and lets the bundler handle the error.
-          logger
+          loggerInstance
             .getLoggerByGroup('react-plugin')
             .error(
               `Failed to resolve import ${identifier} in ${id}, skipping component registration`,
@@ -712,7 +779,7 @@ export default function vitepressReactRenderingStrategies(
           importSets = travelImports(exp) || [];
         } catch (importParseError) {
           // Log a warning and skip this import if parsing fails.
-          logger
+          loggerInstance
             .getLoggerByGroup('react-plugin')
             .warn(
               `Failed to parse import statement in ${id}: ${importParseError instanceof Error ? importParseError.message : String(importParseError)}`,
@@ -723,29 +790,6 @@ export default function vitepressReactRenderingStrategies(
         for (const importSet of importSets) {
           const { importedName, localName } = importSet;
           if (/^[A-Z][\dA-Za-z]*$/.test(localName)) {
-            /**
-             * The HTML module is case-insensitive and standardizes to lowercase.
-             * An error will be thrown in the following scenarios:
-             *
-             * import HelloWorld from './HelloWorld';
-             * import Helloworld from './HelloWorld'; // X
-             *
-             * <HelloWorld />
-             * <Helloworld />
-             */
-            const lowerCaseLocalName = localName.toLowerCase();
-            if (
-              lowerCaseComponentNamesToOriginalNames.has(lowerCaseLocalName)
-            ) {
-              throw new Error(
-                `[@docs-islands/vitepress] Duplicate component name ${localName} in ${id}, please use the same case as the import statement.`,
-              );
-            }
-            lowerCaseComponentNamesToOriginalNames.set(
-              lowerCaseLocalName,
-              localName,
-            );
-
             maybeComponentReferenceMap.set(localName, {
               identifier,
               importedName,
@@ -759,11 +803,7 @@ export default function vitepressReactRenderingStrategies(
         }
       }
 
-      // Replace the entire script tag with empty lines to preserve line numbers.
-      const replacement = '\n'.repeat(
-        code.slice(startIndex, endIndex).split('\n').length - 1,
-      );
-      s.overwrite(startIndex, endIndex, replacement);
+      cleanScriptByMatches(s, scriptMatches);
 
       let currentCode = s.toString();
       let finalMap = s.generateMap({
@@ -782,12 +822,7 @@ export default function vitepressReactRenderingStrategies(
         } = transformComponentTags(currentCode, maybeReactComponentNames, id);
         currentCode = transformedCode;
 
-        // Combine source maps if we have both script and component transformations.
-        if (hasScriptTransformation && componentMap) {
-          // For now, we'll use the component map as the final map since it's the last transformation.
-          // In a more sophisticated implementation, we could chain the source maps.
-          finalMap = componentMap;
-        } else if (componentMap) {
+        if (componentMap) {
           finalMap = componentMap;
         }
 
@@ -923,18 +958,18 @@ export default function vitepressReactRenderingStrategies(
                 ssrOnlyComponentNames.has(inlineComponentReference.localName)
               ) {
                 return `
-                  ${RENDER_STRATEGY_CONSTANTS.reactInlineComponentReference}['${inlineComponentReference.localName}'] = {
+                  ${RENDER_STRATEGY_CONSTANTS.reactInlineComponentReference}[${JSON.stringify(inlineComponentReference.localName)}] = {
                     component: null,
-                    path: '${inlineComponentReference.path}',
-                    importedName: '${inlineComponentReference.importedName}'
+                    path: ${JSON.stringify(inlineComponentReference.path)},
+                    importedName: ${JSON.stringify(inlineComponentReference.importedName)}
                   }
                 `;
               }
               return `
-                ${RENDER_STRATEGY_CONSTANTS.reactInlineComponentReference}['${inlineComponentReference.localName}'] = {
+                ${RENDER_STRATEGY_CONSTANTS.reactInlineComponentReference}[${JSON.stringify(inlineComponentReference.localName)}] = {
                   component: ${inlineComponentReference.localName},
-                  path: '${inlineComponentReference.path}',
-                  importedName: '${inlineComponentReference.importedName}'
+                  path: ${JSON.stringify(inlineComponentReference.path)},
+                  importedName: ${JSON.stringify(inlineComponentReference.importedName)}
                 }
               `;
             }
@@ -962,7 +997,7 @@ export default function vitepressReactRenderingStrategies(
 
         if (resolvedCompilationContainer) {
           renderController.markdownModuleIdToPendingResolvedCompilationContainerMap.delete(
-            id,
+            normalizedId,
           );
           resolvedCompilationContainer(compilationContainer);
         }
@@ -979,7 +1014,7 @@ export default function vitepressReactRenderingStrategies(
       );
       if (resolvedCompilationContainer) {
         renderController.markdownModuleIdToPendingResolvedCompilationContainerMap.delete(
-          id,
+          normalizedId,
         );
         resolvedCompilationContainer(compilationContainer);
       }
@@ -1106,20 +1141,23 @@ export default function vitepressReactRenderingStrategies(
             return null;
           }
           hasVisited.add(module.id);
-          const { importedModules, id } = module;
-          if (!id || id.includes('node_modules')) {
+          const { importedModules, id: moduleId } = module;
+          if (!moduleId || moduleId.includes('node_modules')) {
             return null;
           }
-          if (id.endsWith('.css')) {
-            return [id.replace(siteConfig.srcDir, '')];
+          if (moduleId.endsWith('.css')) {
+            return [moduleId.replace(siteConfig.srcDir, '')];
           }
           const collectCssModules = new Set<string>();
           if (importedModules.size > 0) {
-            for (const module of importedModules) {
-              const collected = collectCssModulesInSSR(module, hasVisited);
+            for (const importedModule of importedModules) {
+              const collected = collectCssModulesInSSR(
+                importedModule,
+                hasVisited,
+              );
               if (collected) {
-                for (const id of collected) {
-                  collectCssModules.add(id);
+                for (const cssPath of collected) {
+                  collectCssModules.add(cssPath);
                 }
               }
             }
@@ -1246,7 +1284,7 @@ export default function vitepressReactRenderingStrategies(
         order: 'pre',
         async handler(ctx) {
           const { file, modules, server, read } = ctx;
-          const Logger = logger.getLoggerByGroup('handle-hot-update');
+          const Logger = loggerInstance.getLoggerByGroup('handle-hot-update');
 
           // Markdown level hot update
           if (file.endsWith('.md')) {

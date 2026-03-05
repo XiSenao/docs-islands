@@ -208,9 +208,13 @@ export class RenderController {
         >();
         const { outputPath, code } = clientChunk;
         for (const [renderId, snippet] of usedSnippetContainer.entries()) {
+          const hasSSRContent =
+            (snippet.ssrHtml != null && snippet.ssrHtml.length > 0) ||
+            (snippet.ssrCssBundlePaths != null &&
+              snippet.ssrCssBundlePaths.size > 0);
           if (
             snippet.useSpaSyncRender &&
-            ((snippet.ssrHtml || snippet.ssrCssBundlePaths?.size) ?? 0) &&
+            hasSSRContent &&
             snippet.renderDirective !== 'client:only'
           ) {
             renderIdToSpaSyncRenderMap.set(renderId, {

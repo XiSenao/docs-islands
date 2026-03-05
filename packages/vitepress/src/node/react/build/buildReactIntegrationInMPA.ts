@@ -1,6 +1,6 @@
 import type { OutputChunk, RollupOutput } from '#dep-types/rollup';
 import type { ConfigType } from '#dep-types/utils';
-import logger from '#shared/logger';
+import getLoggerInstance from '#shared/logger';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'pathe';
@@ -8,9 +8,12 @@ import type { InlineConfig, Plugin } from 'vite';
 import { build as viteBuild } from 'vite';
 import type { FrameworkAdapter } from '../../core/framework-adapter';
 import { reactAdapter } from '../adapter';
-import { isOutputChunk } from './shared';
+import { isOutputChunk, resolveSafeOutputPath } from './shared';
 
-const Logger = logger.getLoggerByGroup('build-react-integration-in-mpa');
+const loggerInstance = getLoggerInstance();
+const Logger = loggerInstance.getLoggerByGroup(
+  'build-react-integration-in-mpa',
+);
 
 let buildPromise: Promise<{
   entryPoint: string;
@@ -102,7 +105,6 @@ export const inBrowser = true;
           'import.meta.hot': 'false',
           'import.meta.env.MPA': 'true',
           'import.meta.env.PROD': 'true',
-          'process.env.NODE_ENV': '"production"',
           __BASE__: JSON.stringify(base),
         },
         resolve: {
@@ -147,7 +149,10 @@ export const inBrowser = true;
           }
 
           if (isOutputChunk(chunk)) {
-            const fullOutputPath = join(outDir, chunk.fileName);
+            const fullOutputPath = resolveSafeOutputPath(
+              outDir,
+              chunk.fileName,
+            );
             const code = chunk.code;
             if (!fs.existsSync(dirname(fullOutputPath))) {
               fs.mkdirSync(dirname(fullOutputPath), { recursive: true });
@@ -170,10 +175,7 @@ export const inBrowser = true;
       throw new Error('vite did not generate output file');
     } catch (error) {
       Logger.error(`ReactIntegration build failed: ${error}`);
-      return {
-        entryPoint: '',
-        modulePreloads: [],
-      };
+      throw error;
     } finally {
       try {
         if (fs.existsSync(tempEntryPath)) {

@@ -3,13 +3,14 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
-import logger from '#shared/logger';
+import getLoggerInstance from '#shared/logger';
 import { validateLegalRenderElements } from '#shared/utils';
-import { formatErrorMessage } from '@docs-islands/utils/console';
+import { formatErrorMessage } from '@docs-islands/utils/logger';
 import { getCleanPathname } from '../../shared/runtime';
 import { reactComponentManager } from './react-component-manager';
 
-const Logger = logger.getLoggerByGroup('react-render-strategy');
+const loggerInstance = getLoggerInstance();
+const Logger = loggerInstance.getLoggerByGroup('react-render-strategy');
 
 interface RenderContext {
   pageId: string;
@@ -95,7 +96,15 @@ export class ReactRenderStrategy {
     const pageId = this.getCurrentPageId();
 
     try {
-      await reactComponentManager.subscribeComponent(pageId, renderComponent);
+      const subscribed = await reactComponentManager.subscribeComponent(
+        pageId,
+        renderComponent,
+      );
+
+      if (!subscribed) {
+        Logger.error(`Component ${renderComponent} subscription failed`);
+        return;
+      }
 
       const Component = reactComponentManager.getComponent(
         pageId,
@@ -141,7 +150,15 @@ export class ReactRenderStrategy {
     const pageId = this.getCurrentPageId();
 
     try {
-      await reactComponentManager.subscribeComponent(pageId, renderComponent);
+      const subscribed = await reactComponentManager.subscribeComponent(
+        pageId,
+        renderComponent,
+      );
+
+      if (!subscribed) {
+        Logger.error(`Component ${renderComponent} subscription failed`);
+        return;
+      }
 
       const Component = reactComponentManager.getComponent(
         pageId,

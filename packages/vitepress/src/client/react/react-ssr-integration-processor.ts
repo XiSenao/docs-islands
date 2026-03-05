@@ -2,13 +2,13 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
-import logger from '#shared/logger';
+import getLoggerInstance from '#shared/logger';
 import { generate } from '@babel/generator';
 import { parse } from '@babel/parser';
 import type { NodePath } from '@babel/traverse';
 import babelTraverse from '@babel/traverse';
 import * as t from '@babel/types';
-import { formatErrorMessage } from '@docs-islands/utils/console';
+import { formatErrorMessage } from '@docs-islands/utils/logger';
 
 type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -52,6 +52,7 @@ const traverse: typeof babelTraverse =
   // @ts-expect-error No type checking is needed here.
   babelTraverse?.default ?? babelTraverse;
 
+const loggerInstance = getLoggerInstance();
 /**
  * This is an optimization specifically for the rendering pipeline triggered by route changes in VitePress projects.
  * By default, a dynamic rendering approach is used. On route change, embedding the React server-rendered output is triggered only after Vue rendering completes.
@@ -89,6 +90,9 @@ const traverse: typeof babelTraverse =
 class ReactSSRIntegrationProcessor {
   private readonly sourceCode: string;
   private readonly callback: ReactSSRIntegrationCallback;
+  private readonly Logger = loggerInstance.getLoggerByGroup(
+    'react-ssr-integration-processor',
+  );
   private transformations: TransformationRecord[] = [];
 
   constructor(sourceCode: string, callback: ReactSSRIntegrationCallback) {
@@ -122,9 +126,7 @@ class ReactSSRIntegrationProcessor {
         transformCount: this.transformations.length,
       };
     } catch (error) {
-      logger
-        .getLoggerByGroup('react-ssr-integration-processor')
-        .error(`AST processing failed: ${formatErrorMessage(error)}`);
+      this.Logger.error(`AST processing failed: ${formatErrorMessage(error)}`);
       return {
         code: this.sourceCode,
         transformCount: 0,
@@ -184,11 +186,9 @@ class ReactSSRIntegrationProcessor {
             }
           }
         } catch (error) {
-          logger
-            .getLoggerByGroup('react-ssr-integration-processor')
-            .error(
-              `Transform error, catch error: ${formatErrorMessage(error)}`,
-            );
+          this.Logger.error(
+            `Transform error, catch error: ${formatErrorMessage(error)}`,
+          );
         }
       },
     });
@@ -284,9 +284,10 @@ class ReactSSRIntegrationProcessor {
       const injectSSRPrerenderedContent = this.callback(props);
 
       if (typeof injectSSRPrerenderedContent.ssrHtml !== 'string') {
-        throw new TypeError(
-          '[ReactSSRIntegrationProcessor] Failed to inject pre-rendered content, callback return value is not a string.',
+        this.Logger.error(
+          'Failed to inject pre-rendered content, callback return value is not a string.',
         );
+        return null;
       }
 
       return {
@@ -297,12 +298,14 @@ class ReactSSRIntegrationProcessor {
           injectSSRPrerenderedContent.clientRuntimeFileName,
       };
     } catch (error) {
-      throw new Error(
-        `[ReactSSRIntegrationProcessor] Failed to inject pre-rendered content, catch error: ${formatErrorMessage(
+      this.Logger.error(
+        `Failed to inject pre-rendered content, catch error: ${formatErrorMessage(
           error,
         )}`,
       );
     }
+
+    return null;
   }
 
   private extractProps(propsNode: t.Node): ExtractedProps {
@@ -424,14 +427,14 @@ class ReactSSRIntegrationProcessor {
 
     // Input validation.
     if (!ast) {
-      logger
+      loggerInstance
         .getLoggerByGroup('apply-css-injection-transformation')
         .warn('Invalid AST provided, skipping CSS injection');
       return;
     }
 
     const cssPathsArray = [...ssrCssBundlePaths];
-    const Logger = logger.getLoggerByGroup(
+    const Logger = loggerInstance.getLoggerByGroup(
       'apply-css-injection-transformation',
     );
 

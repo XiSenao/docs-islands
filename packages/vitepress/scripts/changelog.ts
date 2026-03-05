@@ -1,11 +1,12 @@
-import logger from '#shared/logger';
+import getLoggerInstance from '#shared/logger';
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import packageJson from '../package.json' with { type: 'json' };
 
-const Logger = logger.getLoggerByGroup('changelog');
+const loggerInstance = getLoggerInstance();
+const Logger = loggerInstance.getLoggerByGroup('changelog');
 
 interface ChangelogOptions {
   version?: string;
@@ -138,7 +139,7 @@ const ChangelogManager = {
           `📝 Would update CHANGELOG.md with ${commitLines.length} commits`,
         );
         Logger.info('📋 Preview of new section:');
-        console.log(`\n${newSection}`);
+        Logger.info(`\n${newSection}`);
       } else {
         writeFileSync(changelogPath, updatedContent);
         Logger.success(
@@ -228,7 +229,7 @@ async function main() {
         break;
       }
       case '--help': {
-        console.log(`
+        Logger.info(`
 Usage: pnpm changelog [options]
 
 Options:

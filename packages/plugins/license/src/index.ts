@@ -1,7 +1,7 @@
+import logger from '@docs-islands/utils/logger';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import colors from 'picocolors';
 import type { Plugin } from 'rolldown';
 import type { Dependency } from 'rollup-plugin-license';
 import license from 'rollup-plugin-license';
@@ -9,6 +9,8 @@ import license from 'rollup-plugin-license';
 type LoadPlugin = Plugin['load'];
 type GetHandler<T> = T extends { handler: infer H } ? H : T;
 type PluginContext = ThisParameterType<GetHandler<NonNullable<LoadPlugin>>>;
+
+const Logger = new logger().getLoggerByGroup('@docs-islands/plugin-license');
 
 // Keep in sync with github ci workflow: https://github.com/XiSenao/docs-islands/blob/main/.github/workflows/dependency-review.yml
 const ALLOWED_LICENSES = new Set([
@@ -155,11 +157,7 @@ ${dependencyLicenseTexts}`;
       const existingLicenseText = fs.readFileSync(licenseFilePath, 'utf8');
       if (existingLicenseText !== licenseText) {
         fs.writeFileSync(licenseFilePath, licenseText);
-        console.warn(
-          colors.yellow(
-            '\nLICENSE.md updated. You should commit the updated file.\n',
-          ),
-        );
+        Logger.warn('LICENSE.md updated. You should commit the updated file.');
       }
     },
   }) as Plugin;

@@ -1,4 +1,7 @@
+import { loadEnv } from '@docs-islands/utils/env';
 import { defineConfig } from 'vitest/config';
+
+const { ci } = loadEnv();
 
 const timeout = 50_000;
 
@@ -12,7 +15,7 @@ export default defineConfig({
     teardownTimeout: timeout,
     expect: {
       poll: {
-        timeout: 50 * (process.env.CI ? 300 : 200),
+        timeout: 50 * (ci ? 300 : 200),
       },
     },
     globals: true,

@@ -1,5 +1,5 @@
 import licensePlugin from '@docs-islands/plugin-license';
-import { scanFiles } from '@docs-islands/utils/fs-utils';
+import { loadEnv, scanFiles } from '@docs-islands/utils';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, resolve } from 'node:url';
@@ -8,6 +8,9 @@ import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
 import pkg from './package.json' with { type: 'json' };
 import generatePackageJson from './packagePlugin';
+
+const { config, debug, env } = loadEnv();
+const { sourcemap, minify } = config;
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -108,7 +111,7 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
       exports: 'named',
       format: 'esm',
       externalLiveBindings: false,
-      sourcemap: false,
+      sourcemap,
     },
   });
 };
@@ -125,11 +128,17 @@ const nodeConfig = defineConfig({
   plugins: nodePlugins,
   output: {
     ...sharedNodeOptions.output,
-    minify: {
-      compress: true,
-      mangle: false,
-      removeWhitespace: false,
-    },
+    ...(minify && {
+      minify: {
+        compress: true,
+        mangle: false,
+        // Do not minify whitespace for ES lib output since that would remove
+        // pure annotations and break tree-shaking
+        codegen: {
+          removeWhitespace: false,
+        },
+      },
+    }),
   },
 });
 
@@ -154,7 +163,7 @@ const clientConfig = defineConfig({
     react: resolve(__dirname, 'src/client/react/index.ts'),
   },
   transform: {
-    target: 'es2020',
+    target: 'es2022',
   },
 });
 
@@ -170,13 +179,9 @@ const clientDtsConfig = defineConfig({
     }),
   ],
   transform: {
-    target: 'es2020',
+    target: 'es2022',
   },
 });
-
-const enableClientRuntimeSourcemap = Boolean(
-  process.env.enableClientRuntimeSourcemap,
-);
 
 const clientRuntimeConfig = defineConfig({
   ...sharedBrowserOptions,
@@ -184,7 +189,11 @@ const clientRuntimeConfig = defineConfig({
     'client-runtime': resolve(__dirname, 'src/shared/client-runtime.ts'),
   },
   transform: {
-    target: 'es2020',
+    target: 'es2022',
+    define: {
+      __DEBUG__: String(debug),
+      __ENV__: JSON.stringify(env),
+    },
   },
   plugins: [
     {
@@ -223,7 +232,7 @@ const clientRuntimeConfig = defineConfig({
      * therefore it does not include chunks dependencies temporarily.
      */
     manualChunks: undefined,
-    sourcemap: enableClientRuntimeSourcemap ? 'inline' : false,
+    sourcemap: sourcemap ? 'inline' : false,
   },
 });
 

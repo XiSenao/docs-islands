@@ -1,4 +1,4 @@
-import logger from '#shared/logger';
+import getLoggerInstance from '#shared/logger';
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { normalizePath } from 'vite';
 import packageJson from '../package.json' with { type: 'json' };
 
-const Logger = logger.getLoggerByGroup('release');
+const loggerInstance = getLoggerInstance();
+const Logger = loggerInstance.getLoggerByGroup('release');
 
 type PackageJson = typeof packageJson;
 
@@ -24,6 +25,10 @@ interface ReleaseOptions {
   gitTag?: string;
   npmTag?: string;
   registry?: string;
+}
+
+interface BuildOptions {
+  localTest?: boolean;
 }
 
 const SimpleVersionManager = {
@@ -150,7 +155,7 @@ class ReleaseSystemManager {
       if (!this.options.skipBuild) {
         await this.buildProject();
         await this.verifyDistPackageJsonVersion(newVersion);
-        await this.verifyPublint();
+        await this.verifyPackageLint();
       }
 
       if (!this.options.dryRun) {
@@ -253,6 +258,9 @@ class ReleaseSystemManager {
     Logger.info('🧪 Running test suite...');
 
     try {
+      await this.buildProject({
+        localTest: true,
+      });
       execSync('pnpm test', { stdio: 'inherit', cwd: this.packageRootDir });
       Logger.success('✅ All tests passed\n');
     } catch {
@@ -260,10 +268,79 @@ class ReleaseSystemManager {
     }
   }
 
-  private async buildProject(): Promise<void> {
+  private getWorkspaceDependencies(): string[] {
+    const deps: string[] = [];
+    const allDeps: Record<string, string> = {
+      ...(this.pkg.dependencies as Record<string, string>),
+      ...(this.pkg.devDependencies as Record<string, string>),
+    };
+
+    // Packages only needed for linting/testing, not for the build output.
+    const buildExcludePatterns = ['eslint'];
+
+    for (const [name, version] of Object.entries(allDeps)) {
+      if (
+        typeof version === 'string' &&
+        version.startsWith('workspace:') &&
+        !buildExcludePatterns.some((pattern) => name.includes(pattern))
+      ) {
+        deps.push(name);
+      }
+    }
+
+    return deps;
+  }
+
+  private cleanDist(): void {
+    const distDir = path.join(this.packageRootDir, 'dist');
+    if (existsSync(distDir)) {
+      execSync('del-cli dist', { stdio: 'pipe', cwd: this.packageRootDir });
+    }
+  }
+
+  private async buildProject(options: BuildOptions = {}): Promise<void> {
+    Logger.info('📦 Building workspace dependencies...');
+
+    const { localTest = false } = options;
+    this.cleanDist();
+    const workspaceDeps = this.getWorkspaceDependencies();
+    if (workspaceDeps.length === 0) {
+      Logger.info('ℹ️  No workspace dependencies found');
+      return;
+    }
+
+    Logger.info(`Found workspace dependencies: ${workspaceDeps.join(', ')}`);
+
+    for (const dep of workspaceDeps) {
+      Logger.info(`📦 Building ${dep}...`);
+      try {
+        execSync(`pnpm --filter ${dep} build`, {
+          stdio: 'inherit',
+          cwd: this.packageRootDir,
+          env: {
+            ...process.env,
+            DOCS_ISLANDS_MODE: 'production',
+            DOCS_ISLANDS_TEST: localTest ? '1' : '0',
+          },
+        });
+        Logger.success(`✅ ${dep} built successfully`);
+      } catch {
+        throw new Error(`Failed to build workspace dependency: ${dep}`);
+      }
+    }
+
+    Logger.success('✅ All workspace dependencies built\n');
+
     Logger.info('📦 Building project...');
     try {
-      execSync('pnpm build', { stdio: 'inherit', cwd: this.packageRootDir });
+      execSync('pnpm build', {
+        stdio: 'inherit',
+        cwd: this.packageRootDir,
+        env: {
+          ...process.env,
+          DOCS_ISLANDS_MODE: 'production',
+        },
+      });
       Logger.success('✅ Build completed\n');
     } catch {
       throw new Error('Build failed');
@@ -290,16 +367,16 @@ class ReleaseSystemManager {
     }
   }
 
-  private async verifyPublint(): Promise<void> {
-    Logger.info('📋 Verifying publint...');
+  private async verifyPackageLint(): Promise<void> {
+    Logger.info('📋 Verifying package lint (publint + attw)...');
     try {
       execSync('pnpm lint:package', {
         stdio: 'inherit',
         cwd: this.packageRootDir,
       });
-      Logger.success('✅ Publint passed\n');
+      Logger.success('✅ Package lint passed\n');
     } catch {
-      throw new Error('Publint failed');
+      throw new Error('Package lint failed');
     }
   }
 
@@ -544,7 +621,7 @@ async function main() {
         break;
       }
       case '--help': {
-        console.log(`
+        Logger.info(`
 Usage: pnpm release [options]
 
 Options:

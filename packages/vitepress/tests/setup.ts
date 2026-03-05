@@ -1,25 +1,13 @@
 import { afterEach, expect, vi } from 'vitest';
 
-if (process.env.NODE_ENV === 'test') {
-  const originalConsole = {
-    log: console.log,
-    warn: console.warn,
-    error: console.error,
-    info: console.info,
-    debug: console.debug,
-  };
-
-  globalThis.console = {
-    ...console,
-    log: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn(),
-  };
-
-  (globalThis as any).__originalConsole = originalConsole;
-}
+globalThis.console = {
+  ...console,
+  log: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  debug: vi.fn(),
+};
 
 vi.mock('node:fs', async () => {
   const actual = await vi.importActual('node:fs');

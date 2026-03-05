@@ -12,17 +12,13 @@ export type LogLevel = 'log' | 'warn' | 'error' | 'debug';
 /** Available log kinds */
 export type LogKind = 'info' | 'success' | 'warn' | 'error' | 'debug';
 
-/** Options for light general logger */
-export interface LightGeneralLoggerOptions {
-  /** Whether to immediately log to console (default: true) */
-  immediate?: boolean;
-}
-
-// ============================================================================
-// Constants
-// ============================================================================
+declare const __SILENCE_LOG__: boolean;
+declare const __DEBUG__: boolean;
 
 const MAIN_NAME = 'docs-islands';
+
+/* eslint { no-empty-function: "off", @typescript-eslint/no-empty-function: "off" } */
+const noop = function () {};
 
 /** Icons for different log kinds */
 const LOG_ICONS = {
@@ -74,28 +70,13 @@ const LIGHT_LOGGER_STYLES = {
   },
 } as const;
 
-const isBrowserRuntime =
-  typeof globalThis !== 'undefined' &&
-  globalThis.window !== undefined &&
-  typeof document !== 'undefined';
-
-const isProductionEnv = (() => {
-  // Check Vite's import.meta.env.PROD
-  // Using typeof check is necessary to avoid ReferenceError in non-ESM environments
-  // eslint-disable-next-line unicorn/no-typeof-undefined
-  if (typeof import.meta !== 'undefined') {
-    const env = (import.meta as { env?: { PROD?: boolean } }).env;
-    if (env?.PROD === true) return true;
-  }
-  // Check Node.js NODE_ENV
-  if (
-    typeof process !== 'undefined' &&
-    process.env?.NODE_ENV === 'production'
-  ) {
-    return true;
-  }
-  return false;
-})();
+/**
+ * By injecting `define` via rolldown (utils build),
+ * this package exposes `dist` for external consumption,
+ * and the `pnpm build` command must be re-executed if the environment changes.
+ */
+const isSilentLogEnabled: boolean = __SILENCE_LOG__;
+const isDebugEnabled: boolean = __DEBUG__;
 
 interface PicocolorsType {
   isColorSupported: boolean;
@@ -116,18 +97,16 @@ isColorSupported = Boolean(picocolors.isColorSupported);
 colors = isColorSupported ? (picocolors as PicocolorsType) : null;
 
 /**
- * Checks if a log should be suppressed based on environment and kind
+ * Checks if a log should be suppressed based on environment and kind.
  */
 function shouldSuppressLog(kind: LogKind): boolean {
-  // In browser production, suppress all logs
-  if (isBrowserRuntime && isProductionEnv) {
-    return true;
+  // Debug logs are independently controlled by __DEBUG__:
+  // RELEASE → always off; otherwise → inspector attachment.
+  if (kind === 'debug') {
+    return !isDebugEnabled;
   }
-  // Suppress non-critical logs in production environment
-  if (
-    isProductionEnv &&
-    (kind === 'info' || kind === 'success' || kind === 'debug')
-  ) {
+  // Suppress info/success in production (non-CI) and release.
+  if (isSilentLogEnabled && (kind === 'info' || kind === 'success')) {
     return true;
   }
   return false;
@@ -329,9 +308,21 @@ class Logger {
 
 export default Logger;
 
-// ============================================================================
-// Light General Logger (for dynamic code generation)
-// ============================================================================
+export type LoggerType = InstanceType<typeof Logger>;
+
+export function formatErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  try {
+    return String(error);
+  } catch {
+    return 'Unknown error';
+  }
+}
+
+export interface LightGeneralLoggerReturn {
+  log: () => void;
+  formatText: string;
+}
 
 /**
  * Lightweight logger function that can optionally return executable code string
@@ -341,41 +332,35 @@ export default Logger;
  * @param type - The type of log message
  * @param message - The message to log
  * @param group - Optional group identifier
- * @param options - Configuration options
- * @returns Code string if immediate is false, void otherwise
- *
- * @example
- * ```ts
- * // Immediate logging
- * lightGeneralLogger('success', 'Build completed', 'build');
- *
- * // Generate code string for injection
- * const logCode = lightGeneralLogger('error', 'Build failed', 'build', { immediate: false });
- * ```
  */
 export function lightGeneralLogger(
   logMain: string = MAIN_NAME,
   type: LogKind,
   message: string,
   group?: string,
-  options?: LightGeneralLoggerOptions,
-): string | void {
-  const { immediate = true } = options || {};
+): LightGeneralLoggerReturn {
+  if (shouldSuppressLog(type)) {
+    return {
+      log: noop,
+      formatText: '',
+    };
+  }
+
   const config = LIGHT_LOGGER_STYLES[type];
 
   const groupText = group ? `[${group}]` : '';
 
-  if (immediate) {
-    console.log(
-      `%c${logMain}%c${groupText}%c: » %c${config.icon}%c ${message}`,
-      'color: #2579d9; font-weight: bold;',
-      'color: #e28a00; font-weight: bold;',
-      'color: gray;',
-      config.iconColor,
-      config.messageColor,
-    );
-  }
-
-  // Return executable code string for injection
-  return `console.log(\`%c${logMain}%c${groupText}%c: » %c${config.icon}%c ${message}\`,'color: #2579d9; font-weight: bold;','color: #e28a00; font-weight: bold;','color: gray;','${config.iconColor}','${config.messageColor}');`;
+  return {
+    log: () => {
+      console.log(
+        `%c${logMain}%c${groupText}%c: » %c${config.icon}%c ${message}`,
+        'color: #2579d9; font-weight: bold;',
+        'color: #e28a00; font-weight: bold;',
+        'color: gray;',
+        config.iconColor,
+        config.messageColor,
+      );
+    },
+    formatText: `console.log(\`%c${logMain}%c${groupText}%c: » %c${config.icon}%c ${message}\`,'color: #2579d9; font-weight: bold;','color: #e28a00; font-weight: bold;','color: gray;','${config.iconColor}','${config.messageColor}');`,
+  };
 }

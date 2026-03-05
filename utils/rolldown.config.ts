@@ -1,14 +1,24 @@
-import path from 'node:path';
 import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
 import { glob } from 'tinyglobby';
+import { loadEnv } from './env';
+
+const { config, debug } = loadEnv();
+const { sourcemap, minify, silence } = config;
 
 async function getModuleFiles(): Promise<string[]> {
-  const files = await glob(['*.ts'], {
+  const files = await glob(['**/*.ts'], {
     cwd: process.cwd(),
     absolute: false,
     onlyFiles: true,
-    ignore: ['rolldown.config.ts'],
+    ignore: [
+      '**/*.d.ts',
+      '**/*.config.ts',
+      '**/*.test.ts',
+      '**/*.spec.ts',
+      '**/node_modules/**',
+      'bin/**',
+    ],
   });
 
   return files.map((file) => file.replace('.ts', ''));
@@ -16,35 +26,59 @@ async function getModuleFiles(): Promise<string[]> {
 
 const modules = await getModuleFiles();
 
-const moduleConfigs: RolldownOptions[] = modules.map((module) =>
-  defineConfig({
-    input: `./${module}.ts`,
-    platform: 'neutral',
-    external: [/^[\w@][^:]/],
-    output: {
-      dir: 'dist',
-      format: 'esm',
-      entryFileNames: `${module}.js`,
+const moduleConfig: RolldownOptions = defineConfig({
+  input: './index.ts',
+  platform: 'neutral',
+  preserveEntrySignatures: 'strict',
+  external: [/^[\w@][^:]/],
+  transform: {
+    define: {
+      __SILENCE_LOG__: String(silence),
+      __DEBUG__: String(debug),
     },
-  }),
-);
+  },
+  output: {
+    dir: 'dist',
+    format: 'esm',
+    preserveModules: true,
+    sourcemap,
+    ...(minify && {
+      minify: {
+        compress: true,
+        mangle: false,
+        codegen: { removeWhitespace: false },
+      },
+    }),
+  },
+});
 
-const dtsConfigs: RolldownOptions[] = modules.map((module) =>
-  defineConfig({
-    input: `./${module}.ts`,
-    platform: 'neutral',
-    external: [/^[\w@][^:]/],
-    output: {
-      dir: `dist/${path.dirname(module)}`,
-    },
-    plugins: [
-      dts({
-        emitDtsOnly: true,
-      }),
-    ],
-  }),
-);
+const dtsConfig: RolldownOptions = defineConfig({
+  // All modules must be explicit entries so that Rolldown preserves their
+  // full export signatures (e.g. `export { X as default }`).
+  // With a single entry + preserveModules, non-entry modules lose `as default`
+  // because Rolldown optimises the alias away for internal dependencies.
+  //
+  // This is a general Rolldown behaviour, not specific to dts:
+  // `export { X as default }` (ExportNamedDeclaration) is treated as an
+  // optimisable alias, while `export default X` (ExportDefaultDeclaration)
+  // is preserved. The dts plugin converts all default exports to the former
+  // form during its fake-js transform, so the dts build is always affected.
+  // The JS build is only safe when the source uses `export default X` directly.
+  input: modules,
+  platform: 'neutral',
+  preserveEntrySignatures: 'strict',
+  external: [/^[\w@][^:]/],
+  output: {
+    dir: 'dist',
+    preserveModules: true,
+  },
+  plugins: [
+    dts({
+      emitDtsOnly: true,
+    }),
+  ],
+});
 
-const rolldownConfig: RolldownOptions[] = [...moduleConfigs, ...dtsConfigs];
+const rolldownConfig: RolldownOptions[] = [moduleConfig, dtsConfig];
 
 export default rolldownConfig;

@@ -8,14 +8,14 @@ import { ReactRenderStrategy } from '../react-render-strategy';
 
 // Mock dependencies.
 vi.mock('#shared/logger', () => ({
-  default: {
+  default: () => ({
     getLoggerByGroup: () => ({
       warn: vi.fn(),
       error: vi.fn(),
       info: vi.fn(),
       success: vi.fn(),
     }),
-  },
+  }),
 }));
 
 vi.mock('../../../shared/runtime', () => ({
