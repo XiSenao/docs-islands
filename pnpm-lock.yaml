@@ -157,6 +157,9 @@ catalogs:
     eslint:
       specifier: ^9.39.2
       version: 9.39.2
+    eslint-config-flat-gitignore:
+      specifier: ^2.2.1
+      version: 2.2.1
     eslint-config-prettier:
       specifier: ^10.1.8
       version: 10.1.8
@@ -384,6 +387,9 @@ importers:
       eslint:
         specifier: catalog:lint
         version: 9.39.2
+      eslint-config-flat-gitignore:
+        specifier: catalog:lint
+        version: 2.2.1(eslint@9.39.2)
       eslint-config-prettier:
         specifier: catalog:lint
         version: 10.1.8(eslint@9.39.2)
@@ -1661,6 +1667,18 @@ packages:
       }
     engines: { node: ^12.0.0 || ^14.0.0 || >=16.0.0 }
 
+  '@eslint/compat@2.0.2':
+    resolution:
+      {
+        integrity: sha512-pR1DoD0h3HfF675QZx0xsyrsU8q70Z/plx7880NOhS02NuWLgBCOMDL787nUeQ7EWLkxv3bPQJaarjcPQb2Dwg==,
+      }
+    engines: { node: ^20.19.0 || ^22.13.0 || >=24 }
+    peerDependencies:
+      eslint: ^8.40 || 9 || 10
+    peerDependenciesMeta:
+      eslint:
+        optional: true
+
   '@eslint/config-array@0.21.1':
     resolution:
       {
@@ -1688,6 +1706,13 @@ packages:
         integrity: sha512-yL/sLrpmtDaFEiUj1osRP4TI2MDz1AddJL+jZ7KSqvBuliN4xqYY54IfdN8qD8Toa6g1iloph1fxQNkjOxrrpQ==,
       }
     engines: { node: ^18.18.0 || ^20.9.0 || >=21.1.0 }
+
+  '@eslint/core@1.1.0':
+    resolution:
+      {
+        integrity: sha512-/nr9K9wkr3P1EzFTdFdMoLuo1PmIxjmwvPozwoSodjNBdefGujXQUF93u1DDZpEaTuDvMsIQddsd35BwtrW9Xw==,
+      }
+    engines: { node: ^20.19.0 || ^22.13.0 || >=24 }
 
   '@eslint/eslintrc@3.3.1':
     resolution:
@@ -3997,6 +4022,14 @@ packages:
     engines: { node: '>=12' }
     peerDependencies:
       eslint: '>=6.0.0'
+
+  eslint-config-flat-gitignore@2.2.1:
+    resolution:
+      {
+        integrity: sha512-wA5EqN0era7/7Gt5Botlsfin/UNY0etJSEeBgbUlFLFrBi47rAN//+39fI7fpYcl8RENutlFtvp/zRa/M/pZNg==,
+      }
+    peerDependencies:
+      eslint: ^9.5.0 || ^10.0.0
 
   eslint-config-prettier@10.1.8:
     resolution:
@@ -8052,6 +8085,12 @@ snapshots:
 
   '@eslint-community/regexpp@4.12.2': {}
 
+  '@eslint/compat@2.0.2(eslint@9.39.2)':
+    dependencies:
+      '@eslint/core': 1.1.0
+    optionalDependencies:
+      eslint: 9.39.2
+
   '@eslint/config-array@0.21.1':
     dependencies:
       '@eslint/object-schema': 2.1.7
@@ -8069,6 +8108,10 @@ snapshots:
       '@types/json-schema': 7.0.15
 
   '@eslint/core@0.17.0':
+    dependencies:
+      '@types/json-schema': 7.0.15
+
+  '@eslint/core@1.1.0':
     dependencies:
       '@types/json-schema': 7.0.15
 
@@ -9584,6 +9627,11 @@ snapshots:
     dependencies:
       eslint: 9.39.2
       semver: 7.7.3
+
+  eslint-config-flat-gitignore@2.2.1(eslint@9.39.2):
+    dependencies:
+      '@eslint/compat': 2.0.2(eslint@9.39.2)
+      eslint: 9.39.2
 
   eslint-config-prettier@10.1.8(eslint@9.39.2):
     dependencies:

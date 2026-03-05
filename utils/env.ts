@@ -7,9 +7,8 @@ import { loadEnv as viteLoadEnv } from 'vite';
 import { z } from 'zod';
 import { findMonorepoRoot, isSubpath } from './path';
 
-let cacheEnv: EnvConfig | null = null;
+let cachedEnv: EnvConfig | null = null;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// const cachedEnv: EnvConfig | null = null;
 
 const environmentSchema: z.ZodDefault<
   z.ZodEnum<{
@@ -20,24 +19,27 @@ const environmentSchema: z.ZodDefault<
 
 type Environment = z.infer<typeof environmentSchema>;
 
-const envBoolean = z
-  .string()
-  .optional()
-  .transform((val) => val === 'true');
+const envBooleanSchema = z
+  .stringbool({
+    truthy: ['true'],
+    falsy: ['false'],
+  })
+  .default(false);
+
+const envFlagSchema = z
+  .stringbool({
+    truthy: ['1'],
+    falsy: ['0'],
+  })
+  .default(false);
 
 const processEnvSchema = z.object({
-  DOCS_ISLANDS_RELEASE: z
-    .string()
-    .optional()
-    .transform((val) => val === '1'),
-  DOCS_ISLANDS_TEST: z
-    .string()
-    .optional()
-    .transform((val) => val === '1'),
-  DOCS_ISLANDS_SOURCEMAP: envBoolean,
-  DOCS_ISLANDS_MINIFY: envBoolean,
-  DOCS_ISLANDS_SILENCE_LOG: envBoolean,
-  DOCS_ISLANDS_DEBUG: envBoolean,
+  DOCS_ISLANDS_RELEASE: envFlagSchema,
+  DOCS_ISLANDS_TEST: envFlagSchema,
+  DOCS_ISLANDS_SOURCEMAP: envBooleanSchema,
+  DOCS_ISLANDS_MINIFY: envBooleanSchema,
+  DOCS_ISLANDS_SILENCE_LOG: envBooleanSchema,
+  DOCS_ISLANDS_DEBUG: envBooleanSchema,
 
   // test
   WS_ENDPOINT: z.string().optional(),
@@ -112,6 +114,14 @@ function findNearestEnv(): string {
   return dir;
 }
 
+interface LoadEnvOptions {
+  force: boolean;
+}
+
+const defaultOptions: LoadEnvOptions = {
+  force: false,
+};
+
 /**
  * Loads `.env` files into `process.env` and applies centralized
  * CI / RELEASE adjustments.
@@ -125,9 +135,11 @@ function findNearestEnv(): string {
  *
  * @returns Pre-computed build configuration values.
  */
-export function loadEnv(force = false): EnvConfig {
-  if (!force && cacheEnv) {
-    return cacheEnv;
+export function loadEnv(options: LoadEnvOptions = defaultOptions): EnvConfig {
+  const { force } = options;
+
+  if (!force && cachedEnv) {
+    return cachedEnv;
   }
 
   const envDir = findNearestEnv();
@@ -153,8 +165,8 @@ export function loadEnv(force = false): EnvConfig {
 
   // ── Step 3: CI / RELEASE adjustments ──
   const isCI = isInCi;
-  const isRelease = process.env.DOCS_ISLANDS_RELEASE === '1';
-  const isLocalTest = process.env.DOCS_ISLANDS_TEST === '1';
+  const isRelease = envFlagSchema.parse(process.env.DOCS_ISLANDS_RELEASE);
+  const isLocalTest = envFlagSchema.parse(process.env.DOCS_ISLANDS_TEST);
 
   // CI mode: re-enable info/success logs, suppress sourcemap, enable minify
   if ((isCI || isLocalTest) && !isRelease) {
@@ -189,7 +201,7 @@ export function loadEnv(force = false): EnvConfig {
   // ── Step 5: Validate and map final configuration ──
   const finalEnv = processEnvSchema.parse(process.env);
 
-  cacheEnv = {
+  cachedEnv = {
     config: {
       sourcemap: finalEnv.DOCS_ISLANDS_SOURCEMAP,
       minify: finalEnv.DOCS_ISLANDS_MINIFY,
@@ -208,40 +220,33 @@ export function loadEnv(force = false): EnvConfig {
     ci: isCI,
   };
 
-  return cacheEnv;
+  return cachedEnv;
 }
 
-const injectKeySchema: z.ZodUnion<
-  readonly [
-    z.ZodLiteral<'DOCS_ISLANDS_MODE'>,
-    z.ZodEnum<{
-      DOCS_ISLANDS_MINIFY: 'DOCS_ISLANDS_MINIFY';
-      DOCS_ISLANDS_RELEASE: 'DOCS_ISLANDS_RELEASE';
-      DOCS_ISLANDS_TEST: 'DOCS_ISLANDS_TEST';
-      DOCS_ISLANDS_DEBUG: 'DOCS_ISLANDS_DEBUG';
-      DOCS_ISLANDS_SOURCEMAP: 'DOCS_ISLANDS_SOURCEMAP';
-      DOCS_ISLANDS_SILENCE_LOG: 'DOCS_ISLANDS_SILENCE_LOG';
-      WS_ENDPOINT: 'WS_ENDPOINT';
-      PORT: 'PORT';
-      DOCS_ISLANDS_BUILD_SKIP_PACKAGES: 'DOCS_ISLANDS_BUILD_SKIP_PACKAGES';
-    }>,
-  ]
-> = z.union([z.literal('DOCS_ISLANDS_MODE'), processEnvSchema.keyof()]);
+type ProcessEnvKey =
+  | 'DOCS_ISLANDS_RELEASE'
+  | 'DOCS_ISLANDS_TEST'
+  | 'DOCS_ISLANDS_SOURCEMAP'
+  | 'DOCS_ISLANDS_MINIFY'
+  | 'DOCS_ISLANDS_SILENCE_LOG'
+  | 'DOCS_ISLANDS_DEBUG'
+  | 'WS_ENDPOINT'
+  | 'PORT'
+  | 'DOCS_ISLANDS_BUILD_SKIP_PACKAGES';
+
+const injectKeySchema: z.ZodType<'DOCS_ISLANDS_MODE' | ProcessEnvKey> = z.union(
+  [z.literal('DOCS_ISLANDS_MODE'), processEnvSchema.keyof()],
+);
 
 export type InjectableKey = z.infer<typeof injectKeySchema>;
 
-const injectValueSchema = z.union([
-  z.string(),
-  z.number(),
-  z.boolean(),
-  z.null(),
-  z.undefined(),
-]);
+const injectValueSchema: z.ZodType<
+  string | number | boolean | null | undefined
+> = z.union([z.string(), z.number(), z.boolean(), z.null(), z.undefined()]);
 
-export function injectEnv(
-  key: InjectableKey,
-  value: string | number | boolean | null | undefined,
-): void {
+type InjectableValue = z.infer<typeof injectValueSchema>;
+
+export function injectEnv(key: InjectableKey, value: InjectableValue): void {
   const validKey = injectKeySchema.parse(key);
   const validValue = injectValueSchema.parse(value);
 
@@ -253,9 +258,7 @@ export function injectEnv(
 }
 
 export function injectEnvs(
-  envs: Partial<
-    Record<InjectableKey, string | number | boolean | null | undefined>
-  >,
+  envs: Partial<Record<InjectableKey, InjectableValue>>,
 ): void {
   for (const [key, value] of Object.entries(envs)) {
     injectEnv(key as InjectableKey, value);

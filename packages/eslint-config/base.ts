@@ -1,7 +1,8 @@
 import eslint from '@eslint/js';
 import htmlESlintPlugin from '@html-eslint/eslint-plugin';
 import htmlESlintParser from '@html-eslint/parser';
-import eslintConfigPrettier from 'eslint-config-prettier';
+import gitignore from 'eslint-config-flat-gitignore';
+import eslintConfigPrettier from 'eslint-config-prettier/flat';
 import eslintPluginN from 'eslint-plugin-n';
 import eslintPluginPnpm from 'eslint-plugin-pnpm';
 import eslintPluginPrettier from 'eslint-plugin-prettier';
@@ -20,6 +21,7 @@ export const eslintConfigBase: Config = [
   eslintPluginRegexp.configs['flat/recommended'],
   eslintPluginUnicorn.configs.recommended,
 
+  gitignore(),
   globalIgnores([
     '**/node_modules/**',
     '**/cache/**',

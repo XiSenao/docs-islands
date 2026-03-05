@@ -11,7 +11,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 beforeAll(async () => {
-  const env = loadEnv(true);
+  const env = loadEnv({
+    force: true,
+  });
   browser = await chromium.connect(env.test.ws_endpoint!);
   globalThis.page = await browser.newPage();
   globalThis.goto = async (path: string) => {
