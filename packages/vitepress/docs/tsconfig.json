@@ -3,14 +3,7 @@
   "compilerOptions": {
     "jsx": "preserve",
     "isolatedDeclarations": false,
+    "declaration": false,
   },
-  "include": [
-    ".vitepress/**/*.ts",
-    ".vitepress/**/*.vue",
-    "**/*.ts",
-    "en/**/*.vue",
-    "zh/**/*.vue",
-    "en/**/*.tsx",
-    "zh/**/*.tsx",
-  ],
+  "include": ["./", "./.vitepress/**/*.ts", "en/**/*.vue", "zh/**/*.vue"],
 }

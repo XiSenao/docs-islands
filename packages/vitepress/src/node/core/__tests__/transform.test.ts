@@ -5,15 +5,15 @@ import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
 import { describe, expect, it, vi } from 'vitest';
 import coreTransformComponentTags, { travelImports } from '../transform';
 
-vi.mock('#utils/logger', () => ({
-  default: {
+vi.mock('#shared/logger', () => ({
+  default: () => ({
     getLoggerByGroup: () => ({
       warn: vi.fn(),
       error: vi.fn(),
       info: vi.fn(),
       success: vi.fn(),
     }),
-  },
+  }),
 }));
 
 const attrNames = {
@@ -122,6 +122,46 @@ describe('coreTransformComponentTags', () => {
     expect(out).toContain(attrNames.renderComponent);
   });
 
+  it('escapes user props with HTML-safe encoding for attribute values', () => {
+    const code = `# Title
+
+<HelloWorld title='He said "hello" & goodbye' description="it's fine" />`;
+    const { code: out } = coreTransformComponentTags(
+      code,
+      ['HelloWorld'],
+      '/docs/escape-props.md',
+      attrNames,
+    );
+
+    expect(out).toContain('title="He said &quot;hello&quot; &amp; goodbye"');
+    expect(out).toContain('description="it&#39;s fine"');
+    expect(out).not.toContain('\\"');
+  });
+
+  it('transforms multiline self-closing component tags parsed as html_inline', () => {
+    const code = `<HelloWorld
+  client:only
+  uniqueid="escape-attr-e2e"
+  title='He said "hello" & goodbye'
+  data-note="it's fine"
+/>`;
+
+    const { code: out, renderIdToRenderDirectiveMap } =
+      coreTransformComponentTags(
+        code,
+        ['HelloWorld'],
+        '/docs/escaped-props-inline.md',
+        attrNames,
+      );
+
+    expect(renderIdToRenderDirectiveMap.size).toBe(1);
+    expect(out).toContain(`${attrNames.renderDirective}="client:only"`);
+    expect(out).toContain('uniqueid="escape-attr-e2e"');
+    expect(out).toContain('title="He said &quot;hello&quot; &amp; goodbye"');
+    expect(out).toContain('data-note="it&#39;s fine"');
+    expect(out).not.toContain('<helloworld');
+  });
+
   it('skips non self-closing tags and leaves original markup', () => {
     const code = `# Title
 
@@ -176,8 +216,8 @@ describe('coreTransformComponentTags', () => {
       expect(divMatches).toHaveLength(2);
 
       // Verify both unique IDs are preserved
-      expect(out).toContain('uniqueid="invalid-directive"');
-      expect(out).toContain('uniqueid="client-invalid"');
+      expect(out).toContain('uniqueId="invalid-directive"');
+      expect(out).toContain('uniqueId="client-invalid"');
 
       // Both should default to ssr:only due to invalid directives
       expect(out).toMatch(
@@ -204,8 +244,8 @@ describe('coreTransformComponentTags', () => {
       expect(divMatches).toHaveLength(2);
     });
 
-    it('handles Parse5 position adjustments with leading whitespace', () => {
-      // Test case where Parse5 includes leading whitespace in positions
+    it('handles position adjustments with leading whitespace', () => {
+      // Test case where leading whitespace affects positions
       // Use HTML blocks that MarkdownIt will actually parse as HTML
       const codeWithWhitespace = `<HelloWorld />
     <HelloWorld attr="value" />`;
@@ -265,7 +305,7 @@ describe('coreTransformComponentTags', () => {
 
       // Verify props are preserved correctly
       expect(out).toContain('prop="value"');
-      expect(out).toContain('booleanprop');
+      expect(out).toContain('booleanProp');
     });
 
     it('maintains component processing order consistency across platforms', () => {

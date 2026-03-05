@@ -1,4 +1,8 @@
+import Logger from '@docs-islands/utils/logger';
 import { expect } from '@playwright/test';
+
+const logger = new Logger();
+const TestLogger = logger.getLoggerByGroup('basic-functionality-test');
 
 describe('Basic Site Functionality', () => {
   test('should load home page', async () => {
@@ -50,13 +54,13 @@ describe('Basic Site Functionality', () => {
 
       // Either a 404 page or a redirect should occur.
       const bodyText = await page.textContent('body');
-      console.log('404 page content:', bodyText?.slice(0, 200));
+      TestLogger.debug(`404 page content: ${bodyText?.slice(0, 200)}`);
 
       // The page should still have basic structure.
       const layout = page.locator('.Layout');
       await expect(layout).toBeVisible();
     } catch (error) {
-      console.log('Expected 404 error:', error);
+      TestLogger.info(`Expected 404 error: ${String(error)}`);
     }
   });
 
@@ -72,12 +76,12 @@ describe('Basic Site Functionality', () => {
       const hasReactRefresh = html.includes('react-refresh');
       const hasReactScripts = html.includes('/@react-refresh');
 
-      console.log('React refresh present:', hasReactRefresh);
-      console.log('React scripts present:', hasReactScripts);
+      TestLogger.debug(`React refresh present: ${hasReactRefresh}`);
+      TestLogger.debug(`React scripts present: ${hasReactScripts}`);
 
       // Check if script tags were processed.
       const hasReactScriptTag = html.includes('<script lang="react">');
-      console.log('Script tag still present:', hasReactScriptTag);
+      TestLogger.debug(`Script tag still present: ${hasReactScriptTag}`);
 
       // Basic page functionality should work.
       const heading = page.locator('h1');

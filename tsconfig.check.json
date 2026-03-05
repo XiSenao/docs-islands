@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "moduleResolution": "node16",
+    "module": "Node16",
+    // ES2020 is very conservative check for client types, could be bumped if needed.
+    "lib": ["ES2020", "DOM"],
+    // Avoid checking unrelated node_modules types.
+    "types": [],
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": false,
+    "noUncheckedSideEffectImports": true,
+    "exactOptionalPropertyTypes": true
+  }
+}

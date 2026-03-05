@@ -1,8 +1,14 @@
+import { loadEnv } from '@docs-islands/utils/env';
+import Logger from '@docs-islands/utils/logger';
 import { expect } from '@playwright/test';
 import {
   debugElementState,
   waitForElementRobust,
 } from '../test-utils/platform-helpers';
+
+const logger = new Logger();
+const TestLogger = logger.getLoggerByGroup('error-handling-test');
+const { test: TEST } = loadEnv();
 
 describe('Error Handling and Edge Cases', () => {
   describe('Import Resolution Errors', () => {
@@ -22,9 +28,9 @@ describe('Error Handling and Edge Cases', () => {
 
       await page.waitForTimeout(1000);
 
-      console.log('Console messages for missing component:');
+      TestLogger.debug('Console messages for missing component:');
       for (const [i, log] of consoleLogs.entries()) {
-        console.log(`${i}: ${log}`);
+        TestLogger.debug(`${i}: ${log}`);
       }
 
       // Basic functionality should still work.
@@ -43,6 +49,47 @@ describe('Error Handling and Edge Cases', () => {
       // The rest of the page should still be functional.
       const content = page.locator('.vp-doc');
       await expect(content).toBeVisible();
+    });
+  });
+
+  describe('Script Processing Guardrails', () => {
+    test('Should gracefully handle multiple react scripts by stripping them and rendering the page', async () => {
+      const response = await page.goto(
+        `http://localhost:${TEST.port}/error-handling/multiple-react-scripts`,
+      );
+
+      expect(response).toBeTruthy();
+      expect(response!.status()).toBe(200);
+
+      // The page should still load and show static content.
+      const heading = page.locator('h1');
+      await expect(heading).toBeVisible();
+      expect(await heading.textContent()).toContain(
+        'Error Handling Test - Multiple React Scripts',
+      );
+    });
+  });
+
+  describe('Attribute Escaping', () => {
+    test('Should preserve special characters in component tag attributes', async () => {
+      await goto('/error-handling/escaped-props');
+
+      const heading = page.locator('h1');
+      await expect(heading).toBeVisible();
+      expect(await heading.textContent()).toContain('Escaped Props');
+
+      const renderContainer = page.locator('[uniqueid="escape-attr-e2e"]');
+      await expect(renderContainer).toBeVisible();
+      await expect(renderContainer).toHaveAttribute(
+        'title',
+        'He said "hello" & goodbye',
+      );
+      await expect(renderContainer).toHaveAttribute('data-note', "it's fine");
+
+      const renderedComponent = page.locator(
+        '[data-unique-id="escape-attr-e2e"]',
+      );
+      await expect(renderedComponent).toBeVisible();
     });
   });
 
@@ -109,7 +156,7 @@ describe('Error Handling and Edge Cases', () => {
 
       const loadTime = Date.now() - startTime;
 
-      console.log(`Page load time: ${loadTime}ms`);
+      TestLogger.debug(`Page load time: ${loadTime}ms`);
 
       // The page should load within 10 seconds even with errors.
       expect(loadTime).toBeLessThan(10_000);

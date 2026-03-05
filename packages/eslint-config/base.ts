@@ -25,6 +25,7 @@ export const eslintConfigBase: Config = [
     '**/cache/**',
     '**/dist/**',
     '**/public/**',
+    '**/__tests__/**',
     '**/coverage/**',
   ]),
 
@@ -58,6 +59,16 @@ export const eslintConfigBase: Config = [
       reportUnusedDisableDirectives: 'error',
     },
     rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "MemberExpression[object.name='process'][property.name='env']",
+          message:
+            'Direct process access is restricted. Import helpers from @docs-islands/utils instead.',
+        },
+      ],
+
       // Core ESLint rules - Balance between code quality and practicality
       'array-callback-return': ['error', { allowImplicit: true }],
       'block-scoped-var': 'error',
@@ -176,7 +187,13 @@ export const eslintConfigBase: Config = [
       ],
       'n/process-exit-as-throw': 'error',
       'n/hashbang': 'error',
-      'n/no-extraneous-import': 'error',
+      'n/no-extraneous-import': [
+        'error',
+        {
+          allowModules: ['@docs-islands/utils'],
+          resolvePaths: [],
+        },
+      ],
       'n/no-extraneous-require': 'error',
       'regexp/prefer-regexp-exec': 'error',
       'regexp/prefer-regexp-test': 'error',

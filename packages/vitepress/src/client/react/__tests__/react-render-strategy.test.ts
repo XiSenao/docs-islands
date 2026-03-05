@@ -7,15 +7,15 @@ import { RENDER_STRATEGY_CONSTANTS } from '../../../shared/constants';
 import { ReactRenderStrategy } from '../react-render-strategy';
 
 // Mock dependencies.
-vi.mock('#utils/logger', () => ({
-  default: {
+vi.mock('#shared/logger', () => ({
+  default: () => ({
     getLoggerByGroup: () => ({
       warn: vi.fn(),
       error: vi.fn(),
       info: vi.fn(),
       success: vi.fn(),
     }),
-  },
+  }),
 }));
 
 vi.mock('../../../shared/runtime', () => ({

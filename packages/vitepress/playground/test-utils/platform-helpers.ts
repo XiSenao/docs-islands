@@ -2,10 +2,16 @@
  * Platform-specific test utilities for handling Windows CI issues
  */
 
+import { loadEnv } from '@docs-islands/utils/env';
+import Logger from '@docs-islands/utils/logger';
 import { expect, type Locator, type Page } from '@playwright/test';
 
+const { ci } = loadEnv();
+const logger = new Logger();
+const TestLogger = logger.getLoggerByGroup('platform-helpers');
+
 export const isWindows: boolean = process.platform === 'win32';
-export const isCI = Boolean(process.env.CI);
+export const isCI = ci;
 
 /**
  * Platform-aware timeout values
@@ -99,14 +105,16 @@ export async function debugElementState(
       )
       .catch(() => []);
 
-    console.log(`[DEBUG] ${label} (${selector}):`, {
-      platform: process.platform,
-      isAttached,
-      isVisible,
-      elements: attributes.length,
-      details: attributes,
-    });
+    TestLogger.debug(
+      `${label} (${selector}): ${JSON.stringify({
+        platform: process.platform,
+        isAttached,
+        isVisible,
+        elements: attributes.length,
+        details: attributes,
+      })}`,
+    );
   } catch (error) {
-    console.log(`[DEBUG] ${label} debug failed:`, error);
+    TestLogger.debug(`${label} debug failed: ${String(error)}`);
   }
 }

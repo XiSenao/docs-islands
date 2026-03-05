@@ -1,3 +1,4 @@
+import { injectEnvs, loadEnv } from '@docs-islands/utils/env';
 import getPort from 'get-port';
 import type { Server } from 'node:net';
 import { type BrowserServer, chromium } from 'playwright-chromium';
@@ -9,17 +10,18 @@ let server: ViteDevServer | Server;
 
 const root = '.';
 
+const { ci, debug } = loadEnv();
+
 export async function setup(): Promise<void> {
   browserServer = await chromium.launchServer({
-    headless: !process.env.DEBUG,
-    args: process.env.CI
-      ? ['--no-sandbox', '--disable-setuid-sandbox']
-      : undefined,
+    headless: !debug,
+    args: ci ? ['--no-sandbox', '--disable-setuid-sandbox'] : undefined,
   });
-  process.env.WS_ENDPOINT = browserServer.wsEndpoint();
   const port = await getPort();
-  process.env.PORT = port.toString();
-
+  injectEnvs({
+    WS_ENDPOINT: browserServer.wsEndpoint(),
+    PORT: port.toString(),
+  });
   server = await createServer(root, { port });
   await server.listen();
 }

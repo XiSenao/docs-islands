@@ -2,6 +2,7 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
+import { LightGeneralLogger } from '#shared/logger';
 import { RenderController } from '../core/render-controller';
 
 export class ReactRenderController extends RenderController {
@@ -25,9 +26,9 @@ export class ReactRenderController extends RenderController {
     return `
 import { createRoot as __react_client_render__, hydrateRoot as __react_hydrate__ } from 'react-dom/client';
 import { startTransition as __start_transition__ } from 'react';
-import logger from '@docs-islands/vitepress/internal/logger';
+import getLoggerInstance from '@docs-islands/vitepress/internal/logger';
 
-const Logger = logger.getLoggerByGroup('ReactRenderController');
+const Logger = getLoggerInstance().getLoggerByGroup('ReactRenderController');
 
 ${code}
 
@@ -49,6 +50,7 @@ if (targetElements.length > 0) {
           } catch (error) {
             Logger.error(\`Component \${ renderComponentName } lazy hydration failed: \${error}\`);
           } finally {
+            clientVisibleObserver.unobserve(entry.target);
             __PENDING_HYDRATION_COMPONENT_MAP__.delete(entry.target);
           }
         });
@@ -99,7 +101,7 @@ if (targetElements.length > 0) {
       if (props["${RENDER_STRATEGY_CONSTANTS.renderDirective.toLocaleLowerCase()}"] === 'ssr:only') {
         return;
       }
-      throw new Error('Component '+ props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLocaleLowerCase()}"] + ' not found');
+      ${LightGeneralLogger('error', `'Component '+ props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLocaleLowerCase()}"] + ' not found'`, 'generate-client-runtime-in-dev').formatText}
     }
   });
 }

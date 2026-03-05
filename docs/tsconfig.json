@@ -2,15 +2,12 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "isolatedDeclarations": false,
+    "declaration": false,
   },
   "include": [
-    ".vitepress/theme/**/*.vue",
-    ".vitepress/**/*.ts",
-    "**/*.ts",
-    "en/**/*.vue",
-    "zh/**/*.vue",
-    "en/**/*.tsx",
-    "zh/**/*.tsx",
-    "client.d.ts",
+    "./",
+    "./client.d.ts",
+    "./.vitepress/**/*.ts",
+    "./.vitepress/theme/**/*.vue",
   ],
 }

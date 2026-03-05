@@ -5,8 +5,9 @@ import {
   NEED_PRE_RENDER_DIRECTIVES,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
+import { LightGeneralLogger } from '#shared/logger';
 import reactPlugin from '@vitejs/plugin-react-swc';
-import { dirname } from 'pathe';
+import { dirname, join } from 'pathe';
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import type { Plugin, PluginOption } from 'vite';
@@ -72,7 +73,7 @@ export class ReactAdapter implements FrameworkAdapter {
     cfg: ConfigType,
     rc: RenderController,
   ): Promise<string> {
-    const resolveId = `${cfg.base}/${cfg.srcDir}/${pathname}.md`.replaceAll(
+    const resolveId = join(cfg.base, cfg.srcDir, `${pathname}.md`).replaceAll(
       '\\',
       '/',
     );
@@ -112,7 +113,7 @@ if (targetDoms.length > 0) {
         });
       }
     } else {
-      throw new Error('Component '+ props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()}"] + ' not found');
+      ${LightGeneralLogger('error', `'Component '+ props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()}"] + ' not found'`, 'generate-dev-runtime').formatText}
     }
   });
 }

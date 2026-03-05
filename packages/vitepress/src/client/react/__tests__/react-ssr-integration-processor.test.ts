@@ -6,14 +6,14 @@ import type { ExtractedProps } from '../react-ssr-integration-processor';
 import { transformReactSSRIntegrationCode } from '../react-ssr-integration-processor';
 
 // Mock logger.
-vi.mock('#utils/logger', () => ({
-  default: {
+vi.mock('#shared/logger', () => ({
+  default: () => ({
     getLoggerByGroup: () => ({
       error: vi.fn(),
       warn: vi.fn(),
       info: vi.fn(),
     }),
-  },
+  }),
 }));
 
 describe('ReactSSRIntegrationProcessor', () => {

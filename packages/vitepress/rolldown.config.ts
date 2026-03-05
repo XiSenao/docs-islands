@@ -1,5 +1,5 @@
 import licensePlugin from '@docs-islands/plugin-license';
-import { scanFiles } from '@docs-islands/utils/fs-utils';
+import { loadEnv, scanFiles } from '@docs-islands/utils';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, resolve } from 'node:url';
@@ -8,6 +8,9 @@ import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
 import pkg from './package.json' with { type: 'json' };
 import generatePackageJson from './packagePlugin';
+
+const { config, debug, env } = loadEnv();
+const { sourcemap, minify } = config;
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -77,9 +80,9 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
     external: externalDeps,
     resolve: {
       alias: {
+        '#types': fileURLToPath(new URL('types', import.meta.url)),
         '#deps-types': resolve(__dirname, 'src/types'),
         '#shared': resolve(__dirname, 'src/shared'),
-        '#utils': resolve(__dirname, 'utils'),
       },
     },
     treeshake: {
@@ -99,10 +102,7 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
          * users, therefore separate .d.ts type declaration files are not
          * required.
          */
-        if (['logger'].includes(chunkInfo.name)) {
-          return 'utils/[name].js';
-        }
-        if (['client-runtime'].includes(chunkInfo.name)) {
+        if (['logger', 'client-runtime'].includes(chunkInfo.name)) {
           return 'shared/[name].js';
         }
         return `${baseDir}/[name].${chunkFileExt}`;
@@ -111,7 +111,7 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
       exports: 'named',
       format: 'esm',
       externalLiveBindings: false,
-      sourcemap: false,
+      sourcemap,
     },
   });
 };
@@ -128,11 +128,17 @@ const nodeConfig = defineConfig({
   plugins: nodePlugins,
   output: {
     ...sharedNodeOptions.output,
-    minify: {
-      compress: true,
-      mangle: false,
-      removeWhitespace: false,
-    },
+    ...(minify && {
+      minify: {
+        compress: true,
+        mangle: false,
+        // Do not minify whitespace for ES lib output since that would remove
+        // pure annotations and break tree-shaking
+        codegen: {
+          removeWhitespace: false,
+        },
+      },
+    }),
   },
 });
 
@@ -152,12 +158,12 @@ const nodeDtsConfig = defineConfig({
 const clientConfig = defineConfig({
   ...sharedBrowserOptions,
   input: {
-    logger: resolve(__dirname, 'utils/logger.ts'),
+    logger: resolve(__dirname, 'src/shared/logger.ts'),
     index: resolve(__dirname, 'src/client/index.ts'),
     react: resolve(__dirname, 'src/client/react/index.ts'),
   },
   transform: {
-    target: 'es2020',
+    target: 'es2022',
   },
 });
 
@@ -173,13 +179,9 @@ const clientDtsConfig = defineConfig({
     }),
   ],
   transform: {
-    target: 'es2020',
+    target: 'es2022',
   },
 });
-
-const enableClientRuntimeSourcemap = Boolean(
-  process.env.enableClientRuntimeSourcemap,
-);
 
 const clientRuntimeConfig = defineConfig({
   ...sharedBrowserOptions,
@@ -187,7 +189,11 @@ const clientRuntimeConfig = defineConfig({
     'client-runtime': resolve(__dirname, 'src/shared/client-runtime.ts'),
   },
   transform: {
-    target: 'es2020',
+    target: 'es2022',
+    define: {
+      __DEBUG__: String(debug),
+      __ENV__: JSON.stringify(env),
+    },
   },
   plugins: [
     {
@@ -206,12 +212,12 @@ const clientRuntimeConfig = defineConfig({
           });
 
           const loggerDtsContent = await readFile(
-            resolve(__dirname, 'utils/logger.d.ts'),
+            resolve(__dirname, 'src/shared/logger.d.ts'),
             'utf8',
           );
           this.emitFile({
             type: 'asset',
-            fileName: 'utils/logger.d.ts',
+            fileName: 'shared/logger.d.ts',
             source: loggerDtsContent,
           });
         },
@@ -226,7 +232,7 @@ const clientRuntimeConfig = defineConfig({
      * therefore it does not include chunks dependencies temporarily.
      */
     manualChunks: undefined,
-    sourcemap: enableClientRuntimeSourcemap ? 'inline' : false,
+    sourcemap: sourcemap ? 'inline' : false,
   },
 });
 

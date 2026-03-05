@@ -8,11 +8,17 @@
     "docs:preview": "vitepress preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
-    "link:dev": "del-cli ../dist --force && npm pkg set devDependencies.@docs-islands/vitepress='link:../' && pnpm install && pnpm set:default-link",
-    "link:prod": "del-cli ../dist --force && pnpm set:default-link && pnpm --filter @docs-islands/vitepress build && pnpm install",
-    "set:default-link": "npm pkg set devDependencies.@docs-islands/vitepress='link:../dist'",
+    "link:dev": "link-guard link:dev:exec",
+    "link:dev:exec": "del-cli ../dist --force && npm pkg set devDependencies.@docs-islands/vitepress='link:../' && pnpm install",
+    "link:prod": "link-guard link:prod:exec",
+    "link:prod:exec": "del-cli ../dist --force && npm pkg set devDependencies.@docs-islands/vitepress='link:../dist' && pnpm --filter @docs-islands/vitepress build && pnpm install",
     "clean": "pnpm clean:remaining && del-cli .vitepress/dist .vitepress/cache .eslintcache node_modules",
     "clean:remaining": "del-cli .vitepress/config.ts.timestamp-*.mjs || true"
+  },
+  "imports": {
+    "#types/*": "@docs-islands/vitepress/internal-helper/imports/types/*",
+    "#dep-types/*": "@docs-islands/vitepress/internal-helper/imports/dep-types/*",
+    "#shared/*": "@docs-islands/vitepress/internal-helper/imports/shared/*"
   },
   "packageManager": "pnpm@10.7.0",
   "dependencies": {

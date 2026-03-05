@@ -1,13 +1,72 @@
+import { loadEnv } from '@docs-islands/utils/env';
+import logger from '@docs-islands/utils/logger';
 import { execSync, spawn } from 'node:child_process';
-import Logger, { lightGeneralLogger } from '../utils/logger';
 
-const BUILD_PIPELINE: (string | string[])[] = [
-  ['@docs-islands/plugin-license', '@docs-islands/utils'],
+type BuildPhase = string | string[];
+
+const AUTO_DISCOVER_PLACEHOLDER = '...';
+const SKIP_ARG_KEYS = new Set(['--skip', '--exclude']);
+const { build } = loadEnv();
+
+const BUILD_PIPELINE: BuildPhase[] = [
+  '@docs-islands/plugin-license',
   '@docs-islands/vitepress',
-  '...',
+  AUTO_DISCOVER_PLACEHOLDER,
 ];
 
-const logger = Logger.getLoggerByGroup('build');
+const Logger = new logger().getLoggerByGroup('build');
+
+function parsePackageList(value: string): string[] {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseSkippedPackages(argv = process.argv.slice(2)): Set<string> {
+  const skippedPackages = new Set<string>();
+
+  for (let index = 0; index < argv.length; index++) {
+    const argument = argv[index];
+    if (argument === undefined) {
+      continue;
+    }
+
+    const [key, inlineValue] = argument.split('=', 2);
+    if (inlineValue !== undefined && SKIP_ARG_KEYS.has(key)) {
+      for (const pkg of parsePackageList(inlineValue)) {
+        skippedPackages.add(pkg);
+      }
+      continue;
+    }
+
+    if (!SKIP_ARG_KEYS.has(argument)) {
+      continue;
+    }
+
+    const nextArg = argv[index + 1];
+    if (nextArg === undefined || nextArg.startsWith('--')) {
+      Logger.warn(
+        `Missing package list for "${argument}", this option is ignored`,
+      );
+      continue;
+    }
+
+    for (const pkg of parsePackageList(nextArg)) {
+      skippedPackages.add(pkg);
+    }
+    index++;
+  }
+
+  const envValue = build.skipPackages;
+  if (envValue) {
+    for (const pkg of parsePackageList(envValue)) {
+      skippedPackages.add(pkg);
+    }
+  }
+
+  return skippedPackages;
+}
 
 function getAllMonorepoPackages(): string[] {
   try {
@@ -30,7 +89,7 @@ function getAllMonorepoPackages(): string[] {
 
     return packages;
   } catch {
-    logger.warn('Failed to get monorepo packages, using fallback method');
+    Logger.warn('Failed to get monorepo packages, using fallback method');
     return [
       '@docs-islands/plugin-license',
       '@docs-islands/utils',
@@ -40,13 +99,13 @@ function getAllMonorepoPackages(): string[] {
   }
 }
 
-function getConfiguredPackages(): string[] {
+function getConfiguredPackages(pipeline: BuildPhase[]): string[] {
   const configured: string[] = [];
 
-  for (const phase of BUILD_PIPELINE) {
+  for (const phase of pipeline) {
     if (Array.isArray(phase)) {
       configured.push(...phase);
-    } else if (phase !== '...') {
+    } else if (phase !== AUTO_DISCOVER_PLACEHOLDER) {
       configured.push(phase);
     }
   }
@@ -54,20 +113,98 @@ function getConfiguredPackages(): string[] {
   return configured;
 }
 
-function getRemainingPackages(): string[] {
-  const allPackages = getAllMonorepoPackages();
-  const configuredPackages = getConfiguredPackages();
+function resolveSkippedPackages(
+  skippedPackages: Set<string>,
+  allPackages: string[],
+): { valid: Set<string>; invalid: string[] } {
+  const allPackagesSet = new Set(allPackages);
+  const valid = new Set<string>();
+  const invalid: string[] = [];
+
+  for (const pkg of skippedPackages) {
+    if (allPackagesSet.has(pkg)) {
+      valid.add(pkg);
+    } else {
+      invalid.push(pkg);
+    }
+  }
+
+  return { valid, invalid };
+}
+
+function applySkipFilterToPipeline(
+  pipeline: BuildPhase[],
+  skippedPackages: Set<string>,
+): BuildPhase[] {
+  const filteredPipeline: BuildPhase[] = [];
+
+  for (const phase of pipeline) {
+    if (phase === AUTO_DISCOVER_PLACEHOLDER) {
+      filteredPipeline.push(phase);
+      continue;
+    }
+
+    if (Array.isArray(phase)) {
+      const filteredPackages = phase.filter((pkg) => !skippedPackages.has(pkg));
+      if (filteredPackages.length > 0) {
+        filteredPipeline.push(filteredPackages);
+      }
+      continue;
+    }
+
+    if (!skippedPackages.has(phase)) {
+      filteredPipeline.push(phase);
+    }
+  }
+
+  return filteredPipeline;
+}
+
+function getRemainingPackages(
+  allPackages: string[],
+  configuredPackages: string[],
+  skippedPackages: Set<string>,
+): string[] {
+  const configuredPackagesSet = new Set(configuredPackages);
 
   const remainingPackages = allPackages.filter(
-    (pkg) => !configuredPackages.includes(pkg),
+    (pkg) => !configuredPackagesSet.has(pkg) && !skippedPackages.has(pkg),
   );
 
   return remainingPackages;
 }
 
+function resolveBuildPipeline(
+  pipeline: BuildPhase[],
+  remainingPackages: string[],
+): BuildPhase[] {
+  const fullPipeline = [...pipeline];
+  const autoPhaseIndex = fullPipeline.indexOf(AUTO_DISCOVER_PLACEHOLDER);
+
+  if (remainingPackages.length === 0) {
+    if (autoPhaseIndex !== -1) {
+      fullPipeline.splice(autoPhaseIndex, 1);
+    }
+    return fullPipeline;
+  }
+
+  if (autoPhaseIndex === -1) {
+    fullPipeline.push(remainingPackages);
+  } else {
+    fullPipeline[autoPhaseIndex] = remainingPackages;
+  }
+
+  return fullPipeline;
+}
+
 async function buildPackagesParallel(packages: string[]): Promise<boolean> {
+  if (packages.length === 0) {
+    Logger.info('Skipping empty parallel phase');
+    return true;
+  }
+
   try {
-    logger.info(`Building in parallel: [${packages.join(', ')}]`);
+    Logger.info(`Building in parallel: [${packages.join(', ')}]`);
 
     const commands = packages.map((pkg, index) => {
       const color = ['blue', 'green', 'yellow', 'magenta', 'cyan'][index % 5];
@@ -102,23 +239,23 @@ async function buildPackagesParallel(packages: string[]): Promise<boolean> {
     return new Promise((resolve) => {
       child.on('close', (code) => {
         if (code === 0) {
-          logger.success(`Parallel build completed successfully`);
+          Logger.success(`Parallel build completed successfully`);
           resolve(true);
         } else {
-          logger.error(`Parallel build failed with code ${code}`);
+          Logger.error(`Parallel build failed with code ${code}`);
           resolve(false);
         }
       });
     });
   } catch (error) {
-    logger.error(`Parallel build failed: ${error}`);
+    Logger.error(`Parallel build failed: ${error}`);
     return false;
   }
 }
 
 async function buildPackagesSerial(packageName: string): Promise<boolean> {
   try {
-    logger.info(`Building: ${packageName}`);
+    Logger.info(`Building: ${packageName}`);
 
     const child = spawn('pnpm', ['--filter', packageName, 'build'], {
       stdio: ['inherit', 'pipe', 'pipe'],
@@ -136,16 +273,16 @@ async function buildPackagesSerial(packageName: string): Promise<boolean> {
     return new Promise((resolve) => {
       child.on('close', (code) => {
         if (code === 0) {
-          logger.success(`Build completed successfully`);
+          Logger.success(`Build completed successfully`);
           resolve(true);
         } else {
-          logger.error(`Build failed with code ${code}`);
+          Logger.error(`Build failed with code ${code}`);
           resolve(false);
         }
       });
     });
   } catch (error) {
-    logger.error(`Build failed: ${error}`);
+    Logger.error(`Build failed: ${error}`);
     return false;
   }
 }
@@ -158,82 +295,89 @@ async function buildPackages(packages: string | string[]): Promise<boolean> {
 }
 
 async function main() {
-  logger.info('Starting optimized build process...\n');
+  Logger.info('Starting optimized build process...\n');
 
-  const remainingPackages = getRemainingPackages();
+  const allPackages = getAllMonorepoPackages();
+  const skippedPackages = parseSkippedPackages();
+  const { valid: validSkippedPackages, invalid: invalidSkippedPackages } =
+    resolveSkippedPackages(skippedPackages, allPackages);
+
+  if (validSkippedPackages.size > 0) {
+    Logger.info(
+      `Skip build packages: [${[...validSkippedPackages].join(', ')}]`,
+    );
+  }
+  if (invalidSkippedPackages.length > 0) {
+    Logger.warn(
+      `Ignored unknown skip packages: [${invalidSkippedPackages.join(', ')}]`,
+    );
+  }
+
+  const filteredBasePipeline = applySkipFilterToPipeline(
+    BUILD_PIPELINE,
+    validSkippedPackages,
+  );
+  const configuredPackages = getConfiguredPackages(filteredBasePipeline);
+  const remainingPackages = getRemainingPackages(
+    allPackages,
+    configuredPackages,
+    validSkippedPackages,
+  );
+
   if (remainingPackages.length > 0) {
-    logger.info(
+    Logger.info(
       `Found ${remainingPackages.length} remaining packages:
 
 ${remainingPackages.map((pkg) => `- ${pkg}`).join('\n')}
 `,
     );
   } else {
-    logger.info(
-      lightGeneralLogger('info', 'No remaining packages found') as string,
-    );
+    Logger.info('No remaining packages found');
   }
 
-  const fullPipeline = [...BUILD_PIPELINE];
-
-  if (remainingPackages.length > 0) {
-    const index = fullPipeline.indexOf('...');
-    if (index === -1) {
-      fullPipeline.push(remainingPackages);
-    } else {
-      fullPipeline[index] = remainingPackages;
-    }
-  } else {
-    const index = fullPipeline.indexOf('...');
-    if (index !== -1) {
-      fullPipeline.splice(index, 1);
-    }
+  const fullPipeline = resolveBuildPipeline(
+    filteredBasePipeline,
+    remainingPackages,
+  );
+  if (fullPipeline.length === 0) {
+    Logger.warn('No packages to build after applying skip filters');
+    process.exit(0);
   }
 
-  logger.info('Build Pipeline:');
+  Logger.info('Build Pipeline:');
   for (const [index, phase] of fullPipeline.entries()) {
     if (Array.isArray(phase)) {
-      logger.info(`  Phase ${index + 1}: [${phase.join(', ')}] (parallel)`);
-    } else if (phase === '...') {
-      logger.info(
-        `  Phase ${index + 1}: [${remainingPackages.join(', ')}] (parallel - auto-discovered)`,
-      );
+      Logger.info(`  Phase ${index + 1}: [${phase.join(', ')}] (parallel)`);
     } else {
-      logger.info(`  Phase ${index + 1}: ${phase}`);
+      Logger.info(`  Phase ${index + 1}: ${phase}`);
     }
   }
-  logger.info('');
+  Logger.info('');
 
   let successCount = 0;
   const totalPhases = fullPipeline.length;
 
   for (const [i, phase] of fullPipeline.entries()) {
-    if (phase === '...') {
-      continue;
-    }
-
     if (await buildPackages(phase)) {
       successCount++;
     } else {
-      logger.error(`Phase ${i + 1} failed`);
+      Logger.error(`Phase ${i + 1} failed`);
       process.exit(1);
     }
 
-    logger.info('');
+    Logger.info('');
   }
 
   if (successCount === totalPhases) {
-    logger.success('All packages built successfully!');
+    Logger.success('All packages built successfully!');
     process.exit(0);
   } else {
-    logger.warn('Some phases failed');
+    Logger.warn('Some phases failed');
     process.exit(1);
   }
 }
 
 main().catch((error) => {
-  logger.error(
-    lightGeneralLogger('error', `Build process failed: ${error}`) as string,
-  );
+  Logger.error(`Build process failed: ${error}`);
   process.exit(1);
 });

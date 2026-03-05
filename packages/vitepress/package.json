@@ -1,6 +1,6 @@
 {
   "name": "@docs-islands/vitepress",
-  "version": "0.1.2",
+  "version": "0.2.2",
   "type": "module",
   "license": "MIT",
   "author": "Senao Xi",
@@ -34,10 +34,13 @@
   },
   "scripts": {
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
-    "lint:package": "publint ./dist --strict --pack pnpm",
-    "typecheck": "tsc --noEmit",
-    "build": "rolldown --config rolldown.config.ts",
-    "build:watch": "enableClientRuntimeSourcemap=1 rolldown --config rolldown.config.ts --watch",
+    "lint:package": "tsx scripts/lint-package.ts",
+    "lint:package:publint": "tsx scripts/lint-package.ts --tool publint",
+    "lint:package:attw": "tsx scripts/lint-package.ts --tool attw",
+    "typecheck": "tsc --noEmit && tsc -p src/node --noEmit && tsc -p src/client --noEmit && tsc -p src/shared --noEmit",
+    "build": "rolldown --config rolldown.config.ts && pnpm build-types-check",
+    "build-types-check": "tsc -p tsconfig.check.json",
+    "build:watch": "rolldown --config rolldown.config.ts --watch",
     "changelog": "tsx scripts/changelog.ts",
     "changelog:preview": "tsx scripts/changelog.ts --dry-run",
     "release": "tsx scripts/release.ts",
@@ -54,14 +57,14 @@
   "imports": {
     "#types/*": "./types/*.d.ts",
     "#dep-types/*": "./src/types/*.d.ts",
-    "#shared/*": "./src/shared/*.ts",
-    "#utils/*": "./utils/*.ts"
+    "#shared/*": "./src/shared/*.ts"
   },
   "dependencies": {
     "cheerio": "catalog:prod",
     "vite": "catalog:prod"
   },
   "devDependencies": {
+    "@types/node": "catalog:dev",
     "@types/babel__generator": "catalog:dev",
     "@types/babel__traverse": "catalog:dev",
     "@types/react": "catalog:dev",
@@ -73,6 +76,8 @@
     "@docs-islands/eslint-config": "workspace:*",
     "@docs-islands/utils": "workspace:*",
     "publint": "catalog:lint",
+    "@publint/pack": "catalog:lint",
+    "@arethetypeswrong/core": "catalog:lint",
     "@babel/generator": "catalog:dev",
     "@babel/parser": "catalog:dev",
     "@babel/traverse": "catalog:dev",
@@ -81,7 +86,7 @@
     "magic-string": "catalog:dev",
     "markdown-it": "catalog:dev",
     "pathe": "catalog:dev",
-    "parse5": "catalog:dev",
+    "htmlparser2": "catalog:dev",
     "picocolors": "catalog:dev",
     "rolldown": "catalog:dev",
     "rolldown-plugin-dts": "catalog:dev",
@@ -96,12 +101,16 @@
     "del-cli": "catalog:dev"
   },
   "peerDependencies": {
+    "@types/node": "^20.19.0 || >=22.12.0",
     "@vitejs/plugin-react-swc": "catalog:dev",
     "react": "catalog:dev",
     "react-dom": "catalog:dev",
     "vitepress": "catalog:frameworks"
   },
   "peerDependenciesMeta": {
+    "@types/node": {
+      "optional": true
+    },
     "@vitejs/plugin-react-swc": {
       "optional": true
     },
@@ -121,11 +130,34 @@
     "./react": "./src/node/react/index.ts",
     "./react/client": "./src/client/react/index.ts",
     "./package.json": "./package.json",
-    "./internal/logger": "./utils/logger.ts",
+    "./internal/logger": "./src/shared/logger.ts",
     "./internal/runtime": "./src/shared/client-runtime.ts",
-    "./internal/runtime-dev": "./dist/shared/client-runtime.js",
+    "./internal-helper/runtime": "./dist/shared/client-runtime.js",
+    "./internal-helper/imports/types/*": "./types/*.d.ts",
+    "./internal-helper/imports/dep-types/*": "./src/types/*.d.ts",
+    "./internal-helper/imports/shared/*": "./src/shared/*.ts",
     "./types/*": {
       "types": "./types/*"
+    }
+  },
+  "types": "./node/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "client": [
+        "./client/index.d.mts"
+      ],
+      "react": [
+        "./node/react.d.ts"
+      ],
+      "react/client": [
+        "./client/react.d.mts"
+      ],
+      "internal/logger": [
+        "./shared/logger.d.ts"
+      ],
+      "internal/runtime": [
+        "./shared/client-runtime.d.ts"
+      ]
     }
   }
 }

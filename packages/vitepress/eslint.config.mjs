@@ -7,7 +7,7 @@ export default defineConfig([
   ...defaultConfig,
 
   // Ignore intentionally empty .d.ts files for runtime modules
-  globalIgnores(['src/shared/client-runtime.d.ts', 'utils/logger.d.ts']),
+  globalIgnores(['src/shared/client-runtime.d.ts', 'src/shared/logger.d.ts']),
 
   {
     rules: {
@@ -54,6 +54,12 @@ export default defineConfig([
       '@typescript-eslint/no-unsafe-return': 'off',
       'no-return-await': 'off',
       'require-await': 'off',
+    },
+  },
+  {
+    files: ['scripts/release.ts'],
+    rules: {
+      'no-restricted-syntax': 'off',
     },
   },
   {

@@ -1,3 +1,4 @@
+import { loadEnv } from '@docs-islands/utils/env';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,10 +11,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 beforeAll(async () => {
-  browser = await chromium.connect(process.env.WS_ENDPOINT!);
+  const env = loadEnv(true);
+  browser = await chromium.connect(env.test.ws_endpoint!);
   globalThis.page = await browser.newPage();
   globalThis.goto = async (path: string) => {
-    await globalThis.page.goto(`http://localhost:${process.env.PORT}${path}`);
+    await globalThis.page.goto(`http://localhost:${env.test.port}${path}`);
     await globalThis.page.waitForSelector('#app .Layout', { timeout: 10_000 });
   };
 });

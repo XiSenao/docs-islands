@@ -5,8 +5,8 @@ import type {
 import type { RollupOutput } from '#dep-types/rollup';
 import type { ConfigType } from '#dep-types/utils';
 import { DIRNAME_VAR_NAME } from '#shared/constants';
-import { isNodeLikeBuiltin } from '#utils/builtin';
-import logger from '#utils/logger';
+import getLoggerInstance from '#shared/logger';
+import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { join, resolve } from 'pathe';
@@ -16,7 +16,10 @@ import type { FrameworkAdapter } from '../../core/framework-adapter';
 import { reactAdapter } from '../adapter';
 import { isOutputChunk } from './shared';
 
-const Logger = logger.getLoggerByGroup('bundleMultipleComponentsForSSR');
+const loggerInstance = getLoggerInstance();
+const Logger = loggerInstance.getLoggerByGroup(
+  'bundle-multiple-components-for-ssr',
+);
 
 export async function bundleMultipleComponentsForSSR(
   config: ConfigType,
@@ -81,7 +84,6 @@ export async function bundleMultipleComponentsForSSR(
       },
       plugins: adapter.ssrBundlerPlugins(),
       define: {
-        'process.env.NODE_ENV': '"production"',
         'import.meta.dirname': DIRNAME_VAR_NAME,
       },
       logLevel: 'warn',

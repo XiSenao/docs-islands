@@ -1,4 +1,10 @@
 {
-  "extends": "../tsconfig.json",
-  "include": ["**/*.ts"],
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "isolatedDeclarations": true,
+    "declaration": true,
+    "lib": ["ESNext", "DOM"],
+    "types": ["node"],
+  },
+  "include": ["./", "./logger.d.ts"],
 }
