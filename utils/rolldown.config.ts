@@ -27,7 +27,7 @@ async function getModuleFiles(): Promise<string[]> {
 const modules = await getModuleFiles();
 
 const moduleConfig: RolldownOptions = defineConfig({
-  input: './index.ts',
+  input: ['./index.ts', './bin/link-guard.ts'],
   platform: 'neutral',
   preserveEntrySignatures: 'strict',
   external: [/^[\w@][^:]/],
