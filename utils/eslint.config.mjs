@@ -8,4 +8,10 @@ export default defineConfig([
       'no-restricted-syntax': 'off',
     },
   },
+  {
+    files: ['./bin/*.ts', './bin/*.mjs'],
+    rules: {
+      'n/hashbang': 'off',
+    },
+  },
 ]);

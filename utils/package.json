@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "bin": {
-    "link-guard": "./bin/link-guard.ts"
+    "link-guard": "./bin/link-guard-stub.mjs"
   },
   "scripts": {
     "build": "rolldown --config rolldown.config.ts",
