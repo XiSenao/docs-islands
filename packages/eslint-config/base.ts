@@ -70,6 +70,7 @@ export const eslintConfigBase: Config = [
             'Direct process access is restricted. Import helpers from @docs-islands/utils instead.',
         },
       ],
+      'no-console': ['error'],
 
       // Core ESLint rules - Balance between code quality and practicality
       'array-callback-return': ['error', { allowImplicit: true }],

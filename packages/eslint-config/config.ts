@@ -42,8 +42,6 @@ const config: Config = [
       },
     },
     rules: {
-      // Script files are allowed to use console and process.exit
-      'no-console': 'off',
       'unicorn/no-process-exit': 'off',
       // Script files can have higher complexity
       complexity: ['warn', { max: 30 }],
@@ -94,7 +92,7 @@ const config: Config = [
     },
     rules: {
       // CommonJS-appropriate styles
-      'no-console': 'off', // CommonJS files typically used for build scripts/config
+      'no-console': ['error'],
       'unicorn/prefer-module': 'off', // .cjs files using CommonJS is expected
 
       // Code quality rules
