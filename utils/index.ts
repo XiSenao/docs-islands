@@ -13,12 +13,20 @@
  *    `transform.define` (e.g. `__SILENCE_LOG__`, `__DEBUG__`). If `env`
  *    imported `logger`, those global constants would be evaluated before Rolldown
  *    has a chance to replace them, causing unresolvable references at build time.
- *    Use plain `console.*` for any log output within `load-env.ts`.
+ *    Use plain `console.*` for any log output within `env.ts`.
  *
  * 3. **All other modules must use `logger.ts` for logging** — Apart from
  *    `env.ts`, all modules in this package should import `Logger` from
  *    `./logger` for log output. Do NOT use raw `console.*` in those modules;
  *    keep logging behaviour consistent and centrally controlled.
+ *
+ * 4. **`console` and `process.env` APIs are restricted to this package** — The
+ *    shared ESLint config enforces `no-console: error` and `no-restricted-syntax`
+ *    (for `process.env`) globally. Only `@docs-islands/utils` is exempted (via
+ *    its local ESLint overrides) because it houses the `Logger` and `env`
+ *    implementations. All other packages must use `Logger` for logging and
+ *    `loadEnv`/`injectEnv` for environment access instead of calling
+ *    `console.*` or `process.env` directly.
  */
 
 export { isNodeLikeBuiltin } from './builtin';

@@ -10,7 +10,7 @@ const config: Config = [
     files: ['**/*.?([cm])[jt]s?(x)'],
     rules: {
       // Console statements are essential for debugging test failures
-      'no-console': 'off',
+      'no-console': ['error'],
 
       // Tests can have long setup/teardown sequences and multiple test cases in describe blocks
       'max-lines-per-function': [
