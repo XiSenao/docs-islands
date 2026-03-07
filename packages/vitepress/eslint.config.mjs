@@ -29,8 +29,6 @@ export default defineConfig([
       },
     },
     rules: {
-      // Script files are allowed to use console and process.exit
-      'no-console': 'off',
       'unicorn/no-process-exit': 'off',
       // Script files can have higher complexity
       complexity: ['warn', { max: 30 }],

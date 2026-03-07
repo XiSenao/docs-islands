@@ -6,6 +6,7 @@ export default defineConfig([
   {
     rules: {
       'no-restricted-syntax': 'off',
+      'no-console': 'off',
     },
   },
   {
