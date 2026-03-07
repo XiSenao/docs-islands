@@ -4,6 +4,11 @@
   "type": "module",
   "description": "Shared AI assistant instructions and skills for Claude Code, Cursor, GitHub Copilot, and other AI coding tools",
   "scripts": {
-    "postinstall": "node scripts/link.js"
+    "link": "FORCE_COLOR=1 node scripts/link.js",
+    "clean": "del-cli node_modules"
+  },
+  "devDependencies": {
+    "@docs-islands/utils": "workspace:*",
+    "del-cli": "catalog:dev"
   }
 }

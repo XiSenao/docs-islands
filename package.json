@@ -50,6 +50,7 @@
     "clean": "pnpm run _run clean && del-cli .eslintcache node_modules",
     "_run": "sh -c 'SCRIPT=$1; shift; if [ $# -eq 0 ]; then pnpm -r --parallel --if-present run $SCRIPT; else pnpm --filter \"@docs-islands/$1\" $SCRIPT; fi' _",
     "preinstall": "npx only-allow pnpm",
+    "postinstall": "pnpm --filter @docs-islands/utils build && pnpm --filter @docs-islands/agents run link",
     "prepare": "husky"
   },
   "dependencies": {

@@ -1,3 +1,4 @@
+import Logger from '@docs-islands/utils/logger';
 import { execSync } from 'node:child_process';
 import {
   existsSync,
@@ -12,6 +13,7 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const logger = new Logger('@docs-islands/agents').getLoggerByGroup('link');
 
 function findProjectRoot() {
   try {
@@ -27,7 +29,7 @@ function findProjectRoot() {
 function ensureDir(dir) {
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
-    console.log(`📁 Created: ${dir}`);
+    logger.success(`Created: ${dir}`);
   }
 }
 
@@ -90,16 +92,16 @@ function linkSkillsForTool(projectRoot, skillsBase, toolDir, toolName) {
     if (r === 'created') created++;
     if (r === 'exists') existed++;
   }
-  console.log(`✅ ${toolName}: ${created} created, ${existed} exist`);
+  logger.success(`${toolName}: ${created} created, ${existed} exist`);
 }
 
 function main() {
-  console.log('\n📦 @docs-islands/agents - Setting up AI tool symlinks\n');
+  logger.info('Setting up AI tool symlinks');
   const projectRoot = findProjectRoot();
   const skillsBase = join(__dirname, '..', 'skills');
 
   if (!existsSync(join(skillsBase, 'general'))) {
-    console.log('⏳ Skills not organized, skipping');
+    logger.warn('Skills not organized, skipping');
     return;
   }
 
@@ -112,7 +114,7 @@ function main() {
     ensureDir(join(projectRoot, dir));
     linkSkillsForTool(projectRoot, skillsBase, dir, name);
   });
-  console.log('\n✨ Done!\n');
+  logger.success('Done');
 }
 
 main();

@@ -136,7 +136,7 @@ class ReleaseSystemManager {
 
   async release(): Promise<void> {
     try {
-      Logger.info('🚀 Starting release process...\n');
+      Logger.info('Starting release process...\n');
 
       await this.preReleaseCheck();
 
@@ -167,15 +167,15 @@ class ReleaseSystemManager {
       }
 
       await this.postRelease(newVersion);
-      Logger.success(`✅ Release ${newVersion} completed successfully!\n`);
+      Logger.success(`Release ${newVersion} completed successfully!\n`);
     } catch (error) {
-      Logger.error(`❌ Release failed: ${String(error)}`);
+      Logger.error(`Release failed: ${String(error)}`);
       throw error instanceof Error ? error : new Error('Release failed');
     }
   }
 
   private async preReleaseCheck(): Promise<void> {
-    Logger.info('📋 Running pre-release checks...');
+    Logger.info('Running pre-release checks...');
 
     try {
       const status = execSync('git status --porcelain', {
@@ -197,16 +197,14 @@ class ReleaseSystemManager {
         cwd: this.packageRootDir,
       }).trim();
       if (branch !== 'main' && branch !== 'master' && !this.options.dryRun) {
-        Logger.warn(
-          `⚠️  You are not on main/master branch (current: ${branch})`,
-        );
+        Logger.warn(`You are not on main/master branch (current: ${branch})`);
       }
     } catch {
       throw new Error('Git branch check failed');
     }
 
     if (this.options.dryRun) {
-      Logger.info('ℹ️  Dry-run mode: skipping npm auth check');
+      Logger.info('Dry-run mode: skipping npm auth check');
     } else {
       try {
         execSync('npm whoami', { stdio: 'pipe', cwd: this.packageRootDir });
@@ -239,30 +237,30 @@ class ReleaseSystemManager {
       const [behindCount, aheadCount] = aheadBehind;
       if (behindCount > 0) {
         Logger.warn(
-          `⚠️  Your branch is behind ${upstream} by ${behindCount} commits.`,
+          `Your branch is behind ${upstream} by ${behindCount} commits.`,
         );
       }
       if (aheadCount > 0) {
         Logger.warn(
-          `⚠️  Your branch is ahead of ${upstream} by ${aheadCount} commits.`,
+          `Your branch is ahead of ${upstream} by ${aheadCount} commits.`,
         );
       }
     } catch {
       // Ignore for repos without upstream.
     }
 
-    Logger.success('✅ Pre-release checks passed\n');
+    Logger.success('Pre-release checks passed\n');
   }
 
   private async runTests(): Promise<void> {
-    Logger.info('🧪 Running test suite...');
+    Logger.info('Running test suite...');
 
     try {
       await this.buildProject({
         localTest: true,
       });
       execSync('pnpm test', { stdio: 'inherit', cwd: this.packageRootDir });
-      Logger.success('✅ All tests passed\n');
+      Logger.success('All tests passed\n');
     } catch {
       throw new Error('Tests failed');
     }
@@ -299,20 +297,20 @@ class ReleaseSystemManager {
   }
 
   private async buildProject(options: BuildOptions = {}): Promise<void> {
-    Logger.info('📦 Building workspace dependencies...');
+    Logger.info('Building workspace dependencies...');
 
     const { localTest = false } = options;
     this.cleanDist();
     const workspaceDeps = this.getWorkspaceDependencies();
     if (workspaceDeps.length === 0) {
-      Logger.info('ℹ️  No workspace dependencies found');
+      Logger.info('No workspace dependencies found');
       return;
     }
 
     Logger.info(`Found workspace dependencies: ${workspaceDeps.join(', ')}`);
 
     for (const dep of workspaceDeps) {
-      Logger.info(`📦 Building ${dep}...`);
+      Logger.info(`Building ${dep}...`);
       try {
         execSync(`pnpm --filter ${dep} build`, {
           stdio: 'inherit',
@@ -323,15 +321,15 @@ class ReleaseSystemManager {
             DOCS_ISLANDS_TEST: localTest ? '1' : '0',
           },
         });
-        Logger.success(`✅ ${dep} built successfully`);
+        Logger.success(`${dep} built successfully`);
       } catch {
         throw new Error(`Failed to build workspace dependency: ${dep}`);
       }
     }
 
-    Logger.success('✅ All workspace dependencies built\n');
+    Logger.success('All workspace dependencies built\n');
 
-    Logger.info('📦 Building project...');
+    Logger.info('Building project...');
     try {
       execSync('pnpm build', {
         stdio: 'inherit',
@@ -341,7 +339,7 @@ class ReleaseSystemManager {
           DOCS_ISLANDS_MODE: 'production',
         },
       });
-      Logger.success('✅ Build completed\n');
+      Logger.success('Build completed\n');
     } catch {
       throw new Error('Build failed');
     }
@@ -368,20 +366,20 @@ class ReleaseSystemManager {
   }
 
   private async verifyPackageLint(): Promise<void> {
-    Logger.info('📋 Verifying package lint (publint + attw)...');
+    Logger.info('Verifying package lint (publint + attw)...');
     try {
       execSync('pnpm lint:package', {
         stdio: 'inherit',
         cwd: this.packageRootDir,
       });
-      Logger.success('✅ Package lint passed\n');
+      Logger.success('Package lint passed\n');
     } catch {
       throw new Error('Package lint failed');
     }
   }
 
   private async manageVersion(): Promise<string> {
-    Logger.info('🏷️  Managing version...');
+    Logger.info('Managing version...');
     const currentVersion = this.pkg.version;
     let newVersion: string;
     if (this.options.version) {
@@ -413,7 +411,7 @@ class ReleaseSystemManager {
       );
     }
 
-    Logger.success(`📈 Version: ${currentVersion} → ${newVersion}\n`);
+    Logger.success(`Version: ${currentVersion} -> ${newVersion}\n`);
     return newVersion;
   }
 
@@ -433,15 +431,15 @@ class ReleaseSystemManager {
           stdio: 'pipe',
           cwd: this.packageRootDir,
         });
-        Logger.success(`📦 Package ${packageName} exists on npm`);
+        Logger.success(`Package ${packageName} exists on npm`);
       } catch {
-        Logger.success(`📦 Package ${packageName} is new to npm`);
+        Logger.success(`Package ${packageName} is new to npm`);
       }
     }
   }
 
   private async checkChangelogUpdated(version: string): Promise<void> {
-    Logger.info('📋 Checking changelog update...');
+    Logger.info('Checking changelog update...');
 
     const changelogPath = path.join(this.packageRootDir, 'CHANGELOG.md');
 
@@ -460,11 +458,11 @@ class ReleaseSystemManager {
       );
     }
 
-    Logger.success(`✅ CHANGELOG.md contains entry for version ${version}\n`);
+    Logger.success(`CHANGELOG.md contains entry for version ${version}\n`);
   }
 
   private async commitAndTag(version: string): Promise<void> {
-    Logger.info('📤 Committing and tagging...');
+    Logger.info('Committing and tagging...');
     try {
       execSync('git add .', { stdio: 'pipe', cwd: this.packageRootDir });
       execSync(`git commit -m "release: ${version}"`, {
@@ -490,14 +488,14 @@ class ReleaseSystemManager {
         stdio: 'pipe',
         cwd: this.packageRootDir,
       });
-      Logger.success(`✅ Committed and tagged as ${tag}\n`);
+      Logger.success(`Committed and tagged as ${tag}\n`);
     } catch {
       throw new Error('Git operations failed');
     }
   }
 
   private async publishToNpm(): Promise<void> {
-    Logger.info('📦 Publishing to npm...');
+    Logger.info('Publishing to npm...');
     try {
       const distDir = path.join(this.packageRootDir, 'dist');
       const distPkgPath = path.join(distDir, 'package.json');
@@ -518,23 +516,23 @@ class ReleaseSystemManager {
       }
       execSync(publishArgs.join(' '), { stdio: 'inherit', cwd: distDir });
 
-      Logger.success('✅ Published to npm\n');
+      Logger.success('Published to npm\n');
     } catch (error) {
       throw new Error(`Publishing to npm failed, ${error}`);
     }
   }
 
   private async postRelease(version: string): Promise<void> {
-    Logger.info('🎉 Running post-release tasks...');
+    Logger.info('Running post-release tasks...');
     if (!this.options.dryRun) {
       try {
         execSync('git push origin --follow-tags', {
           stdio: 'pipe',
           cwd: this.packageRootDir,
         });
-        Logger.success('✅ Pushed to remote repository');
+        Logger.success('Pushed to remote repository');
       } catch {
-        Logger.warn('⚠️  Failed to push to remote repository');
+        Logger.warn('Failed to push to remote repository');
       }
     }
 
@@ -546,12 +544,12 @@ class ReleaseSystemManager {
           stdio: 'pipe',
           cwd: this.packageRootDir,
         });
-        Logger.success('✅ GitHub release created');
+        Logger.success('GitHub release created');
       }
     } catch {
-      Logger.info('ℹ️  GitHub CLI not found, skipping GitHub release');
+      Logger.info('GitHub CLI not found, skipping GitHub release');
     }
-    Logger.success('✅ Post-release tasks completed\n');
+    Logger.success('Post-release tasks completed\n');
   }
 }
 
@@ -658,7 +656,7 @@ if (
   normalizePath(process.argv[1])
 ) {
   main().catch((error) => {
-    Logger.error(`❌ Release failed: ${String(error)}`);
+    Logger.error(`Release failed: ${String(error)}`);
     // Allow process to exit with failure naturally.
     process.exitCode = 1;
   });
