@@ -353,7 +353,14 @@ importers:
         specifier: catalog:docs-dev
         version: 1.11.0
 
-  packages/agents: {}
+  packages/agents:
+    devDependencies:
+      '@docs-islands/utils':
+        specifier: workspace:*
+        version: link:../../utils
+      del-cli:
+        specifier: catalog:dev
+        version: 7.0.0
 
   packages/core: {}
 

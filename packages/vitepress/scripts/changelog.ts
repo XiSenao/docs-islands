@@ -44,9 +44,7 @@ const ChangelogManager = {
       }).trim();
 
       if (!commits) {
-        Logger.info(
-          '📝 No commits found since last release, skipping changelog',
-        );
+        Logger.info('No commits found since last release, skipping changelog');
         return;
       }
 
@@ -136,21 +134,21 @@ const ChangelogManager = {
 
       if (dryRun) {
         Logger.info(
-          `📝 Would update CHANGELOG.md with ${commitLines.length} commits`,
+          `Would update CHANGELOG.md with ${commitLines.length} commits`,
         );
-        Logger.info('📋 Preview of new section:');
+        Logger.info('Preview of new section:');
         Logger.info(`\n${newSection}`);
       } else {
         writeFileSync(changelogPath, updatedContent);
         Logger.success(
-          `✅ Updated CHANGELOG.md with ${commitLines.length} commits`,
+          `Updated CHANGELOG.md with ${commitLines.length} commits`,
         );
         Logger.info(
-          `📋 Please review the generated changelog at: ${changelogPath}`,
+          `Please review the generated changelog at: ${changelogPath}`,
         );
       }
     } catch (error) {
-      Logger.error(`❌ Failed to generate changelog: ${String(error)}`);
+      Logger.error(`Failed to generate changelog: ${String(error)}`);
       throw error instanceof Error
         ? error
         : new Error('Failed to generate changelog');
@@ -180,11 +178,11 @@ class ChangelogSystemManager {
 
   async generateChangelog(): Promise<void> {
     try {
-      Logger.info('📝 Starting changelog generation...\n');
+      Logger.info('Starting changelog generation...\n');
 
       const version = this.options.version || this.getNextVersion();
 
-      Logger.info(`🏷️  Generating changelog for version: ${version}`);
+      Logger.info(`Generating changelog for version: ${version}`);
 
       ChangelogManager.generateChangelog(
         version,
@@ -192,9 +190,9 @@ class ChangelogSystemManager {
         this.options.dryRun,
       );
 
-      Logger.success(`✅ Changelog generation completed!\n`);
+      Logger.success(`Changelog generation completed!\n`);
     } catch (error) {
-      Logger.error(`❌ Changelog generation failed: ${String(error)}`);
+      Logger.error(`Changelog generation failed: ${String(error)}`);
       throw error instanceof Error
         ? error
         : new Error('Changelog generation failed');
@@ -254,7 +252,7 @@ Examples:
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((error) => {
-    Logger.error(`❌ Changelog generation failed: ${String(error)}`);
+    Logger.error(`Changelog generation failed: ${String(error)}`);
     // Allow process to exit with failure naturally.
     process.exitCode = 1;
   });
