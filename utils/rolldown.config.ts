@@ -75,6 +75,7 @@ const dtsConfig: RolldownOptions = defineConfig({
   plugins: [
     dts({
       emitDtsOnly: true,
+      sourcemap,
     }),
   ],
 });
