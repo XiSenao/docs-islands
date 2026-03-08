@@ -150,7 +150,9 @@ const nodeDtsConfig = defineConfig({
   },
   plugins: [
     dts({
+      tsconfig: 'src/node/tsconfig.json',
       emitDtsOnly: true,
+      sourcemap,
     }),
   ],
 });
@@ -175,7 +177,9 @@ const clientDtsConfig = defineConfig({
   },
   plugins: [
     dts({
+      tsconfig: 'src/client/tsconfig.json',
       emitDtsOnly: true,
+      sourcemap,
     }),
   ],
   transform: {

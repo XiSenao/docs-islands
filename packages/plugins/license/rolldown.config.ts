@@ -1,5 +1,10 @@
+import { loadEnv } from '@docs-islands/utils/env';
 import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
+
+const {
+  config: { sourcemap },
+} = loadEnv();
 
 const config: RolldownOptions = defineConfig({
   input: 'src/index.ts',
@@ -8,6 +13,7 @@ const config: RolldownOptions = defineConfig({
     dir: 'dist',
     format: 'esm',
     entryFileNames: 'index.mjs',
+    sourcemap,
   },
 });
 
@@ -21,6 +27,7 @@ const dtsConfig: RolldownOptions = defineConfig({
   plugins: [
     dts({
       emitDtsOnly: true,
+      sourcemap,
     }),
   ],
 });

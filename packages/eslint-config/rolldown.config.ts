@@ -1,6 +1,10 @@
+import { loadEnv } from '@docs-islands/utils/env';
 import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
 import { glob } from 'tinyglobby';
+
+const { config } = loadEnv();
+const { sourcemap } = config;
 
 async function getModuleFiles(): Promise<string[]> {
   const files = await glob(['**/*.ts'], {
@@ -30,6 +34,7 @@ const moduleConfig: RolldownOptions = defineConfig({
     dir: 'dist',
     format: 'esm',
     preserveModules: true,
+    sourcemap,
   },
 });
 
@@ -56,6 +61,7 @@ const dtsConfig: RolldownOptions = defineConfig({
   plugins: [
     dts({
       emitDtsOnly: true,
+      sourcemap,
     }),
   ],
 });

@@ -348,6 +348,7 @@ const config: Config = [
       '@typescript-eslint/return-await': 'off',
       '@typescript-eslint/switch-exhaustiveness-check': 'off',
       '@typescript-eslint/unbound-method': 'off',
+      'no-console': 'off',
       'no-unused-vars': 'off',
       'no-unused-expressions': 'off',
       'dot-notation': 'off',

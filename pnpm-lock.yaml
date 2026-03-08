@@ -370,6 +370,9 @@ importers:
         specifier: catalog:prod
         version: 0.2.15
     devDependencies:
+      '@docs-islands/utils':
+        specifier: workspace:*
+        version: link:../../utils
       '@eslint/js':
         specifier: catalog:lint
         version: 9.39.2
