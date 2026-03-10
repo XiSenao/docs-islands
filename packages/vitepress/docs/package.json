@@ -20,7 +20,7 @@
     "#dep-types/*": "@docs-islands/vitepress/internal-helper/imports/dep-types/*",
     "#shared/*": "@docs-islands/vitepress/internal-helper/imports/shared/*"
   },
-  "packageManager": "pnpm@10.7.0",
+  "packageManager": "pnpm@10.26.0",
   "dependencies": {
     "react": "catalog:dev",
     "react-dom": "catalog:dev",
@@ -35,6 +35,7 @@
     "vitepress-plugin-llms": "catalog:docs-dev",
     "@nolebase/vitepress-plugin-enhanced-mark": "catalog:docs-dev",
     "@docs-islands/vitepress": "link:../dist",
+    "@docs-islands/utils": "workspace:*",
     "@vitejs/plugin-react-swc": "catalog:dev",
     "tsx": "catalog:dev",
     "pathe": "catalog:dev",

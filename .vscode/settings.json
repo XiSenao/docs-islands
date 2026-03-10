@@ -153,7 +153,14 @@
   "eslint.codeAction.showDocumentation": {
     "enable": true
   },
-  "eslint.workingDirectories": [{ "mode": "auto" }],
+  "eslint.workingDirectories": [
+    { "pattern": "./packages/*/" },
+    { "pattern": "./packages/*/docs/" },
+    { "pattern": "./packages/*/playground/" },
+    { "pattern": "./packages/plugins/*/" },
+    "./docs",
+    "./utils"
+  ],
   "eslint.quiet": true,
   "eslint.rules.customizations": [
     {
