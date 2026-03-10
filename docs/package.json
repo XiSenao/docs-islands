@@ -10,7 +10,7 @@
     "clean": "pnpm clean:remaining && del-cli .eslintcache .vitepress/cache .vitepress/dist node_modules",
     "clean:remaining": "del-cli .vitepress/config.ts.timestamp-*.mjs || true"
   },
-  "packageManager": "pnpm@10.7.0",
+  "packageManager": "pnpm@10.26.0",
   "dependencies": {
     "vue": "catalog:prod"
   },

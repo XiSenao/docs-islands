@@ -7,10 +7,12 @@ packages:
   - 'utils'
   - '!**/dist'
 
-onlyBuiltDependencies:
-  - esbuild
-  - '@swc/core'
-  - playwright-chromium
+strictDepBuilds: true
+
+allowBuilds:
+  esbuild: true
+  '@swc/core': true
+  playwright-chromium: true
 
 # "Vite isn't updating esbuild to 0.25.0 in v5, and since the project doesn't use esbuild dev server, this can be ignored."
 auditConfig:
@@ -37,7 +39,15 @@ overrides:
 
 nodeVersion: 20.19.0
 
+enablePrePostScripts: false
+
 engineStrict: true
+
+catalogMode: strict
+
+cleanupUnusedCatalogs: true
+
+failIfNoMatch: true
 
 patchedDependencies:
   vite: patches/vite@5.4.21.patch
@@ -55,6 +65,21 @@ loglevel: info
 shellEmulator: true
 
 strictPeerDependencies: true
+
+sharedWorkspaceLockfile: true
+
+managePackageManagerVersions: true
+
+patchesDir: patches
+
+publishBranch: main
+
+trustPolicy: no-downgrade
+
+trustPolicyExclude:
+  - vite@5.4.21
+
+verifyDepsBeforeRun: install
 
 catalogs:
   # Linting tools (centralized in @docs-islands/eslint-config)
