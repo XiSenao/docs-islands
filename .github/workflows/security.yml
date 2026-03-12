@@ -1,7 +1,7 @@
 name: Security & Dependencies
 
 env:
-  NODE_VERSION: "22"
+  NODE_VERSION: "20.19.0"
 
 on:
   schedule:
@@ -429,8 +429,7 @@ jobs:
       - name: Build Packages
         run: pnpm build
         env:
-          NODE_ENV: production
-          CI: true
+          DOCS_ISLANDS_MODE: production
 
       - name: Generate SBOM with Syft
         # anchore/sbom-action@v0.20.9.
