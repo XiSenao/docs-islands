@@ -19,6 +19,7 @@ const MAIN_NAME = 'docs-islands';
 
 /* eslint { no-empty-function: "off", @typescript-eslint/no-empty-function: "off" } */
 const noop = function () {};
+console.log('yes');
 
 /** Icons for different log kinds */
 const LOG_ICONS = {
