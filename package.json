@@ -48,7 +48,7 @@
     "changelog": "sh -c 'PKG=$1; shift; pnpm --filter \"@docs-islands/$PKG\" changelog \"$@\"' _",
     "changelog:preview": "sh -c 'PKG=$1; shift; pnpm --filter \"@docs-islands/$PKG\" changelog:preview \"$@\"' _",
     "clean": "pnpm run _run clean && del-cli .eslintcache node_modules",
-    "_run": "sh -c 'SCRIPT=$1; shift; if [ $# -eq 0 ]; then pnpm -r --parallel --if-present run $SCRIPT; else pnpm --filter \"@docs-islands/$1\" $SCRIPT; fi' _",
+    "_run": "tsx scripts/run-workspace-script.ts",
     "preinstall": "npx only-allow pnpm",
     "postinstall": "pnpm --filter @docs-islands/utils build && pnpm --filter @docs-islands/agents run link",
     "prepare": "husky"

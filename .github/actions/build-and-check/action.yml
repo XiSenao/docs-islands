@@ -31,8 +31,7 @@ runs:
       shell: bash
       run: pnpm build
       env:
-        NODE_ENV: production
-        CI: true
+        DOCS_ISLANDS_MODE: production
 
     - name: Format Check
       if: inputs.run-format == 'true'

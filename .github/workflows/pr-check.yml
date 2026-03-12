@@ -10,8 +10,7 @@ permissions:
   checks: write
 
 env:
-  NODE_VERSION: "22" # Unified Node.js version management
-  CI: true
+  NODE_VERSION: "20.19.0"
   FORCE_COLOR: 1
 
 concurrency:
