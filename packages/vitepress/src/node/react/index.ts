@@ -578,9 +578,29 @@ function cleanScriptByMatches(s: MagicString, matches: ScriptMatch[]) {
   }
 }
 
+function checkNodeVersion(nodeVersion: string): boolean {
+  const currentVersion = nodeVersion.split('.');
+  const major = Number.parseInt(currentVersion[0], 10);
+  const minor = Number.parseInt(currentVersion[1], 10);
+  const isSupported =
+    (major === 20 && minor >= 19) ||
+    (major === 22 && minor >= 12) ||
+    major > 22;
+  return isSupported;
+}
+
 export default function vitepressReactRenderingStrategies(
   vitepressConfig: UserConfig<DefaultTheme.Config>,
 ): void {
+  if (!checkNodeVersion(process.versions.node)) {
+    loggerInstance
+      .getLoggerByGroup('@docs-islands/vitepress')
+      .warn(
+        `You are using Node.js ${process.versions.node}. ` +
+          `@docs-islands/vitepress requires Node.js version 20.19+ or 22.12+. ` +
+          `Please upgrade your Node.js version.`,
+      );
+  }
   let ssr = false;
   const siteConfig: ConfigType = resolveConfig(vitepressConfig);
   const renderController = new ReactRenderController();

@@ -1,6 +1,8 @@
 import typescriptESlintParser from '@typescript-eslint/parser';
-import { defineConfig, globalIgnores } from 'eslint/config';
-import { eslintConfigBase } from '../base';
+import type { defineConfig } from 'eslint/config';
+import { globalIgnores } from 'eslint/config';
+import { eslintConfigBase, untypedTypeScriptRules } from '../base';
+import { supportedEcmaVersion } from '../baseConfig';
 
 type Config = ReturnType<typeof defineConfig>;
 
@@ -71,41 +73,16 @@ const config: Config = [
   {
     files: ['vitest.config.ts', 'rolldown.config.ts', 'packagePlugin.ts'],
     languageOptions: {
-      // Tooling config files - parse TS, no type info
+      // Tooling config files - parse TS syntax without TS project services.
       parser: typescriptESlintParser,
       parserOptions: {
-        projectService: true,
-        ecmaVersion: '2020',
+        projectService: false,
+        ecmaVersion: supportedEcmaVersion,
         sourceType: 'module',
       },
     },
     rules: {
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/explicit-module-boundary-types': 'off',
-      '@typescript-eslint/no-floating-promises': 'off',
-      '@typescript-eslint/no-misused-promises': 'off',
-      '@typescript-eslint/no-redundant-type-constituents': 'off',
-      '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'off',
-      '@typescript-eslint/no-unnecessary-condition': 'off',
-      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
-      '@typescript-eslint/prefer-includes': 'off',
-      '@typescript-eslint/prefer-nullish-coalescing': 'off',
-      '@typescript-eslint/prefer-optional-chain': 'off',
-      '@typescript-eslint/prefer-readonly': 'off',
-      '@typescript-eslint/prefer-reduce-type-parameter': 'off',
-      '@typescript-eslint/prefer-string-starts-ends-with': 'off',
-      '@typescript-eslint/promise-function-async': 'off',
-      '@typescript-eslint/require-array-sort-compare': 'off',
-      '@typescript-eslint/restrict-plus-operands': 'off',
-      '@typescript-eslint/restrict-template-expressions': 'off',
-      '@typescript-eslint/return-await': 'off',
-      '@typescript-eslint/switch-exhaustiveness-check': 'off',
-      '@typescript-eslint/unbound-method': 'off',
+      ...untypedTypeScriptRules,
     },
   },
 ];

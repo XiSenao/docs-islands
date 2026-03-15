@@ -48,6 +48,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./config": {
+      "types": "./dist/baseConfig.d.ts",
+      "import": "./dist/baseConfig.js"
+    },
     "./monorepo": {
       "types": "./dist/config.d.ts",
       "import": "./dist/config.js"
