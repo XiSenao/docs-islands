@@ -1,13 +1,15 @@
 import markdownESlintPlugin from '@eslint/markdown';
 import tsParser from '@typescript-eslint/parser';
 import eslintPluginJsxA11y from 'eslint-plugin-jsx-a11y';
+import eslintPluginN from 'eslint-plugin-n';
 import eslintPluginReact from 'eslint-plugin-react';
 import eslintPluginReactHooks from 'eslint-plugin-react-hooks';
 import eslintPluginVue from 'eslint-plugin-vue';
-import { defineConfig } from 'eslint/config';
+import type { defineConfig } from 'eslint/config';
 import globals from 'globals';
 import vueParser from 'vue-eslint-parser';
-import { eslintConfigBase } from '../../base';
+import { eslintConfigBase, untypedTypeScriptRules } from '../../base';
+import { supportedEcmaVersion } from '../../baseConfig';
 
 type Config = ReturnType<typeof defineConfig>;
 
@@ -18,6 +20,7 @@ const config: Config = [
   ...eslintPluginVue.configs['flat/recommended'],
 
   {
+    plugins: { n: eslintPluginN },
     rules: {
       'n/no-unsupported-features/node-builtins': [
         'error',
@@ -45,7 +48,7 @@ const config: Config = [
         parser: tsParser,
         extraFileExtensions: ['.vue'],
         sourceType: 'module',
-        ecmaVersion: 2020,
+        ecmaVersion: supportedEcmaVersion,
       },
     },
     rules: {
@@ -139,7 +142,7 @@ const config: Config = [
           jsx: true,
         },
         sourceType: 'module',
-        ecmaVersion: 2020,
+        ecmaVersion: supportedEcmaVersion,
       },
       globals: {
         ...globals.serviceworker,
@@ -297,6 +300,7 @@ const config: Config = [
       },
     },
     rules: {
+      ...untypedTypeScriptRules,
       '@typescript-eslint/await-thenable': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/adjacent-overload-signatures': 'off',
@@ -305,8 +309,6 @@ const config: Config = [
       '@typescript-eslint/consistent-indexed-object-style': 'off',
       '@typescript-eslint/consistent-type-assertions': 'off',
       '@typescript-eslint/consistent-type-definitions': 'off',
-      '@typescript-eslint/consistent-type-imports': 'off',
-      '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/member-ordering': 'off',
       '@typescript-eslint/method-signature-style': 'off',
       '@typescript-eslint/naming-convention': 'off',
@@ -316,38 +318,14 @@ const config: Config = [
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-extraneous-class': 'off',
       '@typescript-eslint/no-extra-non-null-assertion': 'off',
-      '@typescript-eslint/no-floating-promises': 'off',
       '@typescript-eslint/no-for-in-array': 'off',
       '@typescript-eslint/no-inferrable-types': 'off',
-      '@typescript-eslint/no-misused-promises': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
-      '@typescript-eslint/no-redundant-type-constituents': 'off',
       '@typescript-eslint/no-this-alias': 'off',
-      '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'off',
-      '@typescript-eslint/no-unnecessary-condition': 'off',
-      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-function-type': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-unused-expressions': 'off',
       '@typescript-eslint/prefer-for-of': 'off',
-      '@typescript-eslint/prefer-includes': 'off',
       '@typescript-eslint/prefer-literal-enum-member': 'off',
-      '@typescript-eslint/prefer-nullish-coalescing': 'off',
-      '@typescript-eslint/prefer-optional-chain': 'off',
-      '@typescript-eslint/prefer-readonly': 'off',
-      '@typescript-eslint/prefer-reduce-type-parameter': 'off',
-      '@typescript-eslint/prefer-string-starts-ends-with': 'off',
-      '@typescript-eslint/promise-function-async': 'off',
-      '@typescript-eslint/require-array-sort-compare': 'off',
-      '@typescript-eslint/restrict-plus-operands': 'off',
-      '@typescript-eslint/restrict-template-expressions': 'off',
-      '@typescript-eslint/return-await': 'off',
-      '@typescript-eslint/switch-exhaustiveness-check': 'off',
-      '@typescript-eslint/unbound-method': 'off',
       'no-console': 'off',
       'no-unused-vars': 'off',
       'no-unused-expressions': 'off',

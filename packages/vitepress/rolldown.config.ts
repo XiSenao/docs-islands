@@ -165,7 +165,7 @@ const clientConfig = defineConfig({
     react: resolve(__dirname, 'src/client/react/index.ts'),
   },
   transform: {
-    target: 'es2022',
+    target: 'es2020',
   },
 });
 
@@ -183,7 +183,7 @@ const clientDtsConfig = defineConfig({
     }),
   ],
   transform: {
-    target: 'es2022',
+    target: 'es2020',
   },
 });
 
@@ -193,7 +193,7 @@ const clientRuntimeConfig = defineConfig({
     'client-runtime': resolve(__dirname, 'src/shared/client-runtime.ts'),
   },
   transform: {
-    target: 'es2022',
+    target: 'es2020',
     define: {
       __DEBUG__: String(debug),
       __ENV__: JSON.stringify(env),

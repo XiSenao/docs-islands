@@ -1,4 +1,5 @@
 import defaultConfig from '@docs-islands/eslint-config';
+import { supportedEcmaVersion } from '@docs-islands/eslint-config/config';
 import typescriptESlintParser from '@typescript-eslint/parser';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
@@ -21,7 +22,7 @@ export default defineConfig([
       parser: typescriptESlintParser,
       parserOptions: {
         projectService: true,
-        ecmaVersion: 'latest',
+        ecmaVersion: supportedEcmaVersion,
         sourceType: 'module',
       },
       globals: {

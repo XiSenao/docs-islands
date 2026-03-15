@@ -1,8 +1,14 @@
 import typescriptESlintParser from '@typescript-eslint/parser';
 import eslintPluginPnpm from 'eslint-plugin-pnpm';
-import { defineConfig, globalIgnores } from 'eslint/config';
-import globals from 'globals';
-import { eslintConfigBase } from './base';
+import type { defineConfig } from 'eslint/config';
+import { globalIgnores } from 'eslint/config';
+import {
+  commonJsModuleGlobals,
+  eslintConfigBase,
+  nodeEsmGlobals,
+  untypedModuleTypeScriptRules,
+} from './base';
+import { supportedEcmaVersion } from './baseConfig';
 
 type Config = ReturnType<typeof defineConfig>;
 
@@ -34,11 +40,11 @@ const config: Config = [
       parser: typescriptESlintParser,
       parserOptions: {
         projectService: true,
-        ecmaVersion: 'latest',
+        ecmaVersion: supportedEcmaVersion,
         sourceType: 'module',
       },
       globals: {
-        ...globals.node,
+        ...nodeEsmGlobals,
       },
     },
     rules: {
@@ -74,23 +80,16 @@ const config: Config = [
     languageOptions: {
       // CommonJS uses default Espree parser (not TypeScript parser)
       parserOptions: {
-        ecmaVersion: 2022,
+        ecmaVersion: supportedEcmaVersion,
         sourceType: 'commonjs',
-        projectService: false,
       },
       globals: {
-        ...globals.node,
-        module: 'readonly',
-        require: 'readonly',
-        exports: 'readonly',
-        __dirname: 'readonly',
-        __filename: 'readonly',
-        process: 'readonly',
-        global: 'readonly',
-        Buffer: 'readonly',
+        ...nodeEsmGlobals,
+        ...commonJsModuleGlobals,
       },
     },
     rules: {
+      'no-restricted-globals': 'off',
       // CommonJS-appropriate styles
       'no-console': ['error'],
       'unicorn/prefer-module': 'off', // .cjs files using CommonJS is expected
@@ -133,14 +132,8 @@ const config: Config = [
       'spaced-comment': ['error', 'always', { markers: ['/'] }],
 
       // Relaxed TypeScript rules
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/explicit-module-boundary-types': 'off',
+      ...untypedModuleTypeScriptRules,
       '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
     },
   },
 

@@ -1,5 +1,9 @@
-import { defineConfig } from 'eslint/config';
-import { eslintConfigBase } from '../../base';
+import type { defineConfig } from 'eslint/config';
+import {
+  baseTestFileRules,
+  eslintConfigBase,
+  testFilePatterns,
+} from '../../base';
 
 type Config = ReturnType<typeof defineConfig>;
 
@@ -7,10 +11,9 @@ const config: Config = [
   ...eslintConfigBase,
   // E2E test files - allow test-specific patterns
   {
-    files: ['**/*.?([cm])[jt]s?(x)'],
+    files: testFilePatterns,
     rules: {
-      // Console statements are essential for debugging test failures
-      'no-console': ['error'],
+      ...baseTestFileRules,
 
       // Tests can have long setup/teardown sequences and multiple test cases in describe blocks
       'max-lines-per-function': [
@@ -35,22 +38,7 @@ const config: Config = [
       // Allow empty catch blocks in tests for expected failures
       'no-empty': ['error', { allowEmptyCatch: true }],
 
-      // TypeScript rules - relax for test code
-      '@typescript-eslint/no-floating-promises': 'off',
-      '@typescript-eslint/no-misused-promises': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-empty-function': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
-      'no-empty-function': 'off',
-      '@typescript-eslint/explicit-function-return-type': 'off',
-
-      // Allow non-null assertions in tests (we know test data structure)
-      '@typescript-eslint/no-non-null-assertion': 'off',
-
-      // Allow any type in tests for mocking and flexible test data
+      // Keep `any` visible in playground tests because broad mocks spread easily.
       '@typescript-eslint/no-explicit-any': 'warn',
 
       // Allow unused vars with underscore prefix (common in test fixtures)
