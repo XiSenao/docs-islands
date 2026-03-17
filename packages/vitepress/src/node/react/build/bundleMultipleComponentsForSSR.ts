@@ -77,7 +77,7 @@ export async function bundleMultipleComponentsForSSR(
         outDir: ssrTempDir,
         emptyOutDir: true,
         write: true,
-        target: 'es2022',
+        target: 'es2020',
         minify: false,
         assetsInlineLimit: 4096,
         cssCodeSplit: true,
