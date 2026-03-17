@@ -8,6 +8,8 @@ describe('Shared Runtime - getCleanPathname', () => {
   // Store original location and window properties
   const originalLocation = globalThis.location;
   const originalWindow = globalThis.window;
+  const originalBase = globalThis.__BASE__;
+  const originalCleanUrls = globalThis.__CLEAN_URLS__;
 
   beforeEach(() => {
     // Mock window and location
@@ -24,12 +26,34 @@ describe('Shared Runtime - getCleanPathname', () => {
         pathname: '/',
       },
     });
+
+    Object.defineProperty(globalThis, '__BASE__', {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    });
+
+    Object.defineProperty(globalThis, '__CLEAN_URLS__', {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    });
   });
 
   afterEach(() => {
     // Restore original properties
     globalThis.location = originalLocation;
     globalThis.window = originalWindow;
+    Object.defineProperty(globalThis, '__BASE__', {
+      configurable: true,
+      writable: true,
+      value: originalBase,
+    });
+    Object.defineProperty(globalThis, '__CLEAN_URLS__', {
+      configurable: true,
+      writable: true,
+      value: originalCleanUrls,
+    });
   });
 
   describe('base path handling', () => {
@@ -202,6 +226,38 @@ describe('Shared Runtime - getCleanPathname', () => {
 
       expect(wrapperResult).toBe(runtimeResult);
       expect(wrapperResult).toBe('/guide/test.html');
+    });
+
+    it('should prefer the injected base over site data base', () => {
+      (globalThis.window as any).__VP_SITE_DATA__ = { base: '/wrong-base/' };
+      globalThis.location.pathname = '/docs/guide/test.html';
+
+      const runtimeResult = GET_CLEAN_PATHNAME_RUNTIME('/docs/');
+
+      expect(runtimeResult).toBe('/guide/test.html');
+    });
+
+    it('should prefer the injected cleanUrls over site data cleanUrls', () => {
+      (globalThis.window as any).__VP_SITE_DATA__ = {
+        base: '/docs/',
+        cleanUrls: false,
+      };
+      globalThis.location.pathname = '/docs/guide/test.html';
+
+      const runtimeResult = GET_CLEAN_PATHNAME_RUNTIME('/docs/', true);
+
+      expect(runtimeResult).toBe('/guide/test');
+    });
+
+    it('should use define fallbacks when site data is unavailable', () => {
+      (globalThis.window as any).__VP_SITE_DATA__ = undefined;
+      globalThis.__BASE__ = '/docs/';
+      globalThis.__CLEAN_URLS__ = true;
+      globalThis.location.pathname = '/docs/guide/test.html';
+
+      const wrapperResult = getCleanPathname();
+
+      expect(wrapperResult).toBe('/guide/test');
     });
   });
 

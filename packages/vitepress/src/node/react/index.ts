@@ -490,7 +490,7 @@ function registerBuildHelper(
   };
 
   vitepressConfig.buildEnd = async () => {
-    const { outDir, assetsDir } = config;
+    const { outDir, assetsDir, cleanUrls } = config;
     const matafileDir = join(outDir, assetsDir);
     const Logger = loggerInstance.getLoggerByGroup('build-end');
     const { fileName, content } = await getClientRuntimeMetafile();
@@ -498,7 +498,7 @@ function registerBuildHelper(
     fs.writeFileSync(clientRuntimeFilePath, content);
 
     const transformedPageMetafileMap =
-      renderController.getTransformedPageMetafile(config.cleanUrls);
+      renderController.getTransformedPageMetafile(cleanUrls);
     if (Object.keys(transformedPageMetafileMap).length > 0) {
       const metafilePath = join(matafileDir, 'vrite-page-metafile.json');
       fs.writeFileSync(
@@ -958,7 +958,9 @@ export default function vitepressReactRenderingStrategies(
 
         compilationContainer.code = componentReferenceImportSnippets.join('\n');
         const helperCode = `
-          const __PAGE_ID__ = (${GET_CLEAN_PATHNAME_RUNTIME.toString()})();
+          // This snippet is emitted via function.toString(), so pass base/cleanUrls
+          // explicitly instead of relying on define replacements inside the string body.
+          const __PAGE_ID__ = (${GET_CLEAN_PATHNAME_RUNTIME.toString()})(${JSON.stringify(siteConfig.base)}, ${JSON.stringify(siteConfig.cleanUrls)});
           if (!window['${RENDER_STRATEGY_CONSTANTS.injectComponent}'][__PAGE_ID__]) {
             window['${RENDER_STRATEGY_CONSTANTS.injectComponent}'][__PAGE_ID__] = {};
           }
@@ -1069,8 +1071,6 @@ export default function vitepressReactRenderingStrategies(
         if (!config.build.rollupOptions) config.build.rollupOptions = {};
         if (!config.build.rollupOptions.output)
           config.build.rollupOptions.output = {};
-
-        config.define.__BASE__ = JSON.stringify(siteConfig.base);
 
         const originalChunkFileNames =
           (config.build.rollupOptions.output as Rollup.OutputOptions)
@@ -1584,6 +1584,9 @@ export default function vitepressReactRenderingStrategies(
     vitepressConfig.vite.define = {};
   }
   vitepressConfig.vite.define.__BASE__ = JSON.stringify(siteConfig.base);
+  vitepressConfig.vite.define.__CLEAN_URLS__ = JSON.stringify(
+    siteConfig.cleanUrls,
+  );
 
   if (!vitepressConfig.vite.plugins) {
     vitepressConfig.vite.plugins = [];

@@ -22,6 +22,7 @@ declare module 'vite' {
 declare global {
   // Define-time global constant injected via bundler `define`.
   const __BASE__: string | undefined;
+  const __CLEAN_URLS__: boolean | undefined;
 
   // Global React and ReactDOM runtime (loaded dynamically)
   var React: typeof React | undefined;

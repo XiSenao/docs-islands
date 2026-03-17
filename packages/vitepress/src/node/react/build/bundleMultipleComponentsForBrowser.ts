@@ -32,7 +32,7 @@ export async function bundleMultipleComponentsForBrowser(
   cssBundlePaths: string[];
   ssrInjectScript: string;
 }> {
-  const { base, srcDir, assetsDir, outDir, wrapBaseUrl } = config;
+  const { base, srcDir, assetsDir, outDir, wrapBaseUrl, cleanUrls } = config;
   if (components.length === 0) {
     return {
       loaderScript: '',
@@ -239,9 +239,10 @@ export async function bundleMultipleComponentsForBrowser(
     const getCleanPathnameRuntime = GET_CLEAN_PATHNAME_RUNTIME.toString();
     const unifiedLoaderCode = `
 (async function() {
+  // This loader is emitted from a string, so pass base/cleanUrls explicitly.
   const pageId = (
     ${getCleanPathnameRuntime}
-  )();
+  )(${JSON.stringify(base)}, ${JSON.stringify(cleanUrls)});
 
   if (!window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"][pageId]) {
     window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"][pageId] = {};
