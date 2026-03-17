@@ -24,7 +24,7 @@ export const buildReactIntegrationInMPA = async (
   config: ConfigType,
   adapter: FrameworkAdapter = reactAdapter,
 ): Promise<{ entryPoint: string; modulePreloads: string[] }> => {
-  const { base, cacheDir, assetsDir, srcDir, outDir } = config;
+  const { base, cacheDir, assetsDir, srcDir, outDir, cleanUrls } = config;
   if (buildPromise) {
     return buildPromise;
   }
@@ -108,6 +108,7 @@ export const inBrowser = true;
           // Environment variables need to be injected when building React and react-dom client-side artifacts in MPA mode.
           'process.env.NODE_ENV': '"production"',
           __BASE__: JSON.stringify(base),
+          __CLEAN_URLS__: JSON.stringify(cleanUrls),
         },
         resolve: {
           extensions: ['.ts', '.tsx', '.js', '.jsx'],

@@ -2,17 +2,48 @@
 // It will never execute in Node.js environment, but needs DOM types for compilation
 /// <reference lib="dom" />
 
-export const GET_CLEAN_PATHNAME_RUNTIME = function getCleanPathname(): string {
-  const siteData = globalThis.window
+export const GET_CLEAN_PATHNAME_RUNTIME = function getCleanPathname(
+  injectedBase?: string,
+  injectedCleanUrls?: boolean,
+): string {
+  /**
+   * `__VP_SITE_DATA__` is injected by the standard VitePress browser runtime in
+   * non-MPA builds. It is not a reliable source in DEV/MPA-only runtime code,
+   * so those modes must fall back to define-time constants instead.
+   */
+  const siteConfig = globalThis.window
     ? globalThis.window.__VP_SITE_DATA__
     : undefined;
-  const cleanUrls = siteData?.cleanUrls ?? false;
+  const siteBase = siteConfig?.base;
+  const siteCleanUrls = siteConfig?.cleanUrls;
+  const definedBase = typeof __BASE__ === 'string' ? __BASE__ : undefined;
+  const definedCleanUrls =
+    typeof __CLEAN_URLS__ === 'boolean' ? __CLEAN_URLS__ : undefined;
+
+  /**
+   * Runtime code injected via `Function#toString()` does not pass through the
+   * Vite transform pipeline, so define replacements do not happen inside that
+   * string body. For those runtimes we must pass the resolved values explicitly
+   * as call arguments.
+   */
   let rawBase = '/';
-  if (siteData?.base) {
-    rawBase = siteData.base;
-  } else if (typeof __BASE__ !== 'undefined' && typeof __BASE__ === 'string') {
-    // Development mode, __BASE__ is defined in the globalThis.
-    rawBase = __BASE__;
+  for (const candidate of [injectedBase, definedBase, siteBase]) {
+    if (typeof candidate === 'string') {
+      rawBase = candidate;
+      break;
+    }
+  }
+
+  let rawCleanUrls = false;
+  for (const candidate of [
+    injectedCleanUrls,
+    definedCleanUrls,
+    siteCleanUrls,
+  ]) {
+    if (typeof candidate === 'boolean') {
+      rawCleanUrls = candidate;
+      break;
+    }
   }
 
   const base = rawBase.endsWith('/') ? rawBase : `${rawBase}/`;
@@ -36,7 +67,7 @@ export const GET_CLEAN_PATHNAME_RUNTIME = function getCleanPathname(): string {
   if (!pathname.startsWith('/')) pathname = `/${pathname}`;
   pathname = pathname.replaceAll(/\/{2,}/g, '/');
   pathname = pathname.replace(/(^|\/)index(?:\.html)?$/, '$1');
-  if (cleanUrls) pathname = pathname.replace(/\.html$/, '');
+  if (rawCleanUrls) pathname = pathname.replace(/\.html$/, '');
   if (pathname === '') pathname = '/';
   return pathname;
 };
