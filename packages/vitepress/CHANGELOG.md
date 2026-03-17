@@ -6,6 +6,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-03-17
+
+### Bug Fixes
+
+- fix(vitepress): stabilize pageId resolution across injected runtimes ([6f9de2c](https://github.com/XiSenao/docs-islands/commit/6f9de2c))
+- fix(vitepress): unify pathname normalization across runtime and build ([cdbab8f](https://github.com/XiSenao/docs-islands/commit/cdbab8f))
+- fix(vitepress): downgrade build target to es2020 and inject NODE_ENV for MPA mode ([d516b1a](https://github.com/XiSenao/docs-islands/commit/d516b1a))
+- fix(utils): link-guard execution exception issue ([b15c023](https://github.com/XiSenao/docs-islands/commit/b15c023))
+
+### Maintenance
+
+- refactor(eslint-config): extract shared rule presets and align ecma/node version targets ([001c290](https://github.com/XiSenao/docs-islands/commit/001c290))
+- chore(build): enable sourcemap support across rolldown configs ([2540095](https://github.com/XiSenao/docs-islands/commit/2540095))
+- chore(eslint-config): add no-console rule and fix vscode monorepo eslint resolution ([b7d24eb](https://github.com/XiSenao/docs-islands/commit/b7d24eb))
+- refactor: adopt Logger in agents and remove redundant emojis from log messages ([0038031](https://github.com/XiSenao/docs-islands/commit/0038031))
+- chore(eslint-config): add flat gitignore and update prettier import ([36510ff](https://github.com/XiSenao/docs-islands/commit/36510ff))
+
+### Other Changes
+
+- ci(actions): migrate pnpm setup to corepack and upgrade cache ([3a71dee](https://github.com/XiSenao/docs-islands/commit/3a71dee))
+- build(scripts): move \_run workspace runner to TypeScript module ([51324fb](https://github.com/XiSenao/docs-islands/commit/51324fb))
+- build(workspace): enforce strict pnpm policies and align eslint deps ([68d0294](https://github.com/XiSenao/docs-islands/commit/68d0294))
+
 ## [0.2.2] - 2026-03-04
 
 ### Bug Fixes
