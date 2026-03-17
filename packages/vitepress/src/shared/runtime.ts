@@ -6,6 +6,7 @@ export const GET_CLEAN_PATHNAME_RUNTIME = function getCleanPathname(): string {
   const siteData = globalThis.window
     ? globalThis.window.__VP_SITE_DATA__
     : undefined;
+  const cleanUrls = siteData?.cleanUrls ?? false;
   let rawBase = '/';
   if (siteData?.base) {
     rawBase = siteData.base;
@@ -15,13 +16,28 @@ export const GET_CLEAN_PATHNAME_RUNTIME = function getCleanPathname(): string {
   }
 
   const base = rawBase.endsWith('/') ? rawBase : `${rawBase}/`;
+  const bareBase = base === '/' ? base : base.slice(0, -1);
 
   // location is available in browser environment where this code runs
   let pathname =
-    typeof location === 'undefined' ? '/' : decodeURI(location.pathname);
-  if (pathname.startsWith(base)) pathname = pathname.slice(base.length - 1);
+    typeof location === 'undefined' ? '/' : location.pathname || '/';
+  try {
+    pathname = decodeURI(pathname);
+  } catch {
+    // Keep the raw pathname if decoding fails.
+  }
+
+  if (pathname === bareBase) {
+    pathname = '/';
+  } else if (pathname.startsWith(base)) {
+    pathname = pathname.slice(base.length - 1);
+  }
+
   if (!pathname.startsWith('/')) pathname = `/${pathname}`;
   pathname = pathname.replaceAll(/\/{2,}/g, '/');
+  pathname = pathname.replace(/(^|\/)index(?:\.html)?$/, '$1');
+  if (cleanUrls) pathname = pathname.replace(/\.html$/, '');
+  if (pathname === '') pathname = '/';
   return pathname;
 };
 
