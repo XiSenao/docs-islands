@@ -78,7 +78,7 @@ export async function bundleMultipleComponentsForBrowser(
           },
         },
         write: false,
-        target: 'es2022',
+        target: 'es2020',
         minify: true,
         manifest: true,
         assetsInlineLimit: 4096,

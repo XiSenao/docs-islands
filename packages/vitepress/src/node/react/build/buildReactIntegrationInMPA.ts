@@ -95,7 +95,7 @@ export const inBrowser = true;
           },
           emptyOutDir: false,
           write: false,
-          target: 'es2022',
+          target: 'es2020',
           minify: true,
           assetsInlineLimit: 4096,
         },
@@ -105,6 +105,8 @@ export const inBrowser = true;
           'import.meta.hot': 'false',
           'import.meta.env.MPA': 'true',
           'import.meta.env.PROD': 'true',
+          // Environment variables need to be injected when building React and react-dom client-side artifacts in MPA mode.
+          'process.env.NODE_ENV': '"production"',
           __BASE__: JSON.stringify(base),
         },
         resolve: {
@@ -125,10 +127,7 @@ export const inBrowser = true;
           },
         },
         esbuild: {
-          target: 'es2022',
-          supported: {
-            'top-level-await': true,
-          },
+          target: 'es2020',
         },
         logLevel: 'warn',
       };
