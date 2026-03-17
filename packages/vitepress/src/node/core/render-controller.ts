@@ -1,5 +1,6 @@
 import type { UsedSnippetContainerType } from '#dep-types/component';
 import type { PageMetafile } from '#dep-types/page';
+import { getPathnameByPagePath } from '#shared/path';
 
 export interface CompilationContainerType {
   // Runtime code for client component loading.
@@ -262,10 +263,12 @@ export class RenderController {
     return this.#pageToPageMetafileMap.get(page);
   }
 
-  public getTransformedPageMetafile(): Record<string, PageMetafile> {
+  public getTransformedPageMetafile(
+    cleanUrls: boolean,
+  ): Record<string, PageMetafile> {
     const transformedPageMetafileMap: Record<string, PageMetafile> = {};
     for (const [page, pageMetafile] of this.#pageToPageMetafileMap.entries()) {
-      transformedPageMetafileMap[`/${page.replace(/\.md$/, '')}`] =
+      transformedPageMetafileMap[getPathnameByPagePath(page, cleanUrls)] =
         pageMetafile;
     }
     return transformedPageMetafileMap;

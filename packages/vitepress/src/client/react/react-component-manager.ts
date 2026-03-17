@@ -262,15 +262,7 @@ export class ReactComponentManager {
   }
 
   public getPageComponentInfo(pathname: string): PageMetafile | null {
-    const unwrapBase = __BASE__;
-    let unwrappedPathname = pathname;
-    if (unwrapBase) {
-      unwrappedPathname = pathname.replace(unwrapBase, '');
-      if (!unwrappedPathname.startsWith('/')) {
-        unwrappedPathname = `/${unwrappedPathname}`;
-      }
-    }
-    return this.pageMetafile[unwrappedPathname] || null;
+    return this.pageMetafile[pathname] || null;
   }
 
   public async loadPageComponents(): Promise<boolean> {

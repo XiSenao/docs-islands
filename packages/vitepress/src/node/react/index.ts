@@ -498,7 +498,7 @@ function registerBuildHelper(
     fs.writeFileSync(clientRuntimeFilePath, content);
 
     const transformedPageMetafileMap =
-      renderController.getTransformedPageMetafile();
+      renderController.getTransformedPageMetafile(config.cleanUrls);
     if (Object.keys(transformedPageMetafileMap).length > 0) {
       const metafilePath = join(matafileDir, 'vrite-page-metafile.json');
       fs.writeFileSync(

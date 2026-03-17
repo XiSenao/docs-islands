@@ -85,7 +85,7 @@ describe('Shared Runtime - getCleanPathname', () => {
       expect(result).toBe(expected);
     });
 
-    it('should preserve .html extension', () => {
+    it('should preserve .html extension when clean urls are disabled', () => {
       (globalThis.window as any).__VP_SITE_DATA__ = { base: '/' };
       globalThis.location.pathname = '/guide/introduction.html';
 
@@ -94,13 +94,25 @@ describe('Shared Runtime - getCleanPathname', () => {
       expect(result).toBe('/guide/introduction.html');
     });
 
-    it('should preserve index.html extension', () => {
+    it('should normalize index.html to the directory route', () => {
       (globalThis.window as any).__VP_SITE_DATA__ = { base: '/' };
       globalThis.location.pathname = '/guide/index.html';
 
       const result = getCleanPathname();
 
-      expect(result).toBe('/guide/index.html');
+      expect(result).toBe('/guide/');
+    });
+
+    it('should strip .html extension when clean urls are enabled', () => {
+      (globalThis.window as any).__VP_SITE_DATA__ = {
+        base: '/',
+        cleanUrls: true,
+      };
+      globalThis.location.pathname = '/guide/introduction.html';
+
+      const result = getCleanPathname();
+
+      expect(result).toBe('/guide/introduction');
     });
 
     it('should handle multiple consecutive slashes', () => {
@@ -169,6 +181,15 @@ describe('Shared Runtime - getCleanPathname', () => {
 
       expect(result).toBe('/other/path');
     });
+
+    it('should treat the bare base path as root', () => {
+      (globalThis.window as any).__VP_SITE_DATA__ = { base: '/docs/' };
+      globalThis.location.pathname = '/docs';
+
+      const result = getCleanPathname();
+
+      expect(result).toBe('/');
+    });
   });
 
   describe('function runtime consistency', () => {
@@ -197,6 +218,15 @@ describe('Shared Runtime - getCleanPathname', () => {
       }).not.toThrow();
 
       globalThis.window = originalWindow;
+    });
+
+    it('should not throw on malformed encoded pathnames', () => {
+      (globalThis.window as any).__VP_SITE_DATA__ = { base: '/' };
+      globalThis.location.pathname = '/guide/%E0%A4%A';
+
+      expect(() => {
+        getCleanPathname();
+      }).not.toThrow();
     });
   });
 });
