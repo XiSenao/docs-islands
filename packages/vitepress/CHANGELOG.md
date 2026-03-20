@@ -6,6 +6,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] - 2026-03-20
+
+### Features
+
+- feat(vitepress): resolve final component sources across re-export chains ([b8dd6dd](https://github.com/XiSenao/docs-islands/commit/b8dd6dd))
+- feat(vitepress): stabilize dev react runtime and HMR updates ([c43aa79](https://github.com/XiSenao/docs-islands/commit/c43aa79))
+
+### Bug Fixes
+
+- fix(vitepress-react): stabilize dev SSR mount timing ([768a4fe](https://github.com/XiSenao/docs-islands/commit/768a4fe))
+
 ## [0.2.3] - 2026-03-17
 
 ### Bug Fixes
