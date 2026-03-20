@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getPagePathByPathname,
   getPathnameByMarkdownModuleId,
   getPathnameByPagePath,
   normalizeRoutePathname,
@@ -48,6 +49,28 @@ describe('Shared Path Helpers', () => {
       expect(getPathnameByPagePath('guide/getting-started.md', false)).toBe(
         '/guide/getting-started.html',
       );
+    });
+  });
+
+  describe('getPagePathByPathname', () => {
+    it('should map clean url pathnames back to markdown files', () => {
+      expect(getPagePathByPathname('/guide/getting-started', true)).toBe(
+        '/guide/getting-started.md',
+      );
+    });
+
+    it('should tolerate html pathnames when clean urls are enabled', () => {
+      expect(getPagePathByPathname('/guide/getting-started.html', true)).toBe(
+        '/guide/getting-started.md',
+      );
+    });
+
+    it('should map directory routes back to index.md', () => {
+      expect(getPagePathByPathname('/guide/', true)).toBe('/guide/index.md');
+    });
+
+    it('should map root back to index.md', () => {
+      expect(getPagePathByPathname('/', false)).toBe('/index.md');
     });
   });
 

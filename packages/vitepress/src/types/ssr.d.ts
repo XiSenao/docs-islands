@@ -6,6 +6,7 @@ type UpdateType = 'markdown-update' | 'ssr-only-component-update' | 'mounted';
 
 export interface SSRUpdateData {
   pathname: string;
+  requestId?: string;
   data: {
     renderId: string;
     componentName: string;
@@ -16,6 +17,7 @@ export interface SSRUpdateData {
 
 export interface SSRUpdateRenderData {
   pathname: string;
+  requestId?: string;
   data: {
     renderId: string;
     /**

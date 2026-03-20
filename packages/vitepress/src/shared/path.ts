@@ -56,6 +56,27 @@ export const getPathnameByPagePath = (
     cleanUrls,
   );
 
+export const getPagePathByPathname = (
+  pathname: string,
+  cleanUrls: boolean,
+): string => {
+  const normalizedPathname = normalizeRoutePathname(pathname, cleanUrls);
+
+  if (normalizedPathname === '/') {
+    return '/index.md';
+  }
+
+  if (normalizedPathname.endsWith('/')) {
+    return `${normalizedPathname}index.md`;
+  }
+
+  if (normalizedPathname.endsWith('.html')) {
+    return normalizedPathname.replace(/\.html$/, '.md');
+  }
+
+  return cleanUrls ? `${normalizedPathname}.md` : normalizedPathname;
+};
+
 export const getPathnameByMarkdownModuleId = (
   markdownModuleId: string,
   siteConfig: ConfigType,

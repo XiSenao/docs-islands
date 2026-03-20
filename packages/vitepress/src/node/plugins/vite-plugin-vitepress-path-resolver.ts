@@ -1,7 +1,12 @@
 import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
 import getLoggerInstance from '#shared/logger';
+import {
+  getPagePathByPathname,
+  getPathnameByPagePath,
+  stripBaseFromPathname,
+} from '#shared/path';
 import { getProjectRoot } from '@docs-islands/utils/path';
-import { dirname, extname, isAbsolute, join, relative, resolve } from 'pathe';
+import { dirname, extname, isAbsolute, relative, resolve } from 'pathe';
 import { normalizePath } from 'vite';
 import type { DefaultTheme, Plugin, SiteConfig } from 'vitepress';
 
@@ -43,8 +48,8 @@ class VitePressPathResolver {
     if (!needInlinePathResolver(id)) return null;
 
     let cleanedId = cleanUrl(id);
-    if (!cleanedId.endsWith('.md') && cleanedId.startsWith(this.base)) {
-      cleanedId = join('/', cleanedId.slice(this.base.length));
+    if (!cleanedId.endsWith('.md')) {
+      cleanedId = stripBaseFromPathname(cleanedId, this.base);
     }
 
     if (!isAbsolute(cleanedId)) {
@@ -84,36 +89,10 @@ class VitePressPathResolver {
 
   // Convert the URL to a Markdown file path.
   urlToMarkdownPath(url: string): string {
-    let relativePath = url.replace(
-      new RegExp(
-        `^${this.base.replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`)}`,
-      ),
-      '',
+    let relativePath = getPagePathByPathname(
+      stripBaseFromPathname(cleanUrl(url), this.base),
+      this.cleanUrls,
     );
-    relativePath = relativePath.replace(/[#?].*$/, '');
-
-    if (this.cleanUrls) {
-      // /foo -> /foo.md
-      if (!relativePath.endsWith('/') && !relativePath.endsWith('.html')) {
-        relativePath += '.md';
-      }
-    } else {
-      // /foo.html -> /foo.md
-      relativePath = relativePath.replace(/\.html$/, '.md');
-    }
-
-    // /foo/ -> /foo/index.md
-    if (relativePath.endsWith('/')) {
-      relativePath += 'index.md';
-    }
-
-    /**
-     * empty -> index.md
-     * / -> index.md
-     */
-    if (!relativePath || relativePath === '/') {
-      relativePath = 'index.md';
-    }
 
     if (relativePath.startsWith('/')) {
       relativePath = relativePath.slice(1);
@@ -131,14 +110,7 @@ class VitePressPathResolver {
     const relativePath = normalizePath(relative(this.srcDir, filePath));
     const rewrittenPath = this.rewrites.map[relativePath];
     const finalPath = rewrittenPath || relativePath;
-
-    let url = `/${finalPath
-      .replace(/\.md$/, this.cleanUrls ? '' : '.html')
-      .replace(/(^|\/)index(?:\.html)?$/, '$1')}`;
-
-    if (url === '' || url === '/index') {
-      url = '/';
-    }
+    const url = getPathnameByPagePath(finalPath, this.cleanUrls);
 
     return this.base === '/' ? url : this.base.slice(0, -1) + url;
   }

@@ -154,7 +154,7 @@ const getClientRuntimeMetafile = async (): Promise<ClientRuntimeMetafile> => {
 };
 
 interface TransformContext {
-  resolveId: (id: string) => Promise<{ id: string } | null>;
+  resolveId: (id: string, importer?: string) => Promise<{ id: string } | null>;
 }
 
 function transformComponentTags(
@@ -1108,8 +1108,11 @@ export default function vitepressReactRenderingStrategies(
         order: 'pre',
         async handler(code, id) {
           const result = await transform(code, id, {
-            resolveId: async (pendingResolveId: string) => {
-              const resolvedId = await this.resolve(pendingResolveId, id);
+            resolveId: async (pendingResolveId: string, importer?: string) => {
+              const resolvedId = await this.resolve(
+                pendingResolveId,
+                importer ?? id,
+              );
               return resolvedId;
             },
           });
@@ -1186,7 +1189,10 @@ export default function vitepressReactRenderingStrategies(
         };
         server.ws.on(
           'vrite-ssr-update',
-          async ({ pathname, data, updateType }: SSRUpdateData, client) => {
+          async (
+            { pathname, data, updateType, requestId }: SSRUpdateData,
+            client,
+          ) => {
             const pendingInlineResolveId =
               transformPathForInlinePathResolver(pathname);
             const resolveId = await server.pluginContainer.resolveId(
@@ -1273,6 +1279,7 @@ export default function vitepressReactRenderingStrategies(
 
               const ssrUpdateRenderData: SSRUpdateRenderData = {
                 pathname,
+                requestId,
                 data: ssrComponentsRenderData,
               };
 
@@ -1351,10 +1358,13 @@ export default function vitepressReactRenderingStrategies(
                 originalContent,
                 normalizedId,
                 {
-                  resolveId: async (pendingResolveId: string) => {
+                  resolveId: async (
+                    pendingResolveId: string,
+                    importer?: string,
+                  ) => {
                     const resolvedId = await server.pluginContainer.resolveId(
                       pendingResolveId,
-                      file,
+                      importer ?? file,
                     );
                     return resolvedId;
                   },

@@ -9,6 +9,31 @@ const waitForVitePressContentRender = async () => {
   });
 };
 
+const waitForClientLoadComponentRender = async () => {
+  await page.waitForSelector('[__render_directive__="client:load"]');
+  await page.waitForFunction(() => {
+    const container = document.querySelector(
+      '[__render_directive__="client:load"]',
+    );
+    if (!(container instanceof HTMLElement)) {
+      return false;
+    }
+
+    const renderedComponent = container.querySelector(
+      '[data-testid="hello-world"]',
+    );
+    const counterButton = container.querySelector(
+      '[data-testid="counter-button"]',
+    );
+
+    return (
+      container.innerHTML.trim().length > 0 &&
+      renderedComponent instanceof HTMLElement &&
+      counterButton instanceof HTMLButtonElement
+    );
+  });
+};
+
 describe('Container Changes', () => {
   describe('Client Only Containers', () => {
     let consoleMessages: string[] = [];
@@ -263,6 +288,40 @@ describe('Container Changes', () => {
       );
 
       expect(runtimeRelatedMessages.length).toBeGreaterThan(0);
+    });
+
+    test('should keep client:load components renderable after repeated page reloads in dev', async () => {
+      const reloadCount = 10;
+      const clientLoadContainer = page.locator(
+        '[__render_directive__="client:load"]',
+      );
+      const componentSelector = '[data-testid="hello-world"]';
+      const buttonSelector = '[data-testid="counter-button"]';
+
+      for (let attempt = 0; attempt < reloadCount; attempt += 1) {
+        consoleMessages = [];
+        await page.reload();
+        await page.waitForSelector('#app .Layout', { timeout: 10_000 });
+        await waitForClientLoadComponentRender();
+        await page.waitForTimeout(400);
+
+        const helloWorldComponent = page.locator(componentSelector);
+        const counterButton = page.locator(buttonSelector);
+
+        await expect(clientLoadContainer).toBeVisible();
+        await expect(helloWorldComponent).toBeVisible();
+        await expect(counterButton).toHaveText(/Count: 0/);
+
+        const containerHtml = await clientLoadContainer.innerHTML();
+        expect(containerHtml.trim().length).toBeGreaterThan(0);
+        expect(containerHtml).toContain('Hello World Component');
+
+        await counterButton.click();
+        await expect(counterButton).toHaveText(/Count: 1/);
+        await page.waitForTimeout(500);
+        await expect(helloWorldComponent).toBeVisible();
+        await expect(counterButton).toHaveText(/Count: 1/);
+      }
     });
   });
 
