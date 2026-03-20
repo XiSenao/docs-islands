@@ -8,6 +8,7 @@ import { validateLegalRenderElements } from '#shared/utils';
 import { formatErrorMessage } from '@docs-islands/utils/logger';
 import { getCleanPathname } from '../../shared/runtime';
 import { reactComponentManager } from './react-component-manager';
+import { rememberReactRenderState } from './react-render-root-store';
 
 const loggerInstance = getLoggerInstance();
 const Logger = loggerInstance.getLoggerByGroup('react-render-strategy');
@@ -129,12 +130,17 @@ export class ReactRenderStrategy {
         props,
       );
       try {
-        globalThis.window.ReactDOM!.hydrateRoot(element, reactElement);
+        const root = globalThis.window.ReactDOM!.hydrateRoot(
+          element,
+          reactElement,
+        );
+        rememberReactRenderState(element, root, Component);
       } catch (error) {
         Logger.error(
           `Hydration failed, fallback to client render, message: ${formatErrorMessage(error)}`,
         );
         const root = globalThis.window.ReactDOM!.createRoot(element);
+        rememberReactRenderState(element, root, Component);
         root.render(reactElement);
       }
       Logger.success(`Component ${renderComponent} hydration completed`);
@@ -179,6 +185,7 @@ export class ReactRenderStrategy {
       }
 
       const root = globalThis.window.ReactDOM!.createRoot(element);
+      rememberReactRenderState(element, root, Component);
       const reactElement = globalThis.window.React!.createElement(
         Component,
         props,
