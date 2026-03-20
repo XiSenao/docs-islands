@@ -48,6 +48,8 @@ let currentLocationPathname = '';
 const DEV_MOUNT_RETRY_INTERVAL_MS = 350;
 const DEV_MOUNT_RETRY_LIMIT = 4;
 const DEV_RUNTIME_FALLBACK_DELAY_MS = 1200;
+const DEV_MOUNT_RENDER_REPLAY_INTERVAL_MS = 32;
+const DEV_MOUNT_PREPARATION_DELAY_MS = 32;
 
 class ReactIntegration {
   public pendingReactRuntimeLoads: Map<string, Promise<void>> = new Map<
@@ -57,16 +59,30 @@ class ReactIntegration {
   private pendingDevHMRReactRuntimeLoad: Promise<void> | null = null;
   private pendingDevMountPathname: string | null = null;
   private pendingDevMountRequestData: SSRUpdateData | null = null;
+  private pendingDevMountRenderIds = new Set<string>();
+  private pendingDevMountSSROnlyRenderIds = new Set<string>();
+  private pendingDevMountRenderData: SSRUpdateRenderData | null = null;
+  private pendingDevMountPreparationPathname: string | null = null;
   private devMountRequestSequence = 0;
   private pendingDevMountFallbackTimer: ReturnType<typeof setTimeout> | null =
     null;
   private pendingDevMountRetryTimer: ReturnType<typeof setTimeout> | null =
     null;
+  private pendingDevMountRenderReplayTimer: ReturnType<
+    typeof setTimeout
+  > | null = null;
+  private pendingDevMountPreparationTimer: ReturnType<
+    typeof setTimeout
+  > | null = null;
   private pendingDevMountRetryCount = 0;
   private pendingDevRuntimeFallbackTriggered = false;
   private isInitialLoad = true;
   private react: typeof React | null = null;
   private reactDOM: typeof ReactDOM | null = null;
+
+  public constructor() {
+    this.setupDevMountRenderListener();
+  }
 
   private getCleanPathname(): string {
     return getCleanPathname();
@@ -124,6 +140,9 @@ class ReactIntegration {
     if (!pathname || this.pendingDevMountPathname === pathname) {
       this.pendingDevMountPathname = null;
       this.pendingDevMountRequestData = null;
+      this.pendingDevMountRenderIds.clear();
+      this.pendingDevMountSSROnlyRenderIds.clear();
+      this.pendingDevMountRenderData = null;
       this.pendingDevMountRetryCount = 0;
       this.pendingDevRuntimeFallbackTriggered = false;
     }
@@ -134,6 +153,20 @@ class ReactIntegration {
     if (this.pendingDevMountRetryTimer) {
       clearTimeout(this.pendingDevMountRetryTimer);
       this.pendingDevMountRetryTimer = null;
+    }
+    if (this.pendingDevMountRenderReplayTimer) {
+      clearTimeout(this.pendingDevMountRenderReplayTimer);
+      this.pendingDevMountRenderReplayTimer = null;
+    }
+  }
+
+  private clearPendingDevMountPreparation(pathname?: string): void {
+    if (!pathname || this.pendingDevMountPreparationPathname === pathname) {
+      this.pendingDevMountPreparationPathname = null;
+    }
+    if (this.pendingDevMountPreparationTimer) {
+      clearTimeout(this.pendingDevMountPreparationTimer);
+      this.pendingDevMountPreparationTimer = null;
     }
   }
 
@@ -193,11 +226,116 @@ class ReactIntegration {
     }
   }
 
-  private armPendingDevMount(requestData: SSRUpdateData): void {
-    const { pathname } = requestData;
+  private schedulePendingDevMountRenderReplay(pathname: string): void {
+    if (
+      this.pendingDevMountPathname !== pathname ||
+      !this.pendingDevMountRenderData ||
+      this.pendingDevMountRenderReplayTimer
+    ) {
+      return;
+    }
+
+    this.pendingDevMountRenderReplayTimer = setTimeout(() => {
+      this.pendingDevMountRenderReplayTimer = null;
+
+      const pendingRenderData = this.pendingDevMountRenderData;
+      if (!pendingRenderData || pendingRenderData.pathname !== pathname) {
+        return;
+      }
+
+      this.handleDevMountRender(pendingRenderData);
+    }, DEV_MOUNT_RENDER_REPLAY_INTERVAL_MS);
+  }
+
+  private getPendingDevMountExpectedRenderIds(
+    fallbackTriggered: boolean,
+  ): Set<string> {
+    return fallbackTriggered
+      ? this.pendingDevMountSSROnlyRenderIds
+      : this.pendingDevMountRenderIds;
+  }
+
+  private finalizeDevMountRender(
+    pathname: string,
+    fallbackTriggered: boolean,
+  ): void {
+    this.pendingDevMountRenderData = null;
+    currentLocationPathname = pathname;
+    this.clearPendingDevMount(pathname);
+    /**
+     * The server has completed rendering, proceed to complete the client-side rendering
+     * and client-side hydration process.
+     */
+    if (!fallbackTriggered) {
+      this.runAsyncTask(
+        this.loadDevRenderRuntime(pathname),
+        'dev-mount-render',
+        'Failed to load development render runtime after SSR mount',
+      );
+    }
+  }
+
+  private handleDevMountRender({
+    pathname,
+    data,
+    requestId,
+  }: SSRUpdateRenderData): void {
+    if (pathname !== this.getPageId()) {
+      return;
+    }
+
+    if (
+      !this.pendingDevMountRequestData ||
+      requestId !== this.pendingDevMountRequestData.requestId
+    ) {
+      return;
+    }
+
+    const fallbackTriggered =
+      this.pendingDevMountPathname === pathname &&
+      this.pendingDevRuntimeFallbackTriggered;
+    const expectedRenderIds =
+      this.getPendingDevMountExpectedRenderIds(fallbackTriggered);
+
+    if (!this.applyDevMountRenderData(pathname, data, expectedRenderIds)) {
+      this.pendingDevMountRenderData = {
+        pathname,
+        data,
+        requestId,
+      };
+      this.schedulePendingDevMountRenderReplay(pathname);
+      return;
+    }
+
+    this.finalizeDevMountRender(pathname, fallbackTriggered);
+  }
+
+  private setupDevMountRenderListener(): void {
+    if (!import.meta.hot) {
+      return;
+    }
+
+    /**
+     * Vite custom HMR events are not replayed for late subscribers.
+     * Register this listener during instance construction so a fast SSR response
+     * cannot outrun initializeInDev() on hard reload.
+     */
+    import.meta.hot.on('vrite-ssr-mount-render', (payload) => {
+      this.handleDevMountRender(payload);
+    });
+  }
+
+  private armPendingDevMount(
+    requestData: SSRUpdateData,
+    ssrOnlyRenderIds: Iterable<string>,
+  ): void {
+    const { pathname, data } = requestData;
     this.clearPendingDevMount();
+    this.clearPendingDevMountPreparation(pathname);
     this.pendingDevMountPathname = pathname;
     this.pendingDevMountRequestData = requestData;
+    this.pendingDevMountRenderIds = new Set(data.map((item) => item.renderId));
+    this.pendingDevMountSSROnlyRenderIds = new Set(ssrOnlyRenderIds);
     this.pendingDevMountRetryCount = 0;
     this.pendingDevRuntimeFallbackTriggered = false;
 
@@ -212,6 +350,63 @@ class ReactIntegration {
     }, DEV_RUNTIME_FALLBACK_DELAY_MS);
   }
 
+  private schedulePendingDevMountPreparation(pathname: string): void {
+    if (!import.meta.hot) {
+      return;
+    }
+
+    this.clearPendingDevMountPreparation();
+    this.pendingDevMountPreparationPathname = pathname;
+    this.pendingDevMountPreparationTimer = setTimeout(() => {
+      this.pendingDevMountPreparationTimer = null;
+
+      if (
+        this.pendingDevMountPreparationPathname !== pathname ||
+        this.pendingDevMountPathname === pathname ||
+        this.getPageId() !== pathname
+      ) {
+        return;
+      }
+      this.pendingDevMountPreparationPathname = null;
+
+      const renderComponents =
+        reactRenderStrategy.collectLegalRenderComponents();
+      const preRenderComponents = renderComponents.filter((info) =>
+        NEED_PRE_RENDER_DIRECTIVES.includes(info.renderDirective),
+      );
+      const pendingPreRenderComponents: SSRUpdateData['data'] =
+        preRenderComponents.map((info) => {
+          return {
+            renderId: info.renderId,
+            componentName: info.renderComponent,
+            props: info.props,
+          };
+        });
+
+      if (pendingPreRenderComponents.length === 0) {
+        currentLocationPathname = pathname;
+        this.runAsyncTask(
+          this.loadDevRenderRuntime(pathname),
+          'dev-content-updated',
+          'Failed to load development render runtime for the current page',
+        );
+        return;
+      }
+
+      this.armPendingDevMount(
+        {
+          pathname,
+          requestId: this.createDevMountRequestId(pathname),
+          data: pendingPreRenderComponents,
+          updateType: 'mounted',
+        },
+        preRenderComponents
+          .filter((info) => info.renderDirective === 'ssr:only')
+          .map((info) => info.renderId),
+      );
+    }, DEV_MOUNT_PREPARATION_DELAY_MS);
+  }
+
   private createDevMountRequestId(pathname: string): string {
     this.devMountRequestSequence += 1;
     return `${pathname}::${this.devMountRequestSequence}::${Date.now()}`;
@@ -220,26 +415,31 @@ class ReactIntegration {
   private applyDevMountRenderData(
     pathname: string,
     data: SSRUpdateRenderData['data'],
-    onlySSROnly = false,
-  ): void {
-    if (pathname !== this.getPageId() || data.length === 0) {
-      return;
+    expectedRenderIds: Set<string>,
+  ): boolean {
+    if (pathname !== this.getPageId()) {
+      return false;
+    }
+
+    if (expectedRenderIds.size === 0) {
+      return true;
     }
 
     const ssrComponentsMap = new Map<string, Element>();
     const renderComponents = reactRenderStrategy.collectLegalRenderComponents();
-    const preRenderComponents = renderComponents.filter((info) =>
-      onlySSROnly
-        ? info.renderDirective === 'ssr:only'
-        : NEED_PRE_RENDER_DIRECTIVES.includes(info.renderDirective),
-    );
 
-    for (const info of preRenderComponents) {
-      ssrComponentsMap.set(info.renderId, info.element);
+    for (const info of renderComponents) {
+      if (expectedRenderIds.has(info.renderId)) {
+        ssrComponentsMap.set(info.renderId, info.element);
+      }
     }
 
+    let appliedCount = 0;
     for (const preRenderComponent of data) {
       const { renderId, ssrOnlyCss, ssrHtml } = preRenderComponent;
+      if (!expectedRenderIds.has(renderId)) {
+        continue;
+      }
       const element = ssrComponentsMap.get(renderId);
       if (element) {
         // Inject CSS resources in order for ssr:only components.
@@ -251,8 +451,11 @@ class ReactIntegration {
           document.head.append(link);
         }
         element.innerHTML = ssrHtml;
+        appliedCount += 1;
       }
     }
+
+    return appliedCount === expectedRenderIds.size;
   }
 
   public async loadDevRenderRuntime(
@@ -1258,46 +1461,6 @@ class ReactIntegration {
         },
       );
 
-      import.meta.hot.on(
-        'vrite-ssr-mount-render',
-        ({ pathname, data, requestId }: SSRUpdateRenderData) => {
-          if (pathname !== this.getPageId()) {
-            return;
-          }
-
-          if (
-            !this.pendingDevMountRequestData ||
-            requestId !== this.pendingDevMountRequestData.requestId
-          ) {
-            return;
-          }
-
-          const fallbackTriggered =
-            this.pendingDevMountPathname === pathname &&
-            this.pendingDevRuntimeFallbackTriggered;
-
-          if (fallbackTriggered) {
-            this.applyDevMountRenderData(pathname, data, true);
-          } else {
-            this.applyDevMountRenderData(pathname, data);
-          }
-
-          currentLocationPathname = pathname;
-          this.clearPendingDevMount(pathname);
-          /**
-           * The server has completed rendering, proceed to complete the client-side rendering
-           * and client-side hydration process.
-           */
-          if (!fallbackTriggered) {
-            this.runAsyncTask(
-              this.loadDevRenderRuntime(pathname),
-              'dev-mount-render',
-              'Failed to load development render runtime after SSR mount',
-            );
-          }
-        },
-      );
-
       this.runAsyncTask(
         this.ensureDevHMRReactRuntime(),
         'integration-hmr-runtime',
@@ -1313,8 +1476,9 @@ class ReactIntegration {
 
       onContentUpdated(() => {
         /**
-         * The onContentUpdated hook in VitePress triggers multiple times on the same page
-         * after a route change, we only handle the first trigger.
+         * The onContentUpdated hook in VitePress may trigger multiple times for the same page.
+         * Coalesce these signals so the mount request is built from the final DOM snapshot
+         * rather than an intermediate shell tree.
          */
         const pageId = this.getPageId();
         if (
@@ -1327,43 +1491,7 @@ class ReactIntegration {
 
         // In the development environment, the pre-rendering of components relies on push update events.
         if (import.meta.hot) {
-          const renderComponents =
-            reactRenderStrategy.collectLegalRenderComponents();
-          const preRenderComponents = renderComponents.filter((info) =>
-            NEED_PRE_RENDER_DIRECTIVES.includes(info.renderDirective),
-          );
-
-          /**
-           * When a route changes or the page loads for the first time,
-           * all components that require SSR rendering need to be fully rendered.
-           */
-          const pendingPreRenderComponents: SSRUpdateData['data'] =
-            preRenderComponents.map((info) => {
-              return {
-                renderId: info.renderId,
-                componentName: info.renderComponent,
-                props: info.props,
-              };
-            });
-
-          const pendingPreRenderComponentsUpdates: SSRUpdateData = {
-            pathname: pageId,
-            requestId: this.createDevMountRequestId(pageId),
-            data: pendingPreRenderComponents,
-            updateType: 'mounted',
-          };
-
-          if (pendingPreRenderComponents.length === 0) {
-            currentLocationPathname = pageId;
-            this.runAsyncTask(
-              this.loadDevRenderRuntime(pageId),
-              'dev-content-updated',
-              'Failed to load development render runtime for the current page',
-            );
-            return;
-          }
-
-          this.armPendingDevMount(pendingPreRenderComponentsUpdates);
+          this.schedulePendingDevMountPreparation(pageId);
         }
       });
     }
