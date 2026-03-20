@@ -34,7 +34,29 @@ const waitForClientLoadComponentRender = async () => {
   });
 };
 
-describe('Container Changes', () => {
+const waitForHelloWorldMarkup = async (selector: string, timeout = 1000) => {
+  await page.waitForFunction(
+    (targetSelector) => {
+      const container = document.querySelector(targetSelector);
+      if (!(container instanceof HTMLElement)) {
+        return false;
+      }
+
+      const counterButton = container.querySelector(
+        '[data-testid="counter-button"]',
+      );
+      return (
+        container.innerHTML.trim().length > 0 &&
+        container.textContent?.includes('Hello World Component') === true &&
+        counterButton instanceof HTMLButtonElement
+      );
+    },
+    selector,
+    { timeout },
+  );
+};
+
+const registerClientOnlyContainerTests = () => {
   describe('Client Only Containers', () => {
     let consoleMessages: string[] = [];
 
@@ -115,7 +137,9 @@ describe('Container Changes', () => {
       expect(clientRenderingMessages.length).toBeGreaterThan(0);
     });
   });
+};
 
+const registerSSROnlyContainerTests = () => {
   describe('SSR Only Containers(Default Behavior)', () => {
     let consoleMessages: string[] = [];
 
@@ -200,7 +224,9 @@ describe('Container Changes', () => {
       expect(clientInteractionMessages.length).toBe(0);
     });
   });
+};
 
+const registerClientLoadContainerTests = () => {
   describe('Client Load Containers', () => {
     let consoleMessages: string[] = [];
 
@@ -324,7 +350,9 @@ describe('Container Changes', () => {
       }
     });
   });
+};
 
+const registerClientVisibleContainerTests = () => {
   describe('Client Visible Containers', () => {
     let consoleMessages: string[] = [];
 
@@ -498,7 +526,9 @@ describe('Container Changes', () => {
       await expect(secondButton).toHaveText(/Count: 1/);
     });
   });
+};
 
+const registerMixedRenderDirectiveTests = () => {
   describe('Mixed Render Directives', () => {
     let consoleMessages: string[] = [];
 
@@ -555,6 +585,10 @@ describe('Container Changes', () => {
     });
 
     test('should handle multiple containers with different directives', async () => {
+      await waitForHelloWorldMarkup('[data-unique-id="client-only"]');
+      await waitForHelloWorldMarkup('[data-unique-id="ssr-only"]');
+      await waitForHelloWorldMarkup('[data-unique-id="client-load"]');
+
       const containers = page.locator('[data-testid="hello-world"]');
       const count = await containers.count();
 
@@ -621,6 +655,42 @@ describe('Container Changes', () => {
       await expect(clientLoadButton).toHaveText(/Count: 2/);
     });
 
+    test('should keep ssr:only and client:load mount output stable after rapid hard refresh bursts', async () => {
+      const burstCount = 6;
+      const ssrOnlyComponent = page.locator('[data-unique-id="ssr-only"]');
+      const ssrOnlyButton = ssrOnlyComponent.locator(
+        '[data-testid="counter-button"]',
+      );
+      const clientLoadComponent = page.locator(
+        '[data-unique-id="client-load"]',
+      );
+      const clientLoadButton = clientLoadComponent.locator(
+        '[data-testid="counter-button"]',
+      );
+
+      for (let attempt = 0; attempt < burstCount; attempt += 1) {
+        consoleMessages = [];
+        await page.reload({ waitUntil: 'domcontentloaded' });
+      }
+
+      await page.waitForSelector('#app .Layout', { timeout: 10_000 });
+
+      await waitForHelloWorldMarkup('[data-unique-id="ssr-only"]');
+      await waitForHelloWorldMarkup('[data-unique-id="client-load"]');
+
+      await expect(ssrOnlyComponent).toBeVisible();
+      await expect(ssrOnlyButton).toHaveText(/Count: 0/);
+      await ssrOnlyButton.click();
+      await expect(ssrOnlyButton).toHaveText(/Count: 0/);
+
+      await expect(clientLoadComponent).toBeVisible();
+      await expect(clientLoadButton).toHaveText(/Count: 0/, {
+        timeout: 1000,
+      });
+      await clientLoadButton.click();
+      await expect(clientLoadButton).toHaveText(/Count: 1/);
+    });
+
     test('should trigger client:visible component when scrolled into view', async () => {
       // First wait for initial component loading.
       await page.waitForTimeout(1000);
@@ -657,4 +727,12 @@ describe('Container Changes', () => {
       await expect(clientVisibleButton).toHaveText(/Count: 1/);
     });
   });
+};
+
+describe('Container Changes', () => {
+  registerClientOnlyContainerTests();
+  registerSSROnlyContainerTests();
+  registerClientLoadContainerTests();
+  registerClientVisibleContainerTests();
+  registerMixedRenderDirectiveTests();
 });
