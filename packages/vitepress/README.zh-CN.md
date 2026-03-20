@@ -32,6 +32,8 @@
 
 阅读 [快速上手](https://docs.senao.me/docs-islands/vitepress/zh/quick-start) 来了解更多信息。
 
+补充说明：用户使用指南中已明确注明，支持通过重导出模块导入组件，但不应将副作用放在中间的 barrel / 重导出模块中。
+
 ## 贡献
 
 欢迎社区贡献！请查看 [贡献指南](https://github.com/XiSenao/docs-islands/blob/main/.github/CONTRIBUTING.zh-CN.md) 了解详情。

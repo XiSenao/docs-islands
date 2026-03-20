@@ -163,6 +163,8 @@ Bundle size note: the size increase applies only to page client scripts loaded d
 
    - Components must be imported in the same `Markdown` page inside a `<script lang="react">` block. Unimported components are ignored.
    - Components can be used inside `Vue` slots/templates (e.g. within `<template #default>...</template>`); they will still be correctly discovered and transformed.
+   - Imports that go through re-export modules such as `export * from '...'` or `export { Foo } from '...'` are supported; runtime resolution recursively follows the chain to the final export owner.
+   - If a barrel / re-export module contains side effects, do not rely on that intermediate module as a side-effect injection point. Runtime imports are emitted against the final export owner, not the intermediate re-export module.
 
 4. **Props passing (initialization)**
 

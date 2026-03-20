@@ -32,6 +32,8 @@ Brings cross‑framework component rendering to VitePress (currently built-in Re
 
 Read [Quick Start](https://docs.senao.me/docs-islands/vitepress/quick-start) for more information.
 
+Additional note: the user guide now explicitly documents that re-exported component imports are supported, but intermediate barrel / re-export modules must not be used as side-effect injection points.
+
 ## Contributing
 
 Welcome community contributions! For more details, see the [Contributing Guide](https://github.com/XiSenao/docs-islands/blob/main/.github/CONTRIBUTING.md).
