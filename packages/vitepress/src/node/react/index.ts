@@ -47,6 +47,7 @@ import createVitePressPathResolverPlugin, {
 import { buildReactIntegrationInMPA } from './build/buildReactIntegrationInMPA';
 import { bundleMultipleComponentsForBrowser } from './build/bundleMultipleComponentsForBrowser';
 import { bundleMultipleComponentsForSSR } from './build/bundleMultipleComponentsForSSR';
+import { createImportReferenceResolver } from './export-resolver';
 import { ReactRenderController } from './react-render-controller';
 
 /**
@@ -638,6 +639,7 @@ export default function vitepressReactRenderingStrategies(
       };
     }
     await init;
+    const importReferenceResolver = createImportReferenceResolver(ctx);
 
     const s = new MagicString(code);
 
@@ -778,20 +780,11 @@ export default function vitepressReactRenderingStrategies(
 
       for (const _importSpecifier of imports) {
         const importSpecifier = _importSpecifier || {};
-        let { ss: expStart, se: expEnd, n: identifier = '' } = importSpecifier;
-        const resolved = await ctx.resolveId(identifier);
-        if (resolved) {
-          identifier = resolved.id;
-        } else {
-          // Log an error instead of throwing during failed import resolution.
-          // This allows the build to continue and lets the bundler handle the error.
-          loggerInstance
-            .getLoggerByGroup('react-plugin')
-            .error(
-              `Failed to resolve import ${identifier} in ${id}, skipping component registration`,
-            );
-          continue;
-        }
+        const {
+          ss: expStart,
+          se: expEnd,
+          n: rawIdentifier = '',
+        } = importSpecifier;
 
         const exp = content.slice(expStart, expEnd);
         let importSets: ImportNameSpecifier[];
@@ -810,14 +803,35 @@ export default function vitepressReactRenderingStrategies(
         for (const importSet of importSets) {
           const { importedName, localName } = importSet;
           if (/^[A-Z][\dA-Za-z]*$/.test(localName)) {
+            // Resolve through re-export chains so injected runtime imports point
+            // at the final symbol owner instead of a barrel module. Re-export
+            // modules should not be used as side-effect injection points.
+            const finalImportReference =
+              await importReferenceResolver.resolveImportReference(
+                rawIdentifier,
+                importedName,
+                normalizedId,
+              );
+            if (!finalImportReference) {
+              loggerInstance
+                .getLoggerByGroup('react-plugin')
+                .error(
+                  `Failed to resolve final import reference ${rawIdentifier}#${importedName} in ${id}, skipping component registration`,
+                );
+              continue;
+            }
+
             maybeComponentReferenceMap.set(localName, {
-              identifier,
-              importedName,
+              identifier: finalImportReference.identifier,
+              importedName: finalImportReference.importedName,
             });
             inlineComponentReferenceMap.set(localName, {
               localName,
-              path: join('/', identifier.replace(siteConfig.srcDir, '')),
-              importedName,
+              path: join(
+                '/',
+                finalImportReference.identifier.replace(siteConfig.srcDir, ''),
+              ),
+              importedName: finalImportReference.importedName,
             });
           }
         }
