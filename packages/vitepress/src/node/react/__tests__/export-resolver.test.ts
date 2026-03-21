@@ -56,6 +56,7 @@ describe('createImportReferenceResolver', () => {
     expect(reference).toEqual({
       identifier: normalizePath(path.join(fixtureRoot, 'named-leaf.tsx')),
       importedName: 'Hero',
+      warnings: [],
     });
   });
 
@@ -69,6 +70,7 @@ describe('createImportReferenceResolver', () => {
     expect(reference).toEqual({
       identifier: normalizePath(path.join(fixtureRoot, 'button-leaf.tsx')),
       importedName: 'ForwardedButton',
+      warnings: [],
     });
   });
 
@@ -82,6 +84,7 @@ describe('createImportReferenceResolver', () => {
     expect(reference).toEqual({
       identifier: normalizePath(path.join(fixtureRoot, 'default-card.tsx')),
       importedName: 'default',
+      warnings: [],
     });
   });
 
@@ -95,6 +98,7 @@ describe('createImportReferenceResolver', () => {
     expect(reference).toEqual({
       identifier: normalizePath(path.join(fixtureRoot, 'default-leaf.tsx')),
       importedName: 'default',
+      warnings: [],
     });
   });
 
@@ -108,6 +112,49 @@ describe('createImportReferenceResolver', () => {
     expect(reference).toEqual({
       identifier: normalizePath(path.join(fixtureRoot, 'local-leaf.tsx')),
       importedName: 'LocalChip',
+      warnings: [],
     });
+  });
+
+  it('warns when an intermediate re-export module contains side-effect imports', async () => {
+    const reference = await resolver.resolveImportReference(
+      './side-effect-proxy',
+      'Hero',
+      pageImporter,
+    );
+
+    expect(reference).toEqual({
+      identifier: normalizePath(path.join(fixtureRoot, 'named-leaf.tsx')),
+      importedName: 'Hero',
+      warnings: [expect.stringContaining('side-effect-proxy.ts')],
+    });
+    expect(reference!.warnings[0]).toContain('./side-effect-dep');
+  });
+
+  it('warns for each intermediate module with side-effect imports in a chain', async () => {
+    const reference = await resolver.resolveImportReference(
+      './side-effect-barrel',
+      'Hero',
+      pageImporter,
+    );
+
+    expect(reference).toEqual({
+      identifier: normalizePath(path.join(fixtureRoot, 'named-leaf.tsx')),
+      importedName: 'Hero',
+      warnings: [
+        expect.stringContaining('side-effect-barrel.ts'),
+        expect.stringContaining('side-effect-proxy.ts'),
+      ],
+    });
+  });
+
+  it('returns no warnings when re-export modules have no side-effect imports', async () => {
+    const reference = await resolver.resolveImportReference(
+      './barrel',
+      'Hero',
+      pageImporter,
+    );
+
+    expect(reference!.warnings).toEqual([]);
   });
 });

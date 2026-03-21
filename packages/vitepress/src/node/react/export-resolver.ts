@@ -26,6 +26,12 @@ export interface ResolvedImportReference {
   importedName: string;
 }
 
+export interface ResolvedImportReferenceResult {
+  identifier: string;
+  importedName: string;
+  warnings: string[];
+}
+
 export interface ImportReferenceResolverContext {
   resolveId: (id: string, importer?: string) => Promise<{ id: string } | null>;
 }
@@ -41,11 +47,13 @@ interface ModuleExportInfo {
   localExports: Set<string>;
   namedReExports: Map<string, ImportedBinding>;
   starReExports: string[];
+  sideEffectImports: string[];
 }
 
 interface ResolveExportResult {
   found: boolean;
   reference: ResolvedImportReference;
+  warnings: string[];
 }
 
 const babelParserPlugins: ParserPlugin[] = [
@@ -162,6 +170,7 @@ const collectModuleExportInfo = (program: Program): ModuleExportInfo => {
     localExports: new Set<string>(),
     namedReExports: new Map<string, ImportedBinding>(),
     starReExports: [],
+    sideEffectImports: [],
   };
 
   for (const statement of program.body) {
@@ -170,6 +179,10 @@ const collectModuleExportInfo = (program: Program): ModuleExportInfo => {
       (statement as ImportDeclaration).importKind !== 'type'
     ) {
       const source = statement.source.value;
+      if (statement.specifiers.length === 0) {
+        moduleExportInfo.sideEffectImports.push(source);
+        continue;
+      }
       for (const specifier of statement.specifiers) {
         switch (specifier.type) {
           case 'ImportSpecifier': {
@@ -340,6 +353,14 @@ const loadModuleExportInfo = async (
   return moduleExportInfoCache.get(identifier)!;
 };
 
+const formatSideEffectWarning = (
+  moduleId: string,
+  sideEffectImports: string[],
+): string => {
+  const imports = sideEffectImports.map((s) => `"${s}"`).join(', ');
+  return `Module "${moduleId}" contains side-effect import(s) [${imports}] but is traversed as a re-export intermediary. The runtime import targets the final export owner directly, so these side effects may not execute.`;
+};
+
 const resolveExportReference = async (
   ctx: ImportReferenceResolverContext,
   reference: ResolvedImportReference,
@@ -350,6 +371,7 @@ const resolveExportReference = async (
     return {
       found: true,
       reference,
+      warnings: [],
     };
   }
 
@@ -358,6 +380,7 @@ const resolveExportReference = async (
     return {
       found: true,
       reference,
+      warnings: [],
     };
   }
   visited.add(visitKey);
@@ -370,6 +393,7 @@ const resolveExportReference = async (
     return {
       found: true,
       reference,
+      warnings: [],
     };
   }
 
@@ -385,10 +409,11 @@ const resolveExportReference = async (
       return {
         found: true,
         reference,
+        warnings: [],
       };
     }
 
-    return resolveExportReference(
+    const childResult = await resolveExportReference(
       ctx,
       {
         identifier: normalizePath(resolvedId.id),
@@ -397,6 +422,26 @@ const resolveExportReference = async (
       moduleExportInfoCache,
       visited,
     );
+
+    const warnings = [...childResult.warnings];
+    if (
+      childResult.found &&
+      childResult.reference.identifier !== reference.identifier &&
+      moduleExportInfo.sideEffectImports.length > 0
+    ) {
+      warnings.unshift(
+        formatSideEffectWarning(
+          reference.identifier,
+          moduleExportInfo.sideEffectImports,
+        ),
+      );
+    }
+
+    return {
+      found: childResult.found,
+      reference: childResult.reference,
+      warnings,
+    };
   }
 
   if (reference.importedName === 'default') {
@@ -409,10 +454,11 @@ const resolveExportReference = async (
         return {
           found: true,
           reference,
+          warnings: [],
         };
       }
 
-      return resolveExportReference(
+      const childResult = await resolveExportReference(
         ctx,
         {
           identifier: normalizePath(resolvedId.id),
@@ -421,11 +467,32 @@ const resolveExportReference = async (
         moduleExportInfoCache,
         visited,
       );
+
+      const warnings = [...childResult.warnings];
+      if (
+        childResult.found &&
+        childResult.reference.identifier !== reference.identifier &&
+        moduleExportInfo.sideEffectImports.length > 0
+      ) {
+        warnings.unshift(
+          formatSideEffectWarning(
+            reference.identifier,
+            moduleExportInfo.sideEffectImports,
+          ),
+        );
+      }
+
+      return {
+        found: childResult.found,
+        reference: childResult.reference,
+        warnings,
+      };
     }
 
     return {
       found: moduleExportInfo.hasDefaultExport,
       reference,
+      warnings: [],
     };
   }
 
@@ -433,10 +500,14 @@ const resolveExportReference = async (
     return {
       found: true,
       reference,
+      warnings: [],
     };
   }
 
-  const starMatches: ResolvedImportReference[] = [];
+  const starMatches: {
+    reference: ResolvedImportReference;
+    warnings: string[];
+  }[] = [];
   for (const starReExport of moduleExportInfo.starReExports) {
     const resolvedId = await ctx.resolveId(starReExport, reference.identifier);
     if (!resolvedId) {
@@ -454,7 +525,10 @@ const resolveExportReference = async (
     );
 
     if (resolvedStarReference.found) {
-      starMatches.push(resolvedStarReference.reference);
+      starMatches.push({
+        reference: resolvedStarReference.reference,
+        warnings: resolvedStarReference.warnings,
+      });
     }
   }
 
@@ -462,24 +536,47 @@ const resolveExportReference = async (
     return {
       found: false,
       reference,
+      warnings: [],
     };
   }
 
-  const uniqueMatches = new Map<string, ResolvedImportReference>();
+  const uniqueMatches = new Map<
+    string,
+    { reference: ResolvedImportReference; warnings: string[] }
+  >();
   for (const match of starMatches) {
-    uniqueMatches.set(`${match.identifier}::${match.importedName}`, match);
+    uniqueMatches.set(
+      `${match.reference.identifier}::${match.reference.importedName}`,
+      match,
+    );
   }
 
   if (uniqueMatches.size === 1) {
+    const match = [...uniqueMatches.values()][0];
+    const warnings = [...match.warnings];
+    if (
+      match.reference.identifier !== reference.identifier &&
+      moduleExportInfo.sideEffectImports.length > 0
+    ) {
+      warnings.unshift(
+        formatSideEffectWarning(
+          reference.identifier,
+          moduleExportInfo.sideEffectImports,
+        ),
+      );
+    }
+
     return {
       found: true,
-      reference: [...uniqueMatches.values()][0],
+      reference: match.reference,
+      warnings,
     };
   }
 
   return {
     found: true,
     reference,
+    warnings: [],
   };
 };
 
@@ -490,7 +587,7 @@ export function createImportReferenceResolver(
     moduleId: string,
     importedName: string,
     importer?: string,
-  ) => Promise<ResolvedImportReference | null>;
+  ) => Promise<ResolvedImportReferenceResult | null>;
 } {
   const resolvedIdCache = new Map<string, Promise<{ id: string } | null>>();
   const moduleExportInfoCache = new Map<
@@ -548,9 +645,18 @@ export function createImportReferenceResolver(
       const finalReference =
         await resolveExportReferenceWithCache(resolvedReference);
 
-      return finalReference.found
-        ? finalReference.reference
-        : resolvedReference;
+      if (finalReference.found) {
+        return {
+          identifier: finalReference.reference.identifier,
+          importedName: finalReference.reference.importedName,
+          warnings: finalReference.warnings,
+        };
+      }
+
+      return {
+        ...resolvedReference,
+        warnings: [],
+      };
     },
   };
 }

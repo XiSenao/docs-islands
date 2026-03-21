@@ -1,1 +1,1 @@
-export { default as Landing } from './Landing/src/main';
+export { default as Landing } from './Landing/src/App';
