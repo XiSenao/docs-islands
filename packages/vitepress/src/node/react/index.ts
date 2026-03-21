@@ -821,6 +821,10 @@ export default function vitepressReactRenderingStrategies(
               continue;
             }
 
+            for (const warning of finalImportReference.warnings) {
+              loggerInstance.getLoggerByGroup('react-plugin').warn(warning);
+            }
+
             maybeComponentReferenceMap.set(localName, {
               identifier: finalImportReference.identifier,
               importedName: finalImportReference.importedName,
