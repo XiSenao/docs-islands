@@ -12,7 +12,8 @@
   },
   "packageManager": "pnpm@10.26.0",
   "dependencies": {
-    "vue": "catalog:prod"
+    "vue": "catalog:prod",
+    "@vercel/analytics": "catalog:docs-dev"
   },
   "devDependencies": {
     "@types/http-proxy": "catalog:docs-dev",
