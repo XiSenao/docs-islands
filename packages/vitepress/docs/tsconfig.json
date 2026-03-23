@@ -5,5 +5,11 @@
     "isolatedDeclarations": false,
     "declaration": false,
   },
-  "include": ["./", "./.vitepress/**/*.ts", "en/**/*.vue", "zh/**/*.vue"],
+  "include": [
+    "./",
+    "./.vitepress/**/*.ts",
+    "./.vitepress/theme/**/*.vue",
+    "en/**/*.vue",
+    "zh/**/*.vue",
+  ],
 }
