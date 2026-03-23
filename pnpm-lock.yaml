@@ -365,6 +365,9 @@ importers:
       vue-router:
         specifier: catalog:dev
         version: 4.6.4(vue@3.5.28(typescript@5.9.3))
+      vue-tsc:
+        specifier: catalog:dev
+        version: 3.2.4(typescript@5.9.3)
 
   packages/agents:
     devDependencies:
@@ -670,6 +673,9 @@ importers:
       vue-router:
         specifier: catalog:dev
         version: 4.6.4(vue@3.5.28(typescript@5.9.3))
+      vue-tsc:
+        specifier: catalog:dev
+        version: 3.2.4(typescript@5.9.3)
       wait-on:
         specifier: catalog:dev
         version: 9.0.3
@@ -2962,22 +2968,10 @@ packages:
         integrity: sha512-eWaYCcl/uAPInSK2Lze6IqVWaBu/itVqR5InXcHXFyles4zO++Mglt3oxdgj75BDcv1Knr9Y93nowS8U3wqhxg==,
       }
 
-  '@vue/compiler-core@3.5.23':
-    resolution:
-      {
-        integrity: sha512-nW7THWj5HOp085ROk65LwaoxuzDsjIxr485F4iu63BoxsXoSqKqmsUUoP4A7Gl67DgIgi0zJ8JFgHfvny/74MA==,
-      }
-
   '@vue/compiler-core@3.5.28':
     resolution:
       {
         integrity: sha512-kviccYxTgoE8n6OCw96BNdYlBg2GOWfBuOW4Vqwrt7mSKWKwFVvI8egdTltqRgITGPsTFYtKYfxIG8ptX2PJHQ==,
-      }
-
-  '@vue/compiler-dom@3.5.23':
-    resolution:
-      {
-        integrity: sha512-AT8RMw0vEzzzO0JU5gY0F6iCzaWUIh/aaRVordzMBKXRpoTllTT4kocHDssByPsvodNCfump/Lkdow2mT/O5KQ==,
       }
 
   '@vue/compiler-dom@3.5.28':
@@ -8919,15 +8913,6 @@ snapshots:
       path-browserify: 1.0.1
       vscode-uri: 3.1.0
 
-  '@vue/compiler-core@3.5.23':
-    dependencies:
-      '@babel/parser': 7.28.5
-      '@babel/types': 7.28.5
-      '@vue/shared': 3.5.23
-      entities: 4.5.0
-      estree-walker: 2.0.2
-      source-map-js: 1.2.1
-
   '@vue/compiler-core@3.5.28':
     dependencies:
       '@babel/parser': 7.29.0
@@ -8936,11 +8921,6 @@ snapshots:
       entities: 7.0.1
       estree-walker: 2.0.2
       source-map-js: 1.2.1
-
-  '@vue/compiler-dom@3.5.23':
-    dependencies:
-      '@vue/compiler-core': 3.5.23
-      '@vue/shared': 3.5.23
 
   '@vue/compiler-dom@3.5.28':
     dependencies:
@@ -8988,8 +8968,8 @@ snapshots:
   '@vue/language-core@3.2.4':
     dependencies:
       '@volar/language-core': 2.4.27
-      '@vue/compiler-dom': 3.5.23
-      '@vue/shared': 3.5.23
+      '@vue/compiler-dom': 3.5.28
+      '@vue/shared': 3.5.28
       alien-signals: 3.0.6
       muggle-string: 0.4.1
       path-browserify: 1.0.1

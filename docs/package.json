@@ -5,7 +5,7 @@
     "docs:dev": "vitepress dev",
     "docs:build": "vitepress build",
     "docs:preview": "vitepress preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "vue-tsc --noEmit",
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
     "clean": "pnpm clean:remaining && del-cli .eslintcache .vitepress/cache .vitepress/dist node_modules",
     "clean:remaining": "del-cli .vitepress/config.ts.timestamp-*.mjs || true"
@@ -19,6 +19,7 @@
     "eslint": "catalog:lint",
     "@docs-islands/eslint-config": "workspace:*",
     "typescript": "catalog:dev",
+    "vue-tsc": "catalog:dev",
     "http-proxy": "catalog:docs-dev",
     "@docs-islands/utils": "workspace:*",
     "vitepress": "catalog:frameworks",
