@@ -139,6 +139,7 @@ catalogs:
     'htmlparser2': '^10.0.0'
     'pathe': '^2.0.3'
     'picocolors': '1.1.1'
+    vue-router: 4.6.4
     '@babel/generator': '^7.29.1'
     '@babel/parser': '^7.29.0'
     '@babel/traverse': '^7.29.0'
@@ -163,6 +164,7 @@ catalogs:
     'vitepress-plugin-group-icons': '^1.7.1'
     'vitepress-plugin-llms': '^1.11.0'
     'http-proxy': '^1.18.1'
+    '@vercel/analytics': '^1.4.1'
 
   # Integrated Framework versions (shared across docs)
   frameworks:

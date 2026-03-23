@@ -5,7 +5,7 @@
     "docs:dev": "vitepress dev",
     "docs:build": "vitepress build",
     "docs:preview": "vitepress preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "vue-tsc --noEmit",
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
     "clean": "pnpm clean:remaining && del-cli .eslintcache .vitepress/cache .vitepress/dist node_modules",
     "clean:remaining": "del-cli .vitepress/config.ts.timestamp-*.mjs || true"
@@ -19,12 +19,15 @@
     "eslint": "catalog:lint",
     "@docs-islands/eslint-config": "workspace:*",
     "typescript": "catalog:dev",
+    "vue-tsc": "catalog:dev",
     "http-proxy": "catalog:docs-dev",
     "@docs-islands/utils": "workspace:*",
     "vitepress": "catalog:frameworks",
     "vitepress-plugin-group-icons": "catalog:docs-dev",
     "vitepress-plugin-llms": "catalog:docs-dev",
     "@nolebase/vitepress-plugin-enhanced-mark": "catalog:docs-dev",
-    "del-cli": "catalog:dev"
+    "@vercel/analytics": "catalog:docs-dev",
+    "del-cli": "catalog:dev",
+    "vue-router": "catalog:dev"
   }
 }
