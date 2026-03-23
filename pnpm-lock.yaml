@@ -96,6 +96,9 @@ catalogs:
     typescript:
       specifier: ~5.9.3
       version: 5.9.3
+    vue-router:
+      specifier: 4.6.4
+      version: 4.6.4
     vue-tsc:
       specifier: ~3.2.4
       version: 3.2.4
@@ -319,9 +322,6 @@ importers:
 
   docs:
     dependencies:
-      '@vercel/analytics':
-        specifier: catalog:docs-dev
-        version: 1.6.1(react@18.3.1)(vue@3.5.28(typescript@5.9.3))
       vue:
         specifier: catalog:prod
         version: 3.5.28(typescript@5.9.3)
@@ -338,6 +338,9 @@ importers:
       '@types/http-proxy':
         specifier: catalog:docs-dev
         version: 1.17.17
+      '@vercel/analytics':
+        specifier: catalog:docs-dev
+        version: 1.6.1(react@18.3.1)(vue-router@4.6.4(vue@3.5.28(typescript@5.9.3)))(vue@3.5.28(typescript@5.9.3))
       del-cli:
         specifier: catalog:dev
         version: 7.0.0
@@ -359,6 +362,9 @@ importers:
       vitepress-plugin-llms:
         specifier: catalog:docs-dev
         version: 1.11.0
+      vue-router:
+        specifier: catalog:dev
+        version: 4.6.4(vue@3.5.28(typescript@5.9.3))
 
   packages/agents:
     devDependencies:
@@ -631,6 +637,9 @@ importers:
       '@nolebase/vitepress-plugin-enhanced-mark':
         specifier: catalog:docs-dev
         version: 2.18.2(vitepress@1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.13.5)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))
+      '@vercel/analytics':
+        specifier: catalog:docs-dev
+        version: 1.6.1(react@18.3.1)(vue-router@4.6.4(vue@3.5.28(typescript@5.9.3)))(vue@3.5.28(typescript@5.9.3))
       '@vitejs/plugin-react-swc':
         specifier: catalog:dev
         version: 4.2.3(vite@5.4.21(patch_hash=81ba500186ae82f86c658c8d9dc564b4a0f0445774e36538ee197ea92b9ee78a)(@types/node@20.19.0)(less@4.4.2))
@@ -658,6 +667,9 @@ importers:
       vitepress-plugin-llms:
         specifier: catalog:docs-dev
         version: 1.11.0
+      vue-router:
+        specifier: catalog:dev
+        version: 4.6.4(vue@3.5.28(typescript@5.9.3))
       wait-on:
         specifier: catalog:dev
         version: 9.0.3
@@ -2984,6 +2996,12 @@ packages:
     resolution:
       {
         integrity: sha512-JCq//9w1qmC6UGLWJX7RXzrGpKkroubey/ZFqTpvEIDJEKGgntuDMqkuWiZvzTzTA5h2qZvFBFHY7fAAa9475g==,
+      }
+
+  '@vue/devtools-api@6.6.4':
+    resolution:
+      {
+        integrity: sha512-sGhTPMuXqZ1rVOk32RylztWkfXTRhuS7vgAKv0zjqk8gbsHkJ7xfFf+jbySxt7tWObEJwyKaHMikV/WGDiQm8g==,
       }
 
   '@vue/devtools-api@7.7.7':
@@ -7389,6 +7407,14 @@ packages:
     peerDependencies:
       eslint: ^8.57.0 || ^9.0.0
 
+  vue-router@4.6.4:
+    resolution:
+      {
+        integrity: sha512-Hz9q5sa33Yhduglwz6g9skT8OBPii+4bFn88w6J+J4MfEo4KRRpmiNG/hHHkdbRFlLBOqxN8y8gf2Fb0MTUgVg==,
+      }
+    peerDependencies:
+      vue: ^3.5.0
+
   vue-tsc@3.2.4:
     resolution:
       {
@@ -8820,10 +8846,11 @@ snapshots:
 
   '@ungap/structured-clone@1.3.0': {}
 
-  '@vercel/analytics@1.6.1(react@18.3.1)(vue@3.5.28(typescript@5.9.3))':
+  '@vercel/analytics@1.6.1(react@18.3.1)(vue-router@4.6.4(vue@3.5.28(typescript@5.9.3)))(vue@3.5.28(typescript@5.9.3))':
     optionalDependencies:
       react: 18.3.1
       vue: 3.5.28(typescript@5.9.3)
+      vue-router: 4.6.4(vue@3.5.28(typescript@5.9.3))
 
   '@vitejs/plugin-react-swc@4.2.3(vite@5.4.21(patch_hash=81ba500186ae82f86c658c8d9dc564b4a0f0445774e36538ee197ea92b9ee78a)(@types/node@20.19.0)(less@4.4.2))':
     dependencies:
@@ -8937,6 +8964,8 @@ snapshots:
     dependencies:
       '@vue/compiler-dom': 3.5.28
       '@vue/shared': 3.5.28
+
+  '@vue/devtools-api@6.6.4': {}
 
   '@vue/devtools-api@7.7.7':
     dependencies:
@@ -12048,6 +12077,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
       - typescript
+
+  vue-router@4.6.4(vue@3.5.28(typescript@5.9.3)):
+    dependencies:
+      '@vue/devtools-api': 6.6.4
+      vue: 3.5.28(typescript@5.9.3)
 
   vue-tsc@3.2.4(typescript@5.9.3):
     dependencies:

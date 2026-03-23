@@ -12,8 +12,7 @@
   },
   "packageManager": "pnpm@10.26.0",
   "dependencies": {
-    "vue": "catalog:prod",
-    "@vercel/analytics": "catalog:docs-dev"
+    "vue": "catalog:prod"
   },
   "devDependencies": {
     "@types/http-proxy": "catalog:docs-dev",
@@ -26,6 +25,8 @@
     "vitepress-plugin-group-icons": "catalog:docs-dev",
     "vitepress-plugin-llms": "catalog:docs-dev",
     "@nolebase/vitepress-plugin-enhanced-mark": "catalog:docs-dev",
-    "del-cli": "catalog:dev"
+    "@vercel/analytics": "catalog:docs-dev",
+    "del-cli": "catalog:dev",
+    "vue-router": "catalog:dev"
   }
 }

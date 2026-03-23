@@ -37,6 +37,8 @@
     "@docs-islands/vitepress": "link:../dist",
     "@docs-islands/utils": "workspace:*",
     "@vitejs/plugin-react-swc": "catalog:dev",
+    "@vercel/analytics": "catalog:docs-dev",
+    "vue-router": "catalog:dev",
     "tsx": "catalog:dev",
     "pathe": "catalog:dev",
     "wait-on": "catalog:dev",
