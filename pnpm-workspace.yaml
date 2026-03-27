@@ -14,7 +14,8 @@ allowBuilds:
   '@swc/core': true
   playwright-chromium: true
 
-# "Vite isn't updating esbuild to 0.25.0 in v5, and since the project doesn't use esbuild dev server, this can be ignored."
+# Ignore GHSA-67mh-4wv8-2f99 until Vite v5 can consume a fixed esbuild release.
+# This workspace does not expose the vulnerable esbuild dev server path.
 auditConfig:
   ignoreGhsas:
     - GHSA-67mh-4wv8-2f99
@@ -33,10 +34,19 @@ overrides:
   # Override to 4.1.1 to pick up the security patch.
   # Remove once @eslint/eslintrc updates its js-yaml dependency.
   '@eslint/eslintrc>js-yaml': '4.1.1'
+  # GHSA-f886-m6hf-6m8v / CVE-2026-33750 is fixed in brace-expansion@5.0.5.
+  # eslint/minimatch@3 and @typescript-eslint/typescript-estree/minimatch@9 still
+  # depend on older brace-expansion majors, so we force the safe version here and
+  # keep compatibility via the local minimatch patches below.
   'minimatch@^3.0.0': '^3.1.4'
+  'minimatch@^3.0.0>brace-expansion': '5.0.5'
   'minimatch@^9.0.0': '^9.0.7'
+  'minimatch@^9.0.0>brace-expansion': '5.0.5'
   'minimatch@^10.0.0': '^10.2.3'
+  'minimatch@^10.0.0>brace-expansion': '5.0.5'
   'undici-types': '^6.24.0'
+  'picomatch@^4.0.0': '4.0.4'
+  'picomatch@^2.0.0': '2.3.2'
 
 nodeVersion: 20.19.0
 
@@ -51,6 +61,10 @@ cleanupUnusedCatalogs: true
 failIfNoMatch: true
 
 patchedDependencies:
+  # Backport brace-expansion@5 compatibility so legacy minimatch consumers stay
+  # functional while we keep the security fix applied transitively.
+  minimatch@3.1.5: patches/minimatch@3.1.5.patch
+  minimatch@9.0.9: patches/minimatch@9.0.9.patch
   vite: patches/vite@5.4.21.patch
   vitepress: patches/vitepress@1.6.4.patch
   '@vueuse/core': patches/@vueuse__core@12.8.2.patch
