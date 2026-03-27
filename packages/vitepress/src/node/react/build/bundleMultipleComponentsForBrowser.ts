@@ -244,19 +244,26 @@ export async function bundleMultipleComponentsForBrowser(
     ${getCleanPathnameRuntime}
   )(${JSON.stringify(base)}, ${JSON.stringify(cleanUrls)});
 
-  if (!window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"][pageId]) {
-    window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"][pageId] = {};
+  const componentManager = window["${RENDER_STRATEGY_CONSTANTS.componentManager}"];
+  if (!componentManager) {
+    throw new Error('ReactComponentManager is not initialized');
+  }
+
+  await componentManager.subscribeRuntimeReady();
+  const injectComponent = window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"];
+  if (!injectComponent) {
+    throw new Error('ReactComponentRegistry is not initialized');
+  }
+
+  if (!injectComponent[pageId]) {
+    injectComponent[pageId] = {};
   }
 
   /**
    * Before dynamically importing React components,
    * you must inject the React runtime globally, otherwise component parsing will fail.
    */
-  if (window["${RENDER_STRATEGY_CONSTANTS.componentManager}"]) {
-    await window["${RENDER_STRATEGY_CONSTANTS.componentManager}"].loadReact();
-  } else {
-    throw new Error('ReactComponentManager is not initialized');
-  }
+  await componentManager.loadReact();
 
   const componentLoaders = [
     ${componentEntries
@@ -282,15 +289,15 @@ export async function bundleMultipleComponentsForBrowser(
     componentLoaders.map(async ({ name, loader }) => {
       const Component = await loader();
       if (Component) {
-        if (!window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"][pageId][name]) {
-          window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"][pageId][name] = {};
+        if (!injectComponent[pageId][name]) {
+          injectComponent[pageId][name] = {};
         }
         /**
          * In production environment, unlike development,
          * we don't need to inject path and importedName fields for HMR.
          */
-        window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"][pageId][name].component = Component;
-        window["${RENDER_STRATEGY_CONSTANTS.componentManager}"].notifyComponentLoaded(pageId, name);
+        injectComponent[pageId][name].component = Component;
+        componentManager.notifyComponentLoaded(pageId, name);
         return { name, success: true };
       }
       return { name, success: false };

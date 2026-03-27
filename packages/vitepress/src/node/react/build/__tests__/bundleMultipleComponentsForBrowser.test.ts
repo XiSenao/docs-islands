@@ -221,5 +221,25 @@ describe('bundleMultipleComponentsForBrowser', () => {
         `loaderScript should include the component name: ${componentName}`,
       ).to.include(componentName);
     }
+
+    expect(
+      loaderScriptContent,
+      'loaderScript should resolve the global component manager before registering components',
+    ).to.include('const componentManager = window["__COMPONENT_MANAGER__"];');
+
+    expect(
+      loaderScriptContent,
+      'loaderScript should subscribe to runtime readiness before accessing injected components',
+    ).to.include('await componentManager.subscribeRuntimeReady();');
+
+    expect(
+      loaderScriptContent,
+      'loaderScript should read the injected component registry after runtime readiness resolves',
+    ).to.include('const injectComponent = window["__INJECT_COMPONENT__"];');
+
+    expect(
+      loaderScriptContent,
+      'loaderScript should notify the resolved component manager instance',
+    ).to.include('componentManager.notifyComponentLoaded(pageId, name);');
   });
 });
