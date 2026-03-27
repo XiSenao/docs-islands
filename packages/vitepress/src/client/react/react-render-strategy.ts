@@ -277,7 +277,7 @@ export class ReactRenderStrategy {
 
     await Promise.allSettled(clientRenderTasks);
 
-    return hydrateComponents;
+    return [...visibleComponents, ...hydrateComponents];
   }
 
   private async executeSSRInitialStrategy(

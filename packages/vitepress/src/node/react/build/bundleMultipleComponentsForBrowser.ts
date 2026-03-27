@@ -2,11 +2,11 @@ import type {
   ComponentBundleInfo,
   UsedSnippetContainerType,
 } from '#dep-types/component';
+import type { RollupOutput } from '#dep-types/rollup';
 import type { ConfigType } from '#dep-types/utils';
 import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
 import getLoggerInstance, { LightGeneralLogger } from '#shared/logger';
 import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
-import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { dirname, join } from 'pathe';
 import type { InlineConfig } from 'vite';
@@ -20,6 +20,200 @@ const loggerInstance = getLoggerInstance();
 const Logger = loggerInstance.getLoggerByGroup(
   'bundle-multiple-components-for-browser',
 );
+
+function createUnifiedLoaderEntryCode(
+  base: string,
+  cleanUrls: boolean,
+  componentEntries: {
+    componentName: string;
+    modulePath: string;
+    importReference: { importedName: string; identifier: string };
+  }[],
+): string {
+  const getCleanPathnameRuntime = GET_CLEAN_PATHNAME_RUNTIME.toString();
+  const loaderEntries = componentEntries.map((entry) => ({
+    componentName: entry.componentName,
+    modulePath: entry.modulePath,
+    importedName: entry.importReference.importedName,
+  }));
+
+  return `
+const getPageId = ${getCleanPathnameRuntime};
+
+const componentEntries = ${JSON.stringify(loaderEntries, null, 2)};
+
+const resolveComponentExport = (module, importedName) => {
+  if (importedName === 'default') {
+    return module.default;
+  }
+  if (importedName === '*') {
+    return module;
+  }
+  return module[importedName];
+};
+
+(async function() {
+  const pageId = getPageId(${JSON.stringify(base)}, ${JSON.stringify(cleanUrls)});
+
+  const componentManager = window["${RENDER_STRATEGY_CONSTANTS.componentManager}"];
+  if (!componentManager) {
+    throw new Error('ReactComponentManager is not initialized');
+  }
+
+  await componentManager.subscribeRuntimeReady();
+  const injectComponent = window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"];
+  if (!injectComponent) {
+    throw new Error('ReactComponentRegistry is not initialized');
+  }
+
+  if (!injectComponent[pageId]) {
+    injectComponent[pageId] = {};
+  }
+
+  /**
+   * Before dynamically importing React components,
+   * you must inject the React runtime globally, otherwise component parsing will fail.
+   */
+  await componentManager.loadReact();
+
+  const loadResults = await Promise.allSettled(
+    componentEntries.map(async ({ componentName: name, modulePath, importedName }) => {
+      try {
+        const module = await import(/* @vite-ignore */ modulePath);
+        const Component = resolveComponentExport(module, importedName);
+        if (!Component) {
+          return { name, success: false };
+        }
+
+        if (!injectComponent[pageId][name]) {
+          injectComponent[pageId][name] = {};
+        }
+
+        /**
+         * In production environment, unlike development,
+         * we don't need to inject path and importedName fields for HMR.
+         */
+        injectComponent[pageId][name].component = Component;
+        componentManager.notifyComponentLoaded(pageId, name);
+        return { name, success: true };
+      } catch (error) {
+        ${
+          LightGeneralLogger(
+            'error',
+            `'Failed to load component ' + name + ': ' + (error instanceof Error ? error.message : String(error))`,
+            'react-client-render',
+          ).formatText
+        }
+        return { name, success: false };
+      }
+    })
+  );
+
+  const successCount = loadResults.filter(result =>
+    result.status === 'fulfilled' && result.value.success
+  ).length;
+
+  ${
+    LightGeneralLogger(
+      'success',
+      `Loaded \${successCount} / \${componentEntries.length} React components for page: \${pageId}`,
+      'react-client-render',
+    ).formatText
+  }
+})();
+  `.trim();
+}
+
+async function bundleRuntimeModuleWithVite(
+  config: Pick<
+    ConfigType,
+    'root' | 'outDir' | 'assetsDir' | 'cacheDir' | 'base'
+  >,
+  runtimeModule: {
+    entryFileBaseName: string;
+    source: string;
+  },
+): Promise<string> {
+  const tempEntryDir = join(
+    config.cacheDir,
+    `${runtimeModule.entryFileBaseName}-entry-${Date.now()}-${Math.random()
+      .toString(16)
+      .slice(2)}`,
+  );
+  const tempEntryPath = join(
+    tempEntryDir,
+    `${runtimeModule.entryFileBaseName}-entry.mjs`,
+  );
+
+  fs.mkdirSync(tempEntryDir, { recursive: true });
+  fs.writeFileSync(tempEntryPath, runtimeModule.source);
+
+  try {
+    const result = (await build({
+      root: config.root,
+      base: config.base,
+      cacheDir: join(config.cacheDir, 'vite-runtime-modules'),
+      configFile: false,
+      publicDir: false,
+      logLevel: 'warn',
+      build: {
+        outDir: config.outDir,
+        emptyOutDir: false,
+        write: false,
+        target: 'es2020',
+        minify: true,
+        rollupOptions: {
+          input: tempEntryPath,
+          preserveEntrySignatures: 'allow-extension',
+          output: {
+            format: 'esm',
+            assetFileNames: `${config.assetsDir}/${runtimeModule.entryFileBaseName}.[hash].[ext]`,
+            entryFileNames: `${config.assetsDir}/${runtimeModule.entryFileBaseName}.[hash].js`,
+            chunkFileNames: `${config.assetsDir}/chunks/${runtimeModule.entryFileBaseName}.[hash].js`,
+          },
+        },
+      },
+    })) as RollupOutput | RollupOutput[];
+
+    const output = Array.isArray(result) ? result[0] : result;
+    if (!output?.output || output.output.length === 0) {
+      throw new Error(
+        `Expected ${runtimeModule.entryFileBaseName} bundle output`,
+      );
+    }
+
+    let runtimeScriptRelativePath = '';
+
+    for (const chunk of output.output) {
+      const fullOutputPath = resolveSafeOutputPath(
+        config.outDir,
+        chunk.fileName,
+      );
+      if (!fs.existsSync(dirname(fullOutputPath))) {
+        fs.mkdirSync(dirname(fullOutputPath), { recursive: true });
+      }
+
+      if (isOutputChunk(chunk)) {
+        fs.writeFileSync(fullOutputPath, chunk.code);
+        if (chunk.isEntry) {
+          runtimeScriptRelativePath = join('/', chunk.fileName);
+        }
+      } else if (isOutputAsset(chunk)) {
+        fs.writeFileSync(fullOutputPath, chunk.source);
+      }
+    }
+
+    if (!runtimeScriptRelativePath) {
+      throw new Error(
+        `Failed to locate ${runtimeModule.entryFileBaseName} entry output`,
+      );
+    }
+
+    return runtimeScriptRelativePath;
+  } finally {
+    fs.rmSync(tempEntryDir, { recursive: true, force: true });
+  }
+}
 
 export async function bundleMultipleComponentsForBrowser(
   config: ConfigType,
@@ -184,19 +378,6 @@ export async function bundleMultipleComponentsForBrowser(
       }
     }
 
-    const getExportExpression = (importInfo: {
-      importedName: string;
-      identifier: string;
-    }) => {
-      if (importInfo.importedName === 'default') {
-        return 'module.default';
-      }
-      if (importInfo.importedName === '*') {
-        return 'module';
-      }
-      return `module['${importInfo.importedName}']`;
-    };
-
     const ssrInjectCodeSnippet: string[] = [];
     for (const [renderId, usedSnippet] of usedSnippetContainer.entries()) {
       if (usedSnippet.ssrHtml && !usedSnippet.useSpaSyncRender) {
@@ -235,108 +416,25 @@ export async function bundleMultipleComponentsForBrowser(
       ssrInjectCodeSnippet.push('};');
     }
 
-    // Inject helper body once and call via toString()
-    const getCleanPathnameRuntime = GET_CLEAN_PATHNAME_RUNTIME.toString();
-    const unifiedLoaderCode = `
-(async function() {
-  // This loader is emitted from a string, so pass base/cleanUrls explicitly.
-  const pageId = (
-    ${getCleanPathnameRuntime}
-  )(${JSON.stringify(base)}, ${JSON.stringify(cleanUrls)});
-
-  const componentManager = window["${RENDER_STRATEGY_CONSTANTS.componentManager}"];
-  if (!componentManager) {
-    throw new Error('ReactComponentManager is not initialized');
-  }
-
-  await componentManager.subscribeRuntimeReady();
-  const injectComponent = window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"];
-  if (!injectComponent) {
-    throw new Error('ReactComponentRegistry is not initialized');
-  }
-
-  if (!injectComponent[pageId]) {
-    injectComponent[pageId] = {};
-  }
-
-  /**
-   * Before dynamically importing React components,
-   * you must inject the React runtime globally, otherwise component parsing will fail.
-   */
-  await componentManager.loadReact();
-
-  const componentLoaders = [
-    ${componentEntries
-      .map(
-        (entry) => `
-    {
-      name: '${entry.componentName}',
-      loader: async () => {
-        try {
-          const module = await import('${wrapBaseUrl(entry.modulePath)}');
-          return ${getExportExpression(entry.importReference)};
-        } catch (error) {
-          ${LightGeneralLogger('error', `Failed to load component ${entry.componentName}: error.message`, 'react-client-render').formatText}
-          return null;
-        }
-      }
-    }`,
-      )
-      .join(',')}
-  ];
-
-  const loadResults = await Promise.allSettled(
-    componentLoaders.map(async ({ name, loader }) => {
-      const Component = await loader();
-      if (Component) {
-        if (!injectComponent[pageId][name]) {
-          injectComponent[pageId][name] = {};
-        }
-        /**
-         * In production environment, unlike development,
-         * we don't need to inject path and importedName fields for HMR.
-         */
-        injectComponent[pageId][name].component = Component;
-        componentManager.notifyComponentLoaded(pageId, name);
-        return { name, success: true };
-      }
-      return { name, success: false };
-    })
-  );
-
-  const successCount = loadResults.filter(result =>
-    result.status === 'fulfilled' && result.value.success
-  ).length;
-
-      ${LightGeneralLogger('success', `Loaded \${successCount} / \${componentLoaders.length} React components for page: \${pageId}`, 'react-client-render').formatText}
-})();
-    `.trim();
-
-    const hash = createHash('sha256')
-      .update(unifiedLoaderCode)
-      .digest('hex')
-      .slice(0, 8);
-    const loaderFileName = `unified-loader.${hash}.js`;
-    const loaderFullPath = resolveSafeOutputPath(
-      outDir,
-      join(assetsDir, loaderFileName),
+    const unifiedLoaderCode = createUnifiedLoaderEntryCode(
+      base,
+      cleanUrls,
+      componentEntries.map((entry) => ({
+        ...entry,
+        modulePath: wrapBaseUrl(entry.modulePath),
+      })),
     );
-    fs.writeFileSync(loaderFullPath, unifiedLoaderCode);
-    const loaderScriptRelativePath = join('/', assetsDir, loaderFileName);
+    const loaderScriptRelativePath = await bundleRuntimeModuleWithVite(config, {
+      entryFileBaseName: 'unified-loader',
+      source: unifiedLoaderCode,
+    });
 
     let ssrInjectScriptRelativePath = '';
     if (ssrInjectCodeSnippet.length > 0) {
-      const ssrInjectCodeHash = createHash('sha256')
-        .update(ssrInjectCodeSnippet.join('\n'))
-        .digest('hex')
-        .slice(0, 8);
-      const ssrInjectFileName = `ssr-inject-code.${ssrInjectCodeHash}.js`;
-      const ssrInjectFullPath = resolveSafeOutputPath(
-        outDir,
-        join(assetsDir, ssrInjectFileName),
-      );
-      fs.writeFileSync(ssrInjectFullPath, ssrInjectCodeSnippet.join('\n'));
-      ssrInjectScriptRelativePath = join('/', assetsDir, ssrInjectFileName);
+      ssrInjectScriptRelativePath = await bundleRuntimeModuleWithVite(config, {
+        entryFileBaseName: 'ssr-inject-code',
+        source: ssrInjectCodeSnippet.join('\n'),
+      });
     }
 
     Logger.success(`Bundle multiple components for browser completed`);
