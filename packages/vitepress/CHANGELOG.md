@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2026-03-27
+
+### Features
+
+- feat(docs): integrate Vercel web analytics (#55) ([d82caff](https://github.com/XiSenao/docs-islands/commit/d82caff))
+
+### Bug Fixes
+
+- fix(vitepress): stabilize react loader hydration readiness on iOS Chrome ([454c383](https://github.com/XiSenao/docs-islands/commit/454c383))
+
+### Maintenance
+
+- chore(deps): resolve npm package security issues ([f793f7a](https://github.com/XiSenao/docs-islands/commit/f793f7a))
+- chore(config): add Vercel configuration items ([abbe3cb](https://github.com/XiSenao/docs-islands/commit/abbe3cb))
+- chore(vitepress): warn when re-export intermediaries contain side-effect imports ([2841ce2](https://github.com/XiSenao/docs-islands/commit/2841ce2))
+
 ## [0.2.4] - 2026-03-20
 
 ### Features
