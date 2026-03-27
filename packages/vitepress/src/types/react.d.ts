@@ -102,6 +102,21 @@ export interface ReactComponentManager {
   ): Promise<boolean>;
 
   /**
+   * Subscribe to the runtime readiness notification
+   * Resolves once the global manager bindings and runtime initialization are ready
+   * @param timeout - Subscription timeout in milliseconds (default: 10000)
+   * @returns Promise resolving when runtime is ready
+   * @throws Error if runtime readiness times out
+   */
+  subscribeRuntimeReady(timeout?: number): Promise<boolean>;
+
+  /**
+   * Notify that the runtime global bindings and initialization are ready
+   * Resolves all pending runtime readiness subscriptions
+   */
+  notifyRuntimeReady(): void;
+
+  /**
    * Notify that a component has been loaded and registered
    * Resolves all pending subscriptions for this component
    * @param pageId - Page identifier

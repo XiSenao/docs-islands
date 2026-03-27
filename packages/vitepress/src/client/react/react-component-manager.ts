@@ -13,25 +13,36 @@ interface ComponentSubscription {
   timestamp: number;
 }
 
+interface RuntimeSubscription {
+  resolve: (value: boolean) => void;
+  reject: (error: Error) => void;
+  timestamp: number;
+}
+
 const baseUrl = typeof __BASE__ === 'string' ? __BASE__ : '/';
 
 export class ReactComponentManager {
   private readonly loadedComponents = new Map<string, ComponentInfo>();
   private readonly subscriptions = new Map<string, ComponentSubscription[]>();
+  private readonly runtimeSubscriptions: RuntimeSubscription[] = [];
   private pageMetafile: Record<string, PageMetafile> = {};
   private isInitialized = false;
   private reactLoadPromise: Promise<boolean> | null = null;
   private reactLoaded = false;
 
+  public constructor() {
+    this.ensureGlobalBindings();
+  }
+
   public async initializeInDev(): Promise<void> {
-    this.setupComponentManager();
-    this.setupGlobalComponents();
+    this.ensureGlobalBindings();
     if (import.meta.env.DEV) {
       if (this.isInitialized) {
         Logger.warn('Already initialized');
         return;
       }
       this.isInitialized = true;
+      this.notifyRuntimeReady();
       Logger.success('Initialization completed');
     }
   }
@@ -42,8 +53,7 @@ export class ReactComponentManager {
       return;
     }
 
-    this.setupComponentManager();
-    this.setupGlobalComponents();
+    this.ensureGlobalBindings();
     if (import.meta.env.PROD) {
       if (this.isInitialized) {
         Logger.warn('Already initialized');
@@ -98,6 +108,7 @@ export class ReactComponentManager {
       }
 
       this.isInitialized = true;
+      this.notifyRuntimeReady();
       Logger.success('Initialization completed');
     }
   }
@@ -188,6 +199,20 @@ export class ReactComponentManager {
     ) {
       window[RENDER_STRATEGY_CONSTANTS.componentManager] = this;
     }
+  }
+
+  private ensureGlobalBindings(): void {
+    this.setupComponentManager();
+    this.setupGlobalComponents();
+  }
+
+  private isRuntimeReady(): boolean {
+    return (
+      this.isInitialized &&
+      globalThis.window !== undefined &&
+      window[RENDER_STRATEGY_CONSTANTS.componentManager] === this &&
+      Boolean(window[RENDER_STRATEGY_CONSTANTS.injectComponent])
+    );
   }
 
   private isReactAvailable(): boolean {
@@ -450,6 +475,55 @@ export class ReactComponentManager {
     return false;
   }
 
+  public async subscribeRuntimeReady(timeout = 10_000): Promise<boolean> {
+    this.ensureGlobalBindings();
+
+    if (this.isRuntimeReady()) {
+      return true;
+    }
+
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        this.rejectRuntimeSubscriptions(
+          new Error(`Runtime ready subscription timeout (${timeout}ms)`),
+        );
+      }, timeout);
+
+      this.runtimeSubscriptions.push({
+        resolve: (value) => {
+          clearTimeout(timeoutId);
+          resolve(value);
+        },
+        reject: (error) => {
+          clearTimeout(timeoutId);
+          reject(error);
+        },
+        timestamp: Date.now(),
+      });
+    });
+  }
+
+  public notifyRuntimeReady(): void {
+    this.ensureGlobalBindings();
+
+    if (!this.isRuntimeReady() || this.runtimeSubscriptions.length === 0) {
+      return;
+    }
+
+    const subscribers = [...this.runtimeSubscriptions];
+    this.runtimeSubscriptions.length = 0;
+
+    for (const subscriber of subscribers) {
+      try {
+        subscriber.resolve(true);
+      } catch (error) {
+        Logger.error(
+          `Runtime subscription callback execution error, message: ${formatErrorMessage(error)}`,
+        );
+      }
+    }
+  }
+
   public notifyComponentLoaded(pageId: string, componentName: string): void {
     const key = `${pageId}-${componentName}`;
 
@@ -555,12 +629,33 @@ export class ReactComponentManager {
     }
   }
 
+  private rejectRuntimeSubscriptions(error: Error): void {
+    if (this.runtimeSubscriptions.length === 0) {
+      return;
+    }
+
+    const subscribers = [...this.runtimeSubscriptions];
+    this.runtimeSubscriptions.length = 0;
+
+    for (const subscriber of subscribers) {
+      try {
+        subscriber.reject(error);
+      } catch (rejectionError) {
+        Logger.error(
+          `Runtime subscription rejection handling error, message: ${formatErrorMessage(rejectionError)}`,
+        );
+      }
+    }
+  }
+
   public reset(): void {
     const resetError = new Error('ReactComponentManager reset');
 
     for (const key of this.subscriptions.keys()) {
       this.rejectSubscriptions(key, resetError);
     }
+
+    this.rejectRuntimeSubscriptions(resetError);
 
     this.loadedComponents.clear();
   }
