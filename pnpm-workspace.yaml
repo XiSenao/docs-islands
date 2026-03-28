@@ -164,6 +164,8 @@ catalogs:
     '@vitejs/plugin-react-swc': '^4.2.3'
     'concurrently': '^9.2.1'
     'is-in-ci': '^2.0.0'
+    'shiki': ^2.5.0
+    'vue-json-pretty': ^2.6.0
 
   prod:
     'vite': '^5.4.21'

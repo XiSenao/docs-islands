@@ -55,18 +55,20 @@ const nodePlugins: RolldownOptions['plugins'] = [
           source: await readFile(resolve(__dirname, 'LICENSE.md'), 'utf8'),
           fileName: 'LICENSE.md',
         });
-        await scanFiles(
-          resolve(__dirname, 'types'),
-          async (_, absolutePath) => {
-            const content = await readFile(absolutePath, 'utf8');
-            const relativePath = path.relative(__dirname, absolutePath);
-            this.emitFile({
-              type: 'asset',
-              source: content,
-              fileName: relativePath,
-            });
-          },
-        );
+        for (const copyDir of ['types', 'theme']) {
+          await scanFiles(
+            resolve(__dirname, copyDir),
+            async (_, absolutePath) => {
+              const content = await readFile(absolutePath, 'utf8');
+              const relativePath = path.relative(__dirname, absolutePath);
+              this.emitFile({
+                type: 'asset',
+                source: content,
+                fileName: relativePath,
+              });
+            },
+          );
+        }
       },
     },
   },
@@ -102,7 +104,7 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
          * users, therefore separate .d.ts type declaration files are not
          * required.
          */
-        if (['logger', 'client-runtime'].includes(chunkInfo.name)) {
+        if (['debug', 'logger', 'client-runtime'].includes(chunkInfo.name)) {
           return 'shared/[name].js';
         }
         return `${baseDir}/[name].${chunkFileExt}`;
@@ -160,6 +162,7 @@ const nodeDtsConfig = defineConfig({
 const clientConfig = defineConfig({
   ...sharedBrowserOptions,
   input: {
+    debug: resolve(__dirname, 'src/shared/debug.ts'),
     logger: resolve(__dirname, 'src/shared/logger.ts'),
     index: resolve(__dirname, 'src/client/index.ts'),
     react: resolve(__dirname, 'src/client/react/index.ts'),
@@ -223,6 +226,16 @@ const clientRuntimeConfig = defineConfig({
             type: 'asset',
             fileName: 'shared/logger.d.ts',
             source: loggerDtsContent,
+          });
+
+          const debugDtsContent = await readFile(
+            resolve(__dirname, 'src/shared/debug.d.ts'),
+            'utf8',
+          );
+          this.emitFile({
+            type: 'asset',
+            fileName: 'shared/debug.d.ts',
+            source: debugDtsContent,
           });
         },
       },

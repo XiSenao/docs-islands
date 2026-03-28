@@ -37,9 +37,10 @@
     "lint:package": "tsx scripts/lint-package.ts",
     "lint:package:publint": "tsx scripts/lint-package.ts --tool publint",
     "lint:package:attw": "tsx scripts/lint-package.ts --tool attw",
-    "typecheck": "tsc --noEmit && tsc -p src/node --noEmit && tsc -p src/client --noEmit && tsc -p src/shared --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p src/node --noEmit && tsc -p src/client --noEmit && tsc -p src/shared --noEmit && pnpm typecheck:theme",
+    "typecheck:theme": "vue-tsc -p tsconfig.theme.json --noEmit",
     "build": "rolldown --config rolldown.config.ts && pnpm build-types-check",
-    "build-types-check": "tsc -p tsconfig.check.json",
+    "build-types-check": "tsc -p tsconfig.check.json && pnpm typecheck:theme",
     "build:watch": "rolldown --config rolldown.config.ts --watch",
     "changelog": "tsx scripts/changelog.ts",
     "changelog:preview": "tsx scripts/changelog.ts --dry-run",
@@ -61,51 +62,56 @@
   },
   "dependencies": {
     "cheerio": "catalog:prod",
-    "vite": "catalog:prod"
+    "prettier": "catalog:format",
+    "shiki": "catalog:dev",
+    "vite": "catalog:prod",
+    "vue-json-pretty": "catalog:dev"
   },
   "devDependencies": {
-    "@types/node": "catalog:dev",
-    "@types/babel__generator": "catalog:dev",
-    "@types/babel__traverse": "catalog:dev",
-    "@types/react": "catalog:dev",
-    "@types/react-dom": "catalog:dev",
-    "@types/estree": "catalog:dev",
-    "@types/markdown-it": "catalog:dev",
-    "eslint": "catalog:lint",
-    "@typescript-eslint/parser": "catalog:lint",
-    "@docs-islands/eslint-config": "workspace:*",
-    "@docs-islands/utils": "workspace:*",
-    "publint": "catalog:lint",
-    "@publint/pack": "catalog:lint",
     "@arethetypeswrong/core": "catalog:lint",
     "@babel/generator": "catalog:dev",
     "@babel/parser": "catalog:dev",
     "@babel/traverse": "catalog:dev",
     "@babel/types": "catalog:dev",
+    "@docs-islands/eslint-config": "workspace:*",
+    "@docs-islands/plugin-license": "workspace:*",
+    "@docs-islands/utils": "workspace:*",
+    "@publint/pack": "catalog:lint",
+    "@types/babel__generator": "catalog:dev",
+    "@types/babel__traverse": "catalog:dev",
+    "@types/estree": "catalog:dev",
+    "@types/markdown-it": "catalog:dev",
+    "@types/node": "catalog:dev",
+    "@types/react": "catalog:dev",
+    "@types/react-dom": "catalog:dev",
+    "@typescript-eslint/parser": "catalog:lint",
+    "@vitejs/plugin-react-swc": "catalog:dev",
+    "del-cli": "catalog:dev",
     "es-module-lexer": "catalog:dev",
+    "eslint": "catalog:lint",
+    "globals": "catalog:test",
+    "htmlparser2": "catalog:dev",
+    "jsdom": "catalog:test",
     "magic-string": "catalog:dev",
     "markdown-it": "catalog:dev",
     "pathe": "catalog:dev",
-    "htmlparser2": "catalog:dev",
     "picocolors": "catalog:dev",
-    "rolldown": "catalog:dev",
-    "rolldown-plugin-dts": "catalog:dev",
-    "@docs-islands/plugin-license": "workspace:*",
-    "vitepress": "catalog:frameworks",
+    "publint": "catalog:lint",
     "react": "catalog:dev",
     "react-dom": "catalog:dev",
-    "@vitejs/plugin-react-swc": "catalog:dev",
+    "rolldown": "catalog:dev",
+    "rolldown-plugin-dts": "catalog:dev",
+    "vitepress": "catalog:frameworks",
     "vitest": "catalog:test",
-    "jsdom": "catalog:test",
-    "globals": "catalog:test",
-    "del-cli": "catalog:dev"
+    "vue": "catalog:prod"
   },
   "peerDependencies": {
     "@types/node": "^20.19.0 || >=22.12.0",
     "@vitejs/plugin-react-swc": "catalog:dev",
     "react": "catalog:dev",
     "react-dom": "catalog:dev",
-    "vitepress": "catalog:frameworks"
+    "vitepress": "catalog:frameworks",
+    "vue": "catalog:prod"
   },
   "peerDependenciesMeta": {
     "@types/node": {
@@ -120,6 +126,9 @@
     "react-dom": {
       "optional": true
     },
+    "vue": {
+      "optional": false
+    },
     "vitepress": {
       "optional": false
     }
@@ -127,9 +136,17 @@
   "exports": {
     ".": "./src/node/index.ts",
     "./client": "./src/client/index.ts",
+    "./debug-console": {
+      "types": "./types/debug-console.d.ts",
+      "default": "./theme/SiteDebugConsole.vue"
+    },
     "./react": "./src/node/react/index.ts",
     "./react/client": "./src/client/react/index.ts",
     "./package.json": "./package.json",
+    "./internal/debug": {
+      "types": "./src/shared/debug.d.ts",
+      "default": "./src/shared/debug.ts"
+    },
     "./internal/logger": "./src/shared/logger.ts",
     "./internal/runtime": "./src/shared/client-runtime.ts",
     "./internal-helper/runtime": "./dist/shared/client-runtime.js",
@@ -146,11 +163,17 @@
       "client": [
         "./client/index.d.mts"
       ],
+      "debug-console": [
+        "./types/debug-console.d.ts"
+      ],
       "react": [
         "./node/react.d.ts"
       ],
       "react/client": [
         "./client/react.d.mts"
+      ],
+      "internal/debug": [
+        "./src/shared/debug.d.ts"
       ],
       "internal/logger": [
         "./shared/logger.d.ts"
