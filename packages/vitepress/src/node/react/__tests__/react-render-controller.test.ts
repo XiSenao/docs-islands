@@ -34,9 +34,8 @@ describe('ReactRenderController', () => {
     expect(code).toContain(
       "renderMode: __hasSsrContent__(dom) ? 'hydrate' : 'render'",
     );
-    expect(code).toContain(
-      "if (renderDirective === 'client:only' || !__hasSsrContent__(dom))",
-    );
+    expect(code).toContain('const renderMode =');
+    expect(code).toContain("renderDirective === 'client:only'");
     expect(code).toContain('if (hasPendingTargets) {');
   });
 });

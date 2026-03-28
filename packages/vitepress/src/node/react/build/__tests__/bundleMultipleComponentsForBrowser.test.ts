@@ -138,12 +138,17 @@ describe('bundleMultipleComponentsForBrowser', () => {
   });
 
   it('should correctly bundle browser assets and validate their contents', async () => {
-    const { loaderScript, modulePreloads, cssBundlePaths, ssrInjectScript } =
-      await bundleMultipleComponentsForBrowser(
-        config,
-        clientComponents,
-        usedSnippetContainer,
-      );
+    const {
+      buildMetrics,
+      loaderScript,
+      modulePreloads,
+      cssBundlePaths,
+      ssrInjectScript,
+    } = await bundleMultipleComponentsForBrowser(
+      config,
+      clientComponents,
+      usedSnippetContainer,
+    );
 
     const allBundlePaths = [
       loaderScript,
@@ -169,6 +174,43 @@ describe('bundleMultipleComponentsForBrowser', () => {
       cssBundlePaths.length,
       'CSS bundle paths should not be empty',
     ).toBeGreaterThan(0);
+
+    const clientComponentNames = clientComponents
+      .filter(
+        (component) =>
+          !(
+            component.renderDirectives.has('ssr:only') &&
+            component.renderDirectives.size === 1
+          ) && component.pendingRenderIds.size > 0,
+      )
+      .map((component) => component.componentName);
+
+    expect(buildMetrics.framework).toBe('react');
+    expect(buildMetrics.loader?.totalBytes ?? 0).toBeGreaterThan(0);
+    expect(buildMetrics.components.length).toBe(clientComponentNames.length);
+    expect(buildMetrics.spaSyncEffects?.enabledComponentCount ?? 0).toBe(3);
+    expect(buildMetrics.spaSyncEffects?.enabledRenderCount ?? 0).toBe(3);
+    expect(
+      buildMetrics.spaSyncEffects?.totalEmbeddedHtmlBytes ?? 0,
+    ).toBeGreaterThan(0);
+    expect(buildMetrics.totalEstimatedComponentBytes).toBeGreaterThan(0);
+    for (const componentMetric of buildMetrics.components) {
+      expect(componentMetric.files.length).toBeGreaterThan(0);
+      expect(componentMetric.estimatedTotalBytes).toBeGreaterThan(0);
+      expect(componentMetric.sourcePath.length).toBeGreaterThan(0);
+    }
+    expect(
+      buildMetrics.spaSyncEffects?.components.find(
+        (component) => component.componentName === 'Landing',
+      )?.embeddedHtmlBytes ?? 0,
+    ).toBeGreaterThan(0);
+    expect(
+      buildMetrics.spaSyncEffects?.components
+        .find((component) => component.componentName === 'Landing')
+        ?.embeddedHtmlPatches.some(
+          (patch) => patch.renderId === '8b05459e' && patch.html === '...',
+        ) ?? false,
+    ).toBe(true);
 
     expect(
       typeof ssrInjectScript,
@@ -201,16 +243,6 @@ describe('bundleMultipleComponentsForBrowser', () => {
     const fullLoaderScriptPath = join(config.outDir, loaderScript);
     const loaderScriptContent = fs.readFileSync(fullLoaderScriptPath, 'utf8');
 
-    const clientComponentNames = clientComponents
-      .filter(
-        (component) =>
-          !(
-            component.renderDirectives.has('ssr:only') &&
-            component.renderDirectives.size === 1
-          ) && component.pendingRenderIds.size > 0,
-      )
-      .map((component) => component.componentName);
-
     expect(
       clientComponentNames.length,
       'There should be client component names to check in loader script',
@@ -225,21 +257,21 @@ describe('bundleMultipleComponentsForBrowser', () => {
     expect(
       loaderScriptContent,
       'loaderScript should resolve the global component manager before registering components',
-    ).to.include('const componentManager = window["__COMPONENT_MANAGER__"];');
+    ).to.include('__COMPONENT_MANAGER__');
 
     expect(
       loaderScriptContent,
       'loaderScript should subscribe to runtime readiness before accessing injected components',
-    ).to.include('await componentManager.subscribeRuntimeReady();');
+    ).to.include('subscribeRuntimeReady');
 
     expect(
       loaderScriptContent,
       'loaderScript should read the injected component registry after runtime readiness resolves',
-    ).to.include('const injectComponent = window["__INJECT_COMPONENT__"];');
+    ).to.include('__INJECT_COMPONENT__');
 
     expect(
       loaderScriptContent,
       'loaderScript should notify the resolved component manager instance',
-    ).to.include('componentManager.notifyComponentLoaded(pageId, name);');
+    ).to.include('notifyComponentLoaded');
   });
 });

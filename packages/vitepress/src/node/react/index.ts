@@ -2,7 +2,13 @@ import type {
   ComponentBundleInfo,
   UsedSnippetContainerType,
 } from '#dep-types/component';
-import type { PageMetafile } from '#dep-types/page';
+import type {
+  BundleAssetMetric,
+  PageBuildMetrics,
+  PageMetafile,
+  RuntimeBundleMetric,
+  SpaSyncComponentSideEffectMetric,
+} from '#dep-types/page';
 import type { RenderDirective } from '#dep-types/render';
 import type { SSRUpdateData, SSRUpdateRenderData } from '#dep-types/ssr';
 import type { ConfigType } from '#dep-types/utils';
@@ -175,6 +181,65 @@ function transformComponentTags(
       RENDER_STRATEGY_CONSTANTS.renderWithSpaSync.toLowerCase(),
   });
 }
+
+const wrapBundleAssetMetrics = (
+  metrics: BundleAssetMetric[],
+  wrapBaseUrl: (value: string) => string,
+): BundleAssetMetric[] =>
+  metrics.map((metric) => ({
+    ...metric,
+    file: wrapBaseUrl(metric.file),
+  }));
+
+const wrapRuntimeBundleMetric = (
+  metric: RuntimeBundleMetric | null,
+  wrapBaseUrl: (value: string) => string,
+): RuntimeBundleMetric | null => {
+  if (!metric) {
+    return null;
+  }
+
+  return {
+    ...metric,
+    entryFile: wrapBaseUrl(metric.entryFile),
+    files: wrapBundleAssetMetrics(metric.files, wrapBaseUrl),
+  };
+};
+
+const wrapPageBuildMetrics = (
+  metrics: PageBuildMetrics,
+  wrapBaseUrl: (value: string) => string,
+): PageBuildMetrics => ({
+  ...metrics,
+  components: metrics.components.map((componentMetric) => ({
+    ...componentMetric,
+    entryFile: wrapBaseUrl(componentMetric.entryFile),
+    files: wrapBundleAssetMetrics(componentMetric.files, wrapBaseUrl),
+    modules: componentMetric.modules.map((moduleMetric) => ({
+      ...moduleMetric,
+      file: wrapBaseUrl(moduleMetric.file),
+      sourceAssetFile: moduleMetric.sourceAssetFile
+        ? wrapBaseUrl(moduleMetric.sourceAssetFile)
+        : undefined,
+    })),
+  })),
+  loader: wrapRuntimeBundleMetric(metrics.loader, wrapBaseUrl),
+  spaSyncEffects: metrics.spaSyncEffects
+    ? {
+        ...metrics.spaSyncEffects,
+        components: metrics.spaSyncEffects.components.map(
+          (component): SpaSyncComponentSideEffectMetric => ({
+            ...component,
+            blockingCssFiles: wrapBundleAssetMetrics(
+              component.blockingCssFiles,
+              wrapBaseUrl,
+            ),
+          }),
+        ),
+      }
+    : null,
+  ssrInject: wrapRuntimeBundleMetric(metrics.ssrInject, wrapBaseUrl),
+});
 
 function registerBuildHelper(
   vitepressConfig: UserConfig<DefaultTheme.Config>,
@@ -387,6 +452,7 @@ function registerBuildHelper(
     if (clientComponentsToBundle.size > 0) {
       try {
         const {
+          buildMetrics,
           loaderScript,
           modulePreloads,
           cssBundlePaths,
@@ -406,6 +472,11 @@ function registerBuildHelper(
             usedSnippet.ssrCssBundlePaths = wrapCssBundlePaths;
           }
         }
+
+        pageMetafile.buildMetrics = wrapPageBuildMetrics(
+          buildMetrics,
+          wrapBaseUrl,
+        );
 
         if (loaderScript) {
           clientScripts.add(loaderScript);
@@ -1174,6 +1245,52 @@ export default function vitepressReactRenderingStrategies(
       apply: 'serve',
       enforce: 'pre',
       configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (!req.url) {
+            next();
+            return;
+          }
+
+          const requestUrl = new URL(req.url, 'http://docs-islands.local');
+          const normalizedBase = siteConfig.base.endsWith('/')
+            ? siteConfig.base
+            : `${siteConfig.base}/`;
+          const debugSourcePath = `${normalizedBase}__docs-islands/debug-source`;
+
+          if (requestUrl.pathname !== debugSourcePath) {
+            next();
+            return;
+          }
+
+          const sourcePath = requestUrl.searchParams.get('path');
+
+          if (!sourcePath) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            res.end('Missing "path" query parameter.');
+            return;
+          }
+
+          try {
+            if (!fs.existsSync(sourcePath)) {
+              res.statusCode = 404;
+              res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+              res.end('Source file not found.');
+              return;
+            }
+
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            res.end(fs.readFileSync(sourcePath, 'utf8'));
+            return;
+          } catch (error) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            res.end(error instanceof Error ? error.message : String(error));
+            return;
+          }
+        });
+
         const collectCssModulesInSSR = (
           module: ModuleNode,
           hasVisited: Set<string>,
@@ -1408,6 +1525,7 @@ export default function vitepressReactRenderingStrategies(
                       importInfo.identifier.replace(siteConfig.srcDir, ''),
                     ),
                     importedName: importInfo.importedName,
+                    sourcePath: importInfo.identifier,
                   };
                 }
               }
@@ -1509,9 +1627,13 @@ export default function vitepressReactRenderingStrategies(
             nonSSROnlyComponentFullPathToPageIdAndImportedNameMap,
           } =
             await renderController.getComponentFullPathToPageIdAndImportedNameMap();
-          const pageIdToUpdateComponentNamesMap = new Map<
+          const pageIdToSsrOnlyUpdateComponentsMap = new Map<
             string,
-            Set<string>
+            Map<string, string>
+          >();
+          const pageIdToFastRefreshComponentsMap = new Map<
+            string,
+            Map<string, string>
           >();
           const deferredModules = new Set<ModuleNode>();
           const collectSsrOnlyModuleEntries = (
@@ -1533,13 +1655,13 @@ export default function vitepressReactRenderingStrategies(
                 const [pageId, importedName] = pageIdAndImportedName.split(
                   '__SSR_ONLY_PLACEHOLDER__',
                 );
-                const updateComponentNames =
-                  pageIdToUpdateComponentNamesMap.get(pageId) ||
-                  new Set<string>();
-                updateComponentNames.add(importedName);
-                pageIdToUpdateComponentNamesMap.set(
+                const updateComponents =
+                  pageIdToSsrOnlyUpdateComponentsMap.get(pageId) ||
+                  new Map<string, string>();
+                updateComponents.set(importedName, module.id);
+                pageIdToSsrOnlyUpdateComponentsMap.set(
                   pageId,
-                  updateComponentNames,
+                  updateComponents,
                 );
               }
             }
@@ -1548,6 +1670,20 @@ export default function vitepressReactRenderingStrategies(
                 module.id,
               )
             ) {
+              const pageIdAndImportedNameSet =
+                nonSSROnlyComponentFullPathToPageIdAndImportedNameMap.get(
+                  module.id,
+                ) || [];
+              for (const pageIdAndImportedName of pageIdAndImportedNameSet) {
+                const [pageId, importedName] = pageIdAndImportedName.split(
+                  '__NON_SSR_ONLY_PLACEHOLDER__',
+                );
+                const updateComponents =
+                  pageIdToFastRefreshComponentsMap.get(pageId) ||
+                  new Map<string, string>();
+                updateComponents.set(importedName, module.id);
+                pageIdToFastRefreshComponentsMap.set(pageId, updateComponents);
+              }
               deferredModules.add(module);
             }
             const importers = module.importers;
@@ -1560,12 +1696,26 @@ export default function vitepressReactRenderingStrategies(
             collectSsrOnlyModuleEntries(module, new Set());
           }
 
-          if (pageIdToUpdateComponentNamesMap.size > 0) {
-            const updates: Record<string, string[]> = {};
+          if (pageIdToFastRefreshComponentsMap.size > 0) {
+            const updates: Record<
+              string,
+              {
+                componentName: string;
+                importedName?: string;
+                sourcePath: string;
+              }[]
+            > = {};
             for (const [
               pageId,
-              updateComponentNames,
-            ] of pageIdToUpdateComponentNamesMap) {
+              updateComponents,
+            ] of pageIdToFastRefreshComponentsMap) {
+              const nextUpdates = [...updateComponents.entries()].map(
+                ([componentName, sourcePath]) => ({
+                  componentName,
+                  importedName: componentName,
+                  sourcePath,
+                }),
+              );
               const resolvedPathname = await server.pluginContainer.resolveId(
                 transformPathForInlinePathResolver(pageId),
               );
@@ -1580,7 +1730,53 @@ export default function vitepressReactRenderingStrategies(
                 if (!cleanPathname.startsWith('/')) {
                   cleanPathname = `/${cleanPathname}`;
                 }
-                updates[cleanPathname] = [...updateComponentNames];
+                updates[cleanPathname] = nextUpdates;
+              }
+            }
+            server.ws.send({
+              type: 'custom',
+              event: 'vrite-react-fast-refresh-prepare',
+              data: {
+                updates,
+              },
+            });
+          }
+
+          if (pageIdToSsrOnlyUpdateComponentsMap.size > 0) {
+            const updates: Record<
+              string,
+              {
+                componentName: string;
+                importedName?: string;
+                sourcePath: string;
+              }[]
+            > = {};
+            for (const [
+              pageId,
+              updateComponents,
+            ] of pageIdToSsrOnlyUpdateComponentsMap) {
+              const nextUpdates = [...updateComponents.entries()].map(
+                ([componentName, sourcePath]) => ({
+                  componentName,
+                  importedName: componentName,
+                  sourcePath,
+                }),
+              );
+              const resolvedPathname = await server.pluginContainer.resolveId(
+                transformPathForInlinePathResolver(pageId),
+              );
+              if (resolvedPathname) {
+                let cleanPathname = resolvedPathname.id;
+                if (resolvedPathname.id.startsWith(siteConfig.base)) {
+                  cleanPathname = resolvedPathname.id.replace(
+                    siteConfig.base,
+                    '',
+                  );
+                }
+                if (!cleanPathname.startsWith('/')) {
+                  cleanPathname = `/${cleanPathname}`;
+                }
+                updates[cleanPathname] = nextUpdates;
               }
             }
             server.ws.send({
