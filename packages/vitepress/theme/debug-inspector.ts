@@ -111,7 +111,7 @@ export const getCurrentPageCandidates = (
     pathname = `/${pathname}`;
   }
 
-  pathname = pathname.replace(/\/{2,}/g, '/');
+  pathname = pathname.replaceAll(/\/{2,}/g, '/');
   pathname = pathname.replace(/(^|\/)index(?:\.html)?$/, '$1');
 
   if (cleanUrls) {

@@ -9,7 +9,7 @@ import type {
   DebugWindow,
   PageMetafile,
   SpaSyncComponentEffect,
-} from './debug-inspector.js';
+} from './debug-inspector';
 
 export interface SiteDebugEntry {
   details?: string;

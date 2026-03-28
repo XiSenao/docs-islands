@@ -50,11 +50,10 @@ const getObjectKeys = (value: object) => {
   }
 };
 
-export const formatForDisplay = (
+const formatPrimitiveForDisplay = (
   value: unknown,
-  depth = 0,
-  seen = new WeakSet<object>(),
-): string => {
+  depth: number,
+): string | undefined => {
   if (value === undefined) {
     return 'undefined';
   }
@@ -83,6 +82,14 @@ export const formatForDisplay = (
     return `[Function${value.name ? `: ${value.name}` : ''}]`;
   }
 
+  return undefined;
+};
+
+const formatSpecialObjectForDisplay = (
+  value: unknown,
+  depth: number,
+  seen: WeakSet<object>,
+): string | undefined => {
   if (value instanceof Error) {
     return `${value.name}: ${value.message}${
       value.stack ? `\n${value.stack}` : ''
@@ -153,75 +160,133 @@ export const formatForDisplay = (
     return `Set(${value.size}) { ${body}${suffix} }`;
   }
 
-  if (Array.isArray(value)) {
-    if (seen.has(value)) {
-      return '[Circular]';
-    }
+  return undefined;
+};
 
-    seen.add(value);
-
-    if (depth >= MAX_OBJECT_DEPTH) {
-      return `[Array(${value.length})]`;
-    }
-
-    const items = value
-      .slice(0, MAX_ARRAY_ITEMS)
-      .map((item) => formatForDisplay(item, depth + 1, seen));
-    const suffix = value.length > items.length ? ', ...' : '';
-    return `[${items.join(', ')}${suffix}]`;
+const formatArrayForDisplay = (
+  value: unknown[],
+  depth: number,
+  seen: WeakSet<object>,
+): string => {
+  if (seen.has(value)) {
+    return '[Circular]';
   }
 
-  if (typeof value === 'object') {
-    if (seen.has(value)) {
-      return '[Circular]';
-    }
+  seen.add(value);
 
-    seen.add(value);
+  if (depth >= MAX_OBJECT_DEPTH) {
+    return `[Array(${value.length})]`;
+  }
 
-    const constructorName =
-      (value as { constructor?: { name?: string } }).constructor?.name ??
-      'Object';
+  const items = value
+    .slice(0, MAX_ARRAY_ITEMS)
+    .map((item) => formatForDisplay(item, depth + 1, seen));
+  const suffix = value.length > items.length ? ', ...' : '';
 
-    if (globalThis.window !== undefined && value === globalThis) {
-      return `Window ${formatForDisplay(
-        { href: globalThis.location.href },
-        depth + 1,
-        seen,
-      )}`;
-    }
+  return `[${items.join(', ')}${suffix}]`;
+};
 
-    if (typeof document !== 'undefined' && value === document) {
-      return `Document ${formatForDisplay(
-        {
-          readyState: document.readyState,
-          visibility: document.visibilityState,
-        },
-        depth + 1,
-        seen,
-      )}`;
-    }
+const formatBrowserGlobalForDisplay = (
+  value: object,
+  depth: number,
+  seen: WeakSet<object>,
+): string | undefined => {
+  if (globalThis.window !== undefined && value === globalThis) {
+    return `Window ${formatForDisplay(
+      { href: globalThis.location.href },
+      depth + 1,
+      seen,
+    )}`;
+  }
 
-    if (depth >= MAX_OBJECT_DEPTH) {
-      return constructorName === 'Object'
-        ? '{ ... }'
-        : `${constructorName} { ... }`;
-    }
+  if (typeof document !== 'undefined' && value === document) {
+    return `Document ${formatForDisplay(
+      {
+        readyState: document.readyState,
+        visibility: document.visibilityState,
+      },
+      depth + 1,
+      seen,
+    )}`;
+  }
 
-    const ownEntries = getOwnPropertyEntries(value);
-    const body = ownEntries
-      .map(
-        ([key, entryValue]) =>
-          `${key}: ${formatForDisplay(entryValue, depth + 1, seen)}`,
-      )
-      .join(', ');
-    const totalKeyCount = Reflect.ownKeys(value).length;
-    const suffix = totalKeyCount > ownEntries.length ? ', ...' : '';
+  return undefined;
+};
 
-    if (constructorName === 'Object') {
-      return `{ ${body}${suffix} }`;
-    }
+const formatPlainObjectForDisplay = (
+  value: object,
+  depth: number,
+  seen: WeakSet<object>,
+): string => {
+  if (seen.has(value)) {
+    return '[Circular]';
+  }
 
-    return `${constructorName} { ${body}${suffix} }`;
+  seen.add(value);
+
+  const constructorName =
+    (value as { constructor?: { name?: string } }).constructor?.name ??
+    'Object';
+  const browserGlobalDisplay = formatBrowserGlobalForDisplay(
+    value,
+    depth,
+    seen,
+  );
+
+  if (browserGlobalDisplay !== undefined) {
+    return browserGlobalDisplay;
+  }
+
+  if (depth >= MAX_OBJECT_DEPTH) {
+    return constructorName === 'Object'
+      ? '{ ... }'
+      : `${constructorName} { ... }`;
+  }
+
+  const ownEntries = getOwnPropertyEntries(value);
+  const body = ownEntries
+    .map(
+      ([key, entryValue]) =>
+        `${key}: ${formatForDisplay(entryValue, depth + 1, seen)}`,
+    )
+    .join(', ');
+  const totalKeyCount = Reflect.ownKeys(value).length;
+  const suffix = totalKeyCount > ownEntries.length ? ', ...' : '';
+
+  if (constructorName === 'Object') {
+    return `{ ${body}${suffix} }`;
+  }
+
+  return `${constructorName} { ${body}${suffix} }`;
+};
+
+export const formatForDisplay = (
+  value: unknown,
+  depth = 0,
+  seen = new WeakSet<object>(),
+): string => {
+  const primitiveDisplay = formatPrimitiveForDisplay(value, depth);
+
+  if (primitiveDisplay !== undefined) {
+    return primitiveDisplay;
+  }
+
+  const specialObjectDisplay = formatSpecialObjectForDisplay(
+    value,
+    depth,
+    seen,
+  );
+
+  if (specialObjectDisplay !== undefined) {
+    return specialObjectDisplay;
+  }
+
+  if (Array.isArray(value)) {
+    return formatArrayForDisplay(value, depth, seen);
+  }
+
+  if (value !== null && typeof value === 'object') {
+    return formatPlainObjectForDisplay(value, depth, seen);
   }
 
   return String(value);
@@ -270,11 +335,11 @@ export const getPropertyValue = (value: unknown, token: string): unknown => {
   return undefined;
 };
 
-export const serializeInspectable = (
+const SERIALIZE_UNHANDLED = Symbol('serialize-unhandled');
+
+const serializePrimitiveInspectableValue = (
   value: unknown,
-  depth = 0,
-  seen = new WeakSet<object>(),
-): unknown => {
+): unknown | typeof SERIALIZE_UNHANDLED => {
   if (
     value === null ||
     value === undefined ||
@@ -309,6 +374,14 @@ export const serializeInspectable = (
     };
   }
 
+  return SERIALIZE_UNHANDLED;
+};
+
+const serializeSpecialInspectableValue = (
+  value: unknown,
+  depth: number,
+  seen: WeakSet<object>,
+): unknown | typeof SERIALIZE_UNHANDLED => {
   if (typeof Element !== 'undefined' && value instanceof HTMLImageElement) {
     return {
       __type: 'HTMLImageElement',
@@ -386,10 +459,14 @@ export const serializeInspectable = (
     };
   }
 
-  if (typeof value !== 'object') {
-    return String(value);
-  }
+  return SERIALIZE_UNHANDLED;
+};
 
+const serializePlainObjectInspectableValue = (
+  value: object,
+  depth: number,
+  seen: WeakSet<object>,
+): unknown => {
   if (seen.has(value)) {
     return {
       __type:
@@ -443,6 +520,34 @@ export const serializeInspectable = (
   }
 
   return snapshot;
+};
+
+export const serializeInspectable = (
+  value: unknown,
+  depth = 0,
+  seen = new WeakSet<object>(),
+): unknown => {
+  const primitiveInspectableValue = serializePrimitiveInspectableValue(value);
+
+  if (primitiveInspectableValue !== SERIALIZE_UNHANDLED) {
+    return primitiveInspectableValue;
+  }
+
+  const specialInspectableValue = serializeSpecialInspectableValue(
+    value,
+    depth,
+    seen,
+  );
+
+  if (specialInspectableValue !== SERIALIZE_UNHANDLED) {
+    return specialInspectableValue;
+  }
+
+  if (value === null || typeof value !== 'object') {
+    return String(value);
+  }
+
+  return serializePlainObjectInspectableValue(value, depth, seen);
 };
 
 export const getInspectableNodeType = (value: unknown) => {

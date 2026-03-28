@@ -1,6 +1,6 @@
 import licensePlugin from '@docs-islands/plugin-license';
 import { loadEnv, scanFiles } from '@docs-islands/utils';
-import { readFile } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, resolve } from 'node:url';
 import type { PreRenderedChunk } from 'rolldown';
@@ -27,8 +27,23 @@ const getExternalDeps = () => {
 };
 
 const externalDeps = getExternalDeps();
+let hasCleanedDist = false;
 
 const nodePlugins: RolldownOptions['plugins'] = [
+  {
+    name: 'rolldown-plugin-clean-dist',
+    async buildStart() {
+      if (hasCleanedDist) {
+        return;
+      }
+
+      hasCleanedDist = true;
+      await rm(resolve(__dirname, 'dist'), {
+        force: true,
+        recursive: true,
+      });
+    },
+  },
   licensePlugin(
     path.resolve(__dirname, 'LICENSE.md'),
     '@docs-islands/vitepress license',
@@ -55,7 +70,7 @@ const nodePlugins: RolldownOptions['plugins'] = [
           source: await readFile(resolve(__dirname, 'LICENSE.md'), 'utf8'),
           fileName: 'LICENSE.md',
         });
-        for (const copyDir of ['types', 'theme']) {
+        for (const copyDir of ['types']) {
           await scanFiles(
             resolve(__dirname, copyDir),
             async (_, absolutePath) => {

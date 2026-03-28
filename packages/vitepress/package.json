@@ -39,9 +39,10 @@
     "lint:package:attw": "tsx scripts/lint-package.ts --tool attw",
     "typecheck": "tsc --noEmit && tsc -p src/node --noEmit && tsc -p src/client --noEmit && tsc -p src/shared --noEmit && pnpm typecheck:theme",
     "typecheck:theme": "vue-tsc -p tsconfig.theme.json --noEmit",
-    "build": "rolldown --config rolldown.config.ts && pnpm build-types-check",
-    "build-types-check": "tsc -p tsconfig.check.json && pnpm typecheck:theme",
-    "build:watch": "rolldown --config rolldown.config.ts --watch",
+    "build": "rolldown --config rolldown.config.ts && pnpm build:theme && pnpm build-types-check",
+    "build:theme": "rolldown --config rolldown.theme.config.ts",
+    "build-types-check": "tsc -p tsconfig.check.json",
+    "build:watch": "concurrently --names \"rolldown,theme\" --prefix-colors \"blue,magenta\" \"rolldown --config rolldown.config.ts --watch\" \"vite build --config vite.theme.config.ts --watch\"",
     "changelog": "tsx scripts/changelog.ts",
     "changelog:preview": "tsx scripts/changelog.ts --dry-run",
     "release": "tsx scripts/release.ts",
@@ -62,10 +63,7 @@
   },
   "dependencies": {
     "cheerio": "catalog:prod",
-    "prettier": "catalog:format",
-    "shiki": "catalog:dev",
-    "vite": "catalog:prod",
-    "vue-json-pretty": "catalog:dev"
+    "vite": "catalog:prod"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "catalog:lint",
@@ -86,7 +84,7 @@
     "@types/react-dom": "catalog:dev",
     "@typescript-eslint/parser": "catalog:lint",
     "@vitejs/plugin-react-swc": "catalog:dev",
-    "del-cli": "catalog:dev",
+    "@vitejs/plugin-vue": "catalog:dev",
     "es-module-lexer": "catalog:dev",
     "eslint": "catalog:lint",
     "globals": "catalog:test",
@@ -94,6 +92,9 @@
     "jsdom": "catalog:test",
     "magic-string": "catalog:dev",
     "markdown-it": "catalog:dev",
+    "prettier": "catalog:format",
+    "vue-json-pretty": "catalog:dev",
+    "shiki": "catalog:dev",
     "pathe": "catalog:dev",
     "picocolors": "catalog:dev",
     "publint": "catalog:lint",
@@ -103,15 +104,22 @@
     "rolldown-plugin-dts": "catalog:dev",
     "vitepress": "catalog:frameworks",
     "vitest": "catalog:test",
-    "vue": "catalog:prod"
+    "vue": "catalog:prod",
+    "vue-tsc": "catalog:dev",
+    "tsx": "catalog:dev",
+    "typescript": "catalog:dev",
+    "del-cli": "catalog:dev"
   },
   "peerDependencies": {
     "@types/node": "^20.19.0 || >=22.12.0",
     "@vitejs/plugin-react-swc": "catalog:dev",
     "react": "catalog:dev",
     "react-dom": "catalog:dev",
+    "vue": "catalog:prod",
     "vitepress": "catalog:frameworks",
-    "vue": "catalog:prod"
+    "prettier": "catalog:format",
+    "vue-json-pretty": "catalog:dev",
+    "shiki": "catalog:dev"
   },
   "peerDependenciesMeta": {
     "@types/node": {
@@ -131,22 +139,32 @@
     },
     "vitepress": {
       "optional": false
+    },
+    "prettier": {
+      "optional": true
+    },
+    "vue-json-pretty": {
+      "optional": true
+    },
+    "shiki": {
+      "optional": true
     }
   },
   "exports": {
     ".": "./src/node/index.ts",
     "./client": "./src/client/index.ts",
-    "./debug-console": {
+    "./debug-console/client": {
       "types": "./types/debug-console.d.ts",
-      "default": "./theme/SiteDebugConsole.vue"
+      "default": "./theme/debug-console.mjs"
+    },
+    "./debug-console/client/style.css": {
+      "types": "./types/theme.css.d.ts",
+      "default": "./theme/debug-console.css"
     },
     "./react": "./src/node/react/index.ts",
     "./react/client": "./src/client/react/index.ts",
     "./package.json": "./package.json",
-    "./internal/debug": {
-      "types": "./src/shared/debug.d.ts",
-      "default": "./src/shared/debug.ts"
-    },
+    "./internal/debug": "./src/shared/debug.ts",
     "./internal/logger": "./src/shared/logger.ts",
     "./internal/runtime": "./src/shared/client-runtime.ts",
     "./internal-helper/runtime": "./dist/shared/client-runtime.js",
@@ -163,8 +181,11 @@
       "client": [
         "./client/index.d.mts"
       ],
-      "debug-console": [
+      "debug-console/client": [
         "./types/debug-console.d.ts"
+      ],
+      "debug-console/client/style.css": [
+        "./types/theme.css.d.ts"
       ],
       "react": [
         "./node/react.d.ts"
@@ -173,7 +194,7 @@
         "./client/react.d.mts"
       ],
       "internal/debug": [
-        "./src/shared/debug.d.ts"
+        "./shared/debug.d.ts"
       ],
       "internal/logger": [
         "./shared/logger.d.ts"

@@ -1,6 +1,7 @@
+import { querySelectorAllToArray } from '@docs-islands/utils/dom-iterable';
 import type { SiteDebugRenderMetric } from '@docs-islands/vitepress/internal/debug';
-import { getCurrentPageCandidates as getRuntimePageCandidates } from './debug-inspector.js';
-import type { SiteDebugWindow } from './site-debug-shared.js';
+import { getCurrentPageCandidates as getRuntimePageCandidates } from './debug-inspector';
+import type { SiteDebugWindow } from './site-debug-shared';
 
 export const getThemeSnapshot = () => {
   const root = document.documentElement;
@@ -111,8 +112,9 @@ export const getRenderContainerElement = (
     return null;
   }
 
-  const candidates = Array.from(
-    document.querySelectorAll<HTMLElement>(`[${renderMetricContainerAttr}]`),
+  const candidates = querySelectorAllToArray<HTMLElement>(
+    document,
+    `[${renderMetricContainerAttr}]`,
   );
 
   return (

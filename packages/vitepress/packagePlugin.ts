@@ -91,6 +91,10 @@ const rewriteExportPath = (key: string, value: string): string => {
     const targetExt = /^\.\/client(?:\/.+)?$/.test(key) ? '.mjs' : '.js';
     return value.replace('src/', '').replace('.ts', targetExt);
   }
+  if (value.includes('theme/')) {
+    const targetExt = /^\.\/client(?:\/.+)?$/.test(key) ? '.mjs' : '.js';
+    return value.replace('.ts', targetExt);
+  }
   if (value.endsWith('.ts')) {
     return value.replace('.ts', '.js');
   }

@@ -2,7 +2,7 @@
 
 ## Overview
 
-<Landing client:load spa:sync-render a='24' />
+<Landing client:load spa:sync-render />
 
 The [`@docs-islands/vitepress`](https://www.npmjs.com/package/@docs-islands/vitepress) library provides cross-framework component rendering capabilities for the `vitepress` static site generator, breaking through the limitation that `vitepress` natively only supports `vue` components.
 

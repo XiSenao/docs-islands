@@ -1,5 +1,4 @@
 import type { DevComponentInfo } from '#dep-types/react';
-import type { RenderDirective } from '#dep-types/render';
 import type { SSRUpdateData, SSRUpdateRenderData } from '#dep-types/ssr';
 import {
   NEED_PRE_RENDER_DIRECTIVES,
@@ -16,28 +15,23 @@ import {
 } from '#shared/debug';
 import getLoggerInstance from '#shared/logger';
 import { validateLegalRenderElements } from '#shared/utils';
+import { querySelectorAllToArray } from '@docs-islands/utils/dom-iterable';
 import { formatErrorMessage } from '@docs-islands/utils/logger';
 import type React from 'react';
 import type ReactDOM from 'react-dom/client';
 import { getCleanPathname } from '../../shared/runtime';
 import { reactComponentManager } from './react-component-manager';
 import {
-  getReactRenderedComponent,
-  getReactRenderRoot,
-  rememberReactRenderState,
-} from './react-render-root-store';
+  applyReactMarkdownAfterUpdate,
+  createMemoizedReactUpdateState,
+  type DevHmrSourceUpdate,
+  type ReactUpdateState,
+} from './react-hmr-after-update';
+import { getReactRenderedComponent } from './react-render-root-store';
 import { reactRenderStrategy } from './react-render-strategy';
 
 const loggerInstance = getLoggerInstance();
 const DebugLogger = createSiteDebugLogger('react-hmr');
-
-// Hoisted predicate to satisfy unicorn/consistent-function-scoping.
-const __requiresSsrDirective = (
-  d: string,
-): d is Exclude<RenderDirective, 'client:only'> =>
-  NEED_PRE_RENDER_DIRECTIVES.includes(
-    d as Exclude<RenderDirective, 'client:only'>,
-  );
 
 /**
  * Vitepress redirects the default entry point to the vitepress/client entry point
@@ -46,22 +40,6 @@ const __requiresSsrDirective = (
  * they also introduce potential problems and can easily lead to compilation failures for users.
  */
 import { inBrowser, onContentUpdated } from 'vitepress/client';
-
-interface ReactUpdateState {
-  updates: Record<
-    string,
-    { importedName: string; path: string; sourcePath?: string }
-  >;
-  missingImports: string[];
-}
-
-interface DevHmrSourceUpdate {
-  componentName: string;
-  importedName?: string;
-  sourceColumn?: number;
-  sourceLine?: number;
-  sourcePath?: string;
-}
 
 let currentLocationPathname = '';
 const DEV_MOUNT_RETRY_INTERVAL_MS = 350;
@@ -861,28 +839,7 @@ class ReactIntegration {
 
   private async integrationHMR(): Promise<void> {
     if (import.meta.hot) {
-      const memoizedUpdateState: {
-        state: Record<
-          string,
-          {
-            component: React.ComponentType<Record<string, string>> | null;
-            source: string;
-            importedName: string;
-            effectElements: Record<
-              string,
-              { current: Element; props: Map<string, string> }
-            >;
-          }
-        >;
-        pendingUpdateState: ReactUpdateState['updates'] | null;
-        memoizedSsrOnlyComponents: Set<string>;
-        pendingMissingImports: ReactUpdateState['missingImports'] | null;
-      } = {
-        state: {},
-        pendingUpdateState: null,
-        memoizedSsrOnlyComponents: new Set(),
-        pendingMissingImports: null,
-      };
+      const memoizedUpdateState = createMemoizedReactUpdateState();
 
       import.meta.hot.on(
         'vrite-markdown-update-prepare',
@@ -971,13 +928,12 @@ class ReactIntegration {
       import.meta.hot.on('vite:afterUpdate', () => {
         this.runAsyncTask(
           this.ensureDevHMRReactRuntime()
-            .then(() => {
+            .then(async () => {
               const runtimeReadyAt = getSiteDebugNow();
               this.updateDevHmrMetrics(this.pendingDevHmrMetrics.keys(), {
                 runtimeReadyDurationMs: undefined,
                 updatedAt: runtimeReadyAt,
               });
-              // Content changes trigger this hook, filtering HMR not captured by @docs-islands/vitepress.
               if (
                 !memoizedUpdateState.pendingUpdateState &&
                 !memoizedUpdateState.pendingMissingImports
@@ -989,822 +945,25 @@ class ReactIntegration {
               memoizedUpdateState.pendingMissingImports =
                 memoizedUpdateState.pendingMissingImports || [];
 
-              const Logger =
-                loggerInstance.getLoggerByGroup('vite:after-update');
-              const activeHmrComponentNames = Object.keys(
-                memoizedUpdateState.pendingUpdateState,
+              // Content changes trigger this hook, filtering HMR not captured by @docs-islands/vitepress.
+              await applyReactMarkdownAfterUpdate(
+                {
+                  getPageId: () => this.getPageId(),
+                  getReact: () => this.react!,
+                  getReactDOM: () => this.reactDOM!,
+                  updateDevHmrMetrics: (
+                    componentNames,
+                    patch,
+                    finalize,
+                  ): void =>
+                    this.updateDevHmrMetrics(componentNames, patch, finalize),
+                  failPendingDevHmrMetrics: (componentNames, error): void =>
+                    this.failPendingDevHmrMetrics(componentNames, error),
+                  runAsyncTask: (task, loggerGroup, failureMessage): void =>
+                    this.runAsyncTask(task, loggerGroup, failureMessage),
+                },
+                memoizedUpdateState,
               );
-              const renderComponentDOMContainers = document.querySelectorAll(
-                `[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}]`,
-              );
-              /**
-               * `renderUpdates` contains two types of updates:
-               * 1. Reuse component: When a node's props change or node order changes but the component reference remains the same,
-               *    the component can be reused to complete client-side rendering of those nodes.
-               * 2. Replace component: When the component reference changes, fetch the new component version to complete client-side rendering.
-               */
-              const renderUpdates: Record<
-                string,
-                {
-                  component: React.ComponentType<Record<string, string>> | null;
-                  source: string;
-                  importedName: string;
-                  effectElements: Element[];
-                }
-              > = {};
-              /**
-               * Cache already rendered React root nodes (with event bindings) before the Vue engine renders,
-               * to prevent Vue from removing React-rendered nodes during HMR and losing state.
-               */
-              const renderIdToReuseRenderedElements = new Map<
-                string,
-                Element
-              >();
-              const reusedEffectElementRenderIds = new Set<string>();
-              const ssrOnlyComponents = new Map<
-                string,
-                {
-                  component: null;
-                  importedName: string;
-                  path: string;
-                }
-              >();
-              const reuseInjectComponent = new Map<string, DevComponentInfo>();
-              const rerenderExistingRoots: Record<
-                string,
-                {
-                  component: React.ComponentType<Record<string, string>> | null;
-                  source: string;
-                  importedName: string;
-                  componentName: string;
-                  renderDirective: string;
-                  props: Record<string, string>;
-                }
-              > = {};
-              const renderIdAttr =
-                RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase();
-
-              const hasEquivalentRenderContainerAttrs = (
-                element: Element,
-                memorizedProps: Map<string, string>,
-              ): boolean => {
-                const currentAttrNames = element
-                  .getAttributeNames()
-                  .filter((attr) => attr !== renderIdAttr);
-                const memorizedAttrNames = [...memorizedProps.keys()].filter(
-                  (attr) => attr !== renderIdAttr,
-                );
-
-                if (currentAttrNames.length !== memorizedAttrNames.length) {
-                  return false;
-                }
-
-                for (const [
-                  memorizedAttrKey,
-                  memorizedAttrValue,
-                ] of memorizedProps) {
-                  if (memorizedAttrKey === renderIdAttr) {
-                    continue;
-                  }
-                  const attrValue = element.getAttribute(memorizedAttrKey);
-                  if (attrValue !== memorizedAttrValue) {
-                    return false;
-                  }
-                }
-
-                return true;
-              };
-
-              const syncRenderContainerAttrs = (
-                targetElement: Element,
-                sourceElement: Element,
-              ): void => {
-                const nextAttrs = new Map<string, string>();
-                for (const attrName of sourceElement.getAttributeNames()) {
-                  nextAttrs.set(
-                    attrName,
-                    sourceElement.getAttribute(attrName) || '',
-                  );
-                }
-
-                for (const attrName of targetElement.getAttributeNames()) {
-                  if (!nextAttrs.has(attrName)) {
-                    targetElement.removeAttribute(attrName);
-                  }
-                }
-
-                for (const [attrName, attrValue] of nextAttrs.entries()) {
-                  targetElement.setAttribute(attrName, attrValue);
-                }
-              };
-
-              for (const element of renderComponentDOMContainers) {
-                if (validateLegalRenderElements(element)) {
-                  const renderId = element.getAttribute(
-                    RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),
-                  )!;
-                  const renderComponent = element.getAttribute(
-                    RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase(),
-                  )!;
-                  const renderDirective = element.getAttribute(
-                    RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase(),
-                  )!;
-
-                  const pendingMissingImports =
-                    memoizedUpdateState.pendingMissingImports;
-                  if (pendingMissingImports.includes(renderComponent)) {
-                    element.remove();
-                    continue;
-                  }
-
-                  const pendingState =
-                    memoizedUpdateState.pendingUpdateState[renderComponent];
-                  if (pendingState) {
-                    const { importedName, path } = pendingState;
-                    const memorizedState =
-                      memoizedUpdateState.state[renderComponent];
-                    if (memorizedState) {
-                      const {
-                        component,
-                        source,
-                        importedName: memorizedImportedName,
-                        effectElements,
-                      } = memorizedState;
-                      // Component reference has changed.
-                      if (
-                        importedName !== memorizedImportedName ||
-                        source !== path
-                      ) {
-                        if (renderUpdates[renderComponent]) {
-                          renderUpdates[renderComponent].effectElements.push(
-                            element,
-                          );
-                        } else {
-                          renderUpdates[renderComponent] = {
-                            component: null,
-                            source: path,
-                            importedName,
-                            effectElements: [element],
-                          };
-                        }
-                      } else {
-                        const reusableComponent =
-                          component ||
-                          getReactRenderedComponent(element) ||
-                          null;
-                        reuseInjectComponent.set(renderComponent, {
-                          component: reusableComponent,
-                          path,
-                          importedName,
-                        });
-                        // If both pre- and post-update containers point to the same component, detect reuse vs re-render.
-                        if (effectElements[renderId]) {
-                          const { props, current } = effectElements[renderId];
-                          const hasAttrChanged =
-                            !hasEquivalentRenderContainerAttrs(element, props);
-
-                          // Component reference remains the same, but props changed.
-                          if (hasAttrChanged) {
-                            if (renderUpdates[renderComponent]) {
-                              renderUpdates[
-                                renderComponent
-                              ].effectElements.push(element);
-                            } else {
-                              renderUpdates[renderComponent] = {
-                                component,
-                                source: path,
-                                importedName,
-                                effectElements: [element],
-                              };
-                            }
-                          } else {
-                            // If the component reference and props haven't changed, reuse the already-rendered DOM.
-                            reusedEffectElementRenderIds.add(renderId);
-                            if (current === element) {
-                              const props: Record<string, string> = {};
-                              for (const attr of element.getAttributeNames()) {
-                                if (!RENDER_STRATEGY_ATTRS.includes(attr)) {
-                                  props[attr] =
-                                    element.getAttribute(attr) || '';
-                                }
-                              }
-                              rerenderExistingRoots[renderId] = {
-                                component: reusableComponent,
-                                source: path,
-                                importedName,
-                                componentName: renderComponent,
-                                renderDirective,
-                                props,
-                              };
-                            } else {
-                              syncRenderContainerAttrs(current, element);
-                              renderIdToReuseRenderedElements.set(
-                                renderId,
-                                current,
-                              );
-                            }
-                          }
-                        } else {
-                          let reusableEffectElement: {
-                            current: Element;
-                            props: Map<string, string>;
-                          } | null = null;
-                          let reusableEffectElementRenderId = '';
-
-                          for (const [
-                            effectRenderId,
-                            effectElement,
-                          ] of Object.entries(effectElements)) {
-                            if (
-                              reusedEffectElementRenderIds.has(
-                                effectRenderId,
-                              ) ||
-                              !hasEquivalentRenderContainerAttrs(
-                                element,
-                                effectElement.props,
-                              )
-                            ) {
-                              continue;
-                            }
-                            reusableEffectElement = effectElement;
-                            reusableEffectElementRenderId = effectRenderId;
-                            break;
-                          }
-
-                          if (reusableEffectElement) {
-                            reusedEffectElementRenderIds.add(
-                              reusableEffectElementRenderId,
-                            );
-                            syncRenderContainerAttrs(
-                              reusableEffectElement.current,
-                              element,
-                            );
-                            renderIdToReuseRenderedElements.set(
-                              renderId,
-                              reusableEffectElement.current,
-                            );
-                          } else if (renderUpdates[renderComponent]) {
-                            renderUpdates[renderComponent].effectElements.push(
-                              element,
-                            );
-                          } else {
-                            // Reuse the rendered component for the new container.
-                            renderUpdates[renderComponent] = {
-                              component: reusableComponent,
-                              source: path,
-                              importedName,
-                              effectElements: [element],
-                            };
-                          }
-                        }
-                      }
-                    } else if (renderUpdates[renderComponent]) {
-                      renderUpdates[renderComponent].effectElements.push(
-                        element,
-                      );
-                    } else {
-                      // New render component.
-                      renderUpdates[renderComponent] = {
-                        component: null,
-                        source: path,
-                        importedName,
-                        effectElements: [element],
-                      };
-                    }
-
-                    if (renderDirective === 'ssr:only') {
-                      ssrOnlyComponents.set(renderComponent, {
-                        component: null,
-                        importedName,
-                        path,
-                      });
-                    } else if (ssrOnlyComponents.has(renderComponent)) {
-                      ssrOnlyComponents.delete(renderComponent);
-                    }
-                  } else {
-                    Logger.error(
-                      `[${renderComponent}] is not found in container script`,
-                    );
-                  }
-                }
-              }
-
-              for (const [
-                renderId,
-                element,
-              ] of renderIdToReuseRenderedElements.entries()) {
-                const currentElement = document.querySelector(
-                  `[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}="${renderId}"]`,
-                );
-                if (currentElement) {
-                  currentElement.replaceWith(element);
-                }
-              }
-
-              // SSR client script to complete client hydration.
-              const ssrClientComponents: Record<
-                string,
-                {
-                  component: React.ComponentType<Record<string, string>> | null;
-                  source: string;
-                  importedName: string;
-                  componentName: string;
-                  renderDirective: string;
-                  props: Record<string, string>;
-                }
-              > = {};
-
-              // Client script to complete client rendering.
-              const clientComponents: Record<
-                string,
-                {
-                  component: React.ComponentType<Record<string, string>> | null;
-                  source: string;
-                  importedName: string;
-                  componentName: string;
-                  renderDirective: string;
-                  props: Record<string, string>;
-                }
-              > = {};
-              const ssrComponentsRenderData: SSRUpdateData['data'] = [];
-
-              for (const componentName of Object.keys(renderUpdates)) {
-                const { component, source, importedName, effectElements } =
-                  renderUpdates[componentName];
-                for (const element of effectElements) {
-                  const renderDirective =
-                    element.getAttribute(
-                      RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase(),
-                    ) || '';
-                  const renderId =
-                    element.getAttribute(
-                      RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),
-                    ) || '';
-
-                  // Component props exclude attributes in RENDER_STRATEGY_ATTRS.
-                  const props: Record<string, string> = {};
-                  for (const attr of element.getAttributeNames()) {
-                    if (!RENDER_STRATEGY_ATTRS.includes(attr)) {
-                      props[attr] = element.getAttribute(attr) || '';
-                    }
-                  }
-
-                  if (__requiresSsrDirective(renderDirective)) {
-                    // A pre-rendered module is required for all SSR components.
-                    ssrComponentsRenderData.push({
-                      renderId,
-                      componentName,
-                      props,
-                    });
-
-                    /**
-                     * If all render containers of the render component have only ssr:only rendering type,
-                     * then the client script does not need to be injected.
-                     */
-                    if (ssrOnlyComponents.has(componentName)) {
-                      continue;
-                    }
-
-                    ssrClientComponents[renderId] = {
-                      component,
-                      source,
-                      importedName,
-                      componentName,
-                      renderDirective,
-                      props,
-                    };
-                  } else {
-                    clientComponents[renderId] = {
-                      component,
-                      source,
-                      importedName,
-                      componentName,
-                      renderDirective,
-                      props,
-                    };
-                  }
-                }
-              }
-
-              const handleMarkdownUpdateRender = ({
-                pathname,
-                data,
-              }: SSRUpdateRenderData) => {
-                if (import.meta.hot) {
-                  import.meta.hot.off(
-                    'vrite-ssr-markdown-update-render',
-                    handleMarkdownUpdateRender,
-                  );
-                }
-                if (pathname === this.getPageId() && data.length > 0) {
-                  const ssrUpdatedComponentNames = new Set<string>();
-                  const ssrComponentsMap = new Map<string, Element>();
-                  const renderComponents =
-                    reactRenderStrategy.collectLegalRenderComponents();
-                  const ssrRequiredDirectives = NEED_PRE_RENDER_DIRECTIVES;
-                  const ssrComponents = renderComponents.filter(
-                    (renderComponent) =>
-                      ssrRequiredDirectives.includes(
-                        renderComponent.renderDirective,
-                      ),
-                  );
-                  for (const ssrComponent of ssrComponents) {
-                    ssrComponentsMap.set(
-                      ssrComponent.renderId,
-                      ssrComponent.element,
-                    );
-                  }
-                  for (const ssrData of data) {
-                    const { renderId, ssrOnlyCss, ssrHtml } = ssrData;
-                    const element = ssrComponentsMap.get(renderId);
-                    if (element) {
-                      const matchedComponent = ssrComponentsRenderData.find(
-                        (item) => item.renderId === renderId,
-                      );
-                      if (matchedComponent) {
-                        ssrUpdatedComponentNames.add(
-                          matchedComponent.componentName,
-                        );
-                      }
-                      if (ssrOnlyCss.length > 0) {
-                        for (const css of ssrOnlyCss) {
-                          /**
-                           * This is an update process, there may be existing old css resources,
-                           * so we need to update them first, then remove the old css resources to
-                           * avoid style jitter.
-                           */
-                          const isExistCssElement = document.querySelector(
-                            `link[href="${css}"]`,
-                          );
-                          const link = document.createElement('link');
-                          link.rel = 'stylesheet';
-                          link.href = css;
-                          link.dataset.vriteCssInDev = css;
-                          document.head.append(link);
-                          // TODO: OPTIMIZE
-                          if (isExistCssElement) {
-                            isExistCssElement.remove();
-                          }
-                        }
-                      }
-                      element.innerHTML = ssrHtml;
-                    }
-                  }
-
-                  const ssrAppliedAt = getSiteDebugNow();
-                  this.updateDevHmrMetrics(ssrUpdatedComponentNames, {
-                    ssrApplyDurationMs: undefined,
-                    updatedAt: ssrAppliedAt,
-                  });
-                }
-                this.runAsyncTask(
-                  loadComponentsAndRenderComponentsOrHydrateComponents().catch(
-                    (error) => {
-                      this.failPendingDevHmrMetrics(
-                        activeHmrComponentNames,
-                        error,
-                      );
-                      throw error;
-                    },
-                  ),
-                  'markdown-update-render',
-                  'Failed to apply React markdown HMR render',
-                );
-              };
-
-              /**
-               * Need to handle the side effects of component containers in the markdown document during the hmr phase,
-               * such as:
-               * 1. Component container attribute changes.
-               * 2. Component container position changes.
-               * 3. Component import reference changes.
-               * 4. Component rendering strategy changes.
-               */
-              const loadComponentsAndRenderComponentsOrHydrateComponents =
-                async (): Promise<void> => {
-                  const clientApplyStartedAt = getSiteDebugNow();
-                  const loadComponents: Record<
-                    string,
-                    Promise<React.ComponentType<Record<string, string>>>
-                  > = {};
-                  const workInProgressInjectComponent: Record<
-                    string,
-                    DevComponentInfo
-                  > = {};
-
-                  for (const renderId of Object.keys(clientComponents)) {
-                    const { component, source, importedName } =
-                      clientComponents[renderId];
-                    const key = `${source}#${importedName}`;
-                    if (component) {
-                      loadComponents[key] = Promise.resolve(component);
-                    } else if (!loadComponents[key]) {
-                      loadComponents[key] = import(
-                        /* @vite-ignore */ source
-                      ).then((module) => {
-                        if (importedName === 'default') {
-                          return module.default;
-                        }
-                        if (importedName === '*') {
-                          return module;
-                        }
-                        return module[importedName];
-                      });
-                    }
-                  }
-
-                  for (const renderId of Object.keys(ssrClientComponents)) {
-                    const { component, source, importedName } =
-                      ssrClientComponents[renderId];
-                    const key = `${source}#${importedName}`;
-                    if (component) {
-                      loadComponents[key] = Promise.resolve(component);
-                    } else if (!loadComponents[key]) {
-                      loadComponents[key] = import(
-                        /* @vite-ignore */ source
-                      ).then((module) => {
-                        if (importedName === 'default') {
-                          return module.default;
-                        }
-                        if (importedName === '*') {
-                          return module;
-                        }
-                        return module[importedName];
-                      });
-                    }
-                  }
-
-                  for (const [
-                    ,
-                    { component, path, importedName },
-                  ] of reuseInjectComponent.entries()) {
-                    const key = `${path}#${importedName}`;
-                    if (component) {
-                      loadComponents[key] = Promise.resolve(component);
-                    } else if (!loadComponents[key]) {
-                      loadComponents[key] = import(
-                        /* @vite-ignore */ path
-                      ).then((module) => {
-                        if (importedName === 'default') {
-                          return module.default;
-                        }
-                        if (importedName === '*') {
-                          return module;
-                        }
-                        return module[importedName];
-                      });
-                    }
-                  }
-
-                  for (const renderId of Object.keys(rerenderExistingRoots)) {
-                    const { component, source, importedName } =
-                      rerenderExistingRoots[renderId];
-                    const key = `${source}#${importedName}`;
-                    if (component) {
-                      loadComponents[key] = Promise.resolve(component);
-                    } else if (!loadComponents[key]) {
-                      loadComponents[key] = import(
-                        /* @vite-ignore */ source
-                      ).then((module) => {
-                        if (importedName === 'default') {
-                          return module.default;
-                        }
-                        if (importedName === '*') {
-                          return module;
-                        }
-                        return module[importedName];
-                      });
-                    }
-                  }
-
-                  const promiseComponents: {
-                    component: Promise<
-                      React.ComponentType<Record<string, string>>
-                    >;
-                    key: string;
-                  }[] = [];
-
-                  for (const key of Object.keys(loadComponents)) {
-                    const component = loadComponents[key];
-                    promiseComponents.push({
-                      component,
-                      key,
-                    });
-                  }
-
-                  const componentsMap = new Map<
-                    string,
-                    React.ComponentType<Record<string, string>>
-                  >();
-                  const components = await Promise.all(
-                    promiseComponents.map(async (item) => item.component),
-                  );
-                  for (const [index, component] of components.entries()) {
-                    componentsMap.set(promiseComponents[index].key, component);
-                  }
-
-                  for (const renderId of Object.keys(rerenderExistingRoots)) {
-                    const {
-                      source,
-                      importedName,
-                      props,
-                      renderDirective,
-                      componentName,
-                    } = rerenderExistingRoots[renderId];
-                    const key = `${source}#${importedName}`;
-                    const Component = componentsMap.get(key);
-                    if (!Component) {
-                      continue;
-                    }
-
-                    const renderElement = document.querySelector(
-                      `[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}="${renderId}"]`,
-                    );
-                    if (!renderElement) {
-                      continue;
-                    }
-
-                    workInProgressInjectComponent[componentName] = {
-                      component: Component,
-                      path: source,
-                      importedName,
-                    };
-
-                    const root = getReactRenderRoot(renderElement);
-                    if (root) {
-                      root.render(this.react!.createElement(Component, props));
-                      continue;
-                    }
-
-                    if (renderDirective !== 'ssr:only') {
-                      const fallbackRoot =
-                        renderDirective === 'client:only'
-                          ? this.reactDOM!.createRoot(renderElement)
-                          : this.reactDOM!.hydrateRoot(
-                              renderElement,
-                              this.react!.createElement(Component, props),
-                            );
-                      rememberReactRenderState(
-                        renderElement,
-                        fallbackRoot,
-                        Component,
-                      );
-                      if (renderDirective === 'client:only') {
-                        fallbackRoot.render(
-                          this.react!.createElement(Component, props),
-                        );
-                      }
-                    }
-                  }
-
-                  for (const renderId of Object.keys(clientComponents)) {
-                    const { source, importedName, props, componentName } =
-                      clientComponents[renderId];
-                    const key = `${source}#${importedName}`;
-                    const Component = componentsMap.get(key);
-                    if (Component) {
-                      const renderElement = document.querySelector(
-                        `[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}="${renderId}"]`,
-                      );
-                      if (renderElement) {
-                        workInProgressInjectComponent[componentName] = {
-                          component: Component,
-                          path: source,
-                          importedName,
-                        };
-                        const root = this.reactDOM!.createRoot(renderElement);
-                        rememberReactRenderState(
-                          renderElement,
-                          root,
-                          Component,
-                        );
-                        root.render(
-                          this.react!.createElement(Component, props),
-                        );
-                      }
-                    }
-                  }
-
-                  for (const renderId of Object.keys(ssrClientComponents)) {
-                    const {
-                      source,
-                      importedName,
-                      renderDirective,
-                      props,
-                      componentName,
-                    } = ssrClientComponents[renderId];
-                    const key = `${source}#${importedName}`;
-                    const Component = componentsMap.get(key);
-                    if (renderDirective !== 'ssr:only' && Component) {
-                      const renderElement = document.querySelector(
-                        `[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}="${renderId}"]`,
-                      );
-                      if (renderElement) {
-                        workInProgressInjectComponent[componentName] = {
-                          component: Component,
-                          path: source,
-                          importedName,
-                        };
-                        const root = this.reactDOM!.hydrateRoot(
-                          renderElement,
-                          this.react!.createElement(Component, props),
-                        );
-                        rememberReactRenderState(
-                          renderElement,
-                          root,
-                          Component,
-                        );
-                      }
-                    }
-                  }
-
-                  for (const [
-                    componentName,
-                    { component, path, importedName },
-                  ] of reuseInjectComponent.entries()) {
-                    const key = `${path}#${importedName}`;
-                    workInProgressInjectComponent[componentName] = {
-                      component: component || componentsMap.get(key) || null,
-                      path,
-                      importedName,
-                    };
-                  }
-                  reuseInjectComponent.clear();
-
-                  for (const [
-                    componentName,
-                    { component, importedName, path },
-                  ] of ssrOnlyComponents.entries()) {
-                    workInProgressInjectComponent[componentName] = {
-                      component,
-                      path,
-                      importedName,
-                    };
-                  }
-                  ssrOnlyComponents.clear();
-
-                  // Update global injectComponent.
-                  window[RENDER_STRATEGY_CONSTANTS.injectComponent][
-                    this.getPageId()
-                  ] = workInProgressInjectComponent;
-                  reactComponentManager.reset();
-                  for (const componentName of Object.keys(
-                    workInProgressInjectComponent,
-                  )) {
-                    reactComponentManager.notifyComponentLoaded(
-                      this.getPageId(),
-                      componentName,
-                    );
-                  }
-                  Logger.success('Markdown HMR completed.');
-                  const completedAt = getSiteDebugNow();
-                  const clientApplyDurationMs = Number(
-                    (completedAt - clientApplyStartedAt).toFixed(2),
-                  );
-                  this.updateDevHmrMetrics(
-                    activeHmrComponentNames,
-                    {
-                      clientApplyDurationMs,
-                      status: 'completed',
-                      updatedAt: completedAt,
-                    },
-                    true,
-                  );
-                  DebugLogger.info('react component hmr completed', {
-                    clientApplyDurationMs,
-                    components: activeHmrComponentNames,
-                    pageId: this.getPageId(),
-                  });
-                };
-
-              if (ssrComponentsRenderData.length > 0) {
-                const ssrUpdateData: SSRUpdateData = {
-                  pathname: this.getPageId(),
-                  data: ssrComponentsRenderData,
-                  updateType: 'markdown-update',
-                };
-                if (import.meta.hot) {
-                  import.meta.hot.on(
-                    'vrite-ssr-markdown-update-render',
-                    handleMarkdownUpdateRender,
-                  );
-                  import.meta.hot.send('vrite-ssr-update', ssrUpdateData);
-                }
-              } else {
-                this.runAsyncTask(
-                  loadComponentsAndRenderComponentsOrHydrateComponents().catch(
-                    (error) => {
-                      this.failPendingDevHmrMetrics(
-                        activeHmrComponentNames,
-                        error,
-                      );
-                      throw error;
-                    },
-                  ),
-                  'vite:after-update-render',
-                  'Failed to finalize React markdown HMR',
-                );
-              }
             })
             .catch((error) => {
               this.failPendingDevHmrMetrics(
@@ -1889,11 +1048,10 @@ class ReactIntegration {
               updateComponents.map((updateComponent) => ({
                 componentName: updateComponent.componentName,
                 importedName: updateComponent.importedName,
-                renderIds: [
-                  ...document.querySelectorAll(
-                    `[${RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()}="${updateComponent.componentName}"]`,
-                  ),
-                ].map(
+                renderIds: querySelectorAllToArray(
+                  document,
+                  `[${RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()}="${updateComponent.componentName}"]`,
+                ).map(
                   (element) =>
                     element.getAttribute(
                       RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),
@@ -1918,11 +1076,10 @@ class ReactIntegration {
               updateComponents.map((updateComponent) => ({
                 componentName: updateComponent.componentName,
                 importedName: updateComponent.importedName,
-                renderIds: [
-                  ...document.querySelectorAll(
-                    `[${RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()}="${updateComponent.componentName}"]`,
-                  ),
-                ].map(
+                renderIds: querySelectorAllToArray(
+                  document,
+                  `[${RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()}="${updateComponent.componentName}"]`,
+                ).map(
                   (element) =>
                     element.getAttribute(
                       RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),

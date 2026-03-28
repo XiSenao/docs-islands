@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { querySelectorAllToArray } from '@docs-islands/utils/dom-iterable';
 import {
   getSiteDebugHmrMetrics,
   getSiteDebugRenderMetrics,
@@ -394,18 +395,17 @@ const closeOverlayMetricDetail = () => {
 };
 
 const getScriptStateSnapshot = () => ({
-  cssBundles: Array.from(
-    document.querySelectorAll('link[data-vrite-css-bundle]'),
+  cssBundles: querySelectorAllToArray(
+    document,
+    'link[data-vrite-css-bundle]',
   ).map((link) => ({
     href: link.getAttribute('href') || '',
     rel: link.getAttribute('rel') || '',
   })),
-  modulePreloads: Array.from(
-    document.querySelectorAll('link[rel="modulepreload"]'),
-  )
+  modulePreloads: querySelectorAllToArray(document, 'link[rel="modulepreload"]')
     .map((link) => link.getAttribute('href') || '')
     .slice(-MAX_OBJECT_KEYS),
-  moduleScripts: Array.from(document.querySelectorAll('script[type="module"]'))
+  moduleScripts: querySelectorAllToArray(document, 'script[type="module"]')
     .map((script) => script.getAttribute('src') || '[inline-module]')
     .slice(-MAX_OBJECT_KEYS),
 });
@@ -1012,58 +1012,58 @@ const getLiveRenderMetricViews = (): RenderMetricView[] => {
   );
 
   const mergedViews: RenderMetricView[] = elements.flatMap((element) => {
-      const renderId = element.getAttribute(renderMetricContainerAttr);
+    const renderId = element.getAttribute(renderMetricContainerAttr);
 
-      if (!renderId) {
-        return [];
-      }
+    if (!renderId) {
+      return [];
+    }
 
-      const componentName =
-        element.getAttribute(renderMetricComponentAttr) ?? 'UnknownComponent';
-      const renderDirective =
-        element.getAttribute(renderMetricDirectiveAttr) ?? undefined;
-      const metric =
-        metricByRenderId.get(renderId) ??
-        ({
-          componentName,
-          pageId: currentPageId,
-          renderDirective,
-          renderId,
-          renderWithSpaSync:
-            element.getAttribute(renderMetricSpaSyncAttr) === 'true',
-          status: 'detected',
-          updatedAt: 0,
-        } satisfies SiteDebugRenderMetric);
-      const buildMetric = getBuildMetricForRender({
+    const componentName =
+      element.getAttribute(renderMetricComponentAttr) ?? 'UnknownComponent';
+    const renderDirective =
+      element.getAttribute(renderMetricDirectiveAttr) ?? undefined;
+    const metric =
+      metricByRenderId.get(renderId) ??
+      ({
         componentName,
+        pageId: currentPageId,
+        renderDirective,
         renderId,
-      });
-      const matchedHmrMetrics = getHmrMetricsForRender({
-        componentName,
-        renderId,
-      });
-      const spaSyncEffect = getSpaSyncEffectForRender({
-        componentName,
-        renderId,
-      });
-
-      return [
-        {
-          buildMetric,
-          containerLabel: getResolvedRenderContainerLabel(element),
-          durationRatio: 0,
-          element,
-          hmrMetrics: matchedHmrMetrics,
-          isCurrentPage: true,
-          isMounted: true,
-          latestHmrMetric: matchedHmrMetrics[0] ?? null,
-          metric,
-          metricKey: getRenderMetricKey(metric),
-          sizeRatio: 0,
-          spaSyncEffect,
-        },
-      ];
+        renderWithSpaSync:
+          element.getAttribute(renderMetricSpaSyncAttr) === 'true',
+        status: 'detected',
+        updatedAt: 0,
+      } satisfies SiteDebugRenderMetric);
+    const buildMetric = getBuildMetricForRender({
+      componentName,
+      renderId,
     });
+    const matchedHmrMetrics = getHmrMetricsForRender({
+      componentName,
+      renderId,
+    });
+    const spaSyncEffect = getSpaSyncEffectForRender({
+      componentName,
+      renderId,
+    });
+
+    return [
+      {
+        buildMetric,
+        containerLabel: getResolvedRenderContainerLabel(element),
+        durationRatio: 0,
+        element,
+        hmrMetrics: matchedHmrMetrics,
+        isCurrentPage: true,
+        isMounted: true,
+        latestHmrMetric: matchedHmrMetrics[0] ?? null,
+        metric,
+        metricKey: getRenderMetricKey(metric),
+        sizeRatio: 0,
+        spaSyncEffect,
+      },
+    ];
+  });
 
   const maxDuration = Math.max(
     1,

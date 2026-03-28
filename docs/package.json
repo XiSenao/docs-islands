@@ -18,7 +18,6 @@
     "@types/http-proxy": "catalog:docs-dev",
     "eslint": "catalog:lint",
     "@docs-islands/eslint-config": "workspace:*",
-    "@docs-islands/vitepress": "workspace:*",
     "typescript": "catalog:dev",
     "vue-tsc": "catalog:dev",
     "http-proxy": "catalog:docs-dev",

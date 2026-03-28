@@ -5,12 +5,12 @@ import type {
 import type {
   ComponentBuildMetric,
   SpaSyncComponentEffect,
-} from './debug-inspector.js';
+} from './debug-inspector';
 import type {
   BundleChunkResourceItem,
   OverlayMetricDetailKind,
   RenderMetricView,
-} from './site-debug-shared.js';
+} from './site-debug-shared';
 import {
   formatBytes,
   formatDuration,
@@ -22,7 +22,7 @@ import {
   hasDisplayValue,
   shouldShowRenderBundleMetric,
   shouldShowVisibleWaitMetric,
-} from './site-debug-shared.js';
+} from './site-debug-shared';
 
 const sortViewModelItems = <T>(
   items: Iterable<T>,

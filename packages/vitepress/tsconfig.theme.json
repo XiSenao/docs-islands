@@ -1,14 +1,14 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "jsx": "preserve",
+    "rootDir": ".",
     "isolatedDeclarations": false,
-    "declaration": false
+    "declaration": true,
+    "noEmit": false
   },
   "include": [
     "theme/**/*.ts",
     "theme/**/*.vue",
-    "theme/**/*.d.ts",
     "types/**/*.d.ts",
     "src/types/**/*.d.ts",
     "src/shared/**/*.d.ts"

@@ -1,4 +1,4 @@
-import { inferSourceLanguage } from './site-debug-shared.js';
+import { inferSourceLanguage } from './site-debug-shared';
 
 export const inferPrettierParser = (sourcePath?: string) => {
   const normalizedPath = sourcePath?.toLowerCase() || '';
