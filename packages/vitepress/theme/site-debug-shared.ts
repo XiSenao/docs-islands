@@ -11,14 +11,14 @@ import type {
   SpaSyncComponentEffect,
 } from './debug-inspector.js';
 
-export type SiteDebugEntry = {
+export interface SiteDebugEntry {
   details?: string;
   id: number;
   level: SiteDebugLevel;
   message: string;
   source: string;
   time: string;
-};
+}
 
 export type SiteDebugAction =
   | 'clear'
@@ -31,7 +31,7 @@ export type SiteDebugAction =
   | 'inspect'
   | null;
 
-export type SiteDebugHelper = {
+export interface SiteDebugHelper {
   getEntries: () => SiteDebugEntry[];
   getGlobal: (path?: string) => unknown;
   getHmrMetrics: () => SiteDebugHmrMetric[];
@@ -39,9 +39,9 @@ export type SiteDebugHelper = {
   logGlobal: (path?: string) => void;
   logRuntime: (reason?: string) => void;
   snapshotRuntime: () => Record<string, unknown>;
-};
+}
 
-export type RenderMetricView = {
+export interface RenderMetricView {
   buildMetric: ComponentBuildMetric | null;
   containerLabel: string;
   durationRatio: number;
@@ -54,20 +54,20 @@ export type RenderMetricView = {
   metricKey: string;
   sizeRatio: number;
   spaSyncEffect: SpaSyncComponentEffect | null;
-};
+}
 
-export type RenderMetricOverlay = {
+export interface RenderMetricOverlay {
   badgeStyle: Record<string, string>;
   frameStyle: Record<string, string>;
   key: string;
   panelStyle: Record<string, string>;
   view: RenderMetricView;
-};
+}
 
-export type HmrMetricView = {
+export interface HmrMetricView {
   isCurrentPage: boolean;
   metric: SiteDebugHmrMetric;
-};
+}
 
 export type OverlayMetricDetailKind = 'bundle' | 'css' | 'html' | 'total';
 export type PreviewState = 'idle' | 'loading' | 'ready' | 'error';
@@ -83,13 +83,13 @@ export type BundleChunkDetail = Pick<
   'bytes' | 'file' | 'type'
 >;
 
-export type BundleSourceModuleSelection = {
+export interface BundleSourceModuleSelection {
   file: string;
   id: string;
   isGeneratedVirtualModule?: boolean;
   sourceAssetFile?: string;
   sourcePath?: string;
-};
+}
 
 export type BundleSourceModuleItem = BundleSourceModuleSelection & {
   bytes: number;
@@ -100,11 +100,11 @@ export type BundleSourceModuleItem = BundleSourceModuleSelection & {
   shortFile: string;
 };
 
-export type GlobalPreset = {
+export interface GlobalPreset {
   description: string;
   label: string;
   path: string;
-};
+}
 
 export type SiteDebugWindow = DebugWindow & {
   __DOCS_ISLANDS_REACT_HMR_METRICS__?: Record<string, SiteDebugHmrMetric>;
@@ -202,37 +202,49 @@ export const isGeneratedVirtualModuleId = (moduleId: string) =>
 
 export const getStatusLabel = (status: SiteDebugRenderMetric['status']) => {
   switch (status) {
-    case 'waiting-visible':
+    case 'waiting-visible': {
       return 'Waiting';
-    case 'subscribing':
+    }
+    case 'subscribing': {
       return 'Loading';
-    case 'rendering':
+    }
+    case 'rendering': {
       return 'Rendering';
-    case 'completed':
+    }
+    case 'completed': {
       return 'Completed';
-    case 'failed':
+    }
+    case 'failed': {
       return 'Failed';
-    case 'skipped':
+    }
+    case 'skipped': {
       return 'Skipped';
-    default:
+    }
+    default: {
       return 'Detected';
+    }
   }
 };
 
 export const getStatusTone = (status: SiteDebugRenderMetric['status']) => {
   switch (status) {
-    case 'completed':
+    case 'completed': {
       return 'is-success';
-    case 'failed':
+    }
+    case 'failed': {
       return 'is-danger';
-    case 'skipped':
+    }
+    case 'skipped': {
       return 'is-muted';
+    }
     case 'waiting-visible':
     case 'subscribing':
-    case 'rendering':
+    case 'rendering': {
       return 'is-active';
-    default:
+    }
+    default: {
       return '';
+    }
   }
 };
 
@@ -250,12 +262,15 @@ export const getMetricRuntimeKind = (metric: SiteDebugRenderMetric) => {
 
 export const getMetricRuntimeLabel = (metric: SiteDebugRenderMetric) => {
   switch (getMetricRuntimeKind(metric)) {
-    case 'dev':
+    case 'dev': {
       return 'dev runtime';
-    case 'prod':
+    }
+    case 'prod': {
       return 'prod runtime';
-    default:
+    }
+    default: {
       return 'runtime pending';
+    }
   }
 };
 
@@ -299,23 +314,29 @@ export const shouldShowVisibleWaitMetric = (metric: SiteDebugRenderMetric) =>
 
 export const getHmrStatusTone = (status: SiteDebugHmrMetric['status']) => {
   switch (status) {
-    case 'completed':
+    case 'completed': {
       return 'is-success';
-    case 'failed':
+    }
+    case 'failed': {
       return 'is-danger';
-    default:
+    }
+    default: {
       return 'is-active';
+    }
   }
 };
 
 export const getHmrStatusLabel = (status: SiteDebugHmrMetric['status']) => {
   switch (status) {
-    case 'completed':
+    case 'completed': {
       return 'Completed';
-    case 'failed':
+    }
+    case 'failed': {
       return 'Failed';
-    default:
+    }
+    default: {
       return 'Running';
+    }
   }
 };
 
@@ -332,14 +353,18 @@ export const getHmrMechanismLabel = (
   mechanismType?: SiteDebugHmrMetric['mechanismType'],
 ) => {
   switch (mechanismType) {
-    case 'react-fast-refresh':
+    case 'react-fast-refresh': {
       return 'official react fast refresh';
-    case 'ssr-only-direct-hmr':
+    }
+    case 'ssr-only-direct-hmr': {
       return 'ssr:only direct patch';
-    case 'markdown-react-hmr':
+    }
+    case 'markdown-react-hmr': {
       return 'markdown-driven react hmr';
-    default:
+    }
+    default: {
       return 'hmr mechanism pending';
+    }
   }
 };
 
@@ -425,7 +450,7 @@ export const formatSourceLanguageLabel = (sourcePath?: string) => {
   return language.toUpperCase();
 };
 
-export type SiteDebugMetafileRefs = {
+export interface SiteDebugMetafileRefs {
   allPageMetafiles: PageMetafile[];
   currentPageMetafile: PageMetafile | null;
-};
+}

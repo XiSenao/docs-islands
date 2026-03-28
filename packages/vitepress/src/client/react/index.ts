@@ -10,9 +10,9 @@ import {
 import {
   createSiteDebugLogger,
   getSiteDebugNow,
-  updateSiteDebugHmrMetric,
   type SiteDebugHmrMechanismType,
   type SiteDebugHmrUpdateType,
+  updateSiteDebugHmrMetric,
 } from '#shared/debug';
 import getLoggerInstance from '#shared/logger';
 import { validateLegalRenderElements } from '#shared/utils';
@@ -55,13 +55,13 @@ interface ReactUpdateState {
   missingImports: string[];
 }
 
-type DevHmrSourceUpdate = {
+interface DevHmrSourceUpdate {
   componentName: string;
   importedName?: string;
   sourceColumn?: number;
   sourceLine?: number;
   sourcePath?: string;
-};
+}
 
 let currentLocationPathname = '';
 const DEV_MOUNT_RETRY_INTERVAL_MS = 350;
@@ -156,24 +156,27 @@ class ReactIntegration {
     triggerEvent: string;
   } {
     switch (updateType) {
-      case 'react-refresh-update':
+      case 'react-refresh-update': {
         return {
           applyEvent: 'performReactRefresh -> fiber commit',
           mechanismType: 'react-fast-refresh',
           triggerEvent: 'vrite-react-fast-refresh-prepare',
         };
-      case 'ssr-only-component-update':
+      }
+      case 'ssr-only-component-update': {
         return {
           applyEvent: 'vrite-ssr-only-component-update-render',
           mechanismType: 'ssr-only-direct-hmr',
           triggerEvent: 'vrite-react-ssr-only-component-update',
         };
-      default:
+      }
+      default: {
         return {
           applyEvent: 'vite:afterUpdate -> react root refresh',
           mechanismType: 'markdown-react-hmr',
           triggerEvent: 'vrite-markdown-update-prepare',
         };
+      }
     }
   }
 
@@ -401,7 +404,7 @@ class ReactIntegration {
   private setupReactFastRefreshObserver(): void {
     if (
       this.didSetupReactFastRefreshObserver ||
-      typeof window === 'undefined'
+      globalThis.window === undefined
     ) {
       return;
     }
@@ -413,7 +416,7 @@ class ReactIntegration {
       __registerBeforePerformReactRefresh?: (callback: () => unknown) => void;
     };
 
-    const reactRefreshWindow = window as ReactRefreshWindow;
+    const reactRefreshWindow = globalThis as unknown as ReactRefreshWindow;
     const registerBeforePerformReactRefresh =
       reactRefreshWindow.__registerBeforePerformReactRefresh;
 
@@ -1886,11 +1889,11 @@ class ReactIntegration {
               updateComponents.map((updateComponent) => ({
                 componentName: updateComponent.componentName,
                 importedName: updateComponent.importedName,
-                renderIds: Array.from(
-                  document.querySelectorAll(
+                renderIds: [
+                  ...document.querySelectorAll(
                     `[${RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()}="${updateComponent.componentName}"]`,
                   ),
-                ).map(
+                ].map(
                   (element) =>
                     element.getAttribute(
                       RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),
@@ -1915,11 +1918,11 @@ class ReactIntegration {
               updateComponents.map((updateComponent) => ({
                 componentName: updateComponent.componentName,
                 importedName: updateComponent.importedName,
-                renderIds: Array.from(
-                  document.querySelectorAll(
+                renderIds: [
+                  ...document.querySelectorAll(
                     `[${RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()}="${updateComponent.componentName}"]`,
                   ),
-                ).map(
+                ].map(
                   (element) =>
                     element.getAttribute(
                       RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),

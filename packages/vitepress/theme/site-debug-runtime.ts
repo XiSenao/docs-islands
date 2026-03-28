@@ -8,7 +8,7 @@ export const getThemeSnapshot = () => {
 
   try {
     storedPreference =
-      window.localStorage.getItem('vitepress-theme-appearance') ?? '';
+      globalThis.localStorage.getItem('vitepress-theme-appearance') ?? '';
   } catch {
     storedPreference = 'unavailable';
   }
@@ -16,7 +16,7 @@ export const getThemeSnapshot = () => {
   return {
     bodyDatasetTheme: document.body?.dataset.theme ?? '',
     computedColorScheme: getComputedStyle(root).colorScheme,
-    prefersDark: window.matchMedia('(prefers-color-scheme: dark)').matches,
+    prefersDark: globalThis.matchMedia('(prefers-color-scheme: dark)').matches,
     rootClassName: root.className,
     rootDatasetTheme: root.dataset.theme ?? '',
     storedPreference,
@@ -87,7 +87,7 @@ export const getDevSourceEndpoint = (
   debugWindow: SiteDebugWindow,
   sourcePath?: string,
 ) => {
-  if (!sourcePath || typeof window === 'undefined') {
+  if (!sourcePath || globalThis.window === undefined) {
     return null;
   }
 
@@ -143,7 +143,7 @@ export const getRenderContainerLabel = (
 export const isElementVisibleInViewport = (
   element: HTMLElement | null,
 ): boolean => {
-  if (!element || typeof window === 'undefined') {
+  if (!element || globalThis.window === undefined) {
     return false;
   }
 

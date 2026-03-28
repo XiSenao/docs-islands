@@ -1,11 +1,11 @@
 export type SiteDebugLevel = 'info' | 'warn' | 'error';
 
-export type SiteDebugEventDetail = {
+export interface SiteDebugEventDetail {
   level?: SiteDebugLevel;
   message: string;
   payload?: unknown;
   source?: string;
-};
+}
 
 export type SiteDebugRenderMetricStatus =
   | 'detected'
@@ -30,7 +30,7 @@ export type SiteDebugHmrMechanismType =
   | 'ssr-only-direct-hmr'
   | 'react-fast-refresh';
 
-export type SiteDebugHmrMetric = {
+export interface SiteDebugHmrMetric {
   applyEvent?: string;
   clientApplyDurationMs?: number;
   componentName: string;
@@ -52,7 +52,7 @@ export type SiteDebugHmrMetric = {
   triggerEvent?: string;
   updateType: SiteDebugHmrUpdateType;
   updatedAt: number;
-};
+}
 
 export type SiteDebugHmrMetricPatch = Partial<SiteDebugHmrMetric> & {
   componentName?: string;
@@ -62,7 +62,7 @@ export type SiteDebugHmrMetricPatch = Partial<SiteDebugHmrMetric> & {
   updateType?: SiteDebugHmrUpdateType;
 };
 
-export type SiteDebugRenderMetric = {
+export interface SiteDebugRenderMetric {
   componentName: string;
   detectedAt?: number;
   errorMessage?: string;
@@ -80,13 +80,20 @@ export type SiteDebugRenderMetric = {
   updatedAt: number;
   visibleAt?: number;
   waitForVisibilityMs?: number;
-};
+}
 
 export type SiteDebugRenderMetricPatch = Partial<SiteDebugRenderMetric> & {
   componentName?: string;
   renderId: string;
   status?: SiteDebugRenderMetricStatus;
 };
+
+export interface SiteDebugLogger {
+  error: (message: string, payload?: unknown) => boolean;
+  info: (message: string, payload?: unknown) => boolean;
+  log: (message: string, payload?: unknown, level?: SiteDebugLevel) => boolean;
+  warn: (message: string, payload?: unknown) => boolean;
+}
 
 export const SITE_DEBUG_EVENT_NAME = 'docs-islands:site-debug-log';
 export const SITE_DEBUG_RENDER_METRIC_EVENT_NAME =
@@ -98,14 +105,26 @@ export const SITE_DEBUG_HMR_METRIC_EVENT_NAME =
 export const SITE_DEBUG_HMR_METRICS_KEY = '__DOCS_ISLANDS_REACT_HMR_METRICS__';
 export const SITE_DEBUG_STORAGE_KEY = 'docs-islands:site-debug-enabled';
 
-const canUseWindow = () => typeof window !== 'undefined';
+const canUseWindow = () => globalThis.window !== undefined;
 
 type SiteDebugWindow = Window & {
   __DOCS_ISLANDS_REACT_HMR_METRICS__?: Record<string, SiteDebugHmrMetric>;
   __DOCS_ISLANDS_REACT_RENDER_METRICS__?: Record<string, SiteDebugRenderMetric>;
 };
 
-const getSiteDebugWindow = (): SiteDebugWindow => window as SiteDebugWindow;
+const getSiteDebugWindow = (): SiteDebugWindow =>
+  globalThis as unknown as SiteDebugWindow;
+
+const sortSiteDebugItems = <T>(
+  items: Iterable<T>,
+  compare: (left: T, right: T) => number,
+): T[] => {
+  const sortedItems = [...items];
+
+  // Keep a copied-array sort so emitted shared runtime stays ES2020-compatible.
+  // eslint-disable-next-line unicorn/no-array-sort
+  return sortedItems.sort(compare);
+};
 
 export const isSiteDebugEnabled = (): boolean => {
   if (!canUseWindow()) {
@@ -113,7 +132,7 @@ export const isSiteDebugEnabled = (): boolean => {
   }
 
   try {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(globalThis.location.search);
     const queryValue = params.get('site-debug');
 
     if (queryValue === '1') {
@@ -124,7 +143,7 @@ export const isSiteDebugEnabled = (): boolean => {
       return false;
     }
 
-    return window.localStorage.getItem(SITE_DEBUG_STORAGE_KEY) === '1';
+    return globalThis.localStorage.getItem(SITE_DEBUG_STORAGE_KEY) === '1';
   } catch {
     return false;
   }
@@ -135,7 +154,7 @@ export const dispatchSiteDebugLog = (detail: SiteDebugEventDetail): boolean => {
     return false;
   }
 
-  window.dispatchEvent(
+  globalThis.dispatchEvent(
     new CustomEvent<SiteDebugEventDetail>(SITE_DEBUG_EVENT_NAME, {
       detail,
     }),
@@ -157,7 +176,7 @@ export const logSiteDebug = (
     source,
   });
 
-export const createSiteDebugLogger = (source: string) => ({
+export const createSiteDebugLogger = (source: string): SiteDebugLogger => ({
   error: (message: string, payload?: unknown) =>
     logSiteDebug(source, message, payload, 'error'),
   info: (message: string, payload?: unknown) =>
@@ -170,7 +189,7 @@ export const createSiteDebugLogger = (source: string) => ({
 
 export const getSiteDebugNow = (): number => {
   if (
-    typeof globalThis.performance !== 'undefined' &&
+    globalThis.performance !== undefined &&
     typeof globalThis.performance.now === 'function'
   ) {
     return globalThis.performance.now();
@@ -239,9 +258,9 @@ const normalizeSiteDebugRenderMetric = (
   const waitForVisibilityMs =
     patch.waitForVisibilityMs ??
     previous?.waitForVisibilityMs ??
-    (visibleAt !== undefined
-      ? normalizeDuration(visibleAt - detectedAt)
-      : undefined);
+    (visibleAt === undefined
+      ? undefined
+      : normalizeDuration(visibleAt - detectedAt));
   const totalDurationMs =
     patch.totalDurationMs ??
     previous?.totalDurationMs ??
@@ -321,7 +340,7 @@ export const getSiteDebugRenderMetrics = (): SiteDebugRenderMetric[] => {
     return [];
   }
 
-  return Object.values(store).sort((left, right) => {
+  return sortSiteDebugItems(Object.values(store), (left, right) => {
     const leftTime = left.updatedAt ?? left.detectedAt ?? 0;
     const rightTime = right.updatedAt ?? right.detectedAt ?? 0;
     return rightTime - leftTime;
@@ -335,7 +354,7 @@ export const getSiteDebugHmrMetrics = (): SiteDebugHmrMetric[] => {
     return [];
   }
 
-  return Object.values(store).sort((left, right) => {
+  return sortSiteDebugItems(Object.values(store), (left, right) => {
     const leftTime = left.updatedAt ?? left.startedAt ?? 0;
     const rightTime = right.updatedAt ?? right.startedAt ?? 0;
     return rightTime - leftTime;
@@ -359,7 +378,7 @@ export const updateSiteDebugRenderMetric = (
   const nextMetric = normalizeSiteDebugRenderMetric(store[storeKey], patch);
   store[storeKey] = nextMetric;
 
-  window.dispatchEvent(
+  globalThis.dispatchEvent(
     new CustomEvent<SiteDebugRenderMetric>(
       SITE_DEBUG_RENDER_METRIC_EVENT_NAME,
       {
@@ -387,7 +406,7 @@ export const updateSiteDebugHmrMetric = (
   const nextMetric = normalizeSiteDebugHmrMetric(store[patch.hmrId], patch);
   store[patch.hmrId] = nextMetric;
 
-  window.dispatchEvent(
+  globalThis.dispatchEvent(
     new CustomEvent<SiteDebugHmrMetric>(SITE_DEBUG_HMR_METRIC_EVENT_NAME, {
       detail: nextMetric,
     }),

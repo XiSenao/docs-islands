@@ -6,8 +6,8 @@ import {
 import {
   createSiteDebugLogger,
   getSiteDebugNow,
-  updateSiteDebugRenderMetric,
   type SiteDebugRenderMode,
+  updateSiteDebugRenderMetric,
 } from '#shared/debug';
 import getLoggerInstance from '#shared/logger';
 import { validateLegalRenderElements } from '#shared/utils';

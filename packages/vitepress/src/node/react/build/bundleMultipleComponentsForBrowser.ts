@@ -51,15 +51,28 @@ const getBundleAssetType = (fileName: string): BuildOutputMetric['type'] => {
   return 'asset';
 };
 
+const sortBundleMetrics = <T>(
+  metrics: Iterable<T>,
+  compare: (left: T, right: T) => number,
+): T[] => {
+  const sortedMetrics = [...metrics];
+
+  // Keep a copied-array sort so emitted package output stays ES2020-compatible.
+  // eslint-disable-next-line unicorn/no-array-sort
+  return sortedMetrics.sort(compare);
+};
+
 const sortBundleAssetMetrics = (
   metrics: Iterable<BundleAssetMetric>,
 ): BundleAssetMetric[] =>
-  [...metrics].sort((left, right) => left.file.localeCompare(right.file));
+  sortBundleMetrics(metrics, (left, right) =>
+    left.file.localeCompare(right.file),
+  );
 
 const sortBundleModuleMetrics = (
   metrics: Iterable<BundleModuleMetric>,
 ): BundleModuleMetric[] =>
-  [...metrics].sort((left, right) => {
+  sortBundleMetrics(metrics, (left, right) => {
     if (right.bytes !== left.bytes) {
       return right.bytes - left.bytes;
     }
@@ -92,8 +105,8 @@ const writeDebugSourceAsset = ({
   }
 
   const extension = extname(moduleId) || '.txt';
-  const safeBaseName = basename(moduleId, extension).replace(
-    /[^a-zA-Z0-9._-]/g,
+  const safeBaseName = basename(moduleId, extension).replaceAll(
+    /[^\w.-]/g,
     '_',
   );
   const hash = createHash('sha1').update(moduleId).digest('hex').slice(0, 8);
@@ -246,8 +259,9 @@ function createSpaSyncBuildEffects(
       existing.blockingCssFiles,
     );
     existing.blockingCssCount = existing.blockingCssFiles.length;
-    existing.embeddedHtmlPatches.sort((left, right) =>
-      left.renderId.localeCompare(right.renderId),
+    existing.embeddedHtmlPatches = sortBundleMetrics(
+      existing.embeddedHtmlPatches,
+      (left, right) => left.renderId.localeCompare(right.renderId),
     );
     componentEffectMap.set(usedSnippet.renderComponent, existing);
   }
@@ -256,8 +270,9 @@ function createSpaSyncBuildEffects(
     return null;
   }
 
-  const components = [...componentEffectMap.values()].sort((left, right) =>
-    left.componentName.localeCompare(right.componentName),
+  const components = sortBundleMetrics(
+    componentEffectMap.values(),
+    (left, right) => left.componentName.localeCompare(right.componentName),
   );
 
   return {
@@ -773,7 +788,10 @@ export async function bundleMultipleComponentsForBrowser(
           files: metricFiles,
           framework: 'react',
           modules: sortBundleModuleMetrics(modules.values()),
-          renderDirectives: [...entry.renderDirectives].sort(),
+          renderDirectives: sortBundleMetrics(
+            entry.renderDirectives,
+            (left, right) => left.localeCompare(right),
+          ),
           sourcePath: relative(srcDir, entry.componentPath),
         };
       },

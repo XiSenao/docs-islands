@@ -84,43 +84,36 @@ export const formatForDisplay = (
   }
 
   if (value instanceof Error) {
-    return (
-      `${value.name}: ${value.message}` +
-      (value.stack ? `\n${value.stack}` : '')
-    );
+    return `${value.name}: ${value.message}${
+      value.stack ? `\n${value.stack}` : ''
+    }`;
   }
 
   if (typeof Element !== 'undefined' && value instanceof HTMLImageElement) {
-    return (
-      'HTMLImageElement ' +
-      formatForDisplay(
-        {
-          alt: value.alt,
-          className: value.className,
-          complete: value.complete,
-          currentSrc: value.currentSrc || value.src,
-          naturalHeight: value.naturalHeight,
-          naturalWidth: value.naturalWidth,
-        },
-        depth + 1,
-        seen,
-      )
-    );
+    return `HTMLImageElement ${formatForDisplay(
+      {
+        alt: value.alt,
+        className: value.className,
+        complete: value.complete,
+        currentSrc: value.currentSrc || value.src,
+        naturalHeight: value.naturalHeight,
+        naturalWidth: value.naturalWidth,
+      },
+      depth + 1,
+      seen,
+    )}`;
   }
 
   if (typeof Element !== 'undefined' && value instanceof HTMLElement) {
-    return (
-      `${value.tagName.toLowerCase()} ` +
-      formatForDisplay(
-        {
-          className: value.className,
-          id: value.id,
-          text: value.textContent?.slice(0, 120) ?? '',
-        },
-        depth + 1,
-        seen,
-      )
-    );
+    return `${value.tagName.toLowerCase()} ${formatForDisplay(
+      {
+        className: value.className,
+        id: value.id,
+        text: value.textContent?.slice(0, 120) ?? '',
+      },
+      depth + 1,
+      seen,
+    )}`;
   }
 
   if (value instanceof Date) {
@@ -136,7 +129,7 @@ export const formatForDisplay = (
   }
 
   if (value instanceof Map) {
-    const valueEntries = Array.from(value.entries()).slice(0, MAX_ARRAY_ITEMS);
+    const valueEntries = [...value.entries()].slice(0, MAX_ARRAY_ITEMS);
     const body = valueEntries
       .map(
         ([key, entryValue]) =>
@@ -152,7 +145,7 @@ export const formatForDisplay = (
   }
 
   if (value instanceof Set) {
-    const valueEntries = Array.from(value.values()).slice(0, MAX_ARRAY_ITEMS);
+    const valueEntries = [...value.values()].slice(0, MAX_ARRAY_ITEMS);
     const body = valueEntries
       .map((entryValue) => formatForDisplay(entryValue, depth + 1, seen))
       .join(', ');
@@ -189,25 +182,23 @@ export const formatForDisplay = (
       (value as { constructor?: { name?: string } }).constructor?.name ??
       'Object';
 
-    if (typeof window !== 'undefined' && value === window) {
-      return (
-        'Window ' +
-        formatForDisplay({ href: window.location.href }, depth + 1, seen)
-      );
+    if (globalThis.window !== undefined && value === globalThis) {
+      return `Window ${formatForDisplay(
+        { href: globalThis.location.href },
+        depth + 1,
+        seen,
+      )}`;
     }
 
     if (typeof document !== 'undefined' && value === document) {
-      return (
-        'Document ' +
-        formatForDisplay(
-          {
-            readyState: document.readyState,
-            visibility: document.visibilityState,
-          },
-          depth + 1,
-          seen,
-        )
-      );
+      return `Document ${formatForDisplay(
+        {
+          readyState: document.readyState,
+          visibility: document.visibilityState,
+        },
+        depth + 1,
+        seen,
+      )}`;
     }
 
     if (depth >= MAX_OBJECT_DEPTH) {
@@ -342,7 +333,7 @@ export const serializeInspectable = (
   if (value instanceof Map) {
     return {
       __type: 'Map',
-      entries: Array.from(value.entries())
+      entries: [...value.entries()]
         .slice(0, MAX_ARRAY_ITEMS)
         .map(([key, entryValue]) => [
           String(key),
@@ -356,7 +347,7 @@ export const serializeInspectable = (
     return {
       __type: 'Set',
       size: value.size,
-      values: Array.from(value.values())
+      values: [...value.values()]
         .slice(0, MAX_ARRAY_ITEMS)
         .map((entryValue) => serializeInspectable(entryValue, depth + 1, seen)),
     };
@@ -379,11 +370,11 @@ export const serializeInspectable = (
     };
   }
 
-  if (typeof window !== 'undefined' && value === window) {
+  if (globalThis.window !== undefined && value === globalThis) {
     return {
       __type: 'Window',
-      href: window.location.href,
-      keys: getObjectKeys(window).slice(0, MAX_OBJECT_KEYS),
+      href: globalThis.location.href,
+      keys: getObjectKeys(globalThis).slice(0, MAX_OBJECT_KEYS),
     };
   }
 

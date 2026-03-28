@@ -1,3 +1,5 @@
-declare const SiteDebugConsole: any;
+import type { DefineComponent } from 'vue';
+
+declare const SiteDebugConsole: DefineComponent;
 
 export default SiteDebugConsole;

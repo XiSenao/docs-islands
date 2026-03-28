@@ -1282,12 +1282,10 @@ export default function vitepressReactRenderingStrategies(
             res.statusCode = 200;
             res.setHeader('Content-Type', 'text/plain; charset=utf-8');
             res.end(fs.readFileSync(sourcePath, 'utf8'));
-            return;
           } catch (error) {
             res.statusCode = 500;
             res.setHeader('Content-Type', 'text/plain; charset=utf-8');
             res.end(error instanceof Error ? error.message : String(error));
-            return;
           }
         });
 
@@ -1512,7 +1510,7 @@ export default function vitepressReactRenderingStrategies(
                 );
               const updates: Record<
                 string,
-                { path: string; importedName: string }
+                { path: string; importedName: string; sourcePath?: string }
               > = {};
               if (compilationContainer.importsByLocalName.size > 0) {
                 for (const [

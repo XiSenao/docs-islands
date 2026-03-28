@@ -24,20 +24,31 @@ import {
   shouldShowVisibleWaitMetric,
 } from './site-debug-shared.js';
 
+const sortViewModelItems = <T>(
+  items: Iterable<T>,
+  compare: (left: T, right: T) => number,
+): T[] => {
+  const sortedItems = [...items];
+
+  // Keep a copied-array sort so emitted theme code stays ES2020-compatible.
+  // eslint-disable-next-line unicorn/no-array-sort
+  return sortedItems.sort(compare);
+};
+
 export const getRenderMetricGridItems = (
   view: RenderMetricView,
-): Array<{
+): {
   detailKind?: OverlayMetricDetailKind;
   key: string;
   label: string;
   value: string;
-}> => {
-  const items: Array<{
+}[] => {
+  const items: {
     detailKind?: OverlayMetricDetailKind;
     key: string;
     label: string;
     value: string;
-  }> = [
+  }[] = [
     {
       ...(typeof view.metric.totalDurationMs === 'number'
         ? { detailKind: 'total' as const }
@@ -240,29 +251,30 @@ export const getBundleChunkResourceItems = (
     {},
   );
 
-  return [...files]
-    .map((file) => ({
+  return sortViewModelItems(
+    [...files].map((file) => ({
       ...file,
       moduleCount: moduleCountByFile[file.file] ?? 0,
       percent: formatPercent(file.bytes, totalBytes),
       shortFile: file.file.split('/').pop() || file.file,
-    }))
-    .sort((left, right) => {
+    })),
+    (left, right) => {
       if (right.moduleCount !== left.moduleCount) {
         return right.moduleCount - left.moduleCount;
       }
 
       return right.bytes - left.bytes;
-    });
+    },
+  );
 };
 
 export const getTotalDurationBreakdown = (metric: SiteDebugRenderMetric) => {
-  const parts: Array<{
+  const parts: {
     description: string;
     key: string;
     label: string;
     value: number;
-  }> = [];
+  }[] = [];
 
   if (
     typeof metric.waitForVisibilityMs === 'number' &&

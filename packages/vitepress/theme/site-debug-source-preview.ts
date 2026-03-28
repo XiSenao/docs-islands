@@ -69,7 +69,7 @@ export const formatPreviewContent = async (
 ) => {
   const parser = inferPrettierParser(sourcePath);
 
-  if (!parser || typeof window === 'undefined') {
+  if (!parser || globalThis.window === undefined) {
     return sourceContent;
   }
 
@@ -132,7 +132,7 @@ export const formatPreviewContent = async (
 };
 
 export const loadRemoteTextContent = async (
-  sourceCandidates: Array<string | null | undefined>,
+  sourceCandidates: (string | null | undefined)[],
 ) => {
   const normalizedCandidates = sourceCandidates.filter(
     (candidate): candidate is string => Boolean(candidate),
@@ -162,7 +162,7 @@ export const highlightCodeContent = async (
   sourceContent: string,
   sourcePath?: string,
 ) => {
-  if (typeof window === 'undefined') {
+  if (globalThis.window === undefined) {
     return '';
   }
 

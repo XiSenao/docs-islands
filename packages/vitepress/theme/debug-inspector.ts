@@ -1,20 +1,20 @@
 import type { SiteDebugRenderMetric } from '@docs-islands/vitepress/internal/debug';
 
-export type BundleAssetMetric = {
+export interface BundleAssetMetric {
   bytes: number;
   file: string;
   type: 'asset' | 'css' | 'js';
-};
+}
 
-export type BundleModuleMetric = {
+export interface BundleModuleMetric {
   bytes: number;
   file: string;
   id: string;
   sourceAssetFile?: string;
   sourcePath?: string;
-};
+}
 
-export type ComponentBuildMetric = {
+export interface ComponentBuildMetric {
   componentName: string;
   estimatedAssetBytes: number;
   estimatedCssBytes: number;
@@ -22,9 +22,9 @@ export type ComponentBuildMetric = {
   estimatedTotalBytes: number;
   files: BundleAssetMetric[];
   modules: BundleModuleMetric[];
-};
+}
 
-export type PageBuildMetrics = {
+export interface PageBuildMetrics {
   components: ComponentBuildMetric[];
   spaSyncEffects?: {
     components: {
@@ -32,11 +32,11 @@ export type PageBuildMetrics = {
       blockingCssCount: number;
       blockingCssFiles: BundleAssetMetric[];
       componentName: string;
-      embeddedHtmlPatches: Array<{
+      embeddedHtmlPatches: {
         bytes: number;
         html: string;
         renderId: string;
-      }>;
+      }[];
       embeddedHtmlBytes: number;
       renderDirectives: string[];
       renderIds: string[];
@@ -50,16 +50,16 @@ export type PageBuildMetrics = {
     usesCssLoadingRuntime: boolean;
   } | null;
   totalEstimatedComponentBytes: number;
-};
+}
 
 export type SpaSyncComponentEffect = NonNullable<
   PageBuildMetrics['spaSyncEffects']
 >['components'][number];
 
-export type PageMetafile = {
+export interface PageMetafile {
   buildMetrics?: PageBuildMetrics;
   [key: string]: unknown;
-};
+}
 
 export type DebugWindow = Window & {
   __COMPONENT_MANAGER__?: {
@@ -71,12 +71,12 @@ export type DebugWindow = Window & {
   __VP_SITE_DATA__?: Record<string, unknown>;
 };
 
-export type MetafileLookup = {
+export interface MetafileLookup {
   buildMetricByComponentName: Map<string, ComponentBuildMetric>;
   buildMetricByRenderId: Map<string, ComponentBuildMetric>;
   spaSyncEffectByComponentName: Map<string, SpaSyncComponentEffect>;
   spaSyncEffectByRenderId: Map<string, SpaSyncComponentEffect>;
-};
+}
 
 export const getCurrentPageCandidates = (
   debugWindow: DebugWindow,
@@ -124,9 +124,9 @@ export const getCurrentPageCandidates = (
     .filter(Boolean)
     .map((_, index, segments) => `/${segments.slice(index).join('/')}`);
 
-  return Array.from(
-    new Set([normalizedPathname, rawPathname, ...suffixCandidates, '/']),
-  );
+  return [
+    ...new Set([normalizedPathname, rawPathname, ...suffixCandidates, '/']),
+  ];
 };
 
 export const resolvePageMetafileState = (debugWindow: DebugWindow) => {

@@ -50,11 +50,11 @@ export interface SpaSyncComponentSideEffectMetric {
   blockingCssCount: number;
   blockingCssFiles: BundleAssetMetric[];
   componentName: string;
-  embeddedHtmlPatches: Array<{
+  embeddedHtmlPatches: {
     bytes: number;
     html: string;
     renderId: string;
-  }>;
+  }[];
   embeddedHtmlBytes: number;
   renderDirectives: RenderDirective[];
   renderIds: string[];
