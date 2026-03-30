@@ -10,6 +10,7 @@ import type {
   PageMetafile,
   SpaSyncComponentEffect,
 } from './debug-inspector';
+import type { SiteDebugRenderMetricWebVitalsAnalysis } from './site-debug-web-vitals';
 
 export interface SiteDebugEntry {
   details?: string;
@@ -54,6 +55,7 @@ export interface RenderMetricView {
   metricKey: string;
   sizeRatio: number;
   spaSyncEffect: SpaSyncComponentEffect | null;
+  webVitalsAnalysis: SiteDebugRenderMetricWebVitalsAnalysis | null;
 }
 
 export interface RenderMetricOverlay {
@@ -69,7 +71,12 @@ export interface HmrMetricView {
   metric: SiteDebugHmrMetric;
 }
 
-export type OverlayMetricDetailKind = 'bundle' | 'css' | 'html' | 'total';
+export type OverlayMetricDetailKind =
+  | 'bundle'
+  | 'css'
+  | 'html'
+  | 'total'
+  | 'vitals';
 export type PreviewState = 'idle' | 'loading' | 'ready' | 'error';
 
 export type BundleChunkResourceItem = BundleAssetMetric & {
@@ -81,7 +88,9 @@ export type BundleChunkResourceItem = BundleAssetMetric & {
 export type BundleChunkDetail = Pick<
   BundleAssetMetric,
   'bytes' | 'file' | 'type'
->;
+> & {
+  moduleCount: number;
+};
 
 export interface BundleSourceModuleSelection {
   file: string;
@@ -122,7 +131,7 @@ export type SiteDebugWindow = DebugWindow & {
 };
 
 export const DEBUG_QUERY_KEY = 'site-debug';
-export const DEFAULT_GLOBAL_PATH = '__DOCS_ISLANDS_SITE_DEBUG__';
+export const DEFAULT_GLOBAL_PATH = '__VP_SITE_DATA__';
 export const ENABLE_HMR_DEBUG_UI =
   (import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV === true;
 export const MAX_DEBUG_ENTRIES = 200;
@@ -132,12 +141,12 @@ export const renderMetricComponentAttr = '__render_component__';
 export const renderMetricDirectiveAttr = '__render_directive__';
 export const renderMetricSpaSyncAttr = '__spa_sync_render__';
 
+export const shouldEnableVsCodeSourceOpen = () =>
+  !ENABLE_HMR_DEBUG_UI &&
+  globalThis.window !== undefined &&
+  globalThis.location.hostname === 'localhost';
+
 export const GLOBAL_PRESETS: GlobalPreset[] = [
-  {
-    description: 'Debug helper methods and snapshots.',
-    label: 'Helper',
-    path: '__DOCS_ISLANDS_SITE_DEBUG__',
-  },
   {
     description: 'Runtime component registration and page metafile state.',
     label: 'Component Manager',
@@ -399,7 +408,7 @@ export const getVsCodeFileHref = (
   line = 1,
   column = 1,
 ) => {
-  if (!sourcePath) {
+  if (!shouldEnableVsCodeSourceOpen() || !sourcePath) {
     return null;
   }
 

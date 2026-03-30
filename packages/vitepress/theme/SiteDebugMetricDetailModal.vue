@@ -10,9 +10,14 @@ import type {
 } from './site-debug-shared';
 import { formatBytes, hasDisplayValue } from './site-debug-shared';
 import {
+  formatWebVitalScore,
   getBundleChunkResourceItems,
   getBundleSummaryItems,
   getTotalDurationBreakdown,
+  getWebVitalRatingLabel,
+  getWebVitalRatingTone,
+  getWebVitalsContextLabel,
+  getWebVitalsDetailItems,
 } from './site-debug-view-model';
 
 const props = defineProps<{
@@ -47,6 +52,10 @@ const bundleChunkItems = computed(() =>
 const totalDurationBreakdownItems = computed(() =>
   getTotalDurationBreakdown(props.view.metric),
 );
+const webVitalsAnalysis = computed(() => props.view.webVitalsAnalysis);
+const webVitalsDetailItems = computed(() =>
+  getWebVitalsDetailItems(webVitalsAnalysis.value),
+);
 const isBundleMetricUsingModules = computed(
   () => (props.view.buildMetric?.modules?.length ?? 0) > 0,
 );
@@ -64,11 +73,13 @@ const isBundleMetricUsingModules = computed(
             {{
               detailKind === 'bundle'
                 ? 'Bundle Composition'
-                : detailKind === 'html'
-                  ? 'Patched HTML'
-                  : detailKind === 'css'
-                    ? 'Required CSS'
-                    : 'Total Duration Breakdown'
+                : detailKind === 'vitals'
+                  ? 'Web Vitals Analysis'
+                  : detailKind === 'html'
+                    ? 'Patched HTML'
+                    : detailKind === 'css'
+                      ? 'Required CSS'
+                      : 'Total Duration Breakdown'
             }}
           </h4>
         </div>
@@ -128,16 +139,8 @@ const isBundleMetricUsingModules = computed(
               :key="item.file"
               type="button"
               class="site-debug-detail-modal__list-item site-debug-detail-modal__list-item--interactive"
-              :class="{
-                'is-selected': selectedChunkFile === item.file,
-                'is-copied':
-                  item.moduleCount === 0 &&
-                  actionFeedbackAction === 'copy-chunk' &&
-                  actionFeedbackTarget === item.file,
-              }"
-              :title="
-                item.moduleCount > 0 ? 'Open chunk resource' : 'Copy chunk code'
-              "
+              :class="{ 'is-selected': selectedChunkFile === item.file }"
+              title="Open chunk resource"
               @pointerdown.stop
               @click.stop="$emit('chunk-click', item)"
             >
@@ -155,18 +158,7 @@ const isBundleMetricUsingModules = computed(
               </div>
               <div class="site-debug-detail-modal__list-meta">
                 <span>{{ item.type.toUpperCase() }}</span>
-                <span v-if="item.moduleCount > 0">
-                  {{ item.moduleCount }} source modules
-                </span>
-                <span
-                  v-else-if="
-                    actionFeedbackAction === 'copy-chunk' &&
-                    actionFeedbackTarget === item.file
-                  "
-                  class="site-debug-detail-modal__list-meta-tag is-success"
-                >
-                  Copied
-                </span>
+                <span>{{ item.moduleCount }} source modules</span>
               </div>
               <div class="site-debug-meter__track">
                 <span
@@ -248,6 +240,62 @@ const isBundleMetricUsingModules = computed(
             class="site-debug-source-viewer__code"
             v-html="cssHighlightedHtml"
           />
+        </div>
+      </template>
+
+      <template v-else-if="detailKind === 'vitals' && webVitalsAnalysis">
+        <div class="site-debug-detail-modal__summary">
+          <div class="site-debug-overlay__side-effect-item">
+            <span>Estimated Score</span>
+            <strong>{{
+              formatWebVitalScore(webVitalsAnalysis.performanceScore)
+            }}</strong>
+          </div>
+          <div class="site-debug-overlay__side-effect-item">
+            <span>Context</span>
+            <strong>{{ getWebVitalsContextLabel(webVitalsAnalysis) }}</strong>
+          </div>
+        </div>
+
+        <div class="site-debug-hmr-summary__chips">
+          <span
+            class="site-debug-summary__chip"
+            :class="
+              getWebVitalRatingTone(webVitalsAnalysis.performanceScoreRating)
+            "
+          >
+            {{
+              getWebVitalRatingLabel(webVitalsAnalysis.performanceScoreRating)
+            }}
+          </span>
+          <span class="site-debug-summary__chip is-muted">
+            renderId {{ view.metric.renderId }}
+          </span>
+        </div>
+
+        <p class="site-debug-hmr-summary__description">
+          {{ webVitalsAnalysis.summary }}
+        </p>
+
+        <div class="site-debug-detail-modal__list">
+          <article
+            v-for="item in webVitalsDetailItems"
+            :key="item.key"
+            class="site-debug-detail-modal__list-item"
+          >
+            <div class="site-debug-detail-modal__list-header">
+              <div>
+                <strong>{{ item.label }}</strong>
+                <p>{{ item.description }}</p>
+              </div>
+              <div class="site-debug-detail-modal__list-values">
+                <strong>{{ item.value }}</strong>
+                <span class="site-debug-summary__chip" :class="item.tone">
+                  {{ item.meta }}
+                </span>
+              </div>
+            </div>
+          </article>
         </div>
       </template>
 

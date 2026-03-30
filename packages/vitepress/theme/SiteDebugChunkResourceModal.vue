@@ -1,13 +1,18 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import type {
   BundleChunkDetail,
   BundleSourceModuleItem,
   BundleSourceModuleSelection,
   PreviewState,
+  SiteDebugAction,
 } from './site-debug-shared';
 import { formatBytes, hasDisplayValue } from './site-debug-shared';
 
 const props = defineProps<{
+  actionFeedbackAction: SiteDebugAction;
+  actionFeedbackLabel: string;
+  actionFeedbackTarget: string | null;
   chunkDetail: BundleChunkDetail;
   highlightedHtml: string;
   modules: BundleSourceModuleItem[];
@@ -18,13 +23,26 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
+  copy: [];
   'select-module': [item: BundleSourceModuleSelection];
 }>();
+
+const showModules = computed(() => props.chunkDetail.moduleCount > 0);
+const copyLabel = computed(() =>
+  props.actionFeedbackAction === 'copy-chunk' &&
+  props.actionFeedbackTarget === props.chunkDetail.file
+    ? `✓ ${props.actionFeedbackLabel}`
+    : 'Copy Chunk Code',
+);
 </script>
 
 <template>
   <div class="site-debug-chunk-viewer">
-    <div class="site-debug-chunk-viewer__panel" @click.stop>
+    <div
+      class="site-debug-chunk-viewer__panel"
+      :class="{ 'is-compact': !showModules }"
+      @click.stop
+    >
       <div class="site-debug-source-viewer__header">
         <div class="site-debug-source-viewer__title">
           <p>Chunk Resource</p>
@@ -39,6 +57,14 @@ const emit = defineEmits<{
           >
             {{ formatBytes(chunkDetail.bytes) }}
           </span>
+          <button
+            type="button"
+            class="site-debug-dialog__action"
+            :disabled="state !== 'ready'"
+            @click="$emit('copy')"
+          >
+            {{ copyLabel }}
+          </button>
           <button
             type="button"
             class="site-debug-dialog__action site-debug-dialog__action--primary"
@@ -56,7 +82,10 @@ const emit = defineEmits<{
         </span>
       </div>
 
-      <div class="site-debug-chunk-viewer__layout">
+      <div
+        class="site-debug-chunk-viewer__layout"
+        :class="{ 'is-compact': !showModules }"
+      >
         <div class="site-debug-chunk-viewer__code-panel">
           <div class="site-debug-detail-modal__section-header">
             <div>
@@ -80,7 +109,7 @@ const emit = defineEmits<{
           />
         </div>
 
-        <div class="site-debug-chunk-viewer__modules">
+        <div v-if="showModules" class="site-debug-chunk-viewer__modules">
           <div class="site-debug-detail-modal__list">
             <button
               v-for="item in modules"

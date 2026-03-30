@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { PreviewState, SiteDebugAction } from './site-debug-shared';
+import SiteDebugVsCodeLink from './SiteDebugVsCodeLink.vue';
 
 const props = defineProps<{
   actionFeedbackAction: SiteDebugAction;
@@ -39,14 +40,6 @@ const copyLabel = computed(() =>
           <span class="site-debug-source-viewer__chip">
             {{ languageLabel }}
           </span>
-          <a
-            v-if="browseHref"
-            class="site-debug-source-link"
-            :href="browseHref"
-          >
-            <span class="site-debug-source-link__icon">VS</span>
-            <span>Open in VSCode</span>
-          </a>
           <button
             type="button"
             class="site-debug-dialog__action"
@@ -78,6 +71,9 @@ const copyLabel = computed(() =>
         <span class="site-debug-source-viewer__path">
           {{ displayPath }}
         </span>
+      </div>
+      <div v-if="browseHref" class="site-debug-source-viewer__browse">
+        <SiteDebugVsCodeLink :href="browseHref || ''" />
       </div>
 
       <p v-if="state === 'loading'" class="site-debug-overlay__panel-meta">

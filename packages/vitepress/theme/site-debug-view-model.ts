@@ -1,3 +1,4 @@
+import type { SiteDebugWebVitalRating } from '#shared/site-debug-web-vitals-analysis';
 import type {
   SiteDebugHmrMetric,
   SiteDebugRenderMetric,
@@ -23,6 +24,7 @@ import {
   shouldShowRenderBundleMetric,
   shouldShowVisibleWaitMetric,
 } from './site-debug-shared';
+import type { SiteDebugRenderMetricWebVitalsAnalysis } from './site-debug-web-vitals';
 
 const sortViewModelItems = <T>(
   items: Iterable<T>,
@@ -33,6 +35,116 @@ const sortViewModelItems = <T>(
   // Keep a copied-array sort so emitted theme code stays ES2020-compatible.
   // eslint-disable-next-line unicorn/no-array-sort
   return sortedItems.sort(compare);
+};
+
+export const formatWebVitalScore = (score?: number) =>
+  typeof score === 'number' && Number.isFinite(score) ? `${score} / 100` : '—';
+
+export const getWebVitalRatingLabel = (rating?: SiteDebugWebVitalRating) => {
+  switch (rating) {
+    case 'good': {
+      return 'Good';
+    }
+    case 'needs-improvement': {
+      return 'Needs Improvement';
+    }
+    case 'poor': {
+      return 'Poor';
+    }
+    default: {
+      return 'Unavailable';
+    }
+  }
+};
+
+export const getWebVitalRatingTone = (rating?: SiteDebugWebVitalRating) => {
+  switch (rating) {
+    case 'good': {
+      return 'is-success';
+    }
+    case 'poor': {
+      return 'is-danger';
+    }
+    case 'needs-improvement': {
+      return 'is-active';
+    }
+    default: {
+      return 'is-muted';
+    }
+  }
+};
+
+export const getWebVitalsContextLabel = (
+  analysis: SiteDebugRenderMetricWebVitalsAnalysis,
+) =>
+  analysis.context === 'initial-load' ? 'Initial Load' : 'Route Transition';
+
+const getPaintMilestoneDescription = (
+  label: 'FCP' | 'LCP',
+  analysis: SiteDebugRenderMetricWebVitalsAnalysis,
+) => {
+  if (analysis.context !== 'initial-load') {
+    return label === 'LCP'
+      ? 'Initial-load paint milestones are not used for this route transition render.'
+      : 'FCP is only used as an initial-navigation baseline.';
+  }
+
+  const completedBefore =
+    label === 'LCP' ? analysis.completedBeforeLcp : analysis.completedBeforeFcp;
+
+  return `Render completed ${
+    completedBefore === false ? 'after' : 'before'
+  } the current ${label} timing.`;
+};
+
+const getPaintMilestoneMeta = (
+  label: 'FCP' | 'LCP',
+  analysis: SiteDebugRenderMetricWebVitalsAnalysis,
+) => {
+  if (analysis.context !== 'initial-load') {
+    return label === 'LCP'
+      ? 'Route transition context'
+      : 'Initial navigation only';
+  }
+
+  const completedBefore =
+    label === 'LCP' ? analysis.completedBeforeLcp : analysis.completedBeforeFcp;
+
+  if (completedBefore === true) {
+    return `Completed before ${label}`;
+  }
+
+  if (completedBefore === false) {
+    return `Completed after ${label}`;
+  }
+
+  return getWebVitalRatingLabel(
+    label === 'LCP' ? analysis.lcpRating : analysis.fcpRating,
+  );
+};
+
+const getPaintMilestoneTone = (
+  label: 'FCP' | 'LCP',
+  analysis: SiteDebugRenderMetricWebVitalsAnalysis,
+) => {
+  if (analysis.context !== 'initial-load') {
+    return 'is-muted';
+  }
+
+  const completedBefore =
+    label === 'LCP' ? analysis.completedBeforeLcp : analysis.completedBeforeFcp;
+
+  if (completedBefore === true) {
+    return 'is-success';
+  }
+
+  if (completedBefore === false) {
+    return label === 'LCP' ? 'is-danger' : 'is-active';
+  }
+
+  return getWebVitalRatingTone(
+    label === 'LCP' ? analysis.lcpRating : analysis.fcpRating,
+  );
 };
 
 export const getRenderMetricGridItems = (
@@ -86,6 +198,15 @@ export const getRenderMetricGridItems = (
       key: 'bundle',
       label: 'Bundle',
       value: formatBytes(view.buildMetric?.estimatedTotalBytes),
+    });
+  }
+
+  if (view.webVitalsAnalysis) {
+    items.push({
+      detailKind: 'vitals',
+      key: 'vitals',
+      label: 'Vitals',
+      value: formatWebVitalScore(view.webVitalsAnalysis.performanceScore),
     });
   }
 
@@ -340,4 +461,86 @@ export const getTotalDurationBreakdown = (metric: SiteDebugRenderMetric) => {
         ? formatPercent(part.value, total)
         : '—',
   }));
+};
+
+export const getWebVitalsDetailItems = (
+  analysis: SiteDebugRenderMetricWebVitalsAnalysis | null,
+) => {
+  if (!analysis) {
+    return [];
+  }
+
+  return [
+    {
+      description:
+        analysis.context === 'initial-load'
+          ? 'Estimated component-local score based on paint timing, blocking, and layout stability during the initial page load.'
+          : 'Estimated component-local score based on blocking and layout stability during route transition rendering.',
+      key: 'score',
+      label: 'Estimated Score',
+      meta: getWebVitalRatingLabel(analysis.performanceScoreRating),
+      tone: getWebVitalRatingTone(analysis.performanceScoreRating),
+      value: formatWebVitalScore(analysis.performanceScore),
+    },
+    {
+      description: getPaintMilestoneDescription('LCP', analysis),
+      key: 'lcp',
+      label: 'LCP',
+      meta: getPaintMilestoneMeta('LCP', analysis),
+      tone: getPaintMilestoneTone('LCP', analysis),
+      value: formatDuration(analysis.lcpMs),
+    },
+    {
+      description: getPaintMilestoneDescription('FCP', analysis),
+      key: 'fcp',
+      label: 'FCP',
+      meta: getPaintMilestoneMeta('FCP', analysis),
+      tone: getPaintMilestoneTone('FCP', analysis),
+      value: formatDuration(analysis.fcpMs),
+    },
+    {
+      description:
+        'Layout-shift score observed from render start until 500 ms after completion.',
+      key: 'cls',
+      label: 'CLS Delta',
+      meta: getWebVitalRatingLabel(analysis.clsDeltaRating),
+      tone: getWebVitalRatingTone(analysis.clsDeltaRating),
+      value:
+        typeof analysis.clsDelta === 'number'
+          ? analysis.clsDelta.toFixed(4)
+          : '—',
+    },
+    {
+      description:
+        'Total long-task overlap captured inside the render window, indicating main-thread blocking pressure.',
+      key: 'longtask',
+      label: 'Long Tasks',
+      meta:
+        analysis.longTaskCount > 0
+          ? `${analysis.longTaskCount} task${
+              analysis.longTaskCount > 1 ? 's' : ''
+            } · max ${formatDuration(analysis.maxLongTaskMs)}`
+          : getWebVitalRatingLabel(analysis.longTaskRating),
+      tone: getWebVitalRatingTone(analysis.longTaskRating),
+      value: formatDuration(analysis.longTaskTotalMs),
+    },
+    {
+      description:
+        'Current page-wide INP snapshot. This is not directly attributed to a single component render, but helps explain interaction responsiveness.',
+      key: 'inp',
+      label: 'INP Snapshot',
+      meta: getWebVitalRatingLabel(analysis.inpRating),
+      tone: getWebVitalRatingTone(analysis.inpRating),
+      value: formatDuration(analysis.inpMs),
+    },
+    {
+      description:
+        'Current page-wide TTFB snapshot captured from the navigation timing entry.',
+      key: 'ttfb',
+      label: 'TTFB Snapshot',
+      meta: getWebVitalRatingLabel(analysis.ttfbRating),
+      tone: getWebVitalRatingTone(analysis.ttfbRating),
+      value: formatDuration(analysis.ttfbMs),
+    },
+  ].filter((item) => hasDisplayValue(item.value));
 };

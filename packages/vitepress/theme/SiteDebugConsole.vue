@@ -101,9 +101,16 @@ import {
   getSpaSyncSummaryItems,
   shouldShowLatestHmrMetric as shouldShowLatestHmrMetricBase,
 } from './site-debug-view-model';
+import {
+  analyzeSiteDebugRenderMetricWebVitals,
+  destroySiteDebugWebVitalsTracking,
+  ensureSiteDebugWebVitalsTracking,
+  SITE_DEBUG_WEB_VITALS_EVENT_NAME,
+} from './site-debug-web-vitals';
 import SiteDebugChunkResourceModal from './SiteDebugChunkResourceModal.vue';
 import SiteDebugMetricDetailModal from './SiteDebugMetricDetailModal.vue';
 import SiteDebugSourceViewerModal from './SiteDebugSourceViewerModal.vue';
+import SiteDebugVsCodeLink from './SiteDebugVsCodeLink.vue';
 
 const { isDark } = useData();
 
@@ -111,10 +118,8 @@ const debugDialogRef = ref<HTMLDialogElement | null>(null);
 const DEV_HIDDEN_GLOBAL_PRESET_PATHS = new Set([
   '__DOCS_ISLANDS_SITE_DEBUG__',
   '__PAGE_METAFILE__',
-  '__VP_SITE_DATA__',
 ]);
-const getDefaultGlobalInspectorPath = () =>
-  ENABLE_HMR_DEBUG_UI ? '__COMPONENT_MANAGER__' : DEFAULT_GLOBAL_PATH;
+const getDefaultGlobalInspectorPath = () => DEFAULT_GLOBAL_PATH;
 const isGlobalPresetVisible = (path: string) =>
   !(ENABLE_HMR_DEBUG_UI && DEV_HIDDEN_GLOBAL_PRESET_PATHS.has(path)) &&
   (ENABLE_HMR_DEBUG_UI || path !== SITE_DEBUG_HMR_METRICS_KEY);
@@ -158,6 +163,7 @@ const actionFeedback = ref<{
   label: '',
 });
 const actionFeedbackTarget = ref<string | null>(null);
+const webVitalsVersion = ref(0);
 
 let entryId = 0;
 let restoreModalScrollLock: (() => void) | null = null;
@@ -708,6 +714,7 @@ const openBundleChunkDetail = async (chunkItem: BundleChunkResourceItem) => {
   activeBundleChunkDetail.value = {
     bytes: chunkItem.bytes,
     file: chunkItem.file,
+    moduleCount: chunkItem.moduleCount,
     type: chunkItem.type,
   };
   activeBundleChunkContent.value = '';
@@ -735,33 +742,30 @@ const openBundleChunkDetail = async (chunkItem: BundleChunkResourceItem) => {
   }
 };
 
-const copyBundleChunkContent = async (chunkItem: BundleChunkResourceItem) => {
-  try {
-    const chunkContent = await loadRemoteTextContent([chunkItem.file]);
-    const formattedChunkContent = await formatPreviewContent(
-      chunkContent,
-      chunkItem.file,
-    );
+const copyActiveBundleChunkContent = async () => {
+  if (!activeBundleChunkDetail.value || !activeBundleChunkContent.value) {
+    return;
+  }
 
-    await navigator.clipboard.writeText(formattedChunkContent);
+  try {
+    await navigator.clipboard.writeText(activeBundleChunkContent.value);
     pushLog('info', 'debug-console', 'bundle chunk copied', {
-      bytes: chunkItem.bytes,
-      file: chunkItem.file,
-      moduleCount: chunkItem.moduleCount,
+      bytes: activeBundleChunkDetail.value.bytes,
+      file: activeBundleChunkDetail.value.file,
+      moduleCount: activeBundleChunkDetail.value.moduleCount,
     });
-    showActionFeedback('copy-chunk', 'Chunk Copied', chunkItem.file);
+    showActionFeedback(
+      'copy-chunk',
+      'Chunk Copied',
+      activeBundleChunkDetail.value.file,
+    );
   } catch (error) {
     pushLog('error', 'debug-console', 'copy bundle chunk failed', error);
   }
 };
 
 const handleBundleChunkResourceClick = (chunkItem: BundleChunkResourceItem) => {
-  if (chunkItem.moduleCount > 0) {
-    void openBundleChunkDetail(chunkItem);
-    return;
-  }
-
-  void copyBundleChunkContent(chunkItem);
+  void openBundleChunkDetail(chunkItem);
 };
 
 const openBundleSourceModule = async (moduleMetric: {
@@ -920,6 +924,9 @@ const renderMetricViews = computed<RenderMetricView[]>(() => {
     return [];
   }
 
+  const currentWebVitalsVersion = webVitalsVersion.value;
+  void currentWebVitalsVersion;
+
   const currentPageMetrics = renderMetrics.value.filter(isCurrentMetricPage);
   const scopedMetrics =
     currentPageMetrics.length > 0 ? currentPageMetrics : renderMetrics.value;
@@ -989,6 +996,7 @@ const renderMetricViews = computed<RenderMetricView[]>(() => {
           componentName: metric.componentName,
           renderId: metric.renderId,
         }),
+        webVitalsAnalysis: analyzeSiteDebugRenderMetricWebVitals(metric),
       };
     });
 });
@@ -997,6 +1005,9 @@ const getLiveRenderMetricViews = (): RenderMetricView[] => {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return [];
   }
+
+  const currentWebVitalsVersion = webVitalsVersion.value;
+  void currentWebVitalsVersion;
 
   const currentPageId = getCurrentPageId();
   const metricByRenderId = new Map<string, SiteDebugRenderMetric>();
@@ -1061,6 +1072,7 @@ const getLiveRenderMetricViews = (): RenderMetricView[] => {
         metricKey: getRenderMetricKey(metric),
         sizeRatio: 0,
         spaSyncEffect,
+        webVitalsAnalysis: analyzeSiteDebugRenderMetricWebVitals(metric),
       },
     ];
   });
@@ -1409,6 +1421,7 @@ const installDebugListeners = () => {
 
   installConsolePatches();
   installDebugHelper();
+  ensureSiteDebugWebVitalsTracking();
   schedulePageMetafileSyncBurst();
   syncHmrMetrics();
   syncRenderMetrics();
@@ -1439,6 +1452,11 @@ const installDebugListeners = () => {
 
   const handleHmrMetricEvent = () => {
     syncHmrMetrics();
+  };
+
+  const handleWebVitalsEvent = () => {
+    webVitalsVersion.value += 1;
+    scheduleRenderMetricOverlayBurst();
   };
 
   const handleWindowError = (event: Event) => {
@@ -1521,6 +1539,10 @@ const installDebugListeners = () => {
     SITE_DEBUG_HMR_METRIC_EVENT_NAME,
     handleHmrMetricEvent,
   );
+  window.addEventListener(
+    SITE_DEBUG_WEB_VITALS_EVENT_NAME,
+    handleWebVitalsEvent,
+  );
   window.addEventListener('error', handleWindowError, true);
   window.addEventListener('unhandledrejection', handleUnhandledRejection);
   window.addEventListener('online', handleOnline);
@@ -1543,6 +1565,10 @@ const installDebugListeners = () => {
       SITE_DEBUG_HMR_METRIC_EVENT_NAME,
       handleHmrMetricEvent,
     );
+    window.removeEventListener(
+      SITE_DEBUG_WEB_VITALS_EVENT_NAME,
+      handleWebVitalsEvent,
+    );
     window.removeEventListener('error', handleWindowError, true);
     window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     window.removeEventListener('online', handleOnline);
@@ -1563,6 +1589,7 @@ const installDebugListeners = () => {
     activeOverlayMetricDetail.value = null;
     restoreConsolePatches();
     uninstallDebugHelper();
+    destroySiteDebugWebVitalsTracking();
     stopDebugListeners = null;
   };
 };
@@ -1986,17 +2013,11 @@ onBeforeUnmount(() => {
           </p>
           <div
             v-if="getVsCodeSourceHref(overlay.view.latestHmrMetric)"
-            class="site-debug-overlay__panel-actions"
+            class="site-debug-hmr-summary__browse"
           >
-            <a
-              class="site-debug-source-link"
-              :href="
-                getVsCodeSourceHref(overlay.view.latestHmrMetric) || undefined
-              "
-            >
-              <span class="site-debug-source-link__icon">VS</span>
-              <span>Open in VSCode</span>
-            </a>
+            <SiteDebugVsCodeLink
+              :href="getVsCodeSourceHref(overlay.view.latestHmrMetric) || ''"
+            />
           </div>
         </div>
         <div
@@ -2110,6 +2131,9 @@ onBeforeUnmount(() => {
 
   <SiteDebugChunkResourceModal
     v-if="activeBundleChunkDetail"
+    :action-feedback-action="actionFeedback.action"
+    :action-feedback-label="actionFeedback.label"
+    :action-feedback-target="actionFeedbackTarget"
     :chunk-detail="activeBundleChunkDetail"
     :error="activeBundleChunkError"
     :highlighted-html="activeBundleChunkHighlightedHtml"
@@ -2117,6 +2141,7 @@ onBeforeUnmount(() => {
     :selected-module="activeBundleSourceModule"
     :state="activeBundleChunkState"
     @close="closeBundleChunkDetail"
+    @copy="copyActiveBundleChunkContent"
     @select-module="openBundleSourceModule"
   />
 
@@ -2250,7 +2275,7 @@ onBeforeUnmount(() => {
               autocomplete="off"
               autocorrect="off"
               spellcheck="false"
-              placeholder="__DOCS_ISLANDS_SITE_DEBUG__"
+              placeholder="__VP_SITE_DATA__"
             />
             <button
               type="button"
@@ -3037,6 +3062,12 @@ onBeforeUnmount(() => {
 .site-debug-hmr-summary__description {
   margin: 0;
   line-height: 1.5;
+}
+
+.site-debug-hmr-summary__browse {
+  display: flex;
+  align-items: center;
+  padding-top: 0.15rem;
 }
 
 .site-debug-dialog__inspector {
