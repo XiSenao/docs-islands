@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import type { BundleAssetMetric } from './debug-inspector';
 import type {
   BundleChunkResourceItem,
+  BundleResourceTypeFilter,
   OverlayMetricDetailKind,
   PreviewState,
   RenderMetricView,
   SiteDebugAction,
+  SiteDebugLoadingProgress,
 } from './site-debug-shared';
 import { formatBytes, hasDisplayValue } from './site-debug-shared';
 import {
@@ -19,6 +21,7 @@ import {
   getWebVitalsContextLabel,
   getWebVitalsDetailItems,
 } from './site-debug-view-model';
+import SiteDebugLoadingState from './SiteDebugLoadingState.vue';
 
 const props = defineProps<{
   actionFeedbackAction: SiteDebugAction;
@@ -27,10 +30,12 @@ const props = defineProps<{
   cssAssets: BundleAssetMetric[];
   cssError: string;
   cssHighlightedHtml: string;
+  cssLoadingProgress: SiteDebugLoadingProgress;
   cssState: PreviewState;
   detailKind: OverlayMetricDetailKind;
   htmlError: string;
   htmlHighlightedHtml: string;
+  htmlLoadingProgress: SiteDebugLoadingProgress;
   htmlPatch: { bytes: number } | null;
   htmlState: PreviewState;
   selectedChunkFile: string | null;
@@ -46,8 +51,16 @@ const emit = defineEmits<{
 const bundleSummaryItems = computed(() =>
   getBundleSummaryItems(props.view.buildMetric),
 );
+const selectedBundleResourceFilter = ref<BundleResourceTypeFilter>('total');
 const bundleChunkItems = computed(() =>
   getBundleChunkResourceItems(props.view),
+);
+const filteredBundleChunkItems = computed(() =>
+  selectedBundleResourceFilter.value === 'total'
+    ? bundleChunkItems.value
+    : bundleChunkItems.value.filter(
+        (item) => item.type === selectedBundleResourceFilter.value,
+      ),
 );
 const totalDurationBreakdownItems = computed(() =>
   getTotalDurationBreakdown(props.view.metric),
@@ -58,6 +71,19 @@ const webVitalsDetailItems = computed(() =>
 );
 const isBundleMetricUsingModules = computed(
   () => (props.view.buildMetric?.modules?.length ?? 0) > 0,
+);
+const selectBundleResourceFilter = (filter: string) => {
+  selectedBundleResourceFilter.value = filter as BundleResourceTypeFilter;
+};
+
+watch(
+  () => props.view.metric.renderId,
+  () => {
+    selectedBundleResourceFilter.value = 'total';
+  },
+  {
+    immediate: true,
+  },
 );
 </script>
 
@@ -109,14 +135,19 @@ const isBundleMetricUsingModules = computed(
 
       <template v-if="detailKind === 'bundle'">
         <div class="site-debug-detail-modal__summary">
-          <div
+          <button
             v-for="item in bundleSummaryItems"
             :key="item.key"
-            class="site-debug-overlay__side-effect-item"
+            type="button"
+            class="site-debug-overlay__side-effect-item is-clickable"
+            :class="{
+              'is-selected': selectedBundleResourceFilter === item.key,
+            }"
+            @click="selectBundleResourceFilter(item.key)"
           >
             <span>{{ item.label }}</span>
             <strong>{{ item.value }}</strong>
-          </div>
+          </button>
         </div>
 
         <p class="site-debug-overlay__panel-meta">
@@ -132,10 +163,18 @@ const isBundleMetricUsingModules = computed(
             <div>
               <p class="site-debug-section__eyebrow">Chunk Resources</p>
             </div>
+            <div class="site-debug-detail-modal__list-meta">
+              <span>
+                {{ filteredBundleChunkItems.length }} /
+                {{ bundleChunkItems.length }}
+                resources
+              </span>
+              <span>{{ selectedBundleResourceFilter.toUpperCase() }}</span>
+            </div>
           </div>
           <div class="site-debug-detail-modal__list">
             <button
-              v-for="item in bundleChunkItems"
+              v-for="item in filteredBundleChunkItems"
               :key="item.file"
               type="button"
               class="site-debug-detail-modal__list-item site-debug-detail-modal__list-item--interactive"
@@ -189,12 +228,10 @@ const isBundleMetricUsingModules = computed(
             </div>
           </div>
 
-          <p
+          <SiteDebugLoadingState
             v-if="htmlState === 'loading'"
-            class="site-debug-overlay__panel-meta"
-          >
-            Loading patched HTML...
-          </p>
+            :progress="htmlLoadingProgress"
+          />
           <p
             v-else-if="htmlState === 'error'"
             class="site-debug-overlay__panel-error"
@@ -223,12 +260,10 @@ const isBundleMetricUsingModules = computed(
             </div>
           </div>
 
-          <p
+          <SiteDebugLoadingState
             v-if="cssState === 'loading'"
-            class="site-debug-overlay__panel-meta"
-          >
-            Loading required CSS...
-          </p>
+            :progress="cssLoadingProgress"
+          />
           <p
             v-else-if="cssState === 'error'"
             class="site-debug-overlay__panel-error"

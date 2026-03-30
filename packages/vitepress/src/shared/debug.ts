@@ -95,6 +95,12 @@ export interface SiteDebugLogger {
   warn: (message: string, payload?: unknown) => boolean;
 }
 
+export interface SiteDebugModeChangeDetail {
+  enabled: boolean;
+  previousEnabled: boolean;
+  source?: string;
+}
+
 export const SITE_DEBUG_EVENT_NAME = 'docs-islands:site-debug-log';
 export const SITE_DEBUG_RENDER_METRIC_EVENT_NAME =
   'docs-islands:site-debug-render-metric';
@@ -103,6 +109,7 @@ export const SITE_DEBUG_RENDER_METRICS_KEY =
 export const SITE_DEBUG_HMR_METRIC_EVENT_NAME =
   'docs-islands:site-debug-hmr-metric';
 export const SITE_DEBUG_HMR_METRICS_KEY = '__DOCS_ISLANDS_REACT_HMR_METRICS__';
+export const SITE_DEBUG_MODE_EVENT_NAME = 'docs-islands:site-debug-mode';
 export const SITE_DEBUG_STORAGE_KEY = 'docs-islands:site-debug-enabled';
 
 const canUseWindow = () => globalThis.window !== undefined;
@@ -126,9 +133,9 @@ const sortSiteDebugItems = <T>(
   return sortedItems.sort(compare);
 };
 
-export const isSiteDebugEnabled = (): boolean => {
+const getSiteDebugQueryOverride = (): boolean | null => {
   if (!canUseWindow()) {
-    return false;
+    return null;
   }
 
   try {
@@ -142,11 +149,143 @@ export const isSiteDebugEnabled = (): boolean => {
     if (queryValue === '0') {
       return false;
     }
+  } catch {
+    // Ignore malformed search params and fall back to persisted state.
+  }
 
+  return null;
+};
+
+const getPersistedSiteDebugEnabled = () => {
+  if (!canUseWindow()) {
+    return false;
+  }
+
+  try {
     return globalThis.localStorage.getItem(SITE_DEBUG_STORAGE_KEY) === '1';
   } catch {
     return false;
   }
+};
+
+const clearSiteDebugQueryOverride = () => {
+  if (!canUseWindow()) {
+    return;
+  }
+
+  try {
+    const url = new URL(globalThis.location.href);
+
+    if (!url.searchParams.has('site-debug')) {
+      return;
+    }
+
+    url.searchParams.delete('site-debug');
+    globalThis.history.replaceState(
+      globalThis.history.state,
+      '',
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  } catch {
+    // Ignore history mutation failures.
+  }
+};
+
+export const isSiteDebugEnabled = (): boolean => {
+  if (!canUseWindow()) {
+    return false;
+  }
+
+  const queryOverride = getSiteDebugQueryOverride();
+
+  if (queryOverride !== null) {
+    return queryOverride;
+  }
+
+  return getPersistedSiteDebugEnabled();
+};
+
+export const dispatchSiteDebugModeChange = (
+  detail: SiteDebugModeChangeDetail,
+): boolean => {
+  if (!canUseWindow()) {
+    return false;
+  }
+
+  globalThis.dispatchEvent(
+    new CustomEvent<SiteDebugModeChangeDetail>(SITE_DEBUG_MODE_EVENT_NAME, {
+      detail,
+    }),
+  );
+
+  return true;
+};
+
+export const setSiteDebugEnabled = (
+  enabled: boolean,
+  options: {
+    clearQueryOverride?: boolean;
+    source?: string;
+  } = {},
+): boolean => {
+  const previousEnabled = isSiteDebugEnabled();
+
+  if (!canUseWindow()) {
+    return enabled;
+  }
+
+  try {
+    if (enabled) {
+      globalThis.localStorage.setItem(SITE_DEBUG_STORAGE_KEY, '1');
+    } else {
+      globalThis.localStorage.removeItem(SITE_DEBUG_STORAGE_KEY);
+    }
+  } catch {
+    // Ignore storage failures and keep resolving from the current URL state.
+  }
+
+  if (options.clearQueryOverride) {
+    clearSiteDebugQueryOverride();
+  }
+
+  const nextEnabled = isSiteDebugEnabled();
+
+  if (nextEnabled !== previousEnabled) {
+    dispatchSiteDebugModeChange({
+      enabled: nextEnabled,
+      previousEnabled,
+      source: options.source,
+    });
+  }
+
+  return nextEnabled;
+};
+
+export const toggleSiteDebugEnabled = (
+  options: {
+    clearQueryOverride?: boolean;
+    source?: string;
+  } = {},
+): boolean =>
+  setSiteDebugEnabled(!isSiteDebugEnabled(), {
+    clearQueryOverride: options.clearQueryOverride ?? true,
+    source: options.source,
+  });
+
+export const syncSiteDebugEnabledFromQuery = (
+  options: {
+    source?: string;
+  } = {},
+): boolean => {
+  const queryOverride = getSiteDebugQueryOverride();
+
+  if (queryOverride === null) {
+    return isSiteDebugEnabled();
+  }
+
+  return setSiteDebugEnabled(queryOverride, {
+    source: options.source ?? 'query',
+  });
 };
 
 export const dispatchSiteDebugLog = (detail: SiteDebugEventDetail): boolean => {

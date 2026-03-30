@@ -6,8 +6,10 @@ import type {
   BundleSourceModuleSelection,
   PreviewState,
   SiteDebugAction,
+  SiteDebugLoadingProgress,
 } from './site-debug-shared';
 import { formatBytes, hasDisplayValue } from './site-debug-shared';
+import SiteDebugLoadingState from './SiteDebugLoadingState.vue';
 
 const props = defineProps<{
   actionFeedbackAction: SiteDebugAction;
@@ -15,6 +17,7 @@ const props = defineProps<{
   actionFeedbackTarget: string | null;
   chunkDetail: BundleChunkDetail;
   highlightedHtml: string;
+  loadingProgress: SiteDebugLoadingProgress;
   modules: BundleSourceModuleItem[];
   selectedModule: BundleSourceModuleSelection | null;
   state: PreviewState;
@@ -93,9 +96,10 @@ const copyLabel = computed(() =>
             </div>
           </div>
 
-          <p v-if="state === 'loading'" class="site-debug-overlay__panel-meta">
-            Loading chunk preview...
-          </p>
+          <SiteDebugLoadingState
+            v-if="state === 'loading'"
+            :progress="loadingProgress"
+          />
           <p
             v-else-if="state === 'error'"
             class="site-debug-overlay__panel-error"

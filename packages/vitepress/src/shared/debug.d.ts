@@ -89,14 +89,38 @@ export interface SiteDebugRenderMetricPatch
   status?: SiteDebugRenderMetricStatus;
 }
 
+export interface SiteDebugModeChangeDetail {
+  enabled: boolean;
+  previousEnabled: boolean;
+  source?: string;
+}
+
 export declare const SITE_DEBUG_EVENT_NAME: 'docs-islands:site-debug-log';
 export declare const SITE_DEBUG_RENDER_METRIC_EVENT_NAME: 'docs-islands:site-debug-render-metric';
 export declare const SITE_DEBUG_RENDER_METRICS_KEY: '__DOCS_ISLANDS_REACT_RENDER_METRICS__';
 export declare const SITE_DEBUG_HMR_METRIC_EVENT_NAME: 'docs-islands:site-debug-hmr-metric';
 export declare const SITE_DEBUG_HMR_METRICS_KEY: '__DOCS_ISLANDS_REACT_HMR_METRICS__';
+export declare const SITE_DEBUG_MODE_EVENT_NAME: 'docs-islands:site-debug-mode';
 export declare const SITE_DEBUG_STORAGE_KEY: 'docs-islands:site-debug-enabled';
 
 export declare const isSiteDebugEnabled: () => boolean;
+export declare const dispatchSiteDebugModeChange: (
+  detail: SiteDebugModeChangeDetail,
+) => boolean;
+export declare const setSiteDebugEnabled: (
+  enabled: boolean,
+  options?: {
+    clearQueryOverride?: boolean;
+    source?: string;
+  },
+) => boolean;
+export declare const toggleSiteDebugEnabled: (options?: {
+  clearQueryOverride?: boolean;
+  source?: string;
+}) => boolean;
+export declare const syncSiteDebugEnabledFromQuery: (options?: {
+  source?: string;
+}) => boolean;
 export declare const dispatchSiteDebugLog: (
   detail: SiteDebugEventDetail,
 ) => boolean;

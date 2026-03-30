@@ -78,12 +78,20 @@ export type OverlayMetricDetailKind =
   | 'total'
   | 'vitals';
 export type PreviewState = 'idle' | 'loading' | 'ready' | 'error';
+export type BundleResourceTypeFilter = 'asset' | 'css' | 'js' | 'total';
 
 export type BundleChunkResourceItem = BundleAssetMetric & {
   moduleCount: number;
   percent: string;
   shortFile: string;
 };
+
+export interface SiteDebugLoadingProgress {
+  detail: string;
+  indeterminate: boolean;
+  label: string;
+  value: number;
+}
 
 export type BundleChunkDetail = Pick<
   BundleAssetMetric,
@@ -186,6 +194,15 @@ export const formatDuration = (value?: number) => {
 
   return `${value.toFixed(value >= 10 ? 1 : 2)} ms`;
 };
+
+export const createSiteDebugLoadingProgress = (
+  label = 'Preparing preview',
+): SiteDebugLoadingProgress => ({
+  detail: '',
+  indeterminate: false,
+  label,
+  value: 0,
+});
 
 export const formatBytes = (value?: number) => {
   if (typeof value !== 'number' || Number.isNaN(value) || value <= 0) {

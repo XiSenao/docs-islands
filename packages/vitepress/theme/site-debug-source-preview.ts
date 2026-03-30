@@ -1,5 +1,15 @@
 import { inferSourceLanguage } from './site-debug-shared';
 
+export interface RemoteTextContentProgress {
+  loadedBytes: number;
+  totalBytes?: number;
+  url: string;
+}
+
+export interface LoadRemoteTextContentOptions {
+  onProgress?: (progress: RemoteTextContentProgress) => void;
+}
+
 export const inferPrettierParser = (sourcePath?: string) => {
   const normalizedPath = sourcePath?.toLowerCase() || '';
 
@@ -133,6 +143,7 @@ export const formatPreviewContent = async (
 
 export const loadRemoteTextContent = async (
   sourceCandidates: (string | null | undefined)[],
+  options: LoadRemoteTextContentOptions = {},
 ) => {
   const normalizedCandidates = sourceCandidates.filter(
     (candidate): candidate is string => Boolean(candidate),
@@ -147,7 +158,61 @@ export const loadRemoteTextContent = async (
         throw new Error(`HTTP ${response.status}`);
       }
 
-      return await response.text();
+      const totalBytesHeader = response.headers.get('content-length');
+      const totalBytes = totalBytesHeader
+        ? Number.parseInt(totalBytesHeader, 10)
+        : Number.NaN;
+      const resolvedTotalBytes =
+        Number.isFinite(totalBytes) && totalBytes > 0 ? totalBytes : undefined;
+
+      if (!response.body) {
+        const content = await response.text();
+
+        options.onProgress?.({
+          loadedBytes: new TextEncoder().encode(content).byteLength,
+          totalBytes: resolvedTotalBytes,
+          url: sourceUrl,
+        });
+
+        return content;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      const chunks: string[] = [];
+      let loadedBytes = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        if (value) {
+          loadedBytes += value.byteLength;
+          chunks.push(decoder.decode(value, { stream: true }));
+          options.onProgress?.({
+            loadedBytes,
+            totalBytes: resolvedTotalBytes,
+            url: sourceUrl,
+          });
+        }
+      }
+
+      const tail = decoder.decode();
+
+      if (tail) {
+        chunks.push(tail);
+      }
+
+      options.onProgress?.({
+        loadedBytes,
+        totalBytes: resolvedTotalBytes ?? loadedBytes,
+        url: sourceUrl,
+      });
+
+      return chunks.join('');
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
     }

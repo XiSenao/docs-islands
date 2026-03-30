@@ -42,7 +42,7 @@
     "build": "rolldown --config rolldown.config.ts && pnpm build:theme && pnpm build-types-check",
     "build:theme": "rolldown --config rolldown.theme.config.ts",
     "build-types-check": "tsc -p tsconfig.check.json",
-    "build:watch": "concurrently --names \"rolldown,theme\" --prefix-colors \"blue,magenta\" \"rolldown --config rolldown.config.ts --watch\" \"vite build --config vite.theme.config.ts --watch\"",
+    "build:watch": "concurrently --names \"rolldown,theme\" --prefix-colors \"blue,magenta\" \"rolldown --config rolldown.config.ts --watch\" \"rolldown --config rolldown.theme.config.ts --watch\"",
     "changelog": "tsx scripts/changelog.ts",
     "changelog:preview": "tsx scripts/changelog.ts --dry-run",
     "release": "tsx scripts/release.ts",

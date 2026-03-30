@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { PreviewState, SiteDebugAction } from './site-debug-shared';
+import type {
+  PreviewState,
+  SiteDebugAction,
+  SiteDebugLoadingProgress,
+} from './site-debug-shared';
+import SiteDebugLoadingState from './SiteDebugLoadingState.vue';
 import SiteDebugVsCodeLink from './SiteDebugVsCodeLink.vue';
 
 const props = defineProps<{
@@ -11,6 +16,7 @@ const props = defineProps<{
   error: string;
   highlightedHtml: string;
   languageLabel: string;
+  loadingProgress: SiteDebugLoadingProgress;
   state: PreviewState;
   title: string;
 }>();
@@ -76,9 +82,10 @@ const copyLabel = computed(() =>
         <SiteDebugVsCodeLink :href="browseHref || ''" />
       </div>
 
-      <p v-if="state === 'loading'" class="site-debug-overlay__panel-meta">
-        Highlighting source preview...
-      </p>
+      <SiteDebugLoadingState
+        v-if="state === 'loading'"
+        :progress="loadingProgress"
+      />
       <p v-else-if="state === 'error'" class="site-debug-overlay__panel-error">
         {{ error }}
       </p>

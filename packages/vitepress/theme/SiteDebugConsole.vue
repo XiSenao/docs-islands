@@ -5,19 +5,29 @@ import {
   getSiteDebugRenderMetrics,
   resetSiteDebugHmrMetrics,
   resetSiteDebugRenderMetrics,
+  setSiteDebugEnabled,
   SITE_DEBUG_EVENT_NAME,
   SITE_DEBUG_HMR_METRIC_EVENT_NAME,
   SITE_DEBUG_HMR_METRICS_KEY,
+  SITE_DEBUG_MODE_EVENT_NAME,
   SITE_DEBUG_RENDER_METRIC_EVENT_NAME,
   SITE_DEBUG_RENDER_METRICS_KEY,
-  SITE_DEBUG_STORAGE_KEY,
+  syncSiteDebugEnabledFromQuery,
   type SiteDebugEventDetail,
   type SiteDebugHmrMetric,
   type SiteDebugLevel,
+  type SiteDebugModeChangeDetail,
   type SiteDebugRenderMetric,
 } from '@docs-islands/vitepress/internal/debug';
 import { useData } from 'vitepress';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+  type Ref,
+} from 'vue';
 import VueJsonPretty from 'vue-json-pretty';
 import 'vue-json-pretty/lib/styles.css';
 import {
@@ -52,9 +62,10 @@ import {
   getThemeSnapshot,
 } from './site-debug-runtime';
 import {
-  DEBUG_QUERY_KEY,
+  createSiteDebugLoadingProgress,
   DEFAULT_GLOBAL_PATH,
   ENABLE_HMR_DEBUG_UI,
+  formatBytes,
   formatDuration,
   formatSourceLanguageLabel,
   getHmrMechanismDescription,
@@ -83,12 +94,14 @@ import {
   type RenderMetricView,
   type SiteDebugAction,
   type SiteDebugEntry,
+  type SiteDebugLoadingProgress,
   type SiteDebugWindow,
 } from './site-debug-shared';
 import {
   formatPreviewContent,
   highlightCodeContent,
   loadRemoteTextContent,
+  type RemoteTextContentProgress,
 } from './site-debug-source-preview';
 import {
   formatPercent,
@@ -115,14 +128,24 @@ import SiteDebugVsCodeLink from './SiteDebugVsCodeLink.vue';
 const { isDark } = useData();
 
 const debugDialogRef = ref<HTMLDialogElement | null>(null);
+const ENABLE_MPA_DEBUG_UI =
+  (import.meta as ImportMeta & { env?: { MPA?: boolean } }).env?.MPA === true;
 const DEV_HIDDEN_GLOBAL_PRESET_PATHS = new Set([
   '__DOCS_ISLANDS_SITE_DEBUG__',
   '__PAGE_METAFILE__',
 ]);
-const getDefaultGlobalInspectorPath = () => DEFAULT_GLOBAL_PATH;
 const isGlobalPresetVisible = (path: string) =>
   !(ENABLE_HMR_DEBUG_UI && DEV_HIDDEN_GLOBAL_PRESET_PATHS.has(path)) &&
+  !(
+    path === DEFAULT_GLOBAL_PATH &&
+    (ENABLE_HMR_DEBUG_UI || ENABLE_MPA_DEBUG_UI)
+  ) &&
   (ENABLE_HMR_DEBUG_UI || path !== SITE_DEBUG_HMR_METRICS_KEY);
+const getDefaultGlobalInspectorPath = () =>
+  isGlobalPresetVisible(DEFAULT_GLOBAL_PATH)
+    ? DEFAULT_GLOBAL_PATH
+    : (GLOBAL_PRESETS.find((preset) => isGlobalPresetVisible(preset.path))
+        ?.path ?? DEFAULT_GLOBAL_PATH);
 const debugEnabled = ref(false);
 const debugOpen = ref(false);
 const entries = ref<SiteDebugEntry[]>([]);
@@ -142,18 +165,30 @@ const activeBundleChunkContent = ref('');
 const activeBundleChunkHighlightedHtml = ref('');
 const activeBundleChunkState = ref<PreviewState>('idle');
 const activeBundleChunkError = ref('');
+const activeBundleChunkLoadingProgress = ref<SiteDebugLoadingProgress>(
+  createSiteDebugLoadingProgress('Fetching chunk resource'),
+);
 const activeBundleSourceContent = ref('');
 const activeBundleSourceHighlightedHtml = ref('');
 const activeBundleSourceState = ref<PreviewState>('idle');
 const activeBundleSourceError = ref('');
+const activeBundleSourceLoadingProgress = ref<SiteDebugLoadingProgress>(
+  createSiteDebugLoadingProgress('Fetching module source'),
+);
 const activeSpaSyncCssContent = ref('');
 const activeSpaSyncCssHighlightedHtml = ref('');
 const activeSpaSyncCssState = ref<PreviewState>('idle');
 const activeSpaSyncCssError = ref('');
+const activeSpaSyncCssLoadingProgress = ref<SiteDebugLoadingProgress>(
+  createSiteDebugLoadingProgress('Fetching required CSS'),
+);
 const activeSpaSyncHtmlContent = ref('');
 const activeSpaSyncHtmlHighlightedHtml = ref('');
 const activeSpaSyncHtmlState = ref<PreviewState>('idle');
 const activeSpaSyncHtmlError = ref('');
+const activeSpaSyncHtmlLoadingProgress = ref<SiteDebugLoadingProgress>(
+  createSiteDebugLoadingProgress('Preparing patched HTML'),
+);
 const globalPath = ref(getDefaultGlobalInspectorPath());
 const actionFeedback = ref<{
   action: SiteDebugAction;
@@ -180,10 +215,57 @@ let pageMetafileSyncTimers: number[] = [];
 
 const MAX_OBJECT_KEYS = 40;
 const getDebugWindow = () => window as unknown as SiteDebugWindow;
+const resetLoadingProgress = (
+  target: Ref<SiteDebugLoadingProgress>,
+  label: string,
+) => {
+  target.value = createSiteDebugLoadingProgress(label);
+};
+const updateLoadingProgress = (
+  target: Ref<SiteDebugLoadingProgress>,
+  patch: Partial<SiteDebugLoadingProgress>,
+) => {
+  target.value = {
+    ...target.value,
+    ...patch,
+  };
+};
+const formatTransferBytes = (value: number) =>
+  value > 0 ? formatBytes(value) : '0 B';
+const resolveMetricsInspectorValue = (path: string) => {
+  const normalizedPath = normalizeGlobalPath(path);
+
+  if (normalizedPath === SITE_DEBUG_HMR_METRICS_KEY) {
+    return hmrMetrics.value;
+  }
+
+  return null;
+};
+const applyRemoteFetchProgress = (
+  target: Ref<SiteDebugLoadingProgress>,
+  progress: RemoteTextContentProgress,
+  label: string,
+) => {
+  const hasKnownTotal =
+    typeof progress.totalBytes === 'number' && progress.totalBytes > 0;
+
+  updateLoadingProgress(target, {
+    detail: hasKnownTotal
+      ? `${formatTransferBytes(progress.loadedBytes)} / ${formatTransferBytes(progress.totalBytes ?? 0)}`
+      : `${formatTransferBytes(progress.loadedBytes)} transferred`,
+    indeterminate: !hasKnownTotal,
+    label,
+    value: hasKnownTotal
+      ? 0.08 +
+        Math.min(progress.loadedBytes / (progress.totalBytes ?? 1), 1) * 0.64
+      : 0.22,
+  });
+};
 const resolveGlobalPath = (path: string) =>
   typeof window === 'undefined'
     ? undefined
-    : resolveInspectableGlobalPath(path, getDebugWindow());
+    : (resolveMetricsInspectorValue(path) ??
+      resolveInspectableGlobalPath(path, getDebugWindow()));
 const shouldShowLatestHmrMetric = (view: RenderMetricView) =>
   ENABLE_HMR_DEBUG_UI && shouldShowLatestHmrMetricBase(view);
 const getCurrentPageCandidates = () =>
@@ -355,19 +437,35 @@ const openOverlayMetricDetail = (
   activeBundleChunkHighlightedHtml.value = '';
   activeBundleChunkState.value = 'idle';
   activeBundleChunkError.value = '';
+  resetLoadingProgress(
+    activeBundleChunkLoadingProgress,
+    'Fetching chunk resource',
+  );
   activeBundleSourceModule.value = null;
   activeBundleSourceContent.value = '';
   activeBundleSourceHighlightedHtml.value = '';
   activeBundleSourceState.value = 'idle';
   activeBundleSourceError.value = '';
+  resetLoadingProgress(
+    activeBundleSourceLoadingProgress,
+    'Fetching module source',
+  );
   activeSpaSyncCssContent.value = '';
   activeSpaSyncCssHighlightedHtml.value = '';
   activeSpaSyncCssState.value = 'idle';
   activeSpaSyncCssError.value = '';
+  resetLoadingProgress(
+    activeSpaSyncCssLoadingProgress,
+    'Fetching required CSS',
+  );
   activeSpaSyncHtmlContent.value = '';
   activeSpaSyncHtmlHighlightedHtml.value = '';
   activeSpaSyncHtmlState.value = 'idle';
   activeSpaSyncHtmlError.value = '';
+  resetLoadingProgress(
+    activeSpaSyncHtmlLoadingProgress,
+    'Preparing patched HTML',
+  );
 
   if (kind === 'css') {
     void loadActiveSpaSyncCssPreview();
@@ -385,19 +483,35 @@ const closeOverlayMetricDetail = () => {
   activeBundleChunkHighlightedHtml.value = '';
   activeBundleChunkState.value = 'idle';
   activeBundleChunkError.value = '';
+  resetLoadingProgress(
+    activeBundleChunkLoadingProgress,
+    'Fetching chunk resource',
+  );
   activeBundleSourceModule.value = null;
   activeBundleSourceContent.value = '';
   activeBundleSourceHighlightedHtml.value = '';
   activeBundleSourceState.value = 'idle';
   activeBundleSourceError.value = '';
+  resetLoadingProgress(
+    activeBundleSourceLoadingProgress,
+    'Fetching module source',
+  );
   activeSpaSyncCssContent.value = '';
   activeSpaSyncCssHighlightedHtml.value = '';
   activeSpaSyncCssState.value = 'idle';
   activeSpaSyncCssError.value = '';
+  resetLoadingProgress(
+    activeSpaSyncCssLoadingProgress,
+    'Fetching required CSS',
+  );
   activeSpaSyncHtmlContent.value = '';
   activeSpaSyncHtmlHighlightedHtml.value = '';
   activeSpaSyncHtmlState.value = 'idle';
   activeSpaSyncHtmlError.value = '';
+  resetLoadingProgress(
+    activeSpaSyncHtmlLoadingProgress,
+    'Preparing patched HTML',
+  );
 };
 
 const getScriptStateSnapshot = () => ({
@@ -451,7 +565,11 @@ const getRuntimeSnapshot = () => {
     reactDom: serializeInspectable(debugWindow.ReactDOM),
     renderMetrics: serializeInspectable(renderMetrics.value),
     scripts: getScriptStateSnapshot(),
-    siteData: serializeInspectable(debugWindow.__VP_SITE_DATA__),
+    ...(!ENABLE_HMR_DEBUG_UI && !ENABLE_MPA_DEBUG_UI
+      ? {
+          siteData: serializeInspectable(debugWindow.__VP_SITE_DATA__),
+        }
+      : {}),
     theme: getThemeSnapshot(),
   };
 };
@@ -607,6 +725,10 @@ const loadActiveSpaSyncCssPreview = async () => {
   activeSpaSyncCssContent.value = '';
   activeSpaSyncCssHighlightedHtml.value = '';
   activeSpaSyncCssError.value = '';
+  resetLoadingProgress(
+    activeSpaSyncCssLoadingProgress,
+    'Fetching required CSS',
+  );
 
   if (!cssAssets.length) {
     activeSpaSyncCssState.value = 'error';
@@ -616,12 +738,32 @@ const loadActiveSpaSyncCssPreview = async () => {
   }
 
   activeSpaSyncCssState.value = 'loading';
+  updateLoadingProgress(activeSpaSyncCssLoadingProgress, {
+    detail: `${cssAssets.length} stylesheet${cssAssets.length > 1 ? 's' : ''}`,
+    indeterminate: true,
+    label: 'Fetching required CSS',
+    value: 0.12,
+  });
 
   try {
     const combinedCssContent = (
       await Promise.all(
-        cssAssets.map(async (asset) => {
-          const rawCssContent = await loadRemoteTextContent([asset.file]);
+        cssAssets.map(async (asset, index) => {
+          const rawCssContent = await loadRemoteTextContent([asset.file], {
+            onProgress: (progress) => {
+              applyRemoteFetchProgress(
+                activeSpaSyncCssLoadingProgress,
+                progress,
+                `Fetching CSS ${index + 1}/${cssAssets.length}`,
+              );
+            },
+          });
+          updateLoadingProgress(activeSpaSyncCssLoadingProgress, {
+            detail: asset.file,
+            indeterminate: false,
+            label: `Formatting CSS ${index + 1}/${cssAssets.length}`,
+            value: 0.72,
+          });
           const formattedCssContent = await formatPreviewContent(
             rawCssContent,
             asset.file,
@@ -632,6 +774,12 @@ const loadActiveSpaSyncCssPreview = async () => {
       )
     ).join('\n\n');
 
+    updateLoadingProgress(activeSpaSyncCssLoadingProgress, {
+      detail: cssAssets[0]?.file || 'required.css',
+      indeterminate: false,
+      label: 'Highlighting CSS preview',
+      value: 0.9,
+    });
     activeSpaSyncCssContent.value = combinedCssContent;
     activeSpaSyncCssHighlightedHtml.value = await highlightCodeContent(
       combinedCssContent,
@@ -653,6 +801,10 @@ const loadActiveSpaSyncHtmlPreview = async () => {
   activeSpaSyncHtmlContent.value = '';
   activeSpaSyncHtmlHighlightedHtml.value = '';
   activeSpaSyncHtmlError.value = '';
+  resetLoadingProgress(
+    activeSpaSyncHtmlLoadingProgress,
+    'Preparing patched HTML',
+  );
 
   if (!htmlPatch?.html) {
     activeSpaSyncHtmlState.value = 'error';
@@ -662,6 +814,12 @@ const loadActiveSpaSyncHtmlPreview = async () => {
   }
 
   activeSpaSyncHtmlState.value = 'loading';
+  updateLoadingProgress(activeSpaSyncHtmlLoadingProgress, {
+    detail: `${formatTransferBytes(htmlPatch.bytes)} ready`,
+    indeterminate: false,
+    label: 'Formatting patched HTML',
+    value: 0.42,
+  });
 
   try {
     const formattedHtmlContent = await formatPreviewContent(
@@ -669,6 +827,12 @@ const loadActiveSpaSyncHtmlPreview = async () => {
       `${componentName}.spa-sync.html`,
     );
 
+    updateLoadingProgress(activeSpaSyncHtmlLoadingProgress, {
+      detail: `${componentName}.spa-sync.html`,
+      indeterminate: false,
+      label: 'Highlighting patched HTML',
+      value: 0.86,
+    });
     activeSpaSyncHtmlContent.value = formattedHtmlContent;
     activeSpaSyncHtmlHighlightedHtml.value = await highlightCodeContent(
       formattedHtmlContent,
@@ -706,6 +870,10 @@ const closeBundleChunkDetail = () => {
   activeBundleChunkHighlightedHtml.value = '';
   activeBundleChunkState.value = 'idle';
   activeBundleChunkError.value = '';
+  resetLoadingProgress(
+    activeBundleChunkLoadingProgress,
+    'Fetching chunk resource',
+  );
   closeBundleSourcePreview();
 };
 
@@ -720,15 +888,45 @@ const openBundleChunkDetail = async (chunkItem: BundleChunkResourceItem) => {
   activeBundleChunkContent.value = '';
   activeBundleChunkHighlightedHtml.value = '';
   activeBundleChunkError.value = '';
+  resetLoadingProgress(
+    activeBundleChunkLoadingProgress,
+    'Fetching chunk resource',
+  );
   activeBundleChunkState.value = 'loading';
+  updateLoadingProgress(activeBundleChunkLoadingProgress, {
+    detail: chunkItem.file,
+    indeterminate: true,
+    label: 'Fetching chunk resource',
+    value: 0.12,
+  });
 
   try {
-    const chunkContent = await loadRemoteTextContent([chunkItem.file]);
+    const chunkContent = await loadRemoteTextContent([chunkItem.file], {
+      onProgress: (progress) => {
+        applyRemoteFetchProgress(
+          activeBundleChunkLoadingProgress,
+          progress,
+          'Fetching chunk resource',
+        );
+      },
+    });
+    updateLoadingProgress(activeBundleChunkLoadingProgress, {
+      detail: chunkItem.file,
+      indeterminate: false,
+      label: 'Formatting chunk preview',
+      value: 0.76,
+    });
     const formattedChunkContent = await formatPreviewContent(
       chunkContent,
       chunkItem.file,
     );
 
+    updateLoadingProgress(activeBundleChunkLoadingProgress, {
+      detail: chunkItem.file,
+      indeterminate: false,
+      label: 'Highlighting chunk preview',
+      value: 0.92,
+    });
     activeBundleChunkContent.value = formattedChunkContent;
     activeBundleChunkHighlightedHtml.value = await highlightCodeContent(
       formattedChunkContent,
@@ -785,6 +983,10 @@ const openBundleSourceModule = async (moduleMetric: {
   activeBundleSourceContent.value = '';
   activeBundleSourceHighlightedHtml.value = '';
   activeBundleSourceError.value = '';
+  resetLoadingProgress(
+    activeBundleSourceLoadingProgress,
+    'Fetching module source',
+  );
 
   if (
     !moduleMetric.sourceAssetFile &&
@@ -798,17 +1000,37 @@ const openBundleSourceModule = async (moduleMetric: {
   }
 
   activeBundleSourceState.value = 'loading';
+  updateLoadingProgress(activeBundleSourceLoadingProgress, {
+    detail: moduleMetric.sourcePath || moduleMetric.file,
+    indeterminate: true,
+    label: moduleMetric.isGeneratedVirtualModule
+      ? 'Fetching generated module preview'
+      : 'Fetching module source',
+    value: 0.12,
+  });
 
   try {
     const sourceContent = moduleMetric.isGeneratedVirtualModule
       ? await loadVirtualModulePreviewContent(moduleMetric)
       : await loadBundleSourceContent(moduleMetric);
     const previewPath = getBundleSourcePreviewPath(moduleMetric);
+    updateLoadingProgress(activeBundleSourceLoadingProgress, {
+      detail: previewPath,
+      indeterminate: false,
+      label: 'Formatting module source',
+      value: 0.76,
+    });
     const formattedSourceContent = await formatPreviewContent(
       sourceContent,
       previewPath,
     );
 
+    updateLoadingProgress(activeBundleSourceLoadingProgress, {
+      detail: previewPath,
+      indeterminate: false,
+      label: 'Highlighting module source',
+      value: 0.92,
+    });
     activeBundleSourceContent.value = formattedSourceContent;
     activeBundleSourceHighlightedHtml.value = await highlightCodeContent(
       formattedSourceContent,
@@ -877,22 +1099,46 @@ const closeBundleSourcePreview = () => {
   activeBundleSourceHighlightedHtml.value = '';
   activeBundleSourceState.value = 'idle';
   activeBundleSourceError.value = '';
+  resetLoadingProgress(
+    activeBundleSourceLoadingProgress,
+    'Fetching module source',
+  );
 };
 
 const loadBundleSourceContent = async (moduleMetric: {
+  file: string;
   sourceAssetFile?: string;
   sourcePath?: string;
 }) =>
-  loadRemoteTextContent([
-    moduleMetric.sourceAssetFile,
-    getResolvedDevSourceEndpoint(moduleMetric.sourcePath),
-  ]);
+  loadRemoteTextContent(
+    [
+      moduleMetric.sourceAssetFile,
+      getResolvedDevSourceEndpoint(moduleMetric.sourcePath),
+    ],
+    {
+      onProgress: (progress) => {
+        applyRemoteFetchProgress(
+          activeBundleSourceLoadingProgress,
+          progress,
+          'Fetching module source',
+        );
+      },
+    },
+  );
 
 const loadVirtualModulePreviewContent = async (moduleMetric: {
   file: string;
   id: string;
 }) => {
-  const chunkContent = await loadRemoteTextContent([moduleMetric.file]);
+  const chunkContent = await loadRemoteTextContent([moduleMetric.file], {
+    onProgress: (progress) => {
+      applyRemoteFetchProgress(
+        activeBundleSourceLoadingProgress,
+        progress,
+        'Fetching generated module preview',
+      );
+    },
+  });
 
   return [
     '/*',
@@ -1018,8 +1264,9 @@ const getLiveRenderMetricViews = (): RenderMetricView[] => {
     }
   }
 
-  const elements = Array.from(
-    document.querySelectorAll<HTMLElement>(`[${renderMetricContainerAttr}]`),
+  const elements = querySelectorAllToArray<HTMLElement>(
+    document,
+    `[${renderMetricContainerAttr}]`,
   );
 
   const mergedViews: RenderMetricView[] = elements.flatMap((element) => {
@@ -1662,15 +1909,7 @@ const copyGlobalSnapshot = async () => {
   }
 };
 
-const disableDebug = () => {
-  try {
-    window.localStorage.removeItem(SITE_DEBUG_STORAGE_KEY);
-  } catch {
-    // Ignore storage failures while disabling.
-  }
-
-  stopDebugListeners?.();
-  debugEnabled.value = false;
+const clearDebugRuntimeState = () => {
   debugOpen.value = false;
   entries.value = [];
   hmrMetrics.value = [];
@@ -1678,12 +1917,97 @@ const disableDebug = () => {
   renderMetricOverlays.value = [];
   selectedRenderMetricKey.value = null;
   activeOverlayMetricDetail.value = null;
+  activeBundleChunkDetail.value = null;
+  activeBundleChunkContent.value = '';
+  activeBundleChunkHighlightedHtml.value = '';
+  activeBundleChunkState.value = 'idle';
+  activeBundleChunkError.value = '';
+  resetLoadingProgress(
+    activeBundleChunkLoadingProgress,
+    'Fetching chunk resource',
+  );
+  activeBundleSourceModule.value = null;
+  activeBundleSourceContent.value = '';
+  activeBundleSourceHighlightedHtml.value = '';
+  activeBundleSourceState.value = 'idle';
+  activeBundleSourceError.value = '';
+  resetLoadingProgress(
+    activeBundleSourceLoadingProgress,
+    'Fetching module source',
+  );
+  activeSpaSyncCssContent.value = '';
+  activeSpaSyncCssHighlightedHtml.value = '';
+  activeSpaSyncCssState.value = 'idle';
+  activeSpaSyncCssError.value = '';
+  resetLoadingProgress(
+    activeSpaSyncCssLoadingProgress,
+    'Fetching required CSS',
+  );
+  activeSpaSyncHtmlContent.value = '';
+  activeSpaSyncHtmlHighlightedHtml.value = '';
+  activeSpaSyncHtmlState.value = 'idle';
+  activeSpaSyncHtmlError.value = '';
+  resetLoadingProgress(
+    activeSpaSyncHtmlLoadingProgress,
+    'Preparing patched HTML',
+  );
+};
+
+const activateDebugRuntime = () => {
+  if (stopDebugListeners) {
+    return;
+  }
+
+  schedulePageMetafileSyncBurst();
+  installDebugListeners();
+  pushLog('info', 'debug-console', 'debug console enabled', {
+    helper: 'window.__DOCS_ISLANDS_SITE_DEBUG__',
+    href: window.location.href,
+  });
+  captureSnapshot('initial snapshot');
+  logRuntimeGlobals('initial runtime globals');
+};
+
+const deactivateDebugRuntime = () => {
+  stopDebugListeners?.();
+  clearDebugRuntimeState();
   getDebugWindow().__DOCS_ISLANDS_SITE_DEBUG_LOGS__ = [];
   resetSiteDebugRenderMetrics();
   resetSiteDebugHmrMetrics();
   delete getDebugWindow()[SITE_DEBUG_HMR_METRICS_KEY];
   delete getDebugWindow()[SITE_DEBUG_RENDER_METRICS_KEY];
+};
+
+const disableDebug = () => {
+  const nextEnabled = setSiteDebugEnabled(false, {
+    clearQueryOverride: true,
+    source: 'console',
+  });
+
+  if (!nextEnabled) {
+    debugEnabled.value = false;
+    deactivateDebugRuntime();
+  }
+
   showActionFeedback('disable', 'Disabled');
+};
+
+const handleSiteDebugModeChange = (event: Event) => {
+  const detail = (event as CustomEvent<SiteDebugModeChangeDetail>).detail;
+  const nextEnabled = detail?.enabled ?? false;
+
+  if (nextEnabled === debugEnabled.value) {
+    return;
+  }
+
+  debugEnabled.value = nextEnabled;
+
+  if (nextEnabled) {
+    activateDebugRuntime();
+    return;
+  }
+
+  deactivateDebugRuntime();
 };
 
 const availableGlobalPresets = computed(() => {
@@ -1835,44 +2159,29 @@ onMounted(() => {
     dialog.addEventListener('close', closeDebugConsole);
   }
 
-  let shouldEnable = false;
+  window.addEventListener(
+    SITE_DEBUG_MODE_EVENT_NAME,
+    handleSiteDebugModeChange as EventListener,
+  );
 
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const queryValue = params.get(DEBUG_QUERY_KEY);
-
-    if (queryValue === '1') {
-      window.localStorage.setItem(SITE_DEBUG_STORAGE_KEY, '1');
-      shouldEnable = true;
-    } else if (queryValue === '0') {
-      window.localStorage.removeItem(SITE_DEBUG_STORAGE_KEY);
-      shouldEnable = false;
-    } else {
-      shouldEnable =
-        window.localStorage.getItem(SITE_DEBUG_STORAGE_KEY) === '1';
-    }
-  } catch {
-    shouldEnable = false;
-  }
-
+  const shouldEnable = syncSiteDebugEnabledFromQuery({
+    source: 'query',
+  });
   debugEnabled.value = shouldEnable;
 
   if (!shouldEnable) {
     return;
   }
 
-  schedulePageMetafileSyncBurst();
-  installDebugListeners();
-  pushLog('info', 'debug-console', 'debug console enabled', {
-    helper: 'window.__DOCS_ISLANDS_SITE_DEBUG__',
-    href: window.location.href,
-  });
-  captureSnapshot('initial snapshot');
-  logRuntimeGlobals('initial runtime globals');
+  activateDebugRuntime();
 });
 
 onBeforeUnmount(() => {
   debugDialogRef.value?.removeEventListener('close', closeDebugConsole);
+  window.removeEventListener(
+    SITE_DEBUG_MODE_EVENT_NAME,
+    handleSiteDebugModeChange as EventListener,
+  );
   stopDebugListeners?.();
   uninstallDebugHelper();
   clearPageMetafileSyncTimers();
@@ -2116,10 +2425,12 @@ onBeforeUnmount(() => {
     :css-assets="activeSpaSyncCssAssets"
     :css-error="activeSpaSyncCssError"
     :css-highlighted-html="activeSpaSyncCssHighlightedHtml"
+    :css-loading-progress="activeSpaSyncCssLoadingProgress"
     :css-state="activeSpaSyncCssState"
     :detail-kind="activeOverlayMetricDetail.kind"
     :html-error="activeSpaSyncHtmlError"
     :html-highlighted-html="activeSpaSyncHtmlHighlightedHtml"
+    :html-loading-progress="activeSpaSyncHtmlLoadingProgress"
     :html-patch="activeSpaSyncHtmlPreview"
     :html-state="activeSpaSyncHtmlState"
     :selected-chunk-file="activeBundleChunkDetail?.file ?? null"
@@ -2137,6 +2448,7 @@ onBeforeUnmount(() => {
     :chunk-detail="activeBundleChunkDetail"
     :error="activeBundleChunkError"
     :highlighted-html="activeBundleChunkHighlightedHtml"
+    :loading-progress="activeBundleChunkLoadingProgress"
     :modules="activeBundleChunkModules"
     :selected-module="activeBundleSourceModule"
     :state="activeBundleChunkState"
@@ -2154,6 +2466,7 @@ onBeforeUnmount(() => {
     :error="activeBundleSourceError"
     :highlighted-html="activeBundleSourceHighlightedHtml"
     :language-label="formatSourceLanguageLabel(activeBundleSourcePreviewPath)"
+    :loading-progress="activeBundleSourceLoadingProgress"
     :state="activeBundleSourceState"
     :title="activeBundleSourceTitle"
     @close="closeBundleSourcePreview"
@@ -2275,7 +2588,7 @@ onBeforeUnmount(() => {
               autocomplete="off"
               autocorrect="off"
               spellcheck="false"
-              placeholder="__VP_SITE_DATA__"
+              :placeholder="getDefaultGlobalInspectorPath()"
             />
             <button
               type="button"
