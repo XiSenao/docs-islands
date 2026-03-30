@@ -14,7 +14,7 @@ import type { InlineConfig } from 'vite';
 import { build } from 'vite';
 import type { FrameworkAdapter } from '../../core/framework-adapter';
 import { reactAdapter } from '../adapter';
-import { isOutputChunk } from './shared';
+import { createComponentEntryModules, isOutputChunk } from './shared';
 
 const loggerInstance = getLoggerInstance();
 const Logger = loggerInstance.getLoggerByGroup(
@@ -40,13 +40,19 @@ export async function bundleMultipleComponentsForSSR(
     return { renderedComponents: new Map() };
   }
 
-  try {
-    const entryPoints: Record<string, string> = {};
-    for (const ssrComponent of ssrComponents) {
-      const entryName = ssrComponent.componentName;
-      entryPoints[entryName] = ssrComponent.componentPath;
-    }
+  const preparedEntryModules = createComponentEntryModules({
+    cacheDir,
+    components: ssrComponents,
+    namespace: 'ssr',
+  });
+  const entryNameToComponent = new Map(
+    preparedEntryModules.entries.map(({ component, entryName }) => [
+      entryName,
+      component,
+    ]),
+  );
 
+  try {
     const viteConfig: InlineConfig = {
       root: srcDir,
       base,
@@ -54,7 +60,7 @@ export async function bundleMultipleComponentsForSSR(
         ssr: true,
         ssrEmitAssets: false,
         rollupOptions: {
-          input: entryPoints,
+          input: preparedEntryModules.entryPoints,
           external: (id) => {
             if (isNodeLikeBuiltin(id)) {
               return true;
@@ -99,10 +105,8 @@ export async function bundleMultipleComponentsForSSR(
     const renderedComponents = new Map<string, string>();
     if (output.output) {
       for (const chunk of output.output) {
-        if (isOutputChunk(chunk) && chunk.isEntry && entryPoints[chunk.name]) {
-          const ssrComponent = ssrComponents.find(
-            (ssrComponent) => ssrComponent.componentName === chunk.name,
-          );
+        if (isOutputChunk(chunk) && chunk.isEntry) {
+          const ssrComponent = entryNameToComponent.get(chunk.name);
 
           if (!ssrComponent) {
             continue;
@@ -111,16 +115,7 @@ export async function bundleMultipleComponentsForSSR(
 
           try {
             const ssrModule = await import(pathToFileURL(bundlePath).href);
-
-            let ssrModuleComponent;
-            if (ssrComponent.importReference.importedName === 'default') {
-              ssrModuleComponent = ssrModule.default;
-            } else if (ssrComponent.importReference.importedName === '*') {
-              ssrModuleComponent = ssrModule;
-            } else {
-              ssrModuleComponent =
-                ssrModule[ssrComponent.importReference.importedName];
-            }
+            const ssrModuleComponent = ssrModule.default;
 
             if (!ssrModuleComponent) {
               Logger.warn(
@@ -159,77 +154,15 @@ export async function bundleMultipleComponentsForSSR(
       }
     }
 
-    for (const ssrComponent of ssrComponents) {
-      const entryName = ssrComponent.componentName;
-      const outputFile = output.output.find(
-        (chunk) =>
-          isOutputChunk(chunk) &&
-          chunk.facadeModuleId === ssrComponent.componentPath &&
-          chunk.name === entryName,
-      );
-
-      if (!outputFile) {
-        Logger.warn(
-          `No SSR bundle found for component: ${ssrComponent.componentName}`,
-        );
-        continue;
-      }
-
-      const bundlePath = resolve(ssrTempDir, outputFile.fileName);
-
-      try {
-        const ssrModule = await import(pathToFileURL(bundlePath).href);
-
-        let ssrModuleComponent;
-        if (ssrComponent.importReference.importedName === 'default') {
-          ssrModuleComponent = ssrModule.default;
-        } else if (ssrComponent.importReference.importedName === '*') {
-          ssrModuleComponent = ssrModule;
-        } else {
-          ssrModuleComponent =
-            ssrModule[ssrComponent.importReference.importedName];
-        }
-
-        if (!ssrModuleComponent) {
-          Logger.warn(
-            `Component "${ssrComponent.componentName}" not found in bundle`,
-          );
-          continue;
-        }
-
-        const pendingRenderIds = ssrComponent.pendingRenderIds;
-
-        for (const [renderId, usedSnippet] of usedSnippetContainer) {
-          if (pendingRenderIds.has(renderId)) {
-            try {
-              const reactSSRHtml = adapter.renderToString(
-                ssrModuleComponent,
-                Object.fromEntries(usedSnippet.props),
-              );
-              renderedComponents.set(renderId, reactSSRHtml);
-              usedSnippet.ssrHtml = reactSSRHtml;
-              Logger.success(
-                `Rendered component ${ssrComponent.componentName} for render ID: ${renderId}`,
-              );
-            } catch (error) {
-              Logger.error(
-                `Error rendering component "${ssrComponent.componentName}" for render ID ${renderId}: ${error}`,
-              );
-            }
-          }
-        }
-      } catch (error) {
-        Logger.error(
-          `Failed to import SSR bundle for ${ssrComponent.componentName}: ${error}`,
-        );
-      }
-    }
-
-    fs.rmSync(ssrTempDir, { recursive: true });
-
     return { renderedComponents };
   } catch (error) {
     Logger.error(`Failed to bundle SSR components: ${error}`);
     throw error;
+  } finally {
+    fs.rmSync(ssrTempDir, { recursive: true, force: true });
+    fs.rmSync(preparedEntryModules.tempEntryDir, {
+      recursive: true,
+      force: true,
+    });
   }
 }

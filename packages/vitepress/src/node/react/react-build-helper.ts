@@ -39,6 +39,7 @@ import {
 import { buildReactIntegrationInMPA } from './build/buildReactIntegrationInMPA';
 import { bundleMultipleComponentsForBrowser } from './build/bundleMultipleComponentsForBrowser';
 import { bundleMultipleComponentsForSSR } from './build/bundleMultipleComponentsForSSR';
+import { getComponentBundleKey } from './build/shared';
 import type { ReactRenderController } from './react-render-controller';
 
 const loggerInstance = getLoggerInstance();
@@ -272,8 +273,13 @@ export function registerBuildHelper(
       }
 
       if (renderDirective !== 'client:only') {
-        if (!ssrComponentsToBundle.has(importReference.identifier)) {
-          ssrComponentsToBundle.set(importReference.identifier, {
+        const componentBundleKey = getComponentBundleKey({
+          componentName,
+          importReference,
+        });
+
+        if (!ssrComponentsToBundle.has(componentBundleKey)) {
+          ssrComponentsToBundle.set(componentBundleKey, {
             componentPath: importReference.identifier,
             componentName,
             importReference,
@@ -282,9 +288,8 @@ export function registerBuildHelper(
           });
         }
 
-        const ssrComponentBundle = ssrComponentsToBundle.get(
-          importReference.identifier,
-        );
+        const ssrComponentBundle =
+          ssrComponentsToBundle.get(componentBundleKey);
         if (ssrComponentBundle) {
           ssrComponentBundle.pendingRenderIds.add(renderId);
           ssrComponentBundle.renderDirectives.add(renderDirective);
@@ -313,8 +318,12 @@ export function registerBuildHelper(
        * Even for `ssr:only` components, we still generate static resources so SSR output,
        * page metadata, and downstream preload/caching behavior remain consistent.
        */
-      if (!clientComponentsToBundle.has(importReference.identifier)) {
-        clientComponentsToBundle.set(importReference.identifier, {
+      const componentBundleKey = getComponentBundleKey({
+        componentName,
+        importReference,
+      });
+      if (!clientComponentsToBundle.has(componentBundleKey)) {
+        clientComponentsToBundle.set(componentBundleKey, {
           componentPath: importReference.identifier,
           componentName,
           importReference,
@@ -323,9 +332,7 @@ export function registerBuildHelper(
         });
       }
 
-      const componentBundle = clientComponentsToBundle.get(
-        importReference.identifier,
-      );
+      const componentBundle = clientComponentsToBundle.get(componentBundleKey);
       if (componentBundle) {
         componentBundle.pendingRenderIds.add(renderId);
         componentBundle.renderDirectives.add(renderDirective);

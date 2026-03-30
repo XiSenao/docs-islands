@@ -23,7 +23,13 @@ import { build } from 'vite';
 import { GET_CLEAN_PATHNAME_RUNTIME } from '../../../shared/runtime';
 import type { FrameworkAdapter } from '../../core/framework-adapter';
 import { reactAdapter } from '../adapter';
-import { isOutputAsset, isOutputChunk, resolveSafeOutputPath } from './shared';
+import {
+  createComponentEntryModules,
+  isGeneratedComponentEntryModule,
+  isOutputAsset,
+  isOutputChunk,
+  resolveSafeOutputPath,
+} from './shared';
 
 const loggerInstance = getLoggerInstance();
 const Logger = loggerInstance.getLoggerByGroup(
@@ -305,15 +311,15 @@ function createUnifiedLoaderEntryCode(
   cleanUrls: boolean,
   componentEntries: {
     componentName: string;
+    loaderImportedName: string;
     modulePath: string;
-    importReference: { importedName: string; identifier: string };
   }[],
 ): string {
   const getCleanPathnameRuntime = GET_CLEAN_PATHNAME_RUNTIME.toString();
   const loaderEntries = componentEntries.map((entry) => ({
     componentName: entry.componentName,
     modulePath: entry.modulePath,
-    importedName: entry.importReference.importedName,
+    importedName: entry.loaderImportedName,
   }));
 
   return `
@@ -530,7 +536,8 @@ export async function bundleMultipleComponentsForBrowser(
   cssBundlePaths: string[];
   ssrInjectScript: string;
 }> {
-  const { base, srcDir, assetsDir, outDir, wrapBaseUrl, cleanUrls } = config;
+  const { base, srcDir, assetsDir, outDir, wrapBaseUrl, cleanUrls, cacheDir } =
+    config;
   if (components.length === 0) {
     return {
       buildMetrics: {
@@ -548,14 +555,17 @@ export async function bundleMultipleComponentsForBrowser(
     };
   }
 
-  const entryPoints: Record<string, string> = {};
-  const componentMapping = new Map<string, ComponentBundleInfo>();
-
-  for (const comp of components) {
-    const entryKey = comp.componentName;
-    entryPoints[entryKey] = comp.componentPath;
-    componentMapping.set(comp.componentPath, comp);
-  }
+  const preparedEntryModules = createComponentEntryModules({
+    cacheDir,
+    components,
+    namespace: 'browser',
+  });
+  const entryNameToComponent = new Map(
+    preparedEntryModules.entries.map(({ component, entryName }) => [
+      entryName,
+      component,
+    ]),
+  );
 
   try {
     const sourceAssetCache = new Map<string, string | undefined>();
@@ -565,7 +575,7 @@ export async function bundleMultipleComponentsForBrowser(
       build: {
         ssr: false,
         rollupOptions: {
-          input: entryPoints,
+          input: preparedEntryModules.entryPoints,
           preserveEntrySignatures: 'allow-extension',
           external: (id) => {
             /**
@@ -605,8 +615,8 @@ export async function bundleMultipleComponentsForBrowser(
       componentName: string;
       cssBundlePath: string[];
       assetsBundlePath: string[];
+      loaderImportedName: string;
       modulePath: string;
-      importReference: { importedName: string; identifier: string };
       pendingRenderIds: Set<string>;
       renderDirectives: ComponentBundleInfo['renderDirectives'];
     }[] = [];
@@ -620,8 +630,7 @@ export async function bundleMultipleComponentsForBrowser(
 
     for (const chunk of output.output) {
       if (isOutputChunk(chunk) && chunk.isEntry && chunk.facadeModuleId) {
-        const fullEntryPointPath = chunk.facadeModuleId;
-        const clientComponentInfo = componentMapping.get(fullEntryPointPath);
+        const clientComponentInfo = entryNameToComponent.get(chunk.name);
 
         if (!clientComponentInfo) continue;
 
@@ -665,8 +674,8 @@ export async function bundleMultipleComponentsForBrowser(
           componentName: clientComponentInfo.componentName,
           cssBundlePath: publicCssBundlePaths,
           assetsBundlePath: publicAssetsBundlePaths,
+          loaderImportedName: 'default',
           modulePath: componentModuleRelativePath,
-          importReference: clientComponentInfo.importReference,
           pendingRenderIds: clientComponentInfo.pendingRenderIds,
           renderDirectives: clientComponentInfo.renderDirectives,
         });
@@ -693,15 +702,27 @@ export async function bundleMultipleComponentsForBrowser(
                   : 0,
               file: relativeOutputPath,
               id,
-              sourceAssetFile: writeDebugSourceAsset({
-                assetsDir,
-                moduleId: id,
-                outDir,
-                sourceAssetCache,
-              }),
+              sourceAssetFile: isGeneratedComponentEntryModule(
+                id,
+                preparedEntryModules.tempEntryDir,
+              )
+                ? undefined
+                : writeDebugSourceAsset({
+                    assetsDir,
+                    moduleId: id,
+                    outDir,
+                    sourceAssetCache,
+                  }),
               sourcePath: fs.existsSync(id) ? id : undefined,
             }))
-            .filter((metric) => metric.bytes > 0),
+            .filter(
+              (metric) =>
+                metric.bytes > 0 &&
+                !isGeneratedComponentEntryModule(
+                  metric.id,
+                  preparedEntryModules.tempEntryDir,
+                ),
+            ),
           type: 'js',
         });
         modulePreloads.push(relativeOutputPath);
@@ -885,5 +906,10 @@ export async function bundleMultipleComponentsForBrowser(
   } catch (error) {
     Logger.error(`Failed to bundle multiple components: ${error}`);
     throw error;
+  } finally {
+    fs.rmSync(preparedEntryModules.tempEntryDir, {
+      recursive: true,
+      force: true,
+    });
   }
 }

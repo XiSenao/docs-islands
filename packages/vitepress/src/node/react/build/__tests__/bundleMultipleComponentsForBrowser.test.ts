@@ -40,6 +40,10 @@ describe('bundleMultipleComponentsForBrowser', () => {
     config.srcDir,
     '/rendering-strategy-comps/react',
   );
+  const multiExportComponentPath = join(
+    reactComponentSource,
+    'MultiExportComponents.tsx',
+  );
 
   const clientComponents: ComponentBundleInfo[] = [
     {
@@ -273,5 +277,84 @@ describe('bundleMultipleComponentsForBrowser', () => {
       loaderScriptContent,
       'loaderScript should notify the resolved component manager instance',
     ).to.include('notifyComponentLoaded');
+  });
+
+  it('should keep multiple named exports from the same source file as distinct client entries', async () => {
+    const clientComponents: ComponentBundleInfo[] = [
+      {
+        componentName: 'MultiExportAlpha',
+        componentPath: multiExportComponentPath,
+        importReference: {
+          importedName: 'MultiExportAlpha',
+          identifier: multiExportComponentPath,
+        },
+        pendingRenderIds: new Set(['alpha-render-id']),
+        renderDirectives: new Set(['client:load']),
+      },
+      {
+        componentName: 'MultiExportBeta',
+        componentPath: multiExportComponentPath,
+        importReference: {
+          importedName: 'MultiExportBeta',
+          identifier: multiExportComponentPath,
+        },
+        pendingRenderIds: new Set(['beta-render-id']),
+        renderDirectives: new Set(['client:load']),
+      },
+    ];
+    const usedSnippetContainer = new Map<string, UsedSnippetContainerType>([
+      [
+        'alpha-render-id',
+        {
+          props: new Map([['component-name', 'MultiExportAlpha']]),
+          renderId: 'alpha-render-id',
+          renderDirective: 'client:load',
+          renderComponent: 'MultiExportAlpha',
+          ssrHtml:
+            '<div class="multi-export-card"><strong>MultiExportAlpha</strong><span>MultiExportAlpha</span></div>',
+          useSpaSyncRender: true,
+        },
+      ],
+      [
+        'beta-render-id',
+        {
+          props: new Map([['component-name', 'MultiExportBeta']]),
+          renderId: 'beta-render-id',
+          renderDirective: 'client:load',
+          renderComponent: 'MultiExportBeta',
+          ssrHtml:
+            '<div class="multi-export-card"><strong>MultiExportBeta</strong><span>MultiExportBeta</span></div>',
+          useSpaSyncRender: true,
+        },
+      ],
+    ]);
+
+    const { buildMetrics, loaderScript } =
+      await bundleMultipleComponentsForBrowser(
+        config,
+        clientComponents,
+        usedSnippetContainer,
+      );
+    const loaderScriptContent = fs.readFileSync(
+      join(config.outDir, loaderScript),
+      'utf8',
+    );
+
+    expect(buildMetrics.components).toHaveLength(2);
+    expect(
+      buildMetrics.components.map((metric) => metric.componentName),
+    ).toEqual(['MultiExportAlpha', 'MultiExportBeta']);
+    expect(
+      new Set(buildMetrics.components.map((metric) => metric.entryFile)).size,
+    ).toBe(2);
+    expect(
+      buildMetrics.components.every(
+        (metric) =>
+          metric.sourcePath ===
+          'rendering-strategy-comps/react/MultiExportComponents.tsx',
+      ),
+    ).toBe(true);
+    expect(loaderScriptContent).toContain('MultiExportAlpha');
+    expect(loaderScriptContent).toContain('MultiExportBeta');
   });
 });
