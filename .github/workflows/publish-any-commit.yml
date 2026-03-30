@@ -1,0 +1,32 @@
+name: Publish Any Commit
+
+env:
+  NODE_OPTIONS: --max-old-space-size=4096
+  NODE_VERSION: "20.19.0"
+
+on: [push, pull_request]
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: DOCS_ISLANDS_MODE="production" DOCS_ISLANDS_RELEASE="1" pnpm build
+
+      - name: Publish @docs-islands/vitepress preview package
+        run: pnpm dlx pkg-pr-new@0.0 publish --compact --pnpm ./packages/vitepress/dist
