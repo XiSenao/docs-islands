@@ -15,4 +15,10 @@ export default defineConfig([
       'n/hashbang': 'off',
     },
   },
+  {
+    files: ['./dom-iterable.ts'],
+    rules: {
+      'unicorn/prefer-spread': 'off',
+    },
+  },
 ]);

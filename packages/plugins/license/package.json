@@ -6,7 +6,7 @@
     "build": "rolldown --config rolldown.config.ts",
     "build:watch": "rolldown --config rolldown.config.ts --watch",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
+    "lint": "del-cli .eslintcache || true && eslint . --config ./eslint.config.mjs --fix --cache",
     "clean": "del-cli dist .eslintcache node_modules"
   },
   "devDependencies": {

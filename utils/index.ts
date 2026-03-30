@@ -30,6 +30,7 @@
  */
 
 export { isNodeLikeBuiltin } from './builtin';
+export { querySelectorAllToArray } from './dom-iterable';
 export {
   injectEnv,
   injectEnvs,
@@ -38,6 +39,7 @@ export {
   type InjectableKey,
 } from './env';
 export { scanFiles } from './fs-utils';
+export { importWithError, pkgExists } from './general';
 export {
   default as Logger,
   formatErrorMessage,

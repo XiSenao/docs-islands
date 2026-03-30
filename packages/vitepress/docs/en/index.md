@@ -33,11 +33,11 @@ features:
     details: Built on VitePress SSG architecture, pre-renders component templates at build time. Selective client-side hydration only where interaction is needed, optimizing first-paint performance.
     icon: '🚀'
 
-  - title: Full VitePress Ecosystem Compatibility
-    details: Seamless integration with VitePress themes and plugins without breaking existing functionality. Supports MPA mode and works with any VitePress project.
-    icon: '🧩'
-
   - title: Developer Experience First
     details: Full HMR support with instant hot updates for React components and Markdown files, preserving component internal state. Consistent dev/prod rendering behavior prevents production surprises.
     icon: '🛠️'
+
+  - title: Built-in Site Debug Console
+    details: Includes a visual runtime debugging panel for Render Metrics, HMR Metrics, Bundle Composition, Injected Globals, and spa:sync-render side effects, making flicker, bundle cost, and hot-update issues easier to diagnose.
+    icon: '🔎'
 ---

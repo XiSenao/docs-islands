@@ -1,53 +1,33 @@
-import type {
-  ComponentBundleInfo,
-  UsedSnippetContainerType,
-} from '#dep-types/component';
-import type { PageMetafile } from '#dep-types/page';
-import type { RenderDirective } from '#dep-types/render';
 import type { SSRUpdateData, SSRUpdateRenderData } from '#dep-types/ssr';
 import type { ConfigType } from '#dep-types/utils';
 import { resolveConfig } from '#shared/config';
 import {
-  ALLOWED_RENDER_DIRECTIVES,
   REACT_RENDER_STRATEGY_INJECT_RUNTIME_ID,
-  RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
 import getLoggerInstance from '#shared/logger';
 import reactPlugin from '@vitejs/plugin-react-swc';
-import type { CheerioAPI } from 'cheerio';
-import { load } from 'cheerio';
 import { type ImportSpecifier, init, parse } from 'es-module-lexer';
 import MagicString, { type SourceMap } from 'magic-string';
 import MarkdownIt from 'markdown-it';
-import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import { extname, join } from 'pathe';
+import { join } from 'pathe';
 import React, { version as reactPackageVersion } from 'react';
 import { version as reactDomPackageVersion } from 'react-dom';
 import ReactDOMServer from 'react-dom/server';
 import type { ModuleNode, PluginOption, Rollup } from 'vite';
 import { normalizePath } from 'vite';
 import type { DefaultTheme, UserConfig } from 'vitepress';
-import {
-  type ExtractedProps,
-  transformReactSSRIntegrationCode,
-} from '../../client/react/react-ssr-integration-processor';
 import { GET_CLEAN_PATHNAME_RUNTIME } from '../../shared/runtime';
 import type { CompilationContainerType } from '../core/render-controller';
 import type { ImportNameSpecifier } from '../core/transform';
 import coreTransformComponentTags, { travelImports } from '../core/transform';
 import createVitePressPathResolverPlugin, {
-  createPathResolver,
   transformPathForInlinePathResolver,
-  type VitePressPathResolver,
 } from '../plugins/vite-plugin-vitepress-path-resolver';
-import { buildReactIntegrationInMPA } from './build/buildReactIntegrationInMPA';
-import { bundleMultipleComponentsForBrowser } from './build/bundleMultipleComponentsForBrowser';
-import { bundleMultipleComponentsForSSR } from './build/bundleMultipleComponentsForSSR';
 import { createImportReferenceResolver } from './export-resolver';
+import { registerBuildHelper } from './react-build-helper';
 import { ReactRenderController } from './react-render-controller';
 
 /**
@@ -70,13 +50,6 @@ const scriptBlockRE =
 const langReactAttrRE = /\blang=(?<q>["'])react\k<q>/;
 
 const loggerInstance = getLoggerInstance();
-
-interface ClientRuntimeMetafile {
-  fileName: string;
-  content: string;
-}
-
-let clientRuntimeMetafileCache: ClientRuntimeMetafile | null = null;
 
 // Helper functions for chunk identification
 const isPageChunk = (
@@ -109,51 +82,6 @@ const isReactClientChunk = (chunkInfo: Rollup.PreRenderedChunk) => {
   );
 };
 
-// TODO: Simplify processing; optimize further.
-const getClientRuntimeMetafile = async (): Promise<ClientRuntimeMetafile> => {
-  if (clientRuntimeMetafileCache) {
-    return clientRuntimeMetafileCache;
-  }
-  const currentFilePath = fileURLToPath(import.meta.url);
-  const fileExtension = extname(currentFilePath);
-  const __require = createRequire(import.meta.url);
-  let clientRuntimePath = __require.resolve(
-    '@docs-islands/vitepress/internal/runtime',
-  );
-  if (fileExtension !== '.js') {
-    /**
-     * A consumer application can pull the @docs-islands/vitepress project
-     * and add it as a Git sub-repository dependency within a monorepo.
-     * This approach is useful for developing and debugging @docs-islands/vitepress.
-     */
-    try {
-      clientRuntimePath = __require.resolve(
-        '@docs-islands/vitepress/internal-helper/runtime',
-      );
-    } catch {
-      loggerInstance
-        .getLoggerByGroup('client-runtime-metafile')
-        .error(
-          'This is developer mode, you need to build the @docs-islands/vitepress project first (pnpm build) to complete the build.',
-        );
-      throw new Error(
-        'Developer mode detected without built artifacts. Please run "pnpm build" first.',
-      );
-    }
-  }
-  const clientRuntimeContent = fs.readFileSync(clientRuntimePath, 'utf8');
-  const hash = createHash('sha256')
-    .update(clientRuntimeContent)
-    .digest('hex')
-    .slice(0, 8);
-  const clientRuntimeFileName = `client-runtime.${hash}.js`;
-  const clientRuntimeMetafile = {
-    fileName: clientRuntimeFileName,
-    content: clientRuntimeContent,
-  };
-  return (clientRuntimeMetafileCache = clientRuntimeMetafile);
-};
-
 interface TransformContext {
   resolveId: (id: string, importer?: string) => Promise<{ id: string } | null>;
 }
@@ -174,391 +102,6 @@ function transformComponentTags(
     renderWithSpaSync:
       RENDER_STRATEGY_CONSTANTS.renderWithSpaSync.toLowerCase(),
   });
-}
-
-function registerBuildHelper(
-  vitepressConfig: UserConfig<DefaultTheme.Config>,
-  config: ConfigType,
-  renderController: ReactRenderController,
-) {
-  const { assetsDir, mpa, wrapBaseUrl } = config;
-  let inlinePathResolver: VitePressPathResolver | null = null;
-
-  const preHtmlTransform = vitepressConfig.transformHtml?.bind(vitepressConfig);
-  /**
-   * Each page proactively preloads React and React DOM to accelerate lazy loading.
-   * Injection is deferred to avoid preempting resources when concurrency limits are reached.
-   */
-  const injectReactModulePreload = async ($: CheerioAPI) => {
-    const publicReactPath = join(
-      '/',
-      assetsDir,
-      `chunks/react@${reactPackageVersion}.js`,
-    );
-    const publicReactClientPath = join(
-      '/',
-      assetsDir,
-      `chunks/client@${reactDomPackageVersion}.js`,
-    );
-    const { fileName } = await getClientRuntimeMetafile();
-    const publicClientRuntimeFilePath = join(
-      '/',
-      assetsDir,
-      `chunks/${fileName}`,
-    );
-    $('head').append(`
-      <link rel="modulepreload" href="${wrapBaseUrl(publicReactPath)}" crossorigin>
-      <link rel="modulepreload" href="${wrapBaseUrl(publicReactClientPath)}" crossorigin>
-      <link rel="modulepreload" href="${wrapBaseUrl(publicClientRuntimeFilePath)}" crossorigin>
-    `);
-  };
-  vitepressConfig.transformHtml = async (html, id, ctx) => {
-    const pageName = ctx.page;
-    const pendingResolvedId = join('/', pageName.replace('.md', ''));
-    const Logger = loggerInstance.getLoggerByGroup('transform-html');
-    const transformedHtml = preHtmlTransform
-      ? await Promise.resolve(preHtmlTransform(html, id, ctx))
-      : html;
-    const $ = load(transformedHtml ? transformedHtml.toString() : '');
-
-    const pendingInlineResolveId =
-      transformPathForInlinePathResolver(pendingResolvedId);
-    if (!inlinePathResolver) {
-      inlinePathResolver = createPathResolver(ctx.siteConfig);
-    }
-    const resolvedId =
-      inlinePathResolver.resolveId(pendingInlineResolveId) || pendingResolvedId;
-    if (
-      !renderController.hasCompilationContainerByMarkdownModuleId(resolvedId)
-    ) {
-      await injectReactModulePreload($);
-      return $.html();
-    }
-
-    const compilationContainer =
-      await renderController.getCompilationContainerByMarkdownModuleId(
-        resolvedId,
-      );
-    const importsByLocalName = compilationContainer.importsByLocalName;
-
-    if (importsByLocalName.size === 0) {
-      await injectReactModulePreload($);
-      return $.html();
-    }
-
-    const elementsToRender = $(
-      `[${RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()}]`,
-    );
-
-    if (elementsToRender.length === 0) {
-      await injectReactModulePreload($);
-      return $.html();
-    }
-
-    const clientScripts = new Set<string>();
-    const clientComponentsToBundle = new Map<string, ComponentBundleInfo>();
-    const ssrComponentsToBundle = new Map<string, ComponentBundleInfo>();
-    const usedSnippetContainer =
-      renderController.getUsedSnippetContainerByMarkdownModuleId(resolvedId) ||
-      new Map<string, UsedSnippetContainerType>();
-
-    renderController.setUsedSnippetContainer(resolvedId, usedSnippetContainer);
-    for (const el of elementsToRender.toArray()) {
-      const $el = $(el);
-      const renderId = $el.attr(
-        RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),
-      );
-      const componentName = $el.attr(
-        RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase(),
-      );
-      const renderDirective = ($el.attr(
-        RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase(),
-      ) || 'ssr:only') as RenderDirective;
-
-      if (
-        !componentName ||
-        !renderId ||
-        !ALLOWED_RENDER_DIRECTIVES.includes(renderDirective)
-      ) {
-        continue;
-      }
-
-      const importReference = importsByLocalName.get(componentName);
-      if (!importReference) {
-        Logger.warn(
-          `Component "${componentName}" import not found for page ${id}.`,
-        );
-        continue;
-      }
-
-      if (renderDirective !== 'client:only') {
-        if (!ssrComponentsToBundle.has(importReference.identifier)) {
-          ssrComponentsToBundle.set(importReference.identifier, {
-            componentPath: importReference.identifier,
-            componentName,
-            importReference,
-            pendingRenderIds: new Set(),
-            renderDirectives: new Set(),
-          });
-        }
-
-        const ssrComponentBundle = ssrComponentsToBundle.get(
-          importReference.identifier,
-        );
-        if (ssrComponentBundle) {
-          ssrComponentBundle.pendingRenderIds.add(renderId);
-          ssrComponentBundle.renderDirectives.add(renderDirective);
-        }
-
-        /**
-         * Collect the props information of the current element, which is determined during the
-         * transform phase.
-         */
-        const usedSnippet = usedSnippetContainer.get(renderId);
-        if (usedSnippet) {
-          const elementProps = new Map<string, string>();
-          const attrs = $el.attr();
-          if (attrs) {
-            for (const [key, value] of Object.entries(attrs)) {
-              if (!RENDER_STRATEGY_ATTRS.includes(key)) {
-                elementProps.set(key, value);
-              }
-            }
-          }
-          usedSnippet.props = elementProps;
-        }
-      }
-
-      /**
-       * Although we don't need to care about ssr:only components,
-       * we need to generate the static resources required by ssr:only components.
-       */
-      if (!clientComponentsToBundle.has(importReference.identifier)) {
-        clientComponentsToBundle.set(importReference.identifier, {
-          componentPath: importReference.identifier,
-          componentName,
-          importReference,
-          pendingRenderIds: new Set(),
-          renderDirectives: new Set(),
-        });
-      }
-
-      const componentBundle = clientComponentsToBundle.get(
-        importReference.identifier,
-      );
-      if (componentBundle) {
-        componentBundle.pendingRenderIds.add(renderId);
-        componentBundle.renderDirectives.add(renderDirective);
-      }
-    }
-
-    const pageMetafile: PageMetafile = {
-      loaderScript: '',
-      modulePreloads: [],
-      cssBundlePaths: [],
-      ssrInjectScript: '',
-    };
-
-    // Complete SSR first to enable `spa:sync-render` optimizations in the client script.
-    if (ssrComponentsToBundle.size > 0) {
-      try {
-        const { renderedComponents } = await bundleMultipleComponentsForSSR(
-          config,
-          [...ssrComponentsToBundle.values()],
-          usedSnippetContainer,
-        );
-
-        for (const [renderId, html] of renderedComponents.entries()) {
-          const targetElement = $(
-            `[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}="${renderId}"]`,
-          );
-          if (targetElement) {
-            targetElement.html(html);
-            Logger.success(`Injected SSR HTML for render ID: ${renderId}`);
-          }
-        }
-      } catch (error) {
-        Logger.error(
-          `Failed to bundle and render SSR components for page ${id}, error: ${error}`,
-        );
-      }
-    }
-
-    if (clientComponentsToBundle.size > 0) {
-      try {
-        const {
-          loaderScript,
-          modulePreloads,
-          cssBundlePaths,
-          ssrInjectScript,
-        } = await bundleMultipleComponentsForBrowser(
-          config,
-          [...clientComponentsToBundle.values()],
-          usedSnippetContainer,
-        );
-
-        for (const [, usedSnippet] of usedSnippetContainer) {
-          if (usedSnippet.ssrCssBundlePaths) {
-            const wrapCssBundlePaths = new Set<string>();
-            for (const cssBundlePath of usedSnippet.ssrCssBundlePaths) {
-              wrapCssBundlePaths.add(wrapBaseUrl(cssBundlePath));
-            }
-            usedSnippet.ssrCssBundlePaths = wrapCssBundlePaths;
-          }
-        }
-
-        if (loaderScript) {
-          clientScripts.add(loaderScript);
-
-          // Inject page-required preload scripts at build time to accelerate subsequent script loading.
-          if (modulePreloads.length > 0) {
-            const preloadTags = modulePreloads
-              .map((src) => {
-                pageMetafile.modulePreloads.push(wrapBaseUrl(src));
-                return `<link rel="modulepreload" href="${wrapBaseUrl(src)}">`;
-              })
-              .join('\n');
-            $('head').append(preloadTags);
-          }
-          if (ssrInjectScript) {
-            pageMetafile.ssrInjectScript = wrapBaseUrl(ssrInjectScript);
-            $('head').append(`
-              <link rel="modulepreload" href="${wrapBaseUrl(ssrInjectScript)}" crossorigin>
-            `);
-          }
-          if (cssBundlePaths.length > 0) {
-            const cssBundleTags = cssBundlePaths
-              .map((src) => {
-                pageMetafile.cssBundlePaths.push(wrapBaseUrl(src));
-                return `<link data-vrite-css-bundle="${wrapBaseUrl(src)}" rel="stylesheet"  href="${wrapBaseUrl(src)}" crossorigin>`;
-              })
-              .join('\n');
-            $('head').append(cssBundleTags);
-          }
-          pageMetafile.loaderScript = wrapBaseUrl(loaderScript);
-          $('head').append(`
-            <link rel="modulepreload" href="${wrapBaseUrl(loaderScript)}" crossorigin>
-          `);
-        }
-      } catch (error) {
-        Logger.error(
-          `Failed to bundle components for page ${id}, error: ${error}`,
-        );
-      }
-    }
-
-    if (
-      pageMetafile.loaderScript ||
-      pageMetafile.modulePreloads.length > 0 ||
-      pageMetafile.cssBundlePaths.length > 0 ||
-      pageMetafile.ssrInjectScript
-    ) {
-      renderController.setPageMetafile(ctx.page, pageMetafile);
-    }
-
-    if (clientScripts.size > 0) {
-      if (mpa) {
-        const { entryPoint, modulePreloads } =
-          await buildReactIntegrationInMPA(config);
-        if (modulePreloads.length > 0) {
-          const preloadTags = modulePreloads
-            .map(
-              (src) => `<link rel="modulepreload" href="${wrapBaseUrl(src)}">`,
-            )
-            .join('\n');
-          $('head').append(preloadTags);
-        }
-        if (entryPoint) {
-          $('head').append(
-            `<script type="module" src="${wrapBaseUrl(entryPoint)}"></script>`,
-          );
-        }
-      }
-
-      const scriptTags = [...clientScripts]
-        .map(
-          (src) => `<script src="${wrapBaseUrl(src)}" type="module"></script>`,
-        )
-        .join('\n');
-      $('head').append(scriptTags);
-    }
-
-    if (!mpa) {
-      await injectReactModulePreload($);
-    }
-
-    return $.html();
-  };
-
-  vitepressConfig.buildEnd = async () => {
-    const { outDir, assetsDir, cleanUrls } = config;
-    const matafileDir = join(outDir, assetsDir);
-    const Logger = loggerInstance.getLoggerByGroup('build-end');
-    const { fileName, content } = await getClientRuntimeMetafile();
-    const clientRuntimeFilePath = join(matafileDir, `chunks/${fileName}`);
-    fs.writeFileSync(clientRuntimeFilePath, content);
-
-    const transformedPageMetafileMap =
-      renderController.getTransformedPageMetafile(cleanUrls);
-    if (Object.keys(transformedPageMetafileMap).length > 0) {
-      const metafilePath = join(matafileDir, 'vrite-page-metafile.json');
-      fs.writeFileSync(
-        metafilePath,
-        JSON.stringify(transformedPageMetafileMap, null, 2),
-      );
-      Logger.info(
-        `Generated global page metafile with ${Object.keys(transformedPageMetafileMap).length} pages`,
-      );
-    }
-
-    const markdownModuleIdToSpaSyncRenderMap =
-      renderController.getMarkdownModuleIdToSpaSyncRenderMap();
-    if (markdownModuleIdToSpaSyncRenderMap.size > 0) {
-      for (const [
-        markdownModuleId,
-        spaSyncRender,
-      ] of markdownModuleIdToSpaSyncRenderMap.entries()) {
-        const { outputPath, code, renderIdToSpaSyncRenderMap } = spaSyncRender;
-        const { code: transformedCode, stats } =
-          transformReactSSRIntegrationCode(code, (props: ExtractedProps) => {
-            const renderId =
-              props[RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()];
-            if (
-              typeof renderId === 'string' &&
-              renderIdToSpaSyncRenderMap.has(renderId)
-            ) {
-              const { ssrHtml, ssrCssBundlePaths } =
-                renderIdToSpaSyncRenderMap.get(renderId)!;
-              return {
-                ssrHtml,
-                ssrCssBundlePaths,
-                clientRuntimeFileName: fileName,
-              };
-            }
-            return {
-              ssrHtml: '',
-              ssrCssBundlePaths: new Set(),
-              clientRuntimeFileName: fileName,
-            };
-          });
-        if (stats.totalTransformations > 0) {
-          loggerInstance.getLoggerByGroup('react-ssr-integration-processor')
-            .success(`
-            Complete ${stats.totalTransformations} pre-rendering injections for page ${markdownModuleId}
-
-            ${stats.transformedNodes.map((node) => `- Line ${node.line}, Column ${node.column}`).join('\n')}
-          `);
-          fs.writeFileSync(join(outDir, outputPath), transformedCode);
-        } else {
-          loggerInstance
-            .getLoggerByGroup('react-ssr-integration-processor')
-            .info(
-              `No transformations performed, preserve original code for ${markdownModuleId}.`,
-            );
-        }
-      }
-    }
-  };
 }
 
 interface ScriptMatch {
@@ -1174,6 +717,50 @@ export default function vitepressReactRenderingStrategies(
       apply: 'serve',
       enforce: 'pre',
       configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (!req.url) {
+            next();
+            return;
+          }
+
+          const requestUrl = new URL(req.url, 'http://docs-islands.local');
+          const normalizedBase = siteConfig.base.endsWith('/')
+            ? siteConfig.base
+            : `${siteConfig.base}/`;
+          const debugSourcePath = `${normalizedBase}__docs-islands/debug-source`;
+
+          if (requestUrl.pathname !== debugSourcePath) {
+            next();
+            return;
+          }
+
+          const sourcePath = requestUrl.searchParams.get('path');
+
+          if (!sourcePath) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            res.end('Missing "path" query parameter.');
+            return;
+          }
+
+          try {
+            if (!fs.existsSync(sourcePath)) {
+              res.statusCode = 404;
+              res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+              res.end('Source file not found.');
+              return;
+            }
+
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            res.end(fs.readFileSync(sourcePath, 'utf8'));
+          } catch (error) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            res.end(error instanceof Error ? error.message : String(error));
+          }
+        });
+
         const collectCssModulesInSSR = (
           module: ModuleNode,
           hasVisited: Set<string>,
@@ -1395,7 +982,7 @@ export default function vitepressReactRenderingStrategies(
                 );
               const updates: Record<
                 string,
-                { path: string; importedName: string }
+                { path: string; importedName: string; sourcePath?: string }
               > = {};
               if (compilationContainer.importsByLocalName.size > 0) {
                 for (const [
@@ -1408,6 +995,7 @@ export default function vitepressReactRenderingStrategies(
                       importInfo.identifier.replace(siteConfig.srcDir, ''),
                     ),
                     importedName: importInfo.importedName,
+                    sourcePath: importInfo.identifier,
                   };
                 }
               }
@@ -1509,9 +1097,13 @@ export default function vitepressReactRenderingStrategies(
             nonSSROnlyComponentFullPathToPageIdAndImportedNameMap,
           } =
             await renderController.getComponentFullPathToPageIdAndImportedNameMap();
-          const pageIdToUpdateComponentNamesMap = new Map<
+          const pageIdToSsrOnlyUpdateComponentsMap = new Map<
             string,
-            Set<string>
+            Map<string, string>
+          >();
+          const pageIdToFastRefreshComponentsMap = new Map<
+            string,
+            Map<string, string>
           >();
           const deferredModules = new Set<ModuleNode>();
           const collectSsrOnlyModuleEntries = (
@@ -1533,13 +1125,13 @@ export default function vitepressReactRenderingStrategies(
                 const [pageId, importedName] = pageIdAndImportedName.split(
                   '__SSR_ONLY_PLACEHOLDER__',
                 );
-                const updateComponentNames =
-                  pageIdToUpdateComponentNamesMap.get(pageId) ||
-                  new Set<string>();
-                updateComponentNames.add(importedName);
-                pageIdToUpdateComponentNamesMap.set(
+                const updateComponents =
+                  pageIdToSsrOnlyUpdateComponentsMap.get(pageId) ||
+                  new Map<string, string>();
+                updateComponents.set(importedName, module.id);
+                pageIdToSsrOnlyUpdateComponentsMap.set(
                   pageId,
-                  updateComponentNames,
+                  updateComponents,
                 );
               }
             }
@@ -1548,6 +1140,20 @@ export default function vitepressReactRenderingStrategies(
                 module.id,
               )
             ) {
+              const pageIdAndImportedNameSet =
+                nonSSROnlyComponentFullPathToPageIdAndImportedNameMap.get(
+                  module.id,
+                ) || [];
+              for (const pageIdAndImportedName of pageIdAndImportedNameSet) {
+                const [pageId, importedName] = pageIdAndImportedName.split(
+                  '__NON_SSR_ONLY_PLACEHOLDER__',
+                );
+                const updateComponents =
+                  pageIdToFastRefreshComponentsMap.get(pageId) ||
+                  new Map<string, string>();
+                updateComponents.set(importedName, module.id);
+                pageIdToFastRefreshComponentsMap.set(pageId, updateComponents);
+              }
               deferredModules.add(module);
             }
             const importers = module.importers;
@@ -1560,12 +1166,26 @@ export default function vitepressReactRenderingStrategies(
             collectSsrOnlyModuleEntries(module, new Set());
           }
 
-          if (pageIdToUpdateComponentNamesMap.size > 0) {
-            const updates: Record<string, string[]> = {};
+          if (pageIdToFastRefreshComponentsMap.size > 0) {
+            const updates: Record<
+              string,
+              {
+                componentName: string;
+                importedName?: string;
+                sourcePath: string;
+              }[]
+            > = {};
             for (const [
               pageId,
-              updateComponentNames,
-            ] of pageIdToUpdateComponentNamesMap) {
+              updateComponents,
+            ] of pageIdToFastRefreshComponentsMap) {
+              const nextUpdates = [...updateComponents.entries()].map(
+                ([componentName, sourcePath]) => ({
+                  componentName,
+                  importedName: componentName,
+                  sourcePath,
+                }),
+              );
               const resolvedPathname = await server.pluginContainer.resolveId(
                 transformPathForInlinePathResolver(pageId),
               );
@@ -1580,7 +1200,53 @@ export default function vitepressReactRenderingStrategies(
                 if (!cleanPathname.startsWith('/')) {
                   cleanPathname = `/${cleanPathname}`;
                 }
-                updates[cleanPathname] = [...updateComponentNames];
+                updates[cleanPathname] = nextUpdates;
+              }
+            }
+            server.ws.send({
+              type: 'custom',
+              event: 'vrite-react-fast-refresh-prepare',
+              data: {
+                updates,
+              },
+            });
+          }
+
+          if (pageIdToSsrOnlyUpdateComponentsMap.size > 0) {
+            const updates: Record<
+              string,
+              {
+                componentName: string;
+                importedName?: string;
+                sourcePath: string;
+              }[]
+            > = {};
+            for (const [
+              pageId,
+              updateComponents,
+            ] of pageIdToSsrOnlyUpdateComponentsMap) {
+              const nextUpdates = [...updateComponents.entries()].map(
+                ([componentName, sourcePath]) => ({
+                  componentName,
+                  importedName: componentName,
+                  sourcePath,
+                }),
+              );
+              const resolvedPathname = await server.pluginContainer.resolveId(
+                transformPathForInlinePathResolver(pageId),
+              );
+              if (resolvedPathname) {
+                let cleanPathname = resolvedPathname.id;
+                if (resolvedPathname.id.startsWith(siteConfig.base)) {
+                  cleanPathname = resolvedPathname.id.replace(
+                    siteConfig.base,
+                    '',
+                  );
+                }
+                if (!cleanPathname.startsWith('/')) {
+                  cleanPathname = `/${cleanPathname}`;
+                }
+                updates[cleanPathname] = nextUpdates;
               }
             }
             server.ws.send({
