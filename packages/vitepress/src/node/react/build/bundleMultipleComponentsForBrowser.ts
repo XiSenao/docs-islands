@@ -2,24 +2,527 @@ import type {
   ComponentBundleInfo,
   UsedSnippetContainerType,
 } from '#dep-types/component';
+import type {
+  BundleAssetMetric,
+  BundleModuleMetric,
+  ComponentBuildMetric,
+  PageBuildMetrics,
+  RuntimeBundleMetric,
+  SpaSyncComponentSideEffectMetric,
+} from '#dep-types/page';
+import type { RollupOutput } from '#dep-types/rollup';
 import type { ConfigType } from '#dep-types/utils';
 import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
 import getLoggerInstance, { LightGeneralLogger } from '#shared/logger';
 import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
-import { dirname, join } from 'pathe';
+import { basename, dirname, extname, join, relative } from 'pathe';
 import type { InlineConfig } from 'vite';
 import { build } from 'vite';
 import { GET_CLEAN_PATHNAME_RUNTIME } from '../../../shared/runtime';
 import type { FrameworkAdapter } from '../../core/framework-adapter';
 import { reactAdapter } from '../adapter';
-import { isOutputAsset, isOutputChunk, resolveSafeOutputPath } from './shared';
+import {
+  createComponentEntryModules,
+  isGeneratedComponentEntryModule,
+  isOutputAsset,
+  isOutputChunk,
+  resolveSafeOutputPath,
+} from './shared';
 
 const loggerInstance = getLoggerInstance();
 const Logger = loggerInstance.getLoggerByGroup(
   'bundle-multiple-components-for-browser',
 );
+
+type BuildOutputMetric = BundleAssetMetric & {
+  dynamicImports?: string[];
+  imports?: string[];
+  modules?: BundleModuleMetric[];
+};
+
+const getBundleAssetBytes = (source: string | Uint8Array): number =>
+  typeof source === 'string' ? Buffer.byteLength(source) : source.byteLength;
+
+const getBundleAssetType = (fileName: string): BuildOutputMetric['type'] => {
+  if (fileName.endsWith('.css')) {
+    return 'css';
+  }
+
+  if (fileName.endsWith('.js') || fileName.endsWith('.mjs')) {
+    return 'js';
+  }
+
+  return 'asset';
+};
+
+const sortBundleMetrics = <T>(
+  metrics: Iterable<T>,
+  compare: (left: T, right: T) => number,
+): T[] => {
+  const sortedMetrics = [...metrics];
+
+  // Keep a copied-array sort so emitted package output stays ES2020-compatible.
+  // eslint-disable-next-line unicorn/no-array-sort
+  return sortedMetrics.sort(compare);
+};
+
+const sortBundleAssetMetrics = (
+  metrics: Iterable<BundleAssetMetric>,
+): BundleAssetMetric[] =>
+  sortBundleMetrics(metrics, (left, right) =>
+    left.file.localeCompare(right.file),
+  );
+
+const sortBundleModuleMetrics = (
+  metrics: Iterable<BundleModuleMetric>,
+): BundleModuleMetric[] =>
+  sortBundleMetrics(metrics, (left, right) => {
+    if (right.bytes !== left.bytes) {
+      return right.bytes - left.bytes;
+    }
+
+    if (left.file !== right.file) {
+      return left.file.localeCompare(right.file);
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+
+const writeDebugSourceAsset = ({
+  assetsDir,
+  moduleId,
+  outDir,
+  sourceAssetCache,
+}: {
+  assetsDir: string;
+  moduleId: string;
+  outDir: string;
+  sourceAssetCache: Map<string, string | undefined>;
+}): string | undefined => {
+  if (sourceAssetCache.has(moduleId)) {
+    return sourceAssetCache.get(moduleId);
+  }
+
+  if (!fs.existsSync(moduleId) || !fs.statSync(moduleId).isFile()) {
+    sourceAssetCache.set(moduleId, undefined);
+    return undefined;
+  }
+
+  const extension = extname(moduleId) || '.txt';
+  const safeBaseName = basename(moduleId, extension).replaceAll(
+    /[^\w.-]/g,
+    '_',
+  );
+  const hash = createHash('sha1').update(moduleId).digest('hex').slice(0, 8);
+  const relativeFileName = join(
+    assetsDir,
+    'debug-sources',
+    `${safeBaseName}.${hash}${extension}`,
+  );
+  const publicFileName = join('/', relativeFileName);
+
+  try {
+    const source = fs.readFileSync(moduleId, 'utf8');
+    const targetPath = resolveSafeOutputPath(outDir, relativeFileName);
+
+    if (!fs.existsSync(dirname(targetPath))) {
+      fs.mkdirSync(dirname(targetPath), { recursive: true });
+    }
+
+    fs.writeFileSync(targetPath, source);
+    sourceAssetCache.set(moduleId, publicFileName);
+    return publicFileName;
+  } catch {
+    sourceAssetCache.set(moduleId, undefined);
+    return undefined;
+  }
+};
+
+function collectReferencedJsFiles(
+  entryFile: string,
+  outputMetricMap: Map<string, BuildOutputMetric>,
+  seen = new Set<string>(),
+): Set<string> {
+  if (seen.has(entryFile)) {
+    return seen;
+  }
+
+  const currentMetric = outputMetricMap.get(entryFile);
+  if (!currentMetric || currentMetric.type !== 'js') {
+    return seen;
+  }
+
+  seen.add(entryFile);
+
+  for (const importFile of currentMetric.imports ?? []) {
+    collectReferencedJsFiles(importFile, outputMetricMap, seen);
+  }
+
+  for (const importFile of currentMetric.dynamicImports ?? []) {
+    collectReferencedJsFiles(importFile, outputMetricMap, seen);
+  }
+
+  return seen;
+}
+
+function createRuntimeBundleMetric(
+  entryFile: string,
+  outputMetricMap: Map<string, BuildOutputMetric>,
+): RuntimeBundleMetric | null {
+  const files = sortBundleAssetMetrics(
+    [...collectReferencedJsFiles(entryFile, outputMetricMap)]
+      .map((file) => outputMetricMap.get(file))
+      .filter((metric): metric is BuildOutputMetric => Boolean(metric))
+      .map(({ bytes, file, type }) => ({ bytes, file, type })),
+  );
+
+  if (files.length === 0) {
+    return null;
+  }
+
+  return {
+    entryFile,
+    files,
+    totalBytes: files.reduce((sum, metric) => sum + metric.bytes, 0),
+  };
+}
+
+function createSpaSyncBuildEffects(
+  usedSnippetContainer: Map<string, UsedSnippetContainerType>,
+  outputMetricMap: Map<string, BuildOutputMetric>,
+): PageBuildMetrics['spaSyncEffects'] {
+  const componentEffectMap = new Map<
+    string,
+    SpaSyncComponentSideEffectMetric
+  >();
+
+  for (const [renderId, usedSnippet] of usedSnippetContainer.entries()) {
+    if (
+      !usedSnippet.useSpaSyncRender ||
+      usedSnippet.renderDirective === 'client:only'
+    ) {
+      continue;
+    }
+
+    const existing =
+      componentEffectMap.get(usedSnippet.renderComponent) ??
+      ({
+        blockingCssBytes: 0,
+        blockingCssCount: 0,
+        blockingCssFiles: [],
+        componentName: usedSnippet.renderComponent,
+        embeddedHtmlPatches: [],
+        embeddedHtmlBytes: 0,
+        renderDirectives: [],
+        renderIds: [],
+        requiresCssLoadingRuntime: false,
+      } satisfies SpaSyncComponentSideEffectMetric);
+
+    existing.renderIds.push(renderId);
+
+    if (!existing.renderDirectives.includes(usedSnippet.renderDirective)) {
+      existing.renderDirectives.push(usedSnippet.renderDirective);
+      existing.renderDirectives.sort();
+    }
+
+    if (usedSnippet.ssrHtml) {
+      existing.embeddedHtmlPatches.push({
+        bytes: getBundleAssetBytes(usedSnippet.ssrHtml),
+        html: usedSnippet.ssrHtml,
+        renderId,
+      });
+      existing.embeddedHtmlBytes += getBundleAssetBytes(usedSnippet.ssrHtml);
+    }
+
+    if (usedSnippet.ssrCssBundlePaths?.size) {
+      existing.requiresCssLoadingRuntime = true;
+
+      for (const cssFile of usedSnippet.ssrCssBundlePaths) {
+        const metric = outputMetricMap.get(cssFile);
+
+        if (!metric || metric.type !== 'css') {
+          continue;
+        }
+
+        if (
+          existing.blockingCssFiles.some((item) => item.file === metric.file)
+        ) {
+          continue;
+        }
+
+        existing.blockingCssFiles.push({
+          bytes: metric.bytes,
+          file: metric.file,
+          type: metric.type,
+        });
+        existing.blockingCssBytes += metric.bytes;
+      }
+    }
+
+    existing.blockingCssFiles = sortBundleAssetMetrics(
+      existing.blockingCssFiles,
+    );
+    existing.blockingCssCount = existing.blockingCssFiles.length;
+    existing.embeddedHtmlPatches = sortBundleMetrics(
+      existing.embeddedHtmlPatches,
+      (left, right) => left.renderId.localeCompare(right.renderId),
+    );
+    componentEffectMap.set(usedSnippet.renderComponent, existing);
+  }
+
+  if (componentEffectMap.size === 0) {
+    return null;
+  }
+
+  const components = sortBundleMetrics(
+    componentEffectMap.values(),
+    (left, right) => left.componentName.localeCompare(right.componentName),
+  );
+
+  return {
+    components,
+    enabledComponentCount: components.length,
+    enabledRenderCount: components.reduce(
+      (sum, component) => sum + component.renderIds.length,
+      0,
+    ),
+    totalBlockingCssBytes: components.reduce(
+      (sum, component) => sum + component.blockingCssBytes,
+      0,
+    ),
+    totalBlockingCssCount: components.reduce(
+      (sum, component) => sum + component.blockingCssCount,
+      0,
+    ),
+    totalEmbeddedHtmlBytes: components.reduce(
+      (sum, component) => sum + component.embeddedHtmlBytes,
+      0,
+    ),
+    usesCssLoadingRuntime: components.some(
+      (component) => component.requiresCssLoadingRuntime,
+    ),
+  };
+}
+
+function createUnifiedLoaderEntryCode(
+  base: string,
+  cleanUrls: boolean,
+  componentEntries: {
+    componentName: string;
+    loaderImportedName: string;
+    modulePath: string;
+  }[],
+): string {
+  const getCleanPathnameRuntime = GET_CLEAN_PATHNAME_RUNTIME.toString();
+  const loaderEntries = componentEntries.map((entry) => ({
+    componentName: entry.componentName,
+    modulePath: entry.modulePath,
+    importedName: entry.loaderImportedName,
+  }));
+
+  return `
+const getPageId = ${getCleanPathnameRuntime};
+
+const componentEntries = ${JSON.stringify(loaderEntries, null, 2)};
+
+const resolveComponentExport = (module, importedName) => {
+  if (importedName === 'default') {
+    return module.default;
+  }
+  if (importedName === '*') {
+    return module;
+  }
+  return module[importedName];
+};
+
+(async function() {
+  const pageId = getPageId(${JSON.stringify(base)}, ${JSON.stringify(cleanUrls)});
+
+  const componentManager = window["${RENDER_STRATEGY_CONSTANTS.componentManager}"];
+  if (!componentManager) {
+    throw new Error('ReactComponentManager is not initialized');
+  }
+
+  await componentManager.subscribeRuntimeReady();
+  const injectComponent = window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"];
+  if (!injectComponent) {
+    throw new Error('ReactComponentRegistry is not initialized');
+  }
+
+  if (!injectComponent[pageId]) {
+    injectComponent[pageId] = {};
+  }
+
+  /**
+   * Before dynamically importing React components,
+   * you must inject the React runtime globally, otherwise component parsing will fail.
+   */
+  await componentManager.loadReact();
+
+  const loadResults = await Promise.allSettled(
+    componentEntries.map(async ({ componentName: name, modulePath, importedName }) => {
+      try {
+        const module = await import(/* @vite-ignore */ modulePath);
+        const Component = resolveComponentExport(module, importedName);
+        if (!Component) {
+          return { name, success: false };
+        }
+
+        if (!injectComponent[pageId][name]) {
+          injectComponent[pageId][name] = {};
+        }
+
+        /**
+         * In production environment, unlike development,
+         * we don't need to inject path and importedName fields for HMR.
+         */
+        injectComponent[pageId][name].component = Component;
+        componentManager.notifyComponentLoaded(pageId, name);
+        return { name, success: true };
+      } catch (error) {
+        ${
+          LightGeneralLogger(
+            'error',
+            `'Failed to load component ' + name + ': ' + (error instanceof Error ? error.message : String(error))`,
+            'react-client-render',
+          ).formatText
+        }
+        return { name, success: false };
+      }
+    })
+  );
+
+  const successCount = loadResults.filter(result =>
+    result.status === 'fulfilled' && result.value.success
+  ).length;
+
+  ${
+    LightGeneralLogger(
+      'success',
+      `Loaded \${successCount} / \${componentEntries.length} React components for page: \${pageId}`,
+      'react-client-render',
+    ).formatText
+  }
+})();
+  `.trim();
+}
+
+async function bundleRuntimeModuleWithVite(
+  config: Pick<
+    ConfigType,
+    'root' | 'outDir' | 'assetsDir' | 'cacheDir' | 'base'
+  >,
+  runtimeModule: {
+    entryFileBaseName: string;
+    source: string;
+  },
+): Promise<{
+  entryFile: string;
+  metric: RuntimeBundleMetric | null;
+}> {
+  const tempEntryDir = join(
+    config.cacheDir,
+    `${runtimeModule.entryFileBaseName}-entry-${Date.now()}-${Math.random()
+      .toString(16)
+      .slice(2)}`,
+  );
+  const tempEntryPath = join(
+    tempEntryDir,
+    `${runtimeModule.entryFileBaseName}-entry.mjs`,
+  );
+
+  fs.mkdirSync(tempEntryDir, { recursive: true });
+  fs.writeFileSync(tempEntryPath, runtimeModule.source);
+
+  try {
+    const result = (await build({
+      root: config.root,
+      base: config.base,
+      cacheDir: join(config.cacheDir, 'vite-runtime-modules'),
+      configFile: false,
+      publicDir: false,
+      logLevel: 'warn',
+      build: {
+        outDir: config.outDir,
+        emptyOutDir: false,
+        write: false,
+        target: 'es2020',
+        minify: true,
+        rollupOptions: {
+          input: tempEntryPath,
+          preserveEntrySignatures: 'allow-extension',
+          output: {
+            format: 'esm',
+            assetFileNames: `${config.assetsDir}/${runtimeModule.entryFileBaseName}.[hash].[ext]`,
+            entryFileNames: `${config.assetsDir}/${runtimeModule.entryFileBaseName}.[hash].js`,
+            chunkFileNames: `${config.assetsDir}/chunks/${runtimeModule.entryFileBaseName}.[hash].js`,
+          },
+        },
+      },
+    })) as RollupOutput | RollupOutput[];
+
+    const output = Array.isArray(result) ? result[0] : result;
+    if (!output?.output || output.output.length === 0) {
+      throw new Error(
+        `Expected ${runtimeModule.entryFileBaseName} bundle output`,
+      );
+    }
+
+    let runtimeScriptRelativePath = '';
+    const outputMetricMap = new Map<string, BuildOutputMetric>();
+
+    for (const chunk of output.output) {
+      const fullOutputPath = resolveSafeOutputPath(
+        config.outDir,
+        chunk.fileName,
+      );
+      if (!fs.existsSync(dirname(fullOutputPath))) {
+        fs.mkdirSync(dirname(fullOutputPath), { recursive: true });
+      }
+
+      if (isOutputChunk(chunk)) {
+        fs.writeFileSync(fullOutputPath, chunk.code);
+        const relativePath = join('/', chunk.fileName);
+        outputMetricMap.set(relativePath, {
+          bytes: Buffer.byteLength(chunk.code),
+          dynamicImports: chunk.dynamicImports.map((file) => join('/', file)),
+          file: relativePath,
+          imports: chunk.imports.map((file) => join('/', file)),
+          type: 'js',
+        });
+        if (chunk.isEntry) {
+          runtimeScriptRelativePath = relativePath;
+        }
+      } else if (isOutputAsset(chunk)) {
+        fs.writeFileSync(fullOutputPath, chunk.source);
+        const relativePath = join('/', chunk.fileName);
+        outputMetricMap.set(relativePath, {
+          bytes: getBundleAssetBytes(chunk.source),
+          file: relativePath,
+          type: getBundleAssetType(chunk.fileName),
+        });
+      }
+    }
+
+    if (!runtimeScriptRelativePath) {
+      throw new Error(
+        `Failed to locate ${runtimeModule.entryFileBaseName} entry output`,
+      );
+    }
+
+    return {
+      entryFile: runtimeScriptRelativePath,
+      metric: createRuntimeBundleMetric(
+        runtimeScriptRelativePath,
+        outputMetricMap,
+      ),
+    };
+  } finally {
+    fs.rmSync(tempEntryDir, { recursive: true, force: true });
+  }
+}
 
 export async function bundleMultipleComponentsForBrowser(
   config: ConfigType,
@@ -27,14 +530,24 @@ export async function bundleMultipleComponentsForBrowser(
   usedSnippetContainer: Map<string, UsedSnippetContainerType>,
   adapter: FrameworkAdapter = reactAdapter,
 ): Promise<{
+  buildMetrics: PageBuildMetrics;
   loaderScript: string;
   modulePreloads: string[];
   cssBundlePaths: string[];
   ssrInjectScript: string;
 }> {
-  const { base, srcDir, assetsDir, outDir, wrapBaseUrl, cleanUrls } = config;
+  const { base, srcDir, assetsDir, outDir, wrapBaseUrl, cleanUrls, cacheDir } =
+    config;
   if (components.length === 0) {
     return {
+      buildMetrics: {
+        components: [],
+        framework: 'react',
+        loader: null,
+        spaSyncEffects: null,
+        ssrInject: null,
+        totalEstimatedComponentBytes: 0,
+      },
       loaderScript: '',
       modulePreloads: [],
       cssBundlePaths: [],
@@ -42,23 +555,27 @@ export async function bundleMultipleComponentsForBrowser(
     };
   }
 
-  const entryPoints: Record<string, string> = {};
-  const componentMapping = new Map<string, ComponentBundleInfo>();
-
-  for (const comp of components) {
-    const entryKey = comp.componentName;
-    entryPoints[entryKey] = comp.componentPath;
-    componentMapping.set(comp.componentPath, comp);
-  }
+  const preparedEntryModules = createComponentEntryModules({
+    cacheDir,
+    components,
+    namespace: 'browser',
+  });
+  const entryNameToComponent = new Map(
+    preparedEntryModules.entries.map(({ component, entryName }) => [
+      entryName,
+      component,
+    ]),
+  );
 
   try {
+    const sourceAssetCache = new Map<string, string | undefined>();
     const viteConfig: InlineConfig = {
       root: srcDir,
       base,
       build: {
         ssr: false,
         rollupOptions: {
-          input: entryPoints,
+          input: preparedEntryModules.entryPoints,
           preserveEntrySignatures: 'allow-extension',
           external: (id) => {
             /**
@@ -94,12 +611,14 @@ export async function bundleMultipleComponentsForBrowser(
     }
 
     const componentEntries: {
+      componentPath: string;
       componentName: string;
       cssBundlePath: string[];
       assetsBundlePath: string[];
+      loaderImportedName: string;
       modulePath: string;
-      importReference: { importedName: string; identifier: string };
       pendingRenderIds: Set<string>;
+      renderDirectives: ComponentBundleInfo['renderDirectives'];
     }[] = [];
     const modulePreloads: string[] = [];
     const cssBundlePaths: string[] = [];
@@ -107,11 +626,11 @@ export async function bundleMultipleComponentsForBrowser(
       string,
       Set<string>
     >();
+    const outputMetricMap = new Map<string, BuildOutputMetric>();
 
     for (const chunk of output.output) {
       if (isOutputChunk(chunk) && chunk.isEntry && chunk.facadeModuleId) {
-        const fullEntryPointPath = chunk.facadeModuleId;
-        const clientComponentInfo = componentMapping.get(fullEntryPointPath);
+        const clientComponentInfo = entryNameToComponent.get(chunk.name);
 
         if (!clientComponentInfo) continue;
 
@@ -151,12 +670,14 @@ export async function bundleMultipleComponentsForBrowser(
         );
 
         componentEntries.push({
+          componentPath: clientComponentInfo.componentPath,
           componentName: clientComponentInfo.componentName,
           cssBundlePath: publicCssBundlePaths,
           assetsBundlePath: publicAssetsBundlePaths,
+          loaderImportedName: 'default',
           modulePath: componentModuleRelativePath,
-          importReference: clientComponentInfo.importReference,
           pendingRenderIds: clientComponentInfo.pendingRenderIds,
+          renderDirectives: clientComponentInfo.renderDirectives,
         });
       }
 
@@ -168,6 +689,42 @@ export async function bundleMultipleComponentsForBrowser(
         }
         fs.writeFileSync(fullOutputPath, code);
         const relativeOutputPath = join('/', chunk.fileName);
+        outputMetricMap.set(relativeOutputPath, {
+          bytes: Buffer.byteLength(code),
+          dynamicImports: chunk.dynamicImports.map((file) => join('/', file)),
+          file: relativeOutputPath,
+          imports: chunk.imports.map((file) => join('/', file)),
+          modules: Object.entries(chunk.modules ?? {})
+            .map(([id, moduleInfo]) => ({
+              bytes:
+                typeof moduleInfo.renderedLength === 'number'
+                  ? moduleInfo.renderedLength
+                  : 0,
+              file: relativeOutputPath,
+              id,
+              sourceAssetFile: isGeneratedComponentEntryModule(
+                id,
+                preparedEntryModules.tempEntryDir,
+              )
+                ? undefined
+                : writeDebugSourceAsset({
+                    assetsDir,
+                    moduleId: id,
+                    outDir,
+                    sourceAssetCache,
+                  }),
+              sourcePath: fs.existsSync(id) ? id : undefined,
+            }))
+            .filter(
+              (metric) =>
+                metric.bytes > 0 &&
+                !isGeneratedComponentEntryModule(
+                  metric.id,
+                  preparedEntryModules.tempEntryDir,
+                ),
+            ),
+          type: 'js',
+        });
         modulePreloads.push(relativeOutputPath);
       }
 
@@ -178,24 +735,88 @@ export async function bundleMultipleComponentsForBrowser(
           fs.mkdirSync(dirname(fullOutputPath), { recursive: true });
         }
         fs.writeFileSync(fullOutputPath, code);
+        const relativeOutputPath = join('/', chunk.fileName);
+        outputMetricMap.set(relativeOutputPath, {
+          bytes: getBundleAssetBytes(code),
+          file: relativeOutputPath,
+          type: getBundleAssetType(chunk.fileName),
+        });
         if (chunk.fileName.endsWith('.css')) {
-          cssBundlePaths.push(join('/', chunk.fileName));
+          cssBundlePaths.push(relativeOutputPath);
         }
       }
     }
 
-    const getExportExpression = (importInfo: {
-      importedName: string;
-      identifier: string;
-    }) => {
-      if (importInfo.importedName === 'default') {
-        return 'module.default';
-      }
-      if (importInfo.importedName === '*') {
-        return 'module';
-      }
-      return `module['${importInfo.importedName}']`;
-    };
+    const componentBuildMetrics: ComponentBuildMetric[] = componentEntries.map(
+      (entry) => {
+        const files = new Map<string, BundleAssetMetric>();
+        const modules = new Map<string, BundleModuleMetric>();
+
+        for (const jsFile of collectReferencedJsFiles(
+          entry.modulePath,
+          outputMetricMap,
+        )) {
+          const metric = outputMetricMap.get(jsFile);
+          if (metric) {
+            files.set(metric.file, {
+              bytes: metric.bytes,
+              file: metric.file,
+              type: metric.type,
+            });
+
+            for (const moduleMetric of metric.modules ?? []) {
+              modules.set(
+                `${moduleMetric.file}::${moduleMetric.id}`,
+                moduleMetric,
+              );
+            }
+          }
+        }
+
+        for (const file of [
+          ...entry.cssBundlePath,
+          ...entry.assetsBundlePath,
+        ]) {
+          const metric = outputMetricMap.get(file);
+          if (metric) {
+            files.set(metric.file, {
+              bytes: metric.bytes,
+              file: metric.file,
+              type: metric.type,
+            });
+          }
+        }
+
+        const metricFiles = sortBundleAssetMetrics(files.values());
+        const estimatedJsBytes = metricFiles
+          .filter((file) => file.type === 'js')
+          .reduce((sum, file) => sum + file.bytes, 0);
+        const estimatedCssBytes = metricFiles
+          .filter((file) => file.type === 'css')
+          .reduce((sum, file) => sum + file.bytes, 0);
+        const estimatedAssetBytes = metricFiles
+          .filter((file) => file.type === 'asset')
+          .reduce((sum, file) => sum + file.bytes, 0);
+
+        return {
+          componentName: entry.componentName,
+          entryFile: entry.modulePath,
+          estimatedAssetBytes,
+          estimatedCssBytes,
+          estimatedJsBytes,
+          estimatedTotalBytes:
+            estimatedJsBytes + estimatedCssBytes + estimatedAssetBytes,
+          files: metricFiles,
+          framework: 'react',
+          modules: sortBundleModuleMetrics(modules.values()),
+          renderDirectives: sortBundleMetrics(
+            entry.renderDirectives,
+            (left, right) => left.localeCompare(right),
+          ),
+          sourcePath: relative(srcDir, entry.componentPath),
+        };
+      },
+    );
 
     const ssrInjectCodeSnippet: string[] = [];
     for (const [renderId, usedSnippet] of usedSnippetContainer.entries()) {
@@ -230,119 +851,54 @@ export async function bundleMultipleComponentsForBrowser(
         }
       }
     }
+    const spaSyncEffects = createSpaSyncBuildEffects(
+      usedSnippetContainer,
+      outputMetricMap,
+    );
 
     if (ssrInjectCodeSnippet.length > 0) {
       ssrInjectCodeSnippet.push('};');
     }
 
-    // Inject helper body once and call via toString()
-    const getCleanPathnameRuntime = GET_CLEAN_PATHNAME_RUNTIME.toString();
-    const unifiedLoaderCode = `
-(async function() {
-  // This loader is emitted from a string, so pass base/cleanUrls explicitly.
-  const pageId = (
-    ${getCleanPathnameRuntime}
-  )(${JSON.stringify(base)}, ${JSON.stringify(cleanUrls)});
-
-  const componentManager = window["${RENDER_STRATEGY_CONSTANTS.componentManager}"];
-  if (!componentManager) {
-    throw new Error('ReactComponentManager is not initialized');
-  }
-
-  await componentManager.subscribeRuntimeReady();
-  const injectComponent = window["${RENDER_STRATEGY_CONSTANTS.injectComponent}"];
-  if (!injectComponent) {
-    throw new Error('ReactComponentRegistry is not initialized');
-  }
-
-  if (!injectComponent[pageId]) {
-    injectComponent[pageId] = {};
-  }
-
-  /**
-   * Before dynamically importing React components,
-   * you must inject the React runtime globally, otherwise component parsing will fail.
-   */
-  await componentManager.loadReact();
-
-  const componentLoaders = [
-    ${componentEntries
-      .map(
-        (entry) => `
-    {
-      name: '${entry.componentName}',
-      loader: async () => {
-        try {
-          const module = await import('${wrapBaseUrl(entry.modulePath)}');
-          return ${getExportExpression(entry.importReference)};
-        } catch (error) {
-          ${LightGeneralLogger('error', `Failed to load component ${entry.componentName}: error.message`, 'react-client-render').formatText}
-          return null;
-        }
-      }
-    }`,
-      )
-      .join(',')}
-  ];
-
-  const loadResults = await Promise.allSettled(
-    componentLoaders.map(async ({ name, loader }) => {
-      const Component = await loader();
-      if (Component) {
-        if (!injectComponent[pageId][name]) {
-          injectComponent[pageId][name] = {};
-        }
-        /**
-         * In production environment, unlike development,
-         * we don't need to inject path and importedName fields for HMR.
-         */
-        injectComponent[pageId][name].component = Component;
-        componentManager.notifyComponentLoaded(pageId, name);
-        return { name, success: true };
-      }
-      return { name, success: false };
-    })
-  );
-
-  const successCount = loadResults.filter(result =>
-    result.status === 'fulfilled' && result.value.success
-  ).length;
-
-      ${LightGeneralLogger('success', `Loaded \${successCount} / \${componentLoaders.length} React components for page: \${pageId}`, 'react-client-render').formatText}
-})();
-    `.trim();
-
-    const hash = createHash('sha256')
-      .update(unifiedLoaderCode)
-      .digest('hex')
-      .slice(0, 8);
-    const loaderFileName = `unified-loader.${hash}.js`;
-    const loaderFullPath = resolveSafeOutputPath(
-      outDir,
-      join(assetsDir, loaderFileName),
+    const unifiedLoaderCode = createUnifiedLoaderEntryCode(
+      base,
+      cleanUrls,
+      componentEntries.map((entry) => ({
+        ...entry,
+        modulePath: wrapBaseUrl(entry.modulePath),
+      })),
     );
-    fs.writeFileSync(loaderFullPath, unifiedLoaderCode);
-    const loaderScriptRelativePath = join('/', assetsDir, loaderFileName);
+    const loaderBuildResult = await bundleRuntimeModuleWithVite(config, {
+      entryFileBaseName: 'unified-loader',
+      source: unifiedLoaderCode,
+    });
 
     let ssrInjectScriptRelativePath = '';
+    let ssrInjectMetric: RuntimeBundleMetric | null = null;
     if (ssrInjectCodeSnippet.length > 0) {
-      const ssrInjectCodeHash = createHash('sha256')
-        .update(ssrInjectCodeSnippet.join('\n'))
-        .digest('hex')
-        .slice(0, 8);
-      const ssrInjectFileName = `ssr-inject-code.${ssrInjectCodeHash}.js`;
-      const ssrInjectFullPath = resolveSafeOutputPath(
-        outDir,
-        join(assetsDir, ssrInjectFileName),
-      );
-      fs.writeFileSync(ssrInjectFullPath, ssrInjectCodeSnippet.join('\n'));
-      ssrInjectScriptRelativePath = join('/', assetsDir, ssrInjectFileName);
+      const ssrInjectBuildResult = await bundleRuntimeModuleWithVite(config, {
+        entryFileBaseName: 'ssr-inject-code',
+        source: ssrInjectCodeSnippet.join('\n'),
+      });
+      ssrInjectScriptRelativePath = ssrInjectBuildResult.entryFile;
+      ssrInjectMetric = ssrInjectBuildResult.metric;
     }
 
     Logger.success(`Bundle multiple components for browser completed`);
 
     return {
-      loaderScript: loaderScriptRelativePath,
+      buildMetrics: {
+        components: componentBuildMetrics,
+        framework: 'react',
+        loader: loaderBuildResult.metric,
+        spaSyncEffects,
+        ssrInject: ssrInjectMetric,
+        totalEstimatedComponentBytes: componentBuildMetrics.reduce(
+          (sum, metric) => sum + metric.estimatedTotalBytes,
+          0,
+        ),
+      },
+      loaderScript: loaderBuildResult.entryFile,
       modulePreloads,
       cssBundlePaths,
       ssrInjectScript: ssrInjectScriptRelativePath,
@@ -350,5 +906,10 @@ export async function bundleMultipleComponentsForBrowser(
   } catch (error) {
     Logger.error(`Failed to bundle multiple components: ${error}`);
     throw error;
+  } finally {
+    fs.rmSync(preparedEntryModules.tempEntryDir, {
+      recursive: true,
+      force: true,
+    });
   }
 }

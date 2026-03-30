@@ -26,6 +26,7 @@ export class ReactRenderController extends RenderController {
     return `
 import { createRoot as __react_client_render__, hydrateRoot as __react_hydrate__ } from 'react-dom/client';
 import { startTransition as __start_transition__ } from 'react';
+import { getSiteDebugNow as __site_debug_now__, logSiteDebug as __site_debug_log__, updateSiteDebugRenderMetric as __site_debug_metric__ } from '@docs-islands/vitepress/internal/debug';
 import getLoggerInstance from '@docs-islands/vitepress/internal/logger';
 
 const Logger = getLoggerInstance().getLoggerByGroup('ReactRenderController');
@@ -39,6 +40,28 @@ const __RENDERED_ELEMENTS__ = new WeakSet();
 const __MISSING_COMPONENT_LOGGED_ELEMENTS__ = new WeakSet();
 let __renderRetryCount__ = 0;
 let __renderRetryTimer__ = null;
+
+function __get_page_id__() {
+  let pathname = window.location.pathname || '/';
+  try {
+    pathname = decodeURI(pathname);
+  } catch {
+    // Keep the raw pathname if decoding fails.
+  }
+
+  pathname = pathname.replace(/(^|\\/)index(?:\\.html)?$/, '$1');
+  pathname = pathname.replace(/\\.html$/, '');
+  return pathname || '/';
+}
+
+function __update_render_metric__(patch) {
+  __site_debug_metric__({
+    pageId: __get_page_id__(),
+    source: 'react-dev-runtime',
+    ...patch
+  });
+}
+
 const clientVisibleObserver = new IntersectionObserver((entries) => {
   entries.forEach((entry) => {
     if (entry.isIntersecting) {
@@ -47,9 +70,24 @@ const clientVisibleObserver = new IntersectionObserver((entries) => {
         const {
           component: Component,
           props,
+          renderId,
           renderMode,
           renderComponentName
         } = __PENDING_HYDRATION_COMPONENT_MAP__.get(entry.target);
+        const renderStart = __site_debug_now__();
+        __site_debug_log__('react-dev-runtime', 'client:visible component became visible', {
+          renderComponentName,
+          renderId,
+          renderMode
+        });
+        __update_render_metric__({
+          componentName: renderComponentName,
+          hasSsrContent: renderMode === 'hydrate',
+          renderId,
+          renderMode,
+          status: 'rendering',
+          visibleAt: renderStart
+        });
         try {
           if (renderMode === 'render') {
             __react_client_render__(entry.target).render(<Component {...props} />);
@@ -58,8 +96,41 @@ const clientVisibleObserver = new IntersectionObserver((entries) => {
             __react_hydrate__(entry.target, <Component {...props} />);
             Logger.success(\`Component \${ renderComponentName } lazy hydration completed\`);
           }
+          const renderEnd = __site_debug_now__();
+          __site_debug_log__('react-dev-runtime', 'development lazy render completed', {
+            durationMs: Number((renderEnd - renderStart).toFixed(2)),
+            renderComponentName,
+            renderId,
+            renderMode
+          });
+          __update_render_metric__({
+            componentName: renderComponentName,
+            hasSsrContent: renderMode === 'hydrate',
+            invokeDurationMs: Number((renderEnd - renderStart).toFixed(2)),
+            renderId,
+            renderMode,
+            status: 'completed',
+            updatedAt: renderEnd
+          });
         } catch (error) {
+          const renderEnd = __site_debug_now__();
           Logger.error(\`Component \${ renderComponentName } lazy hydration failed: \${error}\`);
+          __site_debug_log__('react-dev-runtime', 'development lazy render failed', {
+            durationMs: Number((renderEnd - renderStart).toFixed(2)),
+            message: error instanceof Error ? error.message : String(error),
+            renderComponentName,
+            renderId,
+            renderMode
+          }, 'error');
+          __update_render_metric__({
+            componentName: renderComponentName,
+            errorMessage: error instanceof Error ? error.message : String(error),
+            hasSsrContent: renderMode === 'hydrate',
+            renderId,
+            renderMode,
+            status: 'failed',
+            updatedAt: renderEnd
+          });
         } finally {
           __RENDERED_ELEMENTS__.add(entry.target);
           clientVisibleObserver.unobserve(entry.target);
@@ -104,6 +175,8 @@ function __renderTarget__(dom) {
 
   const renderDirective =
     props["${RENDER_STRATEGY_CONSTANTS.renderDirective.toLocaleLowerCase()}"];
+  const renderId =
+    props["${RENDER_STRATEGY_CONSTANTS.renderId.toLocaleLowerCase()}"];
   const renderComponentName =
     props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLocaleLowerCase()}"];
   const __REACT_COMPONENT__ = (
@@ -114,6 +187,20 @@ function __renderTarget__(dom) {
   if (!__REACT_COMPONENT__) {
     if (renderDirective === 'ssr:only') {
       __RENDERED_ELEMENTS__.add(dom);
+      __site_debug_log__('react-dev-runtime', 'development ssr:only component skipped client render', {
+        renderComponentName,
+        renderDirective,
+        renderId
+      });
+      __update_render_metric__({
+        componentName: renderComponentName,
+        detectedAt: __site_debug_now__(),
+        hasSsrContent: __hasSsrContent__(dom),
+        renderDirective,
+        renderId,
+        renderMode: 'ssr-only',
+        status: 'skipped'
+      });
       return true;
     }
 
@@ -122,6 +209,22 @@ function __renderTarget__(dom) {
       !__MISSING_COMPONENT_LOGGED_ELEMENTS__.has(dom)
     ) {
       __MISSING_COMPONENT_LOGGED_ELEMENTS__.add(dom);
+      __site_debug_log__('react-dev-runtime', 'development render target missing component after retries', {
+        renderComponentName,
+        renderDirective,
+        renderId,
+        retryCount: __renderRetryCount__
+      }, 'error');
+      __update_render_metric__({
+        componentName: renderComponentName,
+        detectedAt: __site_debug_now__(),
+        errorMessage: 'Component not found after retries',
+        hasSsrContent: __hasSsrContent__(dom),
+        renderDirective,
+        renderId,
+        renderMode: __hasSsrContent__(dom) ? 'hydrate' : 'render',
+        status: 'failed'
+      });
       ${LightGeneralLogger('error', `'Component '+ props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLocaleLowerCase()}"] + ' not found'`, 'generate-client-runtime-in-dev').formatText}
     }
     return false;
@@ -135,25 +238,107 @@ function __renderTarget__(dom) {
    */
   if (renderDirective === 'client:visible') {
     if (!__PENDING_HYDRATION_COMPONENT_MAP__.has(dom)) {
+      const hasSsrContent = __hasSsrContent__(dom);
+      const renderMode = hasSsrContent ? 'hydrate' : 'render';
+      const detectedAt = __site_debug_now__();
       clientVisibleObserver.observe(dom);
       __PENDING_HYDRATION_COMPONENT_MAP__.set(dom, {
         component: __REACT_COMPONENT__,
         props: userProps,
-        renderMode: __hasSsrContent__(dom) ? 'hydrate' : 'render',
+        renderId,
+        renderMode,
         renderComponentName
+      });
+      __site_debug_log__('react-dev-runtime', 'development client:visible render scheduled', {
+        renderComponentName,
+        renderDirective,
+        renderId,
+        renderMode
+      });
+      __update_render_metric__({
+        componentName: renderComponentName,
+        detectedAt,
+        hasSsrContent,
+        renderDirective,
+        renderId,
+        renderMode,
+        status: 'waiting-visible'
       });
       __RENDERED_ELEMENTS__.add(dom);
     }
     return true;
   }
 
+  const hasSsrContent = __hasSsrContent__(dom);
+  const renderMode =
+    renderDirective === 'client:only' || !hasSsrContent
+      ? 'render'
+      : 'hydrate';
+  const renderStart = __site_debug_now__();
+  __site_debug_log__('react-dev-runtime', 'development render started', {
+    renderComponentName,
+    renderDirective,
+    renderId,
+    renderMode
+  });
+  __update_render_metric__({
+    componentName: renderComponentName,
+    detectedAt: renderStart,
+    hasSsrContent,
+    renderDirective,
+    renderId,
+    renderMode,
+    status: 'rendering'
+  });
+
   __start_transition__(() => {
-    if (renderDirective === 'client:only' || !__hasSsrContent__(dom)) {
-      __react_client_render__(dom).render(<__REACT_COMPONENT__ {...userProps} />);
-      Logger.success(\`Component \${ renderComponentName } client-side rendering completed\`);
-    } else if (renderDirective !== 'ssr:only') {
-      __react_hydrate__(dom, <__REACT_COMPONENT__ {...userProps} />);
-      Logger.success(\`Component \${ renderComponentName } hydration completed\`);
+    try {
+      if (renderMode === 'render') {
+        __react_client_render__(dom).render(<__REACT_COMPONENT__ {...userProps} />);
+        Logger.success(\`Component \${ renderComponentName } client-side rendering completed\`);
+      } else if (renderDirective !== 'ssr:only') {
+        __react_hydrate__(dom, <__REACT_COMPONENT__ {...userProps} />);
+        Logger.success(\`Component \${ renderComponentName } hydration completed\`);
+      }
+      const renderEnd = __site_debug_now__();
+      __site_debug_log__('react-dev-runtime', 'development render completed', {
+        durationMs: Number((renderEnd - renderStart).toFixed(2)),
+        renderComponentName,
+        renderDirective,
+        renderId,
+        renderMode
+      });
+      __update_render_metric__({
+        componentName: renderComponentName,
+        hasSsrContent,
+        invokeDurationMs: Number((renderEnd - renderStart).toFixed(2)),
+        renderDirective,
+        renderId,
+        renderMode,
+        status: 'completed',
+        updatedAt: renderEnd
+      });
+    } catch (error) {
+      const renderEnd = __site_debug_now__();
+      __site_debug_log__('react-dev-runtime', 'development render failed', {
+        durationMs: Number((renderEnd - renderStart).toFixed(2)),
+        message: error instanceof Error ? error.message : String(error),
+        renderComponentName,
+        renderDirective,
+        renderId,
+        renderMode
+      }, 'error');
+      __update_render_metric__({
+        componentName: renderComponentName,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        hasSsrContent,
+        renderDirective,
+        renderId,
+        renderMode,
+        status: 'failed',
+        updatedAt: renderEnd
+      });
+      throw error;
     }
   });
   __RENDERED_ELEMENTS__.add(dom);

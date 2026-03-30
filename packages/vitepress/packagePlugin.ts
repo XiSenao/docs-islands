@@ -77,6 +77,30 @@ const filterExports = (key: string) => {
   return false;
 };
 
+const rewriteExportPath = (key: string, value: string): string => {
+  if (
+    value.includes('src/') &&
+    (value.endsWith('.d.mts') || value.endsWith('.d.ts'))
+  ) {
+    return value.replace('src/', '');
+  }
+  if (value.endsWith('.d.mts') || value.endsWith('.d.ts')) {
+    return value;
+  }
+  if (value.includes('src/')) {
+    const targetExt = /^\.\/client(?:\/.+)?$/.test(key) ? '.mjs' : '.js';
+    return value.replace('src/', '').replace('.ts', targetExt);
+  }
+  if (value.includes('theme/')) {
+    const targetExt = /^\.\/client(?:\/.+)?$/.test(key) ? '.mjs' : '.js';
+    return value.replace('.ts', targetExt);
+  }
+  if (value.endsWith('.ts')) {
+    return value.replace('.ts', '.js');
+  }
+  return value;
+};
+
 export default function generatePackageJson(): Plugin {
   return {
     name: 'rolldown-plugin-generate-package-json',
@@ -116,22 +140,22 @@ export default function generatePackageJson(): Plugin {
                 }
                 // Handle object-type export values (e.g., { types: "..." })
                 if (typeof value === 'object' && value !== null) {
-                  return [key, value as ExportValue];
+                  const rewrittenEntries = Object.entries(value).map(
+                    ([entryKey, entryValue]) => [
+                      entryKey,
+                      typeof entryValue === 'string'
+                        ? rewriteExportPath(key, entryValue)
+                        : entryValue,
+                    ],
+                  );
+                  return [
+                    key,
+                    Object.fromEntries(rewrittenEntries) as ExportValue,
+                  ];
                 }
                 // Handle string-type export values
                 if (typeof value === 'string') {
-                  if (value.includes('src/')) {
-                    const targetExt = /^\.\/client(?:\/.+)?$/.test(key)
-                      ? '.mjs'
-                      : '.js';
-                    return [
-                      key,
-                      value.replace('src/', '').replace('.ts', targetExt),
-                    ];
-                  }
-                  if (value.endsWith('.ts')) {
-                    return [key, value.replace('.ts', '.js')];
-                  }
+                  return [key, rewriteExportPath(key, value)];
                 }
 
                 return [key, value as ExportValue];

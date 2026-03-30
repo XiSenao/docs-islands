@@ -4,7 +4,6 @@ import DefaultTheme from 'vitepress/theme';
 </script>
 
 <template>
-  <DefaultTheme.Layout>
-    <Analytics />
-  </DefaultTheme.Layout>
+  <DefaultTheme.Layout />
+  <Analytics />
 </template>

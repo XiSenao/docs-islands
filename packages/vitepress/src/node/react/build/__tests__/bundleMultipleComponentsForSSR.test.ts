@@ -47,6 +47,10 @@ describe('bundleMultipleComponentsForSSR', () => {
     config.srcDir,
     '/rendering-strategy-comps/react',
   );
+  const multiExportComponentPath = join(
+    reactComponentSource,
+    'MultiExportComponents.tsx',
+  );
 
   afterAll(() => {
     if (fs.existsSync(config.outDir)) {
@@ -147,5 +151,65 @@ describe('bundleMultipleComponentsForSSR', () => {
     );
     const actualOutput = Object.fromEntries(renderedComponents);
     expect(actualOutput).toEqual(expectedOutput);
+  });
+
+  it('renders multiple named exports from the same source file independently', async () => {
+    const ssrComponents: ComponentBundleInfo[] = [
+      {
+        componentName: 'MultiExportAlpha',
+        componentPath: multiExportComponentPath,
+        importReference: {
+          importedName: 'MultiExportAlpha',
+          identifier: multiExportComponentPath,
+        },
+        pendingRenderIds: new Set(['alpha-render-id']),
+        renderDirectives: new Set(['client:load']),
+      },
+      {
+        componentName: 'MultiExportBeta',
+        componentPath: multiExportComponentPath,
+        importReference: {
+          importedName: 'MultiExportBeta',
+          identifier: multiExportComponentPath,
+        },
+        pendingRenderIds: new Set(['beta-render-id']),
+        renderDirectives: new Set(['ssr:only']),
+      },
+    ];
+    const usedSnippetContainer = new Map<string, UsedSnippetContainerType>([
+      [
+        'alpha-render-id',
+        {
+          props: new Map([['component-name', 'MultiExportAlpha']]),
+          renderId: 'alpha-render-id',
+          renderDirective: 'client:load',
+          renderComponent: 'MultiExportAlpha',
+          useSpaSyncRender: true,
+        },
+      ],
+      [
+        'beta-render-id',
+        {
+          props: new Map([['component-name', 'MultiExportBeta']]),
+          renderId: 'beta-render-id',
+          renderDirective: 'ssr:only',
+          renderComponent: 'MultiExportBeta',
+          useSpaSyncRender: true,
+        },
+      ],
+    ]);
+
+    const { renderedComponents } = await bundleMultipleComponentsForSSR(
+      config,
+      ssrComponents,
+      usedSnippetContainer,
+    );
+
+    expect(Object.fromEntries(renderedComponents)).toEqual({
+      'alpha-render-id':
+        '<div class="multi-export-card"><strong>MultiExportAlpha</strong><span>MultiExportAlpha</span></div>',
+      'beta-render-id':
+        '<div class="multi-export-card"><strong>MultiExportBeta</strong><span>MultiExportBeta</span></div>',
+    });
   });
 });

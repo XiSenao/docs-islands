@@ -3,6 +3,12 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
+import {
+  createSiteDebugLogger,
+  getSiteDebugNow,
+  type SiteDebugRenderMode,
+  updateSiteDebugRenderMetric,
+} from '#shared/debug';
 import getLoggerInstance from '#shared/logger';
 import { validateLegalRenderElements } from '#shared/utils';
 import { formatErrorMessage } from '@docs-islands/utils/logger';
@@ -12,6 +18,7 @@ import { rememberReactRenderState } from './react-render-root-store';
 
 const loggerInstance = getLoggerInstance();
 const Logger = loggerInstance.getLoggerByGroup('react-render-strategy');
+const DebugLogger = createSiteDebugLogger('react-render-strategy');
 
 interface RenderContext {
   pageId: string;
@@ -30,6 +37,79 @@ interface RenderComponent {
 export class ReactRenderStrategy {
   private renderContext: RenderContext | null = null;
   private visibilityObserver: IntersectionObserver | null = null;
+
+  private getDebugPayload(info: RenderComponent): Record<string, unknown> {
+    return {
+      pageId: this.getCurrentPageId(),
+      renderComponent: info.renderComponent,
+      renderDirective: info.renderDirective,
+      renderId: info.renderId,
+      renderWithSpaSync: info.renderWithSpaSync,
+    };
+  }
+
+  private getRenderMode(
+    info: RenderComponent,
+    hasSsrContent: boolean,
+  ): SiteDebugRenderMode {
+    if (info.renderDirective === 'ssr:only') {
+      return 'ssr-only';
+    }
+
+    return info.renderDirective === 'client:only' || !hasSsrContent
+      ? 'render'
+      : 'hydrate';
+  }
+
+  private updateRenderMetric(
+    info: RenderComponent,
+    patch: {
+      detectedAt?: number;
+      errorMessage?: string;
+      hasSsrContent?: boolean;
+      invokeDurationMs?: number;
+      renderMode?: SiteDebugRenderMode;
+      status?:
+        | 'detected'
+        | 'waiting-visible'
+        | 'subscribing'
+        | 'rendering'
+        | 'completed'
+        | 'failed'
+        | 'skipped';
+      subscribeDurationMs?: number;
+      totalDurationMs?: number;
+      updatedAt?: number;
+      visibleAt?: number;
+      waitForVisibilityMs?: number;
+    },
+  ): void {
+    updateSiteDebugRenderMetric({
+      componentName: info.renderComponent,
+      pageId: this.getCurrentPageId(),
+      renderDirective: info.renderDirective,
+      renderId: info.renderId,
+      renderWithSpaSync: info.renderWithSpaSync,
+      source: 'react-render-strategy',
+      ...patch,
+    });
+  }
+
+  private registerDetectedRender(info: RenderComponent): void {
+    const detectedAt = getSiteDebugNow();
+    const hasSsrContent = info.element.innerHTML.trim().length > 0;
+
+    this.updateRenderMetric(info, {
+      detectedAt,
+      hasSsrContent,
+      renderMode: this.getRenderMode(info, hasSsrContent),
+      status:
+        info.renderDirective === 'client:visible'
+          ? 'waiting-visible'
+          : 'detected',
+      updatedAt: detectedAt,
+    });
+  }
 
   /**
    * Type guard to ensure React runtime is available
@@ -95,17 +175,52 @@ export class ReactRenderStrategy {
   private async hydrateComponent(info: RenderComponent): Promise<void> {
     const { element, renderComponent, props } = info;
     const pageId = this.getCurrentPageId();
+    const hydrateStart = getSiteDebugNow();
+    const hasSsrContent = element.innerHTML.trim().length > 0;
+
+    DebugLogger.info('component hydration started', {
+      ...this.getDebugPayload(info),
+      hasSsrContent,
+    });
+    this.updateRenderMetric(info, {
+      hasSsrContent,
+      renderMode: 'hydrate',
+      status: 'subscribing',
+      updatedAt: hydrateStart,
+    });
 
     try {
       const subscribed = await reactComponentManager.subscribeComponent(
         pageId,
         renderComponent,
       );
+      const subscribeDurationMs = Number(
+        (getSiteDebugNow() - hydrateStart).toFixed(2),
+      );
 
       if (!subscribed) {
         Logger.error(`Component ${renderComponent} subscription failed`);
+        DebugLogger.error('component hydration subscription failed', {
+          ...this.getDebugPayload(info),
+          durationMs: subscribeDurationMs,
+        });
+        this.updateRenderMetric(info, {
+          errorMessage: 'Component subscription failed',
+          hasSsrContent,
+          renderMode: 'hydrate',
+          status: 'failed',
+          subscribeDurationMs,
+          totalDurationMs: subscribeDurationMs,
+        });
         return;
       }
+
+      this.updateRenderMetric(info, {
+        hasSsrContent,
+        renderMode: 'hydrate',
+        status: 'rendering',
+        subscribeDurationMs,
+      });
 
       const Component = reactComponentManager.getComponent(
         pageId,
@@ -113,6 +228,23 @@ export class ReactRenderStrategy {
       );
       if (!Component) {
         Logger.warn(`Component ${renderComponent} not found`);
+        DebugLogger.warn(
+          'component hydration skipped because component is missing',
+          {
+            ...this.getDebugPayload(info),
+            durationMs: Number((getSiteDebugNow() - hydrateStart).toFixed(2)),
+          },
+        );
+        this.updateRenderMetric(info, {
+          errorMessage: 'Component module missing',
+          hasSsrContent,
+          renderMode: 'hydrate',
+          status: 'skipped',
+          subscribeDurationMs,
+          totalDurationMs: Number(
+            (getSiteDebugNow() - hydrateStart).toFixed(2),
+          ),
+        });
         return;
       }
 
@@ -122,6 +254,23 @@ export class ReactRenderStrategy {
        */
       if (!this.isReactRuntimeAvailable()) {
         Logger.error('React runtime is not available');
+        DebugLogger.error(
+          'component hydration skipped because react runtime is missing',
+          {
+            ...this.getDebugPayload(info),
+            durationMs: Number((getSiteDebugNow() - hydrateStart).toFixed(2)),
+          },
+        );
+        this.updateRenderMetric(info, {
+          errorMessage: 'React runtime is missing',
+          hasSsrContent,
+          renderMode: 'hydrate',
+          status: 'skipped',
+          subscribeDurationMs,
+          totalDurationMs: Number(
+            (getSiteDebugNow() - hydrateStart).toFixed(2),
+          ),
+        });
         return;
       }
 
@@ -130,41 +279,145 @@ export class ReactRenderStrategy {
         props,
       );
       try {
+        const invokeStart = getSiteDebugNow();
         const root = globalThis.window.ReactDOM!.hydrateRoot(
           element,
           reactElement,
         );
         rememberReactRenderState(element, root, Component);
+        const invokeDurationMs = Number(
+          (getSiteDebugNow() - invokeStart).toFixed(2),
+        );
+        const totalDurationMs = Number(
+          (getSiteDebugNow() - hydrateStart).toFixed(2),
+        );
+        DebugLogger.info('component hydration completed', {
+          ...this.getDebugPayload(info),
+          invokeDurationMs,
+          totalDurationMs,
+        });
+        this.updateRenderMetric(info, {
+          hasSsrContent,
+          invokeDurationMs,
+          renderMode: 'hydrate',
+          status: 'completed',
+          subscribeDurationMs,
+          totalDurationMs,
+        });
       } catch (error) {
         Logger.error(
           `Hydration failed, fallback to client render, message: ${formatErrorMessage(error)}`,
         );
+        const fallbackMessage = formatErrorMessage(error);
+        DebugLogger.warn('component hydration fell back to client render', {
+          ...this.getDebugPayload(info),
+          message: fallbackMessage,
+          totalDurationMs: Number(
+            (getSiteDebugNow() - hydrateStart).toFixed(2),
+          ),
+        });
+        this.updateRenderMetric(info, {
+          errorMessage: fallbackMessage,
+          hasSsrContent,
+          renderMode: 'render',
+          status: 'rendering',
+          subscribeDurationMs,
+        });
         const root = globalThis.window.ReactDOM!.createRoot(element);
         rememberReactRenderState(element, root, Component);
+        const fallbackInvokeStart = getSiteDebugNow();
         root.render(reactElement);
+        const invokeDurationMs = Number(
+          (getSiteDebugNow() - fallbackInvokeStart).toFixed(2),
+        );
+        const totalDurationMs = Number(
+          (getSiteDebugNow() - hydrateStart).toFixed(2),
+        );
+        DebugLogger.info(
+          'component client render completed after hydration fallback',
+          {
+            ...this.getDebugPayload(info),
+            totalDurationMs,
+          },
+        );
+        this.updateRenderMetric(info, {
+          errorMessage: fallbackMessage,
+          hasSsrContent,
+          invokeDurationMs,
+          renderMode: 'render',
+          status: 'completed',
+          subscribeDurationMs,
+          totalDurationMs,
+        });
       }
       Logger.success(`Component ${renderComponent} hydration completed`);
     } catch (error) {
-      Logger.error(
-        `Component hydration failed, message: ${formatErrorMessage(error)}`,
-      );
+      const errorMessage = formatErrorMessage(error);
+      Logger.error(`Component hydration failed, message: ${errorMessage}`);
+      DebugLogger.error('component hydration failed', {
+        ...this.getDebugPayload(info),
+        message: errorMessage,
+        totalDurationMs: Number((getSiteDebugNow() - hydrateStart).toFixed(2)),
+      });
+      this.updateRenderMetric(info, {
+        errorMessage,
+        hasSsrContent,
+        renderMode: 'hydrate',
+        status: 'failed',
+        totalDurationMs: Number((getSiteDebugNow() - hydrateStart).toFixed(2)),
+      });
     }
   }
 
   private async renderComponent(info: RenderComponent): Promise<void> {
     const { element, renderComponent, props } = info;
     const pageId = this.getCurrentPageId();
+    const renderStart = getSiteDebugNow();
+    const hasSsrContent = element.innerHTML.trim().length > 0;
+
+    DebugLogger.info(
+      'component client render started',
+      this.getDebugPayload(info),
+    );
+    this.updateRenderMetric(info, {
+      hasSsrContent,
+      renderMode: 'render',
+      status: 'subscribing',
+      updatedAt: renderStart,
+    });
 
     try {
       const subscribed = await reactComponentManager.subscribeComponent(
         pageId,
         renderComponent,
       );
+      const subscribeDurationMs = Number(
+        (getSiteDebugNow() - renderStart).toFixed(2),
+      );
 
       if (!subscribed) {
         Logger.error(`Component ${renderComponent} subscription failed`);
+        DebugLogger.error('component client render subscription failed', {
+          ...this.getDebugPayload(info),
+          totalDurationMs: subscribeDurationMs,
+        });
+        this.updateRenderMetric(info, {
+          errorMessage: 'Component subscription failed',
+          hasSsrContent,
+          renderMode: 'render',
+          status: 'failed',
+          subscribeDurationMs,
+          totalDurationMs: subscribeDurationMs,
+        });
         return;
       }
+
+      this.updateRenderMetric(info, {
+        hasSsrContent,
+        renderMode: 'render',
+        status: 'rendering',
+        subscribeDurationMs,
+      });
 
       const Component = reactComponentManager.getComponent(
         pageId,
@@ -172,6 +425,23 @@ export class ReactRenderStrategy {
       );
       if (!Component) {
         Logger.warn(`Component ${renderComponent} not found`);
+        DebugLogger.warn(
+          'component client render skipped because component is missing',
+          {
+            ...this.getDebugPayload(info),
+            totalDurationMs: Number(
+              (getSiteDebugNow() - renderStart).toFixed(2),
+            ),
+          },
+        );
+        this.updateRenderMetric(info, {
+          errorMessage: 'Component module missing',
+          hasSsrContent,
+          renderMode: 'render',
+          status: 'skipped',
+          subscribeDurationMs,
+          totalDurationMs: Number((getSiteDebugNow() - renderStart).toFixed(2)),
+        });
         return;
       }
 
@@ -181,9 +451,27 @@ export class ReactRenderStrategy {
        */
       if (!this.isReactRuntimeAvailable()) {
         Logger.error('React runtime is not available');
+        DebugLogger.error(
+          'component client render skipped because react runtime is missing',
+          {
+            ...this.getDebugPayload(info),
+            totalDurationMs: Number(
+              (getSiteDebugNow() - renderStart).toFixed(2),
+            ),
+          },
+        );
+        this.updateRenderMetric(info, {
+          errorMessage: 'React runtime is missing',
+          hasSsrContent,
+          renderMode: 'render',
+          status: 'skipped',
+          subscribeDurationMs,
+          totalDurationMs: Number((getSiteDebugNow() - renderStart).toFixed(2)),
+        });
         return;
       }
 
+      const invokeStart = getSiteDebugNow();
       const root = globalThis.window.ReactDOM!.createRoot(element);
       rememberReactRenderState(element, root, Component);
       const reactElement = globalThis.window.React!.createElement(
@@ -191,13 +479,45 @@ export class ReactRenderStrategy {
         props,
       );
       root.render(reactElement);
+      const invokeDurationMs = Number(
+        (getSiteDebugNow() - invokeStart).toFixed(2),
+      );
+      const totalDurationMs = Number(
+        (getSiteDebugNow() - renderStart).toFixed(2),
+      );
+      DebugLogger.info('component client render completed', {
+        ...this.getDebugPayload(info),
+        invokeDurationMs,
+        totalDurationMs,
+      });
+      this.updateRenderMetric(info, {
+        hasSsrContent,
+        invokeDurationMs,
+        renderMode: 'render',
+        status: 'completed',
+        subscribeDurationMs,
+        totalDurationMs,
+      });
       Logger.success(
         `Component ${renderComponent} client-side rendering completed`,
       );
     } catch (error) {
+      const errorMessage = formatErrorMessage(error);
       Logger.error(
-        `Component client-side rendering failed, message: ${formatErrorMessage(error)}`,
+        `Component client-side rendering failed, message: ${errorMessage}`,
       );
+      DebugLogger.error('component client render failed', {
+        ...this.getDebugPayload(info),
+        message: errorMessage,
+        totalDurationMs: Number((getSiteDebugNow() - renderStart).toFixed(2)),
+      });
+      this.updateRenderMetric(info, {
+        errorMessage,
+        hasSsrContent,
+        renderMode: 'render',
+        status: 'failed',
+        totalDurationMs: Number((getSiteDebugNow() - renderStart).toFixed(2)),
+      });
     }
   }
 
@@ -226,6 +546,33 @@ export class ReactRenderStrategy {
 
           if (renderComponent && renderDirective && renderId) {
             const props = this.getPropsFromElement(element);
+            const visibleAt = getSiteDebugNow();
+            DebugLogger.info('client:visible component became visible', {
+              pageId: this.getCurrentPageId(),
+              renderComponent,
+              renderDirective,
+              renderId,
+            });
+            this.updateRenderMetric(
+              {
+                element,
+                renderComponent,
+                renderDirective,
+                renderId,
+                renderWithSpaSync,
+                props,
+              },
+              {
+                hasSsrContent: element.innerHTML.trim().length > 0,
+                renderMode:
+                  renderDirective === 'client:only' ||
+                  element.innerHTML.trim().length === 0
+                    ? 'render'
+                    : 'hydrate',
+                status: 'subscribing',
+                visibleAt,
+              },
+            );
 
             this.hydrateComponent({
               element,
@@ -277,7 +624,7 @@ export class ReactRenderStrategy {
 
     await Promise.allSettled(clientRenderTasks);
 
-    return hydrateComponents;
+    return [...visibleComponents, ...hydrateComponents];
   }
 
   private async executeSSRInitialStrategy(
@@ -331,6 +678,16 @@ export class ReactRenderStrategy {
 
     const renderComponents = this.collectLegalRenderComponents();
 
+    for (const info of renderComponents) {
+      this.registerDetectedRender(info);
+    }
+
+    DebugLogger.info('react runtime execution started', {
+      componentCount: renderComponents.length,
+      isInitialLoad,
+      pageId,
+    });
+
     if (renderComponents.length === 0) {
       Logger.info('No React components on current page');
       return;
@@ -358,11 +715,19 @@ export class ReactRenderStrategy {
         if (componentInfo) {
           const { ssrInjectScript } = componentInfo;
           if (ssrInjectScript) {
+            const ssrInjectStart = getSiteDebugNow();
             const { __SSR_INJECT_CODE__ } = await import(
               /* @vite-ignore */ ssrInjectScript
             );
             if (typeof __SSR_INJECT_CODE__ === 'function') {
               __SSR_INJECT_CODE__();
+              DebugLogger.info('ssr inject script executed', {
+                durationMs: Number(
+                  (getSiteDebugNow() - ssrInjectStart).toFixed(2),
+                ),
+                pageId,
+                script: ssrInjectScript,
+              });
             }
           }
         }
@@ -376,6 +741,12 @@ export class ReactRenderStrategy {
       Logger.error(
         `React runtime execution failed, message: ${formatErrorMessage(error)}`,
       );
+      DebugLogger.error('react runtime execution failed', {
+        componentCount: renderComponents.length,
+        isInitialLoad,
+        message: formatErrorMessage(error),
+        pageId,
+      });
     }
   }
 

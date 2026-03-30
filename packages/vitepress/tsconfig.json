@@ -11,5 +11,13 @@
   // under the node16, nodenext, and bundler options.
   //
   // https://devblogs.microsoft.com/typescript/announcing-typescript-5-0/#moduleresolution-bundler
-  "include": ["types/", "src/types/", "tests/", "scripts/", "*.ts"],
+  "include": [
+    "types/",
+    "src/types/",
+    "src/shared/**/*.d.ts",
+    "tests/",
+    "scripts/",
+    "theme/**/*.ts",
+    "*.ts",
+  ],
 }

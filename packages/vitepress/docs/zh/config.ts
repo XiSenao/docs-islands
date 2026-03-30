@@ -23,6 +23,10 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
         link: '/zh/quick-start',
       },
       {
+        text: '调试控制台',
+        link: '/zh/site-debug-console',
+      },
+      {
         text: pkg.version,
         items: [
           {

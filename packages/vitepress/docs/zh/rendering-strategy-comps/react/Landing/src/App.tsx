@@ -2,6 +2,7 @@ import { type JSX, useState } from 'react';
 import vitepressLogo from '../public/vitepress.svg';
 import './App.css';
 import reactLogo from './assets/react.svg';
+import './index.css';
 
 function App(): JSX.Element {
   const [count, setCount] = useState(0);

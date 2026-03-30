@@ -11,10 +11,80 @@ export interface ComponentInfo {
   loadTime: number;
 }
 
+export interface BundleAssetMetric {
+  bytes: number;
+  file: string;
+  type: 'asset' | 'css' | 'js';
+}
+
+export interface BundleModuleMetric {
+  bytes: number;
+  file: string;
+  id: string;
+  sourceAssetFile?: string;
+  sourcePath?: string;
+}
+
+export interface RuntimeBundleMetric {
+  entryFile: string;
+  files: BundleAssetMetric[];
+  totalBytes: number;
+}
+
+export interface ComponentBuildMetric {
+  componentName: string;
+  entryFile: string;
+  estimatedAssetBytes: number;
+  estimatedCssBytes: number;
+  estimatedJsBytes: number;
+  estimatedTotalBytes: number;
+  files: BundleAssetMetric[];
+  framework: string;
+  modules: BundleModuleMetric[];
+  renderDirectives: RenderDirective[];
+  sourcePath: string;
+}
+
+export interface SpaSyncComponentSideEffectMetric {
+  blockingCssBytes: number;
+  blockingCssCount: number;
+  blockingCssFiles: BundleAssetMetric[];
+  componentName: string;
+  embeddedHtmlPatches: {
+    bytes: number;
+    html: string;
+    renderId: string;
+  }[];
+  embeddedHtmlBytes: number;
+  renderDirectives: RenderDirective[];
+  renderIds: string[];
+  requiresCssLoadingRuntime: boolean;
+}
+
+export interface SpaSyncPageBuildEffects {
+  components: SpaSyncComponentSideEffectMetric[];
+  enabledComponentCount: number;
+  enabledRenderCount: number;
+  totalBlockingCssBytes: number;
+  totalBlockingCssCount: number;
+  totalEmbeddedHtmlBytes: number;
+  usesCssLoadingRuntime: boolean;
+}
+
+export interface PageBuildMetrics {
+  components: ComponentBuildMetric[];
+  framework: string;
+  loader: RuntimeBundleMetric | null;
+  spaSyncEffects: SpaSyncPageBuildEffects | null;
+  ssrInject: RuntimeBundleMetric | null;
+  totalEstimatedComponentBytes: number;
+}
+
 /**
  * Page metafile containing bundle information
  */
 export interface PageMetafile {
+  buildMetrics?: PageBuildMetrics;
   loaderScript: string;
   modulePreloads: string[];
   cssBundlePaths: string[];

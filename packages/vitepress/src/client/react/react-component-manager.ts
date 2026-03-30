@@ -1,11 +1,13 @@
 import type { ComponentInfo, PageMetafile } from '#dep-types/page';
 import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
+import { createSiteDebugLogger, getSiteDebugNow } from '#shared/debug';
 import getLoggerInstance from '#shared/logger';
 import { formatErrorMessage } from '@docs-islands/utils/logger';
 import { getCleanPathname } from '../../shared/runtime';
 
 const loggerInstance = getLoggerInstance();
 const Logger = loggerInstance.getLoggerByGroup('react-component-manager');
+const DebugLogger = createSiteDebugLogger('react-component-manager');
 
 interface ComponentSubscription {
   resolve: (value: boolean) => void;
@@ -20,6 +22,16 @@ interface RuntimeSubscription {
 }
 
 const baseUrl = typeof __BASE__ === 'string' ? __BASE__ : '/';
+
+const summarizePageMetafile = (pageMetafile: PageMetafile | null) => ({
+  componentCount: pageMetafile?.buildMetrics?.components.length ?? 0,
+  cssBundleCount: pageMetafile?.cssBundlePaths.length ?? 0,
+  hasLoaderScript: Boolean(pageMetafile?.loaderScript),
+  hasSsrInjectScript: Boolean(pageMetafile?.ssrInjectScript),
+  modulePreloadCount: pageMetafile?.modulePreloads.length ?? 0,
+  totalEstimatedComponentBytes:
+    pageMetafile?.buildMetrics?.totalEstimatedComponentBytes ?? 0,
+});
 
 export class ReactComponentManager {
   private readonly loadedComponents = new Map<string, ComponentInfo>();
@@ -44,6 +56,9 @@ export class ReactComponentManager {
       this.isInitialized = true;
       this.notifyRuntimeReady();
       Logger.success('Initialization completed');
+      DebugLogger.info('runtime initialized in development', {
+        mode: 'dev',
+      });
     }
   }
 
@@ -110,6 +125,10 @@ export class ReactComponentManager {
       this.isInitialized = true;
       this.notifyRuntimeReady();
       Logger.success('Initialization completed');
+      DebugLogger.info('runtime initialized in production', {
+        mode: 'prod',
+        pageCount: Object.keys(this.pageMetafile).length,
+      });
     }
   }
 
@@ -170,11 +189,17 @@ export class ReactComponentManager {
           window[RENDER_STRATEGY_CONSTANTS.pageMetafile] = this.pageMetafile;
           this.initialModulePreloads(getCleanPathname());
           Logger.success('Global page metafile loaded successfully');
+          DebugLogger.info('global page metafile loaded', {
+            pageCount: Object.keys(this.pageMetafile).length,
+          });
         }
       } catch (error) {
         Logger.warn(
           `Failed to load global page metafile, message: ${formatErrorMessage(error)}`,
         );
+        DebugLogger.warn('global page metafile load failed', {
+          message: formatErrorMessage(error),
+        });
         this.pageMetafile = {};
         window[RENDER_STRATEGY_CONSTANTS.pageMetafile] = {};
       }
@@ -246,8 +271,11 @@ export class ReactComponentManager {
       return false;
     }
 
+    const loadStart = getSiteDebugNow();
+
     try {
       Logger.info('Starting React lazy loading...');
+      DebugLogger.info('react runtime load started');
 
       const [reactModule, reactDOMModule] = await Promise.all([
         import('react'),
@@ -264,11 +292,19 @@ export class ReactComponentManager {
 
       this.reactLoaded = true;
       Logger.success('React lazy loading completed');
+      DebugLogger.info('react runtime load completed', {
+        durationMs: Number((getSiteDebugNow() - loadStart).toFixed(2)),
+        reactVersion: globalThis.React?.version ?? null,
+      });
       return true;
     } catch (error) {
       Logger.error(
         `React lazy loading failed, message: ${formatErrorMessage(error)}`,
       );
+      DebugLogger.error('react runtime load failed', {
+        durationMs: Number((getSiteDebugNow() - loadStart).toFixed(2)),
+        message: formatErrorMessage(error),
+      });
       this.reactLoadPromise = null;
     }
     return false;
@@ -291,11 +327,21 @@ export class ReactComponentManager {
   }
 
   public async loadPageComponents(): Promise<boolean> {
-    const componentInfo = this.getPageComponentInfo(getCleanPathname());
+    const pageId = getCleanPathname();
+    const componentInfo = this.getPageComponentInfo(pageId);
     if (!componentInfo) {
+      DebugLogger.info('page component load skipped', {
+        pageId,
+        reason: 'page metafile not found',
+      });
       return false;
     }
+    const loadStart = getSiteDebugNow();
     const { loaderScript, modulePreloads, cssBundlePaths } = componentInfo;
+    DebugLogger.info('page component load started', {
+      pageId,
+      ...summarizePageMetafile(componentInfo),
+    });
 
     try {
       /**
@@ -375,6 +421,14 @@ export class ReactComponentManager {
         if (cssToRemove.size > 0) {
           Logger.info(`Removed ${cssToRemove.size} unused CSS bundle(s)`);
         }
+
+        if (newCssCount > 0 || cssToRemove.size > 0) {
+          DebugLogger.info('page css bundles synchronized', {
+            addedCssBundles: newCssCount,
+            pageId,
+            removedCssBundles: cssToRemove.size,
+          });
+        }
       }
 
       const existingScript = document.querySelector(
@@ -382,6 +436,11 @@ export class ReactComponentManager {
       );
       if (existingScript) {
         Logger.info('Current page components already loaded');
+        DebugLogger.info('page component load skipped', {
+          durationMs: Number((getSiteDebugNow() - loadStart).toFixed(2)),
+          pageId,
+          reason: 'loader script already present',
+        });
         return true;
       }
       // Preload dependency modules before script execution while avoiding duplicate preload tags.
@@ -405,12 +464,22 @@ export class ReactComponentManager {
       return new Promise((resolve, reject) => {
         script.addEventListener('load', () => {
           Logger.success('Page components loaded successfully');
+          DebugLogger.info('page component load completed', {
+            durationMs: Number((getSiteDebugNow() - loadStart).toFixed(2)),
+            pageId,
+            script: loaderScript,
+          });
           resolve(true);
         });
         script.addEventListener('error', (error) => {
           Logger.error(
             `Failed to load page components, message: ${String(error)}`,
           );
+          DebugLogger.error('page component load failed', {
+            durationMs: Number((getSiteDebugNow() - loadStart).toFixed(2)),
+            pageId,
+            script: loaderScript,
+          });
           reject(new Error(`Failed to load script: ${loaderScript}`));
         });
         document.head.append(script);
@@ -419,6 +488,11 @@ export class ReactComponentManager {
       Logger.error(
         `Component loading error, message: ${formatErrorMessage(error)}`,
       );
+      DebugLogger.error('page component load failed', {
+        durationMs: Number((getSiteDebugNow() - loadStart).toFixed(2)),
+        message: formatErrorMessage(error),
+        pageId,
+      });
       return false;
     }
   }
@@ -428,6 +502,8 @@ export class ReactComponentManager {
     componentName: string,
     timeout = 10_000,
   ): Promise<boolean> {
+    const subscriptionStart = getSiteDebugNow();
+
     try {
       /**
        * At this time, it is only necessary to notify that React needs to be loaded,
@@ -438,8 +514,18 @@ export class ReactComponentManager {
       const key = `${pageId}-${componentName}`;
 
       if (this.isComponentLoaded(key)) {
+        DebugLogger.info('component subscription resolved from cache', {
+          componentName,
+          pageId,
+        });
         return true;
       }
+
+      DebugLogger.info('component subscription started', {
+        componentName,
+        pageId,
+        timeout,
+      });
 
       return new Promise((resolve, reject) => {
         if (!this.subscriptions.has(key)) {
@@ -447,6 +533,11 @@ export class ReactComponentManager {
         }
 
         const timeoutId = setTimeout(() => {
+          DebugLogger.error('component subscription timed out', {
+            componentName,
+            pageId,
+            timeout,
+          });
           this.rejectSubscriptions(
             key,
             new Error(
@@ -458,10 +549,25 @@ export class ReactComponentManager {
         this.subscriptions.get(key)!.push({
           resolve: (value) => {
             clearTimeout(timeoutId);
+            DebugLogger.info('component subscription resolved', {
+              componentName,
+              durationMs: Number(
+                (getSiteDebugNow() - subscriptionStart).toFixed(2),
+              ),
+              pageId,
+            });
             resolve(value);
           },
           reject: (error) => {
             clearTimeout(timeoutId);
+            DebugLogger.error('component subscription rejected', {
+              componentName,
+              durationMs: Number(
+                (getSiteDebugNow() - subscriptionStart).toFixed(2),
+              ),
+              message: error.message,
+              pageId,
+            });
             reject(error);
           },
           timestamp: Date.now(),
@@ -471,6 +577,11 @@ export class ReactComponentManager {
       Logger.error(
         `Failed to subscribe to component ${componentName}, message: ${formatErrorMessage(error)}`,
       );
+      DebugLogger.error('component subscription setup failed', {
+        componentName,
+        message: formatErrorMessage(error),
+        pageId,
+      });
     }
     return false;
   }
@@ -542,6 +653,15 @@ export class ReactComponentManager {
             ].component!,
           renderDirectives: new Set(),
           loadTime: Date.now(),
+        });
+
+        DebugLogger.info('component module registered', {
+          componentName,
+          estimatedTotalBytes:
+            this.pageMetafile[pageId]?.buildMetrics?.components.find(
+              (metric) => metric.componentName === componentName,
+            )?.estimatedTotalBytes ?? null,
+          pageId,
         });
       }
 

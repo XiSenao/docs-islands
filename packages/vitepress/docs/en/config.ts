@@ -24,6 +24,10 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
         link: '/quick-start',
       },
       {
+        text: 'Site Debug',
+        link: '/site-debug-console',
+      },
+      {
         text: pkg.version,
         items: [
           {

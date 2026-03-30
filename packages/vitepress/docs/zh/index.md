@@ -33,11 +33,11 @@ features:
     details: 基于 VitePress SSG 架构，构建时预渲染组件模板。仅在需要交互的地方进行选择性客户端水合，优化首屏性能。
     icon: '🚀'
 
-  - title: 完整的 VitePress 生态兼容
-    details: 与 VitePress 主题、插件无缝集成，不破坏原有功能。支持 MPA 模式，可在任何 VitePress 项目中使用。
-    icon: '🧩'
-
   - title: 开发体验优先
     details: 完整的 HMR 支持，React 组件和 Markdown 文件修改即时热更新，组件内部状态保持不丢失。开发/生产环境渲染行为一致，避免生产环境意外。
     icon: '🛠️'
+
+  - title: 内建站点调试控制台
+    details: 提供可视化的运行时调试面板，可直接检查 Render Metrics、HMR Metrics、Bundle Composition、Injected Globals 与 spa:sync-render 副作用，帮助快速定位闪烁、包体积和热更新问题。
+    icon: '🔎'
 ---
