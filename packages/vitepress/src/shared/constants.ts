@@ -18,6 +18,11 @@ export const RENDER_STRATEGY_CONSTANTS = {
   pageMetafile: '__PAGE_METAFILE__',
 } as const;
 
+export const PAGE_METAFILE_META_NAMES = {
+  current: 'docs-islands-page-metafile-current',
+  index: 'docs-islands-page-metafile-index',
+} as const;
+
 export const SPA_RENDER_SYNC_ON = ['spa:sr', 'spa:sync-render'] as const;
 export const SPA_RENDER_SYNC_OFF = [
   'spa:sr:disable',

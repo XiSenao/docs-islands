@@ -84,9 +84,24 @@ export interface PageBuildMetrics {
  * Page metafile containing bundle information
  */
 export interface PageMetafile {
+  buildId?: string;
   buildMetrics?: PageBuildMetrics;
   loaderScript: string;
   modulePreloads: string[];
+  pathname?: string;
   cssBundlePaths: string[];
+  schemaVersion?: number;
   ssrInjectScript: string;
+}
+
+export interface PageMetafileManifestEntry {
+  file: string;
+  loaderScript: string;
+  ssrInjectScript: string;
+}
+
+export interface PageMetafileManifest {
+  buildId: string;
+  pages: Record<string, PageMetafileManifestEntry>;
+  schemaVersion: number;
 }

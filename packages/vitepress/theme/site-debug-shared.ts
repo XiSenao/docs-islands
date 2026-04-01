@@ -156,22 +156,24 @@ export const shouldEnableVsCodeSourceOpen = () =>
 
 export const GLOBAL_PRESETS: GlobalPreset[] = [
   {
-    description: 'Runtime component registration and page metafile state.',
+    description:
+      'Runtime component management state, including page metafile state held by the manager.',
     label: 'Component Manager',
     path: '__COMPONENT_MANAGER__',
   },
   {
-    description: 'Resolved page build metadata emitted by docs-islands.',
+    description:
+      'The resolved build metadata for the current page, including component build metrics.',
     label: 'Page Metafile',
     path: '__PAGE_METAFILE__',
   },
   {
-    description: 'Injected component registry keyed by page.',
+    description: 'The page-keyed injected component registry.',
     label: 'Inject Component',
     path: '__INJECT_COMPONENT__',
   },
   {
-    description: 'React render lifecycle metrics collected on the page.',
+    description: 'The collected React render metrics on the current page.',
     label: 'Render Metrics',
     path: '__DOCS_ISLANDS_REACT_RENDER_METRICS__',
   },
@@ -181,7 +183,7 @@ export const GLOBAL_PRESETS: GlobalPreset[] = [
     path: '__DOCS_ISLANDS_REACT_HMR_METRICS__',
   },
   {
-    description: 'Resolved VitePress runtime site data.',
+    description: 'VitePress runtime site data. Hidden in dev and MPA mode.',
     label: 'Site Data',
     path: '__VP_SITE_DATA__',
   },
@@ -225,6 +227,37 @@ export const hasDisplayValue = (value: string | null | undefined) =>
 
 export const isGeneratedVirtualModuleId = (moduleId: string) =>
   moduleId.startsWith('\0') || moduleId.includes('?commonjs-');
+
+const STYLE_SOURCE_SUFFIXES = [
+  '.css',
+  '.less',
+  '.pcss',
+  '.postcss',
+  '.sass',
+  '.scss',
+  '.styl',
+  '.stylus',
+];
+
+export const isStyleSourceModule = (sourcePath?: string, moduleId?: string) => {
+  const normalizedPath = (sourcePath || moduleId || '').toLowerCase();
+
+  return STYLE_SOURCE_SUFFIXES.some((suffix) =>
+    normalizedPath.endsWith(suffix),
+  );
+};
+
+export const shouldDisplayModuleSourceForResource = (
+  resourceType: 'asset' | 'css' | 'js',
+  sourcePath?: string,
+  moduleId?: string,
+) => {
+  if (resourceType === 'css') {
+    return isStyleSourceModule(sourcePath, moduleId);
+  }
+
+  return true;
+};
 
 export const getStatusLabel = (status: SiteDebugRenderMetric['status']) => {
   switch (status) {

@@ -1,3 +1,5 @@
+import type { PageMetafile } from '#dep-types/page';
+
 export type SiteDebugLevel = 'info' | 'warn' | 'error';
 
 export interface SiteDebugEventDetail {
@@ -101,6 +103,14 @@ export interface SiteDebugModeChangeDetail {
   source?: string;
 }
 
+export interface SiteDebugPageMetafileEventDetail {
+  buildId?: string | null;
+  kind: 'legacy-global-loaded' | 'page-loaded' | 'state-reset';
+  pageCount: number;
+  pageId?: string;
+  pageMetafile?: PageMetafile | null;
+}
+
 export const SITE_DEBUG_EVENT_NAME = 'docs-islands:site-debug-log';
 export const SITE_DEBUG_RENDER_METRIC_EVENT_NAME =
   'docs-islands:site-debug-render-metric';
@@ -110,6 +120,8 @@ export const SITE_DEBUG_HMR_METRIC_EVENT_NAME =
   'docs-islands:site-debug-hmr-metric';
 export const SITE_DEBUG_HMR_METRICS_KEY = '__DOCS_ISLANDS_REACT_HMR_METRICS__';
 export const SITE_DEBUG_MODE_EVENT_NAME = 'docs-islands:site-debug-mode';
+export const SITE_DEBUG_PAGE_METAFILE_EVENT_NAME =
+  'docs-islands:site-debug-page-metafile';
 export const SITE_DEBUG_STORAGE_KEY = 'docs-islands:site-debug-enabled';
 
 const canUseWindow = () => globalThis.window !== undefined;
@@ -216,6 +228,25 @@ export const dispatchSiteDebugModeChange = (
     new CustomEvent<SiteDebugModeChangeDetail>(SITE_DEBUG_MODE_EVENT_NAME, {
       detail,
     }),
+  );
+
+  return true;
+};
+
+export const dispatchSiteDebugPageMetafileEvent = (
+  detail: SiteDebugPageMetafileEventDetail,
+): boolean => {
+  if (!canUseWindow() || !isSiteDebugEnabled()) {
+    return false;
+  }
+
+  globalThis.dispatchEvent(
+    new CustomEvent<SiteDebugPageMetafileEventDetail>(
+      SITE_DEBUG_PAGE_METAFILE_EVENT_NAME,
+      {
+        detail,
+      },
+    ),
   );
 
   return true;

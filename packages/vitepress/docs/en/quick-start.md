@@ -59,6 +59,48 @@ pnpm add react react-dom
 
    :::
 
+## Optional: Enable Site Debug Console
+
+`Site Debug Console` is the fastest way to inspect render state, bundle composition, runtime globals, and `HMR` timing while integrating `@docs-islands/vitepress`. Add it early if you want a built-in debugging surface during development.
+
+1. Mount the console in your theme layout and import its stylesheet:
+
+   ```vue
+   <!-- .vitepress/theme/components/EnhanceLayout.vue -->
+   <script setup lang="ts">
+   import SiteDebugConsole from '@docs-islands/vitepress/debug-console/client';
+   import '@docs-islands/vitepress/debug-console/client/style.css';
+   import DefaultTheme from 'vitepress/theme';
+   </script>
+
+   <template>
+     <DefaultTheme.Layout />
+     <SiteDebugConsole />
+   </template>
+   ```
+
+2. You can enable it in more than one way:
+
+   - Use `?site-debug=1` for a URL-level override, or `?site-debug=0` to force it off.
+   - Once enabled, the state is persisted and reused on later visits until you disable it again.
+   - On this docs site, you can also triple-click the top-left `logo` to toggle it.
+
+3. Use this first-pass workflow when something looks wrong:
+
+   - Click the overlay badge on the component that looks wrong.
+   - Open `Bundle Composition` when the problem looks related to `JS`, `CSS`, or asset weight.
+   - Open `Debug Logs` when you need the current runtime state, or use the helper object below for a shareable snapshot.
+
+The browser console exposes:
+
+```js
+globalThis.__DOCS_ISLANDS_SITE_DEBUG__.getRenderMetrics();
+globalThis.__DOCS_ISLANDS_SITE_DEBUG__.getHmrMetrics();
+globalThis.__DOCS_ISLANDS_SITE_DEBUG__.snapshotRuntime();
+```
+
+For a full panel-by-panel breakdown and field reference, see [Site Debug Console](./site-debug-console.md).
+
 ## Using React Components in Markdown
 
 1. Write `UI` components:

@@ -14,6 +14,7 @@ import type { RollupOutput } from '#dep-types/rollup';
 import type { ConfigType } from '#dep-types/utils';
 import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
 import getLoggerInstance, { LightGeneralLogger } from '#shared/logger';
+import { parse, type ParserPlugin } from '@babel/parser';
 import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -41,6 +42,11 @@ type BuildOutputMetric = BundleAssetMetric & {
   imports?: string[];
   modules?: BundleModuleMetric[];
 };
+
+interface ViteManifestEntry {
+  file?: string;
+  src?: string;
+}
 
 const getBundleAssetBytes = (source: string | Uint8Array): number =>
   typeof source === 'string' ? Buffer.byteLength(source) : source.byteLength;
@@ -92,30 +98,30 @@ const sortBundleModuleMetrics = (
 
 const writeDebugSourceAsset = ({
   assetsDir,
-  moduleId,
+  sourcePath,
   outDir,
   sourceAssetCache,
 }: {
   assetsDir: string;
-  moduleId: string;
+  sourcePath: string;
   outDir: string;
   sourceAssetCache: Map<string, string | undefined>;
 }): string | undefined => {
-  if (sourceAssetCache.has(moduleId)) {
-    return sourceAssetCache.get(moduleId);
+  if (sourceAssetCache.has(sourcePath)) {
+    return sourceAssetCache.get(sourcePath);
   }
 
-  if (!fs.existsSync(moduleId) || !fs.statSync(moduleId).isFile()) {
-    sourceAssetCache.set(moduleId, undefined);
+  if (!fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isFile()) {
+    sourceAssetCache.set(sourcePath, undefined);
     return undefined;
   }
 
-  const extension = extname(moduleId) || '.txt';
-  const safeBaseName = basename(moduleId, extension).replaceAll(
+  const extension = extname(sourcePath) || '.txt';
+  const safeBaseName = basename(sourcePath, extension).replaceAll(
     /[^\w.-]/g,
     '_',
   );
-  const hash = createHash('sha1').update(moduleId).digest('hex').slice(0, 8);
+  const hash = createHash('sha1').update(sourcePath).digest('hex').slice(0, 8);
   const relativeFileName = join(
     assetsDir,
     'debug-sources',
@@ -124,7 +130,7 @@ const writeDebugSourceAsset = ({
   const publicFileName = join('/', relativeFileName);
 
   try {
-    const source = fs.readFileSync(moduleId, 'utf8');
+    const source = fs.readFileSync(sourcePath, 'utf8');
     const targetPath = resolveSafeOutputPath(outDir, relativeFileName);
 
     if (!fs.existsSync(dirname(targetPath))) {
@@ -132,12 +138,491 @@ const writeDebugSourceAsset = ({
     }
 
     fs.writeFileSync(targetPath, source);
-    sourceAssetCache.set(moduleId, publicFileName);
+    sourceAssetCache.set(sourcePath, publicFileName);
     return publicFileName;
   } catch {
-    sourceAssetCache.set(moduleId, undefined);
+    sourceAssetCache.set(sourcePath, undefined);
     return undefined;
   }
+};
+
+const stripBundledModuleQuery = (moduleId: string) =>
+  moduleId.replace(/[#?].*$/, '');
+
+const STYLE_SOURCE_EXTENSIONS = new Set([
+  '.css',
+  '.less',
+  '.pcss',
+  '.postcss',
+  '.sass',
+  '.scss',
+  '.styl',
+  '.stylus',
+]);
+const SCRIPT_SOURCE_EXTENSIONS = new Set([
+  '.cjs',
+  '.cts',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.mts',
+  '.ts',
+  '.tsx',
+]);
+const LOCAL_SOURCE_RESOLVE_EXTENSIONS = [
+  ...SCRIPT_SOURCE_EXTENSIONS,
+  ...STYLE_SOURCE_EXTENSIONS,
+  '.json',
+];
+const moduleGraphParserPlugins: ParserPlugin[] = [
+  'jsx',
+  'typescript',
+  'importAttributes',
+  'decorators-legacy',
+  'topLevelAwait',
+];
+
+const isStyleSourcePath = (sourcePath: string) =>
+  STYLE_SOURCE_EXTENSIONS.has(
+    extname(stripBundledModuleQuery(sourcePath)).toLowerCase(),
+  );
+
+const isStaticAssetSourcePath = (sourcePath: string) => {
+  const extension = extname(stripBundledModuleQuery(sourcePath)).toLowerCase();
+
+  return (
+    Boolean(extension) &&
+    extension !== '.json' &&
+    !STYLE_SOURCE_EXTENSIONS.has(extension) &&
+    !SCRIPT_SOURCE_EXTENSIONS.has(extension)
+  );
+};
+
+const shouldTraverseSourcePath = (sourcePath: string) =>
+  SCRIPT_SOURCE_EXTENSIONS.has(
+    extname(stripBundledModuleQuery(sourcePath)).toLowerCase(),
+  );
+
+const resolveBundledModuleSourcePath = (
+  moduleId: string,
+): string | undefined => {
+  const candidates = [moduleId, stripBundledModuleQuery(moduleId)];
+
+  for (const candidate of candidates) {
+    if (!candidate || !fs.existsSync(candidate)) {
+      continue;
+    }
+
+    if (fs.statSync(candidate).isFile()) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+};
+
+const getSourceSizeHint = (sourcePath?: string) => {
+  if (!sourcePath || !fs.existsSync(sourcePath)) {
+    return 0;
+  }
+
+  try {
+    return fs.statSync(sourcePath).size;
+  } catch {
+    return 0;
+  }
+};
+
+const distributeAssetBytesAcrossModules = (
+  totalBytes: number,
+  sizeHints: number[],
+) => {
+  if (sizeHints.length === 0) {
+    return [];
+  }
+
+  const normalizedSizeHints = sizeHints.some((value) => value > 0)
+    ? sizeHints.map((value) => (value > 0 ? value : 1))
+    : sizeHints.map(() => 1);
+  const totalHints = normalizedSizeHints.reduce((sum, value) => sum + value, 0);
+
+  let allocatedBytes = 0;
+
+  return normalizedSizeHints.map((sizeHint, index) => {
+    if (index === normalizedSizeHints.length - 1) {
+      return Math.max(totalBytes - allocatedBytes, 0);
+    }
+
+    const nextBytes =
+      totalHints > 0 ? Math.floor((totalBytes * sizeHint) / totalHints) : 0;
+    allocatedBytes += nextBytes;
+    return nextBytes;
+  });
+};
+
+const createBundleModuleMetric = ({
+  assetsDir,
+  bytes,
+  file,
+  id,
+  outDir,
+  sourceAssetCache,
+}: {
+  assetsDir: string;
+  bytes: number;
+  file: string;
+  id: string;
+  outDir: string;
+  sourceAssetCache: Map<string, string | undefined>;
+}): BundleModuleMetric => {
+  const sourcePath = resolveBundledModuleSourcePath(id);
+
+  return {
+    bytes,
+    file,
+    id,
+    sourceAssetFile: sourcePath
+      ? writeDebugSourceAsset({
+          assetsDir,
+          outDir,
+          sourceAssetCache,
+          sourcePath,
+        })
+      : undefined,
+    sourcePath,
+  };
+};
+
+const getOutputAssetModuleIds = (file: {
+  originalFileName?: string | null;
+  originalFileNames?: string[];
+}) =>
+  [
+    ...new Set(
+      file.originalFileNames?.length
+        ? file.originalFileNames
+        : file.originalFileName
+          ? [file.originalFileName]
+          : [],
+    ),
+  ].filter((value): value is string => Boolean(value));
+
+const resolveManifestModuleId = (rootDir: string, moduleId: string) => {
+  const candidates = [
+    moduleId,
+    join(rootDir, stripBundledModuleQuery(moduleId)),
+  ];
+
+  for (const candidate of candidates) {
+    const resolvedPath = resolveBundledModuleSourcePath(candidate);
+
+    if (resolvedPath) {
+      return resolvedPath;
+    }
+  }
+
+  return moduleId;
+};
+
+const resolveLocalSourceImportPath = (
+  importerPath: string,
+  importPath: string,
+): string | null => {
+  const normalizedImportPath = stripBundledModuleQuery(importPath);
+
+  if (
+    !normalizedImportPath ||
+    normalizedImportPath.startsWith('\0') ||
+    (!normalizedImportPath.startsWith('.') &&
+      !normalizedImportPath.startsWith('/'))
+  ) {
+    return null;
+  }
+
+  const absoluteBasePath = normalizedImportPath.startsWith('/')
+    ? normalizedImportPath
+    : join(dirname(importerPath), normalizedImportPath);
+  const candidatePaths = extname(absoluteBasePath)
+    ? [absoluteBasePath]
+    : [
+        ...LOCAL_SOURCE_RESOLVE_EXTENSIONS.map(
+          (extension) => `${absoluteBasePath}${extension}`,
+        ),
+        ...LOCAL_SOURCE_RESOLVE_EXTENSIONS.map((extension) =>
+          join(absoluteBasePath, `index${extension}`),
+        ),
+      ];
+
+  for (const candidatePath of candidatePaths) {
+    if (!fs.existsSync(candidatePath)) {
+      continue;
+    }
+
+    if (fs.statSync(candidatePath).isFile()) {
+      return candidatePath;
+    }
+  }
+
+  return null;
+};
+
+const collectStyleSourcePathsForModule = async (
+  modulePath: string,
+  seenPaths = new Set<string>(),
+  styleSourcePaths = new Set<string>(),
+): Promise<string[]> => {
+  const resolvedModulePath = resolveBundledModuleSourcePath(modulePath);
+
+  if (!resolvedModulePath || seenPaths.has(resolvedModulePath)) {
+    return [...styleSourcePaths];
+  }
+
+  seenPaths.add(resolvedModulePath);
+
+  if (!shouldTraverseSourcePath(resolvedModulePath)) {
+    return [...styleSourcePaths];
+  }
+
+  let sourceCode = '';
+  try {
+    sourceCode = fs.readFileSync(resolvedModulePath, 'utf8');
+  } catch {
+    return [...styleSourcePaths];
+  }
+
+  let importPaths: string[] = [];
+  try {
+    const program = parse(sourceCode, {
+      plugins: moduleGraphParserPlugins,
+      sourceType: 'module',
+    }).program;
+    importPaths = program.body.flatMap((statement) => {
+      if (
+        statement.type === 'ImportDeclaration' &&
+        statement.importKind !== 'type'
+      ) {
+        return [statement.source.value];
+      }
+
+      if (
+        statement.type === 'ExportAllDeclaration' ||
+        statement.type === 'ExportNamedDeclaration'
+      ) {
+        return statement.source ? [statement.source.value] : [];
+      }
+
+      return [];
+    });
+  } catch {
+    return [...styleSourcePaths];
+  }
+
+  for (const importPath of importPaths) {
+    const resolvedImportPath = resolveLocalSourceImportPath(
+      resolvedModulePath,
+      importPath,
+    );
+
+    if (!resolvedImportPath) {
+      continue;
+    }
+
+    if (isStyleSourcePath(resolvedImportPath)) {
+      styleSourcePaths.add(resolvedImportPath);
+      continue;
+    }
+
+    if (shouldTraverseSourcePath(resolvedImportPath)) {
+      await collectStyleSourcePathsForModule(
+        resolvedImportPath,
+        seenPaths,
+        styleSourcePaths,
+      );
+    }
+  }
+
+  return sortBundleMetrics(styleSourcePaths, (left, right) =>
+    left.localeCompare(right),
+  );
+};
+
+const getOutputAssetModuleIdsByFile = (
+  files: RollupOutput['output'],
+  rootDir: string,
+  isMatchingSourcePath: (sourcePath: string) => boolean,
+) => {
+  const manifestAsset = files.find(
+    (
+      file,
+    ): file is Extract<RollupOutput['output'][number], { type: 'asset' }> =>
+      isOutputAsset(file) &&
+      file.fileName.endsWith('manifest.json') &&
+      typeof file.source === 'string',
+  );
+  const moduleIdsByFile = new Map<string, string[]>();
+
+  if (!manifestAsset || typeof manifestAsset.source !== 'string') {
+    return moduleIdsByFile;
+  }
+
+  try {
+    const manifest = JSON.parse(manifestAsset.source) as Record<
+      string,
+      ViteManifestEntry
+    >;
+
+    for (const [key, entry] of Object.entries(manifest)) {
+      if (!entry || typeof entry.file !== 'string') {
+        continue;
+      }
+
+      const rawModuleId =
+        typeof entry.src === 'string' && isMatchingSourcePath(entry.src)
+          ? entry.src
+          : isMatchingSourcePath(key)
+            ? key
+            : undefined;
+
+      if (!rawModuleId) {
+        continue;
+      }
+
+      const nextModuleId = resolveManifestModuleId(rootDir, rawModuleId);
+      const existingModuleIds = moduleIdsByFile.get(entry.file) ?? [];
+
+      if (!existingModuleIds.includes(nextModuleId)) {
+        existingModuleIds.push(nextModuleId);
+        moduleIdsByFile.set(entry.file, existingModuleIds);
+      }
+    }
+  } catch {
+    return moduleIdsByFile;
+  }
+
+  return moduleIdsByFile;
+};
+
+const createModuleMetricsForAssetFile = ({
+  assetBytes,
+  assetsDir,
+  moduleIds,
+  outDir,
+  outputFile,
+  sourceAssetCache,
+}: {
+  assetBytes: number;
+  assetsDir: string;
+  moduleIds: string[];
+  outDir: string;
+  outputFile: string;
+  sourceAssetCache: Map<string, string | undefined>;
+}) => {
+  if (moduleIds.length === 0) {
+    return [];
+  }
+
+  const sizeHints = moduleIds.map((moduleId) =>
+    getSourceSizeHint(resolveBundledModuleSourcePath(moduleId)),
+  );
+  const distributedBytes = distributeAssetBytesAcrossModules(
+    assetBytes,
+    sizeHints,
+  );
+
+  return moduleIds.map((moduleId, index) =>
+    createBundleModuleMetric({
+      assetsDir,
+      bytes: distributedBytes[index] ?? 0,
+      file: outputFile,
+      id: moduleId,
+      outDir,
+      sourceAssetCache,
+    }),
+  );
+};
+
+const createCssAssetModuleMetrics = ({
+  assetBytes,
+  assetsDir,
+  file,
+  manifestModuleIds,
+  outDir,
+  sourceAssetCache,
+}: {
+  assetBytes: number;
+  assetsDir: string;
+  file: {
+    fileName: string;
+    originalFileName?: string | null;
+    originalFileNames?: string[];
+  };
+  manifestModuleIds?: string[];
+  outDir: string;
+  sourceAssetCache: Map<string, string | undefined>;
+}) => {
+  if (getBundleAssetType(file.fileName) !== 'css') {
+    return [];
+  }
+
+  const moduleIds = manifestModuleIds?.length
+    ? manifestModuleIds
+    : getOutputAssetModuleIds(file);
+
+  if (moduleIds.length === 0) {
+    return [];
+  }
+
+  return createModuleMetricsForAssetFile({
+    assetBytes,
+    assetsDir,
+    moduleIds,
+    outDir,
+    outputFile: join('/', file.fileName),
+    sourceAssetCache,
+  }).filter((moduleMetric) =>
+    isStyleSourcePath(moduleMetric.sourcePath || moduleMetric.id),
+  );
+};
+
+const createStaticAssetModuleMetrics = ({
+  assetBytes,
+  assetsDir,
+  file,
+  manifestModuleIds,
+  outDir,
+  sourceAssetCache,
+}: {
+  assetBytes: number;
+  assetsDir: string;
+  file: {
+    fileName: string;
+    originalFileName?: string | null;
+    originalFileNames?: string[];
+  };
+  manifestModuleIds?: string[];
+  outDir: string;
+  sourceAssetCache: Map<string, string | undefined>;
+}) => {
+  if (getBundleAssetType(file.fileName) !== 'asset') {
+    return [];
+  }
+
+  const moduleIds = manifestModuleIds?.length
+    ? manifestModuleIds
+    : getOutputAssetModuleIds(file);
+
+  if (moduleIds.length === 0) {
+    return [];
+  }
+
+  return createModuleMetricsForAssetFile({
+    assetBytes,
+    assetsDir,
+    moduleIds,
+    outDir,
+    outputFile: join('/', file.fileName),
+    sourceAssetCache,
+  });
 };
 
 function collectReferencedJsFiles(
@@ -610,6 +1095,16 @@ export async function bundleMultipleComponentsForBrowser(
       throw new Error('Expected a array output bundle');
     }
 
+    const cssAssetModuleIdsByFile = getOutputAssetModuleIdsByFile(
+      output.output,
+      srcDir,
+      isStyleSourcePath,
+    );
+    const staticAssetModuleIdsByFile = getOutputAssetModuleIdsByFile(
+      output.output,
+      srcDir,
+      isStaticAssetSourcePath,
+    );
     const componentEntries: {
       componentPath: string;
       componentName: string;
@@ -619,6 +1114,7 @@ export async function bundleMultipleComponentsForBrowser(
       modulePath: string;
       pendingRenderIds: Set<string>;
       renderDirectives: ComponentBundleInfo['renderDirectives'];
+      styleSourcePaths: string[];
     }[] = [];
     const modulePreloads: string[] = [];
     const cssBundlePaths: string[] = [];
@@ -668,6 +1164,9 @@ export async function bundleMultipleComponentsForBrowser(
         const publicAssetsBundlePaths = importedAssets.map((asset) =>
           join('/', asset),
         );
+        const styleSourcePaths = await collectStyleSourcePathsForModule(
+          clientComponentInfo.componentPath,
+        );
 
         componentEntries.push({
           componentPath: clientComponentInfo.componentPath,
@@ -678,6 +1177,7 @@ export async function bundleMultipleComponentsForBrowser(
           modulePath: componentModuleRelativePath,
           pendingRenderIds: clientComponentInfo.pendingRenderIds,
           renderDirectives: clientComponentInfo.renderDirectives,
+          styleSourcePaths,
         });
       }
 
@@ -695,26 +1195,19 @@ export async function bundleMultipleComponentsForBrowser(
           file: relativeOutputPath,
           imports: chunk.imports.map((file) => join('/', file)),
           modules: Object.entries(chunk.modules ?? {})
-            .map(([id, moduleInfo]) => ({
-              bytes:
-                typeof moduleInfo.renderedLength === 'number'
-                  ? moduleInfo.renderedLength
-                  : 0,
-              file: relativeOutputPath,
-              id,
-              sourceAssetFile: isGeneratedComponentEntryModule(
+            .map(([id, moduleInfo]) =>
+              createBundleModuleMetric({
+                assetsDir,
+                bytes:
+                  typeof moduleInfo.renderedLength === 'number'
+                    ? moduleInfo.renderedLength
+                    : 0,
+                file: relativeOutputPath,
                 id,
-                preparedEntryModules.tempEntryDir,
-              )
-                ? undefined
-                : writeDebugSourceAsset({
-                    assetsDir,
-                    moduleId: id,
-                    outDir,
-                    sourceAssetCache,
-                  }),
-              sourcePath: fs.existsSync(id) ? id : undefined,
-            }))
+                outDir,
+                sourceAssetCache,
+              }),
+            )
             .filter(
               (metric) =>
                 metric.bytes > 0 &&
@@ -731,6 +1224,7 @@ export async function bundleMultipleComponentsForBrowser(
       if (isOutputAsset(chunk)) {
         const fullOutputPath = resolveSafeOutputPath(outDir, chunk.fileName);
         const code = chunk.source;
+        const assetType = getBundleAssetType(chunk.fileName);
         if (!fs.existsSync(dirname(fullOutputPath))) {
           fs.mkdirSync(dirname(fullOutputPath), { recursive: true });
         }
@@ -739,7 +1233,31 @@ export async function bundleMultipleComponentsForBrowser(
         outputMetricMap.set(relativeOutputPath, {
           bytes: getBundleAssetBytes(code),
           file: relativeOutputPath,
-          type: getBundleAssetType(chunk.fileName),
+          modules:
+            assetType === 'css'
+              ? createCssAssetModuleMetrics({
+                  assetBytes: getBundleAssetBytes(code),
+                  assetsDir,
+                  file: chunk,
+                  manifestModuleIds: cssAssetModuleIdsByFile.get(
+                    chunk.fileName,
+                  ),
+                  outDir,
+                  sourceAssetCache,
+                })
+              : assetType === 'asset'
+                ? createStaticAssetModuleMetrics({
+                    assetBytes: getBundleAssetBytes(code),
+                    assetsDir,
+                    file: chunk,
+                    manifestModuleIds: staticAssetModuleIdsByFile.get(
+                      chunk.fileName,
+                    ),
+                    outDir,
+                    sourceAssetCache,
+                  })
+                : [],
+          type: assetType,
         });
         if (chunk.fileName.endsWith('.css')) {
           cssBundlePaths.push(relativeOutputPath);
@@ -784,6 +1302,32 @@ export async function bundleMultipleComponentsForBrowser(
               file: metric.file,
               type: metric.type,
             });
+
+            const fallbackCssModules =
+              metric.type === 'css' &&
+              entry.styleSourcePaths.length > 0 &&
+              !(metric.modules ?? []).some((moduleMetric) =>
+                isStyleSourcePath(moduleMetric.sourcePath || moduleMetric.id),
+              )
+                ? createModuleMetricsForAssetFile({
+                    assetBytes: metric.bytes,
+                    assetsDir,
+                    moduleIds: entry.styleSourcePaths,
+                    outDir,
+                    outputFile: metric.file,
+                    sourceAssetCache,
+                  })
+                : [];
+
+            for (const moduleMetric of [
+              ...(metric.modules ?? []),
+              ...fallbackCssModules,
+            ]) {
+              modules.set(
+                `${moduleMetric.file}::${moduleMetric.id}`,
+                moduleMetric,
+              );
+            }
           }
         }
 

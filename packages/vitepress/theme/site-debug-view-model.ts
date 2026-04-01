@@ -21,6 +21,7 @@ import {
   getMetricRuntimeKind,
   getSecondaryMetricLabel,
   hasDisplayValue,
+  shouldDisplayModuleSourceForResource,
   shouldShowRenderBundleMetric,
   shouldShowVisibleWaitMetric,
 } from './site-debug-shared';
@@ -364,8 +365,24 @@ export const getBundleChunkResourceItems = (
   const totalBytes = view.buildMetric?.estimatedTotalBytes ?? 0;
   const files = view.buildMetric?.files ?? [];
   const modules = view.buildMetric?.modules ?? [];
+  const fileTypeByFile = Object.fromEntries(
+    files.map((file) => [file.file, file.type]),
+  ) as Record<string, 'asset' | 'css' | 'js'>;
   const moduleCountByFile = modules.reduce<Record<string, number>>(
     (counts: Record<string, number>, moduleMetric) => {
+      const resourceType = fileTypeByFile[moduleMetric.file];
+
+      if (
+        !resourceType ||
+        !shouldDisplayModuleSourceForResource(
+          resourceType,
+          moduleMetric.sourcePath,
+          moduleMetric.id,
+        )
+      ) {
+        return counts;
+      }
+
       counts[moduleMetric.file] = (counts[moduleMetric.file] ?? 0) + 1;
       return counts;
     },

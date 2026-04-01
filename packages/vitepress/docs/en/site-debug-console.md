@@ -7,9 +7,9 @@
   } from '../components/react/SiteDebugConsoleDocs';
 </script>
 
-`Site Debug Console` is a runtime debugging surface for `@docs-islands/vitepress`. It brings page state, build output, runtime globals, and `HMR` timing into one place, so cross-framework rendering issues are easier to inspect.
+`Site Debug Console` is a runtime debugging surface for `@docs-islands/vitepress`. It brings page state, build output, runtime globals, and `HMR` timing into one place, so cross-framework rendering issues are easier to inspect without jumping between multiple tools.
 
-## What problems it is meant to solve
+## When to reach for it
 
 - A component flickers during navigation and you do not know whether it is waiting for `HTML`, `CSS`, or hydration.
 - A render container looks wrong, but you do not know which render mode it actually resolved to or which stage it is stuck in.
@@ -17,39 +17,13 @@
 - `HMR` is slow or fails, but you do not know whether the delay happened during trigger, `SSR Apply`, client apply, or runtime ready.
 - You need to hand the current runtime state to a teammate or attach it to an issue, but all you have are scattered logs.
 
-## Why this feature is needed
+## Why a single surface matters
 
 Cross-framework rendering problems rarely live in one layer only. They usually involve DOM state, build output, runtime injection, and hot-update timing at the same time. Without a shared inspection surface, developers end up switching between the page, DevTools, the build directory, and console logs. `Site Debug Console` exists to turn that into one inspection workflow.
 
-## How to use it
+## Start with Quick Start
 
-The minimal integration is to mount the component in your theme layout and import its stylesheet:
-
-```vue
-<!-- .vitepress/theme/components/EnhanceLayout.vue -->
-<script setup lang="ts">
-import SiteDebugConsole from '@docs-islands/vitepress/debug-console/client';
-import '@docs-islands/vitepress/debug-console/client/style.css';
-import DefaultTheme from 'vitepress/theme';
-</script>
-
-<template>
-  <DefaultTheme.Layout />
-  <SiteDebugConsole />
-</template>
-```
-
-Enable it with:
-
-- URL query: `?site-debug=1`
-- Disable with: `?site-debug=0`
-- On this docs site, you can also triple-click the top-left `logo` to toggle it and get a top toast
-
-The most common flow is:
-
-1. Click the overlay badge on the component that looks wrong.
-2. If the issue looks like a bundle or resource problem, open `Bundle Composition` and compare `Total / JS / CSS / Asset`.
-3. If you need page-level runtime state, click `Debug Logs`, inspect the globals, and export a snapshot.
+For setup, activation, and the first diagnostic workflow, start with [Quick Start](./quick-start.md). This page focuses on what each panel exposes and how to interpret the runtime data.
 
 <SiteDebugConsoleOverview ssr:only locale="en" />
 
@@ -116,7 +90,7 @@ The `Injected Globals` shortcuts mean:
 | `HMR Metrics`       | The collected React hot-update metrics on the current page.                            |
 | `Site Data`         | VitePress runtime site data. It is hidden in `dev` and `MPA` mode.                     |
 
-## How to use the console helper
+## Console helper API
 
 The browser console gets a helper object:
 
@@ -136,16 +110,7 @@ Its fields mean:
 | `logRuntime(reason?)` | Writes a full runtime snapshot into the debug logs.                                                            |
 | `snapshotRuntime()`   | Returns the current runtime snapshot object directly, which is useful for copy/paste, persistence, or sharing. |
 
-Common calls:
-
-```js
-globalThis.__DOCS_ISLANDS_SITE_DEBUG__.getGlobal('__PAGE_METAFILE__');
-globalThis.__DOCS_ISLANDS_SITE_DEBUG__.getRenderMetrics();
-globalThis.__DOCS_ISLANDS_SITE_DEBUG__.getHmrMetrics();
-globalThis.__DOCS_ISLANDS_SITE_DEBUG__.snapshotRuntime();
-```
-
-## `snapshotRuntime()` field meanings
+## `snapshotRuntime()` reference
 
 `snapshotRuntime()` returns a page-level snapshot object. Its top-level fields mean:
 
@@ -186,7 +151,7 @@ globalThis.__DOCS_ISLANDS_SITE_DEBUG__.snapshotRuntime();
 | `rootDatasetTheme`    | The current `html.dataset.theme` value.                        |
 | `storedPreference`    | The stored VitePress appearance preference from local storage. |
 
-## `getRenderMetrics()` item fields
+## `getRenderMetrics()` reference
 
 `getRenderMetrics()` returns `SiteDebugRenderMetric[]`. Each item describes one render container.
 
@@ -210,7 +175,7 @@ globalThis.__DOCS_ISLANDS_SITE_DEBUG__.snapshotRuntime();
 | `source`              | Which runtime recorded this metric.                             |
 | `errorMessage`        | The error message when render work fails.                       |
 
-## `getHmrMetrics()` item fields
+## `getHmrMetrics()` reference
 
 `getHmrMetrics()` returns `SiteDebugHmrMetric[]`. Each item describes one React hot-update cycle.
 
