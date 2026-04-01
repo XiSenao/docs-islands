@@ -1,16 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "rootDir": ".",
-    "isolatedDeclarations": false,
-    "declaration": true,
-    "noEmit": false
+    "declaration": true
   },
-  "include": [
-    "theme/**/*.ts",
-    "theme/**/*.vue",
-    "types/**/*.d.ts",
-    "src/types/**/*.d.ts",
-    "src/shared/**/*.d.ts"
-  ]
+  "include": ["theme/**/*.ts", "theme/**/*.vue", "types/**/*.d.ts"]
 }
