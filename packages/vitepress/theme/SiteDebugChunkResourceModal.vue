@@ -160,26 +160,28 @@ const copyLabel = computed(() =>
                   : undefined
               "
             >
-              <div class="site-debug-detail-modal__list-header">
-                <div>
-                  <strong>{{ item.shortFile }}</strong>
-                  <p>{{ item.id }}</p>
-                </div>
-                <div class="site-debug-detail-modal__list-values">
-                  <strong>{{ formatBytes(item.bytes) }}</strong>
-                  <span v-if="hasDisplayValue(item.percent)">{{
-                    item.percent
-                  }}</span>
+              <div class="site-debug-chunk-viewer__module-main">
+                <strong class="site-debug-chunk-viewer__module-title">
+                  {{ item.shortFile }}
+                </strong>
+                <p class="site-debug-chunk-viewer__module-path">
+                  {{ item.id }}
+                </p>
+                <div
+                  v-if="item.isGeneratedVirtualModule || !item.canBrowseSource"
+                  class="site-debug-detail-modal__list-meta site-debug-chunk-viewer__module-meta"
+                >
+                  <span v-if="item.isGeneratedVirtualModule">
+                    generated virtual module
+                  </span>
+                  <span v-else>source unavailable</span>
                 </div>
               </div>
-              <div
-                v-if="item.isGeneratedVirtualModule || !item.canBrowseSource"
-                class="site-debug-detail-modal__list-meta"
-              >
-                <span v-if="item.isGeneratedVirtualModule">
-                  generated virtual module
-                </span>
-                <span v-else>source unavailable</span>
+              <div class="site-debug-detail-modal__list-values">
+                <strong>{{ formatBytes(item.bytes) }}</strong>
+                <span v-if="hasDisplayValue(item.percent)">{{
+                  item.percent
+                }}</span>
               </div>
             </button>
           </div>
