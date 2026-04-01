@@ -78,6 +78,44 @@ export interface MetafileLookup {
   spaSyncEffectByRenderId: Map<string, SpaSyncComponentEffect>;
 }
 
+const compareBuildMetricRichness = (
+  left: ComponentBuildMetric,
+  right: ComponentBuildMetric,
+) => {
+  const leftSourceModuleCount = left.modules.filter(
+    (moduleMetric) => moduleMetric.sourceAssetFile || moduleMetric.sourcePath,
+  ).length;
+  const rightSourceModuleCount = right.modules.filter(
+    (moduleMetric) => moduleMetric.sourceAssetFile || moduleMetric.sourcePath,
+  ).length;
+
+  if (leftSourceModuleCount !== rightSourceModuleCount) {
+    return leftSourceModuleCount - rightSourceModuleCount;
+  }
+
+  if (left.modules.length !== right.modules.length) {
+    return left.modules.length - right.modules.length;
+  }
+
+  if (left.files.length !== right.files.length) {
+    return left.files.length - right.files.length;
+  }
+
+  return left.estimatedTotalBytes - right.estimatedTotalBytes;
+};
+
+const setPreferredBuildMetric = (
+  metrics: Map<string, ComponentBuildMetric>,
+  key: string,
+  candidate: ComponentBuildMetric,
+) => {
+  const existing = metrics.get(key);
+
+  if (!existing || compareBuildMetricRichness(candidate, existing) > 0) {
+    metrics.set(key, candidate);
+  }
+};
+
 export const getCurrentPageCandidates = (
   debugWindow: DebugWindow,
 ): string[] => {
@@ -168,9 +206,11 @@ export const createMetafileLookup = ({
 
   for (const pageMetafile of pageMetafiles) {
     for (const component of pageMetafile.buildMetrics?.components ?? []) {
-      if (!buildMetricByComponentName.has(component.componentName)) {
-        buildMetricByComponentName.set(component.componentName, component);
-      }
+      setPreferredBuildMetric(
+        buildMetricByComponentName,
+        component.componentName,
+        component,
+      );
     }
 
     for (const effect of pageMetafile.buildMetrics?.spaSyncEffects
@@ -186,7 +226,7 @@ export const createMetafileLookup = ({
       for (const renderId of effect.renderIds) {
         spaSyncEffectByRenderId.set(renderId, effect);
         if (buildMetric) {
-          buildMetricByRenderId.set(renderId, buildMetric);
+          setPreferredBuildMetric(buildMetricByRenderId, renderId, buildMetric);
         }
       }
     }

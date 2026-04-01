@@ -7,7 +7,7 @@
   } from '../components/react/SiteDebugConsoleDocs';
 </script>
 
-`Site Debug Console` 是 `@docs-islands/vitepress` 提供的一套运行时调试能力。它把跨框架渲染过程中分散在页面、构建产物、运行时全局对象和 `HMR` 时序里的信息集中到同一套调试入口里。
+`Site Debug Console` 是 `@docs-islands/vitepress` 提供的一套运行时调试能力。它把跨框架渲染过程中分散在页面、构建产物、运行时全局对象和 `HMR` 时序里的信息集中到同一套调试入口里，减少在多个工具之间来回切换的成本。
 
 ## 遇到什么问题时会需要它
 
@@ -17,39 +17,13 @@
 - `HMR` 变慢或失败，但你不知道问题发生在触发、`SSR Apply`、客户端应用还是运行时 ready。
 - 你想把当前运行时状态交给其他同事或贴到 issue / PR 里，但手里只有零散日志。
 
-## 为什么需要这个功能
+## 为什么统一视图很重要
 
 跨框架渲染的问题通常不是单一维度的问题，而是页面状态、构建产物、运行时注入和热更新时序一起造成的。没有统一视图时，开发者只能在 DOM、Network、构建目录和控制台之间来回切换。`Site Debug Console` 的价值，就是把这些信息收拢到一个地方，让“猜问题”变成“看证据”。
 
-## 如何使用
+## 先看快速开始
 
-最小接入方式是在主题布局里挂载组件，并引入样式：
-
-```vue
-<!-- .vitepress/theme/components/EnhanceLayout.vue -->
-<script setup lang="ts">
-import SiteDebugConsole from '@docs-islands/vitepress/debug-console/client';
-import '@docs-islands/vitepress/debug-console/client/style.css';
-import DefaultTheme from 'vitepress/theme';
-</script>
-
-<template>
-  <DefaultTheme.Layout />
-  <SiteDebugConsole />
-</template>
-```
-
-开启方式：
-
-- URL 参数：`?site-debug=1`
-- 关闭：`?site-debug=0`
-- 当前文档站还支持连续点击左上角 `logo` 3 次切换，并显示顶部提示弹窗
-
-最常用的使用顺序：
-
-1. 先点出问题组件上的浮层徽标，看单个组件的状态和耗时。
-2. 如果怀疑是包体积或资源类型问题，打开 `Bundle Composition` 看 `Total / JS / CSS / Asset`。
-3. 如果需要看页面级运行时状态，点击右下角 `Debug Logs`，再检查全局对象或导出快照。
+接入方式、开启方式和第一轮排查流程，请先看 [快速开始](./quick-start.md)。本文聚焦于各个面板能提供什么信息，以及如何解读这些运行时数据。
 
 <SiteDebugConsoleOverview ssr:only locale="zh" />
 
@@ -116,7 +90,7 @@ import DefaultTheme from 'vitepress/theme';
 | `HMR Metrics`       | 页面上收集到的 React 热更新指标集合。                          |
 | `Site Data`         | VitePress 的运行时站点数据。它会在 `dev` 和 `MPA` 模式下隐藏。 |
 
-## 控制台对象如何使用
+## 控制台辅助对象 API
 
 浏览器控制台里会挂一个辅助对象：
 
@@ -135,15 +109,6 @@ globalThis.__DOCS_ISLANDS_SITE_DEBUG__;
 | `logGlobal(path?)`    | 把某个全局对象的快照写入调试日志。                         |
 | `logRuntime(reason?)` | 把当前运行时总快照写入调试日志。                           |
 | `snapshotRuntime()`   | 直接返回当前运行时总快照对象，适合复制、持久化和分享。     |
-
-最常用的调用方式：
-
-```js
-globalThis.__DOCS_ISLANDS_SITE_DEBUG__.getGlobal('__PAGE_METAFILE__');
-globalThis.__DOCS_ISLANDS_SITE_DEBUG__.getRenderMetrics();
-globalThis.__DOCS_ISLANDS_SITE_DEBUG__.getHmrMetrics();
-globalThis.__DOCS_ISLANDS_SITE_DEBUG__.snapshotRuntime();
-```
 
 ## `snapshotRuntime()` 返回字段说明
 

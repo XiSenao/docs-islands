@@ -3,6 +3,7 @@ import { querySelectorAllToArray } from '@docs-islands/utils/dom-iterable';
 import {
   getSiteDebugHmrMetrics,
   getSiteDebugRenderMetrics,
+  isSiteDebugEnabled,
   resetSiteDebugHmrMetrics,
   resetSiteDebugRenderMetrics,
   setSiteDebugEnabled,
@@ -10,16 +11,19 @@ import {
   SITE_DEBUG_HMR_METRIC_EVENT_NAME,
   SITE_DEBUG_HMR_METRICS_KEY,
   SITE_DEBUG_MODE_EVENT_NAME,
+  SITE_DEBUG_PAGE_METAFILE_EVENT_NAME,
   SITE_DEBUG_RENDER_METRIC_EVENT_NAME,
   SITE_DEBUG_RENDER_METRICS_KEY,
   syncSiteDebugEnabledFromQuery,
+  toggleSiteDebugEnabled,
   type SiteDebugEventDetail,
   type SiteDebugHmrMetric,
   type SiteDebugLevel,
   type SiteDebugModeChangeDetail,
+  type SiteDebugPageMetafileEventDetail,
   type SiteDebugRenderMetric,
 } from '@docs-islands/vitepress/internal/debug';
-import { useData } from 'vitepress';
+import { useData, useRoute } from 'vitepress';
 import {
   computed,
   onBeforeUnmount,
@@ -85,6 +89,7 @@ import {
   renderMetricContainerAttr,
   renderMetricDirectiveAttr,
   renderMetricSpaSyncAttr,
+  shouldDisplayModuleSourceForResource,
   type BundleChunkDetail,
   type BundleChunkResourceItem,
   type BundleSourceModuleSelection,
@@ -126,6 +131,7 @@ import SiteDebugSourceViewerModal from './SiteDebugSourceViewerModal.vue';
 import SiteDebugVsCodeLink from './SiteDebugVsCodeLink.vue';
 
 const { isDark } = useData();
+const route = useRoute();
 
 const debugDialogRef = ref<HTMLDialogElement | null>(null);
 const ENABLE_MPA_DEBUG_UI =
@@ -147,6 +153,9 @@ const getDefaultGlobalInspectorPath = () =>
     : (GLOBAL_PRESETS.find((preset) => isGlobalPresetVisible(preset.path))
         ?.path ?? DEFAULT_GLOBAL_PATH);
 const debugEnabled = ref(false);
+const siteDebugModeClickCount = ref(0);
+const siteDebugModeToastVisible = ref(false);
+const siteDebugModeToastMessage = ref('');
 const debugOpen = ref(false);
 const entries = ref<SiteDebugEntry[]>([]);
 const hmrMetrics = ref<SiteDebugHmrMetric[]>([]);
@@ -199,19 +208,26 @@ const actionFeedback = ref<{
 });
 const actionFeedbackTarget = ref<string | null>(null);
 const webVitalsVersion = ref(0);
+const viewportWidthPx = ref(0);
+const viewportHeightPx = ref(0);
 
 let entryId = 0;
 let restoreModalScrollLock: (() => void) | null = null;
-let lastHref = '';
-let routePollTimer: number | undefined;
 let originalConsoleLog: typeof console.log | null = null;
 let originalConsoleWarn: typeof console.warn | null = null;
 let originalConsoleError: typeof console.error | null = null;
 let stopDebugListeners: (() => void) | null = null;
 let actionFeedbackTimer: number | undefined;
 let overlaySyncFrame: number | undefined;
-let overlaySyncTimers: number[] = [];
-let pageMetafileSyncTimers: number[] = [];
+let lastPageMetafileFingerprint = '';
+let siteDebugModeClickTimer:
+  | ReturnType<typeof globalThis.setTimeout>
+  | undefined;
+let siteDebugModeToastTimer:
+  | ReturnType<typeof globalThis.setTimeout>
+  | undefined;
+let siteDebugModeTriggerElements: HTMLElement[] = [];
+let siteDebugModeTriggerObserver: MutationObserver | null = null;
 
 const MAX_OBJECT_KEYS = 40;
 const getDebugWindow = () => window as unknown as SiteDebugWindow;
@@ -232,6 +248,14 @@ const updateLoadingProgress = (
 };
 const formatTransferBytes = (value: number) =>
   value > 0 ? formatBytes(value) : '0 B';
+const updateViewportSize = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  viewportWidthPx.value = window.innerWidth;
+  viewportHeightPx.value = window.innerHeight;
+};
 const resolveMetricsInspectorValue = (path: string) => {
   const normalizedPath = normalizeGlobalPath(path);
 
@@ -282,6 +306,105 @@ const getResolvedRenderContainerElement = (renderId: string) =>
   getRuntimeRenderContainerElement(renderId, renderMetricContainerAttr);
 const getResolvedRenderContainerLabel = (element: HTMLElement | null) =>
   getRuntimeRenderContainerLabel(element);
+const clearSiteDebugModeClickTimer = () => {
+  if (siteDebugModeClickTimer === undefined) {
+    return;
+  }
+
+  globalThis.clearTimeout(siteDebugModeClickTimer);
+  siteDebugModeClickTimer = undefined;
+};
+const clearSiteDebugModeToastTimer = () => {
+  if (siteDebugModeToastTimer === undefined) {
+    return;
+  }
+
+  globalThis.clearTimeout(siteDebugModeToastTimer);
+  siteDebugModeToastTimer = undefined;
+};
+const showSiteDebugModeToast = (message: string) => {
+  siteDebugModeToastMessage.value = message;
+  siteDebugModeToastVisible.value = true;
+  clearSiteDebugModeToastTimer();
+  siteDebugModeToastTimer = globalThis.setTimeout(() => {
+    siteDebugModeToastVisible.value = false;
+    siteDebugModeToastTimer = undefined;
+  }, 2400);
+};
+const resetSiteDebugModeClickSequence = () => {
+  siteDebugModeClickCount.value = 0;
+  clearSiteDebugModeClickTimer();
+};
+const updateSiteDebugModeTriggerDecorations = () => {
+  const title = debugEnabled.value
+    ? 'Debug site is enabled. Triple-click the logo to disable.'
+    : 'Debug site is disabled. Triple-click the logo to enable.';
+
+  for (const element of siteDebugModeTriggerElements) {
+    element.classList.add('site-debug-mode-entry__trigger');
+    element.classList.toggle('is-active', debugEnabled.value);
+    element.setAttribute('title', title);
+    element.setAttribute('aria-label', title);
+  }
+};
+const handleSiteDebugModeTriggerClick = (event: Event) => {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const nextCount = siteDebugModeClickCount.value + 1;
+
+  siteDebugModeClickCount.value = nextCount;
+  clearSiteDebugModeClickTimer();
+
+  if (nextCount >= 3) {
+    resetSiteDebugModeClickSequence();
+    toggleSiteDebugEnabled({
+      clearQueryOverride: true,
+      source: 'nav-logo',
+    });
+    return;
+  }
+
+  siteDebugModeClickTimer = globalThis.setTimeout(() => {
+    siteDebugModeClickCount.value = 0;
+    siteDebugModeClickTimer = undefined;
+  }, 520);
+};
+const unbindSiteDebugModeTriggerElements = () => {
+  for (const element of siteDebugModeTriggerElements) {
+    element.removeEventListener('click', handleSiteDebugModeTriggerClick);
+    element.classList.remove('site-debug-mode-entry__trigger', 'is-active');
+    element.removeAttribute('title');
+    element.removeAttribute('aria-label');
+  }
+
+  siteDebugModeTriggerElements = [];
+};
+const bindSiteDebugModeTriggerElements = () => {
+  const nextElements = querySelectorAllToArray(
+    globalThis.document,
+    '.VPNavBarTitle .title .logo',
+  ).filter((element): element is HTMLElement => element instanceof HTMLElement);
+
+  if (
+    nextElements.length === siteDebugModeTriggerElements.length &&
+    nextElements.every(
+      (element, index) => element === siteDebugModeTriggerElements[index],
+    )
+  ) {
+    updateSiteDebugModeTriggerDecorations();
+    return;
+  }
+
+  unbindSiteDebugModeTriggerElements();
+  siteDebugModeTriggerElements = nextElements;
+
+  for (const element of siteDebugModeTriggerElements) {
+    element.addEventListener('click', handleSiteDebugModeTriggerClick);
+  }
+
+  updateSiteDebugModeTriggerDecorations();
+};
 
 const pushLog = (
   level: SiteDebugLevel,
@@ -322,18 +445,75 @@ const syncHmrMetrics = () => {
   hmrMetrics.value = getSiteDebugHmrMetrics();
 };
 
-const syncCurrentPageMetafile = () => {
+const getPageMetafileFingerprint = ({
+  allPageMetafiles,
+  currentPageMetafile,
+}: {
+  allPageMetafiles: PageMetafile[];
+  currentPageMetafile: PageMetafile | null;
+}) => {
+  const summarizeMetafile = (pageMetafile: PageMetafile | null) => {
+    if (!pageMetafile) {
+      return 'null';
+    }
+
+    const components = pageMetafile.buildMetrics?.components ?? [];
+    const moduleCount = components.reduce(
+      (total, component) => total + (component.modules?.length ?? 0),
+      0,
+    );
+    const fileCount = components.reduce(
+      (total, component) => total + (component.files?.length ?? 0),
+      0,
+    );
+
+    return [
+      components.length,
+      moduleCount,
+      fileCount,
+      pageMetafile.buildMetrics?.totalEstimatedComponentBytes ?? 0,
+      pageMetafile.loaderScript ?? '',
+      pageMetafile.ssrInjectScript ?? '',
+      Array.isArray(pageMetafile.cssBundlePaths)
+        ? pageMetafile.cssBundlePaths.length
+        : 0,
+      Array.isArray(pageMetafile.modulePreloads)
+        ? pageMetafile.modulePreloads.length
+        : 0,
+    ].join(':');
+  };
+
+  return [
+    `current=${summarizeMetafile(currentPageMetafile)}`,
+    ...allPageMetafiles
+      .map((pageMetafile) => summarizeMetafile(pageMetafile))
+      .sort((left, right) => left.localeCompare(right)),
+  ].join('|');
+};
+
+const syncCurrentPageMetafile = (force = false) => {
   if (typeof window === 'undefined') {
     currentPageMetafile.value = null;
     allPageMetafiles.value = [];
-    return;
+    lastPageMetafileFingerprint = '';
+    return true;
   }
 
   const { allPageMetafiles: nextMetafiles, currentPageMetafile: nextCurrent } =
     resolvePageMetafileState(getDebugWindow());
+  const nextFingerprint = getPageMetafileFingerprint({
+    allPageMetafiles: nextMetafiles,
+    currentPageMetafile: nextCurrent,
+  });
+
+  if (!force && nextFingerprint === lastPageMetafileFingerprint) {
+    return false;
+  }
 
   allPageMetafiles.value = nextMetafiles;
   currentPageMetafile.value = nextCurrent;
+  lastPageMetafileFingerprint = nextFingerprint;
+  return true;
 };
 
 const metafileLookup = computed(() => {
@@ -693,7 +873,15 @@ const activeBundleChunkModules = computed(() => {
   }
 
   return buildMetric.modules
-    .filter((moduleMetric) => moduleMetric.file === chunkDetail.file)
+    .filter(
+      (moduleMetric) =>
+        moduleMetric.file === chunkDetail.file &&
+        shouldDisplayModuleSourceForResource(
+          chunkDetail.type,
+          moduleMetric.sourcePath,
+          moduleMetric.id,
+        ),
+    )
     .sort((left, right) => right.bytes - left.bytes)
     .map((moduleMetric) => {
       const isGeneratedVirtualModule =
@@ -1359,22 +1547,6 @@ const getLiveRenderMetricViews = (): RenderMetricView[] => {
   });
 };
 
-const clearRenderMetricOverlayTimers = () => {
-  for (const timer of overlaySyncTimers) {
-    window.clearTimeout(timer);
-  }
-
-  overlaySyncTimers = [];
-};
-
-const clearPageMetafileSyncTimers = () => {
-  for (const timer of pageMetafileSyncTimers) {
-    window.clearTimeout(timer);
-  }
-
-  pageMetafileSyncTimers = [];
-};
-
 const syncRenderMetricOverlays = () => {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     renderMetricOverlays.value = [];
@@ -1480,37 +1652,6 @@ const scheduleRenderMetricOverlaySync = () => {
   });
 };
 
-const scheduleRenderMetricOverlayBurst = () => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  clearRenderMetricOverlayTimers();
-  scheduleRenderMetricOverlaySync();
-
-  overlaySyncTimers = [80, 220, 480].map((delay) =>
-    window.setTimeout(() => {
-      scheduleRenderMetricOverlaySync();
-    }, delay),
-  );
-};
-
-const schedulePageMetafileSyncBurst = () => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  clearPageMetafileSyncTimers();
-  syncCurrentPageMetafile();
-
-  pageMetafileSyncTimers = [120, 360, 900].map((delay) =>
-    window.setTimeout(() => {
-      syncCurrentPageMetafile();
-      scheduleRenderMetricOverlaySync();
-    }, delay),
-  );
-};
-
 const logRuntimeGlobals = (reason = 'runtime globals snapshot') => {
   pushLog('info', 'globals', reason, getRuntimeSnapshot());
 };
@@ -1579,34 +1720,6 @@ const captureSnapshot = (reason: string) => {
   });
 };
 
-const startRoutePolling = () => {
-  lastHref = window.location.href;
-  routePollTimer = window.setInterval(() => {
-    if (window.location.href === lastHref) {
-      return;
-    }
-
-    const previousHref = lastHref;
-
-    lastHref = window.location.href;
-    pushLog('info', 'navigation', 'route changed', {
-      from: previousHref,
-      to: lastHref,
-    });
-    captureSnapshot('route snapshot');
-    scheduleRenderMetricOverlayBurst();
-  }, 500);
-};
-
-const stopRoutePolling = () => {
-  if (routePollTimer === undefined) {
-    return;
-  }
-
-  window.clearInterval(routePollTimer);
-  routePollTimer = undefined;
-};
-
 const restoreConsolePatches = () => {
   if (originalConsoleLog) {
     console.log = originalConsoleLog;
@@ -1669,11 +1782,10 @@ const installDebugListeners = () => {
   installConsolePatches();
   installDebugHelper();
   ensureSiteDebugWebVitalsTracking();
-  schedulePageMetafileSyncBurst();
+  syncCurrentPageMetafile(true);
   syncHmrMetrics();
   syncRenderMetrics();
-  scheduleRenderMetricOverlayBurst();
-  startRoutePolling();
+  scheduleRenderMetricOverlaySync();
 
   const handleSiteDebugEvent = (event: Event) => {
     const detail = (event as CustomEvent<SiteDebugEventDetail>).detail;
@@ -1682,7 +1794,6 @@ const installDebugListeners = () => {
       return;
     }
 
-    schedulePageMetafileSyncBurst();
     pushLog(
       detail.level ?? 'info',
       detail.source ?? 'app',
@@ -1691,10 +1802,17 @@ const installDebugListeners = () => {
     );
   };
 
+  const handlePageMetafileEvent = (
+    _event: CustomEvent<SiteDebugPageMetafileEventDetail>,
+  ) => {
+    if (syncCurrentPageMetafile()) {
+      scheduleRenderMetricOverlaySync();
+    }
+  };
+
   const handleRenderMetricEvent = () => {
-    schedulePageMetafileSyncBurst();
     syncRenderMetrics();
-    scheduleRenderMetricOverlayBurst();
+    scheduleRenderMetricOverlaySync();
   };
 
   const handleHmrMetricEvent = () => {
@@ -1703,7 +1821,7 @@ const installDebugListeners = () => {
 
   const handleWebVitalsEvent = () => {
     webVitalsVersion.value += 1;
-    scheduleRenderMetricOverlayBurst();
+    scheduleRenderMetricOverlaySync();
   };
 
   const handleWindowError = (event: Event) => {
@@ -1748,10 +1866,11 @@ const installDebugListeners = () => {
     pushLog('info', 'document', 'visibility changed', {
       visibility: document.visibilityState,
     });
-    scheduleRenderMetricOverlayBurst();
+    scheduleRenderMetricOverlaySync();
   };
 
   const handleViewportChange = () => {
+    updateViewportSize();
     scheduleRenderMetricOverlaySync();
   };
 
@@ -1777,6 +1896,10 @@ const installDebugListeners = () => {
   window.addEventListener(
     SITE_DEBUG_EVENT_NAME,
     handleSiteDebugEvent as EventListener,
+  );
+  window.addEventListener(
+    SITE_DEBUG_PAGE_METAFILE_EVENT_NAME,
+    handlePageMetafileEvent as EventListener,
   );
   window.addEventListener(
     SITE_DEBUG_RENDER_METRIC_EVENT_NAME,
@@ -1805,6 +1928,10 @@ const installDebugListeners = () => {
       handleSiteDebugEvent as EventListener,
     );
     window.removeEventListener(
+      SITE_DEBUG_PAGE_METAFILE_EVENT_NAME,
+      handlePageMetafileEvent as EventListener,
+    );
+    window.removeEventListener(
       SITE_DEBUG_RENDER_METRIC_EVENT_NAME,
       handleRenderMetricEvent,
     );
@@ -1824,9 +1951,6 @@ const installDebugListeners = () => {
     window.removeEventListener('scroll', handleViewportChange, true);
     window.removeEventListener('pointerdown', handlePointerDown, true);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
-    stopRoutePolling();
-    clearRenderMetricOverlayTimers();
-    clearPageMetafileSyncTimers();
     if (overlaySyncFrame !== undefined) {
       window.cancelAnimationFrame(overlaySyncFrame);
       overlaySyncFrame = undefined;
@@ -1837,15 +1961,16 @@ const installDebugListeners = () => {
     restoreConsolePatches();
     uninstallDebugHelper();
     destroySiteDebugWebVitalsTracking();
+    lastPageMetafileFingerprint = '';
     stopDebugListeners = null;
   };
 };
 
 const openDebugConsole = () => {
-  schedulePageMetafileSyncBurst();
+  syncCurrentPageMetafile(true);
   syncHmrMetrics();
   syncRenderMetrics();
-  scheduleRenderMetricOverlayBurst();
+  scheduleRenderMetricOverlaySync();
   captureSnapshot('debug dialog opened');
   debugOpen.value = true;
 };
@@ -1958,7 +2083,7 @@ const activateDebugRuntime = () => {
     return;
   }
 
-  schedulePageMetafileSyncBurst();
+  syncCurrentPageMetafile(true);
   installDebugListeners();
   pushLog('info', 'debug-console', 'debug console enabled', {
     helper: 'window.__DOCS_ISLANDS_SITE_DEBUG__',
@@ -1994,13 +2119,13 @@ const disableDebug = () => {
 
 const handleSiteDebugModeChange = (event: Event) => {
   const detail = (event as CustomEvent<SiteDebugModeChangeDetail>).detail;
-  const nextEnabled = detail?.enabled ?? false;
-
-  if (nextEnabled === debugEnabled.value) {
-    return;
-  }
+  const nextEnabled = detail?.enabled ?? isSiteDebugEnabled();
 
   debugEnabled.value = nextEnabled;
+  updateSiteDebugModeTriggerDecorations();
+  showSiteDebugModeToast(
+    nextEnabled ? 'Debug site mode enabled' : 'Debug site mode disabled',
+  );
 
   if (nextEnabled) {
     activateDebugRuntime();
@@ -2029,6 +2154,27 @@ const availableGlobalPresets = computed(() => {
       normalizeGlobalPath(preset.path),
   })).filter((preset) => isGlobalPresetVisible(preset.path));
 });
+
+const activeGlobalPreset = computed(
+  () => availableGlobalPresets.value.find((preset) => preset.isActive) ?? null,
+);
+const globalInspectorTreeHeight = computed(() => {
+  const width = viewportWidthPx.value;
+  const height = viewportHeightPx.value;
+
+  if (width <= 0 || height <= 0) {
+    return 440;
+  }
+
+  if (width <= 720) {
+    return clamp(Math.round(height * 0.34), 220, 320);
+  }
+
+  return clamp(Math.round(height * 0.42), 320, 440);
+});
+const globalInspectorTreeStyle = computed(() => ({
+  '--site-debug-global-tree-height': `${globalInspectorTreeHeight.value}px`,
+}));
 
 const inspectedGlobalValue = computed(() =>
   serializeInspectable(resolveGlobalPath(globalPath.value)),
@@ -2143,6 +2289,32 @@ watch(debugOpen, (value) => {
 });
 
 watch(
+  () => route.path,
+  (value, previousValue) => {
+    if (
+      !debugEnabled.value ||
+      typeof window === 'undefined' ||
+      value === previousValue
+    ) {
+      return;
+    }
+
+    pushLog('info', 'navigation', 'route changed', {
+      from: previousValue,
+      href: window.location.href,
+      to: value,
+    });
+    captureSnapshot('route snapshot');
+    syncCurrentPageMetafile(true);
+    syncRenderMetrics();
+    scheduleRenderMetricOverlaySync();
+  },
+  {
+    flush: 'post',
+  },
+);
+
+watch(
   hasGlobalModalOverlay,
   (value) => {
     setModalScrollLock(value);
@@ -2159,15 +2331,26 @@ onMounted(() => {
     dialog.addEventListener('close', closeDebugConsole);
   }
 
+  updateViewportSize();
+  debugEnabled.value = isSiteDebugEnabled();
+  bindSiteDebugModeTriggerElements();
   window.addEventListener(
     SITE_DEBUG_MODE_EVENT_NAME,
     handleSiteDebugModeChange as EventListener,
   );
+  siteDebugModeTriggerObserver = new MutationObserver(() => {
+    bindSiteDebugModeTriggerElements();
+  });
+  siteDebugModeTriggerObserver.observe(globalThis.document.body, {
+    childList: true,
+    subtree: true,
+  });
 
   const shouldEnable = syncSiteDebugEnabledFromQuery({
     source: 'query',
   });
   debugEnabled.value = shouldEnable;
+  updateSiteDebugModeTriggerDecorations();
 
   if (!shouldEnable) {
     return;
@@ -2182,9 +2365,13 @@ onBeforeUnmount(() => {
     SITE_DEBUG_MODE_EVENT_NAME,
     handleSiteDebugModeChange as EventListener,
   );
+  siteDebugModeTriggerObserver?.disconnect();
+  siteDebugModeTriggerObserver = null;
+  unbindSiteDebugModeTriggerElements();
+  clearSiteDebugModeClickTimer();
+  clearSiteDebugModeToastTimer();
   stopDebugListeners?.();
   uninstallDebugHelper();
-  clearPageMetafileSyncTimers();
   setModalScrollLock(false);
 
   if (actionFeedbackTimer !== undefined) {
@@ -2474,6 +2661,18 @@ onBeforeUnmount(() => {
     @download="downloadActiveBundleSource"
   />
 
+  <transition name="site-debug-mode-entry-toast">
+    <div
+      v-if="siteDebugModeToastVisible"
+      class="site-debug-mode-entry__toast"
+      :class="{ 'is-active': debugEnabled }"
+      role="status"
+      aria-live="polite"
+    >
+      {{ siteDebugModeToastMessage }}
+    </div>
+  </transition>
+
   <button
     v-if="debugEnabled"
     class="site-debug-toggle"
@@ -2617,7 +2816,11 @@ onBeforeUnmount(() => {
           <div class="site-debug-global-browser__header">
             <div>
               <p class="site-debug-section__eyebrow">Injected Globals</p>
-              <h4 class="site-debug-section__title">Global Access Shortcuts</h4>
+              <h4 class="site-debug-section__title">
+                {{
+                  activeGlobalPreset?.description || 'Global Access Shortcuts'
+                }}
+              </h4>
             </div>
             <div class="site-debug-global-browser__presets">
               <button
@@ -2636,23 +2839,14 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div class="site-debug-global-browser__notes">
-            <p
-              v-for="preset in availableGlobalPresets.filter(
-                (item) => item.isActive,
-              )"
-              :key="`${preset.path}-description`"
-              class="site-debug-dialog__hint site-debug-dialog__hint--subtle"
-            >
-              {{ preset.description }}
-            </p>
-          </div>
-
-          <div class="site-debug-global-browser__tree">
+          <div
+            class="site-debug-global-browser__tree"
+            :style="globalInspectorTreeStyle"
+          >
             <VueJsonPretty
               :data="inspectedGlobalViewerData"
               :deep="2"
-              :height="440"
+              :height="globalInspectorTreeHeight"
               :root-path="inspectedGlobalPathLabel"
               :show-double-quotes="false"
               :show-icon="true"
@@ -2670,6 +2864,65 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+:global(.site-debug-mode-entry__trigger) {
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    filter 180ms ease,
+    opacity 180ms ease;
+}
+
+:global(.site-debug-mode-entry__trigger:hover) {
+  transform: translateY(-1px);
+}
+
+:global(.site-debug-mode-entry__trigger.is-active) {
+  filter: drop-shadow(0 0 10px rgb(99 102 241 / 0.28));
+}
+
+.site-debug-mode-entry__toast {
+  position: fixed;
+  top: calc(var(--vp-nav-height) + 12px);
+  left: 50%;
+  z-index: 180;
+  border: 1px solid color-mix(in srgb, var(--vp-c-divider) 82%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--vp-c-bg) 94%, transparent);
+  box-shadow: 0 18px 48px rgb(8 12 20 / 0.18);
+  box-sizing: border-box;
+  color: var(--vp-c-text-1);
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.4;
+  max-width: calc(100vw - 1.5rem);
+  padding: 0.72rem 0.92rem;
+  text-align: center;
+  transform: translateX(-50%);
+  backdrop-filter: blur(12px);
+}
+
+.site-debug-mode-entry__toast.is-active {
+  border-color: color-mix(
+    in srgb,
+    var(--vp-c-brand-1) 34%,
+    var(--vp-c-divider)
+  );
+  background: color-mix(in srgb, var(--vp-c-brand-1) 12%, var(--vp-c-bg));
+}
+
+.site-debug-mode-entry-toast-enter-active,
+.site-debug-mode-entry-toast-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.site-debug-mode-entry-toast-enter-from,
+.site-debug-mode-entry-toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -8px);
+}
+
 .site-debug-overlay-layer {
   position: fixed;
   inset: 0;
@@ -2977,12 +3230,24 @@ onBeforeUnmount(() => {
 }
 
 .site-debug-dialog {
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  display: none;
   border: 0;
-  padding: 0;
-  width: min(92vw, 980px);
+  width: 100%;
+  height: 100%;
   max-width: none;
   max-height: none;
+  overflow: hidden;
+  padding: max(0.75rem, env(safe-area-inset-top, 0px)) 0.75rem
+    max(0.75rem, env(safe-area-inset-bottom, 0px));
   background: transparent;
+}
+
+.site-debug-dialog[open] {
+  display: grid;
+  place-items: center;
 }
 
 .site-debug-dialog::backdrop {
@@ -2994,7 +3259,9 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 1rem;
-  max-height: min(88vh, 920px);
+  width: min(92vw, 980px);
+  max-width: 100%;
+  max-height: min(88dvh, 920px);
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--vp-c-divider) 82%, transparent);
   border-radius: 24px;
@@ -3068,6 +3335,8 @@ onBeforeUnmount(() => {
 
 .site-debug-dialog__hint code {
   font-size: 0.86em;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .site-debug-dialog__hint--subtle {
@@ -3484,8 +3753,9 @@ onBeforeUnmount(() => {
 }
 
 .site-debug-global-browser__tree {
+  --site-debug-global-tree-height: min(52dvh, 460px);
   min-height: min(34vh, 260px);
-  max-height: min(52vh, 460px);
+  max-height: var(--site-debug-global-tree-height);
   overflow: auto;
   border-radius: 16px;
   background: linear-gradient(
@@ -3509,7 +3779,7 @@ onBeforeUnmount(() => {
 
 .site-debug-json-pretty :deep(.vjs-tree.is-virtual) {
   overflow: auto;
-  max-height: min(52vh, 460px);
+  max-height: var(--site-debug-global-tree-height);
   padding-right: 0.2rem;
 }
 
@@ -3580,20 +3850,49 @@ onBeforeUnmount(() => {
   }
 
   .site-debug-dialog {
-    width: calc(100vw - 1rem);
+    place-items: stretch;
+    padding: max(0.35rem, env(safe-area-inset-top, 0px)) 0.35rem
+      max(0.35rem, env(safe-area-inset-bottom, 0px));
   }
 
   .site-debug-dialog__panel {
-    gap: 0.9rem;
-    padding: 0.9rem;
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    gap: 0.85rem;
+    border-radius: 20px;
+    padding: 0.8rem;
   }
 
   .site-debug-dialog__header {
     flex-direction: column;
+    gap: 0.8rem;
   }
 
   .site-debug-dialog__actions {
-    justify-content: flex-start;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .site-debug-dialog__action {
+    width: 100%;
+    min-height: 2.4rem;
+    padding-inline: 0.72rem;
+  }
+
+  .site-debug-dialog__action--primary {
+    grid-column: 1 / -1;
+  }
+
+  .site-debug-dialog__title h3 {
+    font-size: 1rem;
+  }
+
+  .site-debug-dialog__body {
+    gap: 0.85rem;
+    padding-right: 0;
   }
 
   .site-debug-section__header,
@@ -3613,6 +3912,14 @@ onBeforeUnmount(() => {
 
   .site-debug-dialog__inspector-controls {
     grid-template-columns: 1fr;
+  }
+
+  .site-debug-dialog__input {
+    font-size: 16px;
+  }
+
+  .site-debug-global-browser__tree {
+    min-height: 0;
   }
 
   .site-debug-overlay__side-effect-grid,

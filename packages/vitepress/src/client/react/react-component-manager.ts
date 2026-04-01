@@ -1,6 +1,17 @@
-import type { ComponentInfo, PageMetafile } from '#dep-types/page';
-import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
-import { createSiteDebugLogger, getSiteDebugNow } from '#shared/debug';
+import type {
+  ComponentInfo,
+  PageMetafile,
+  PageMetafileManifest,
+} from '#dep-types/page';
+import {
+  PAGE_METAFILE_META_NAMES,
+  RENDER_STRATEGY_CONSTANTS,
+} from '#shared/constants';
+import {
+  createSiteDebugLogger,
+  dispatchSiteDebugPageMetafileEvent,
+  getSiteDebugNow,
+} from '#shared/debug';
 import getLoggerInstance from '#shared/logger';
 import { formatErrorMessage } from '@docs-islands/utils/logger';
 import { getCleanPathname } from '../../shared/runtime';
@@ -8,6 +19,7 @@ import { getCleanPathname } from '../../shared/runtime';
 const loggerInstance = getLoggerInstance();
 const Logger = loggerInstance.getLoggerByGroup('react-component-manager');
 const DebugLogger = createSiteDebugLogger('react-component-manager');
+const LEGACY_PAGE_METAFILE_URL = 'assets/vrite-page-metafile.json';
 
 interface ComponentSubscription {
   resolve: (value: boolean) => void;
@@ -35,9 +47,16 @@ const summarizePageMetafile = (pageMetafile: PageMetafile | null) => ({
 
 export class ReactComponentManager {
   private readonly loadedComponents = new Map<string, ComponentInfo>();
+  private readonly loadingPageMetafiles = new Map<
+    string,
+    Promise<PageMetafile | null>
+  >();
   private readonly subscriptions = new Map<string, ComponentSubscription[]>();
   private readonly runtimeSubscriptions: RuntimeSubscription[] = [];
   private pageMetafile: Record<string, PageMetafile> = {};
+  private pageMetafileBuildId: string | null = null;
+  private pageMetafileIndex: PageMetafileManifest['pages'] = {};
+  private pageMetafileIndexLoaded = false;
   private isInitialized = false;
   private reactLoadPromise: Promise<boolean> | null = null;
   private reactLoaded = false;
@@ -119,7 +138,11 @@ export class ReactComponentManager {
        * It is sufficient to expose the script information to each page during the build phase to handle the initial page load.
        */
       if (!import.meta.env.MPA) {
-        await this.loadGlobalMetafile();
+        await this.loadPageMetafileIndex();
+        await this.ensurePageMetafile(getCleanPathname(), {
+          preferInjectedCurrentMeta: true,
+        });
+        this.initialModulePreloads(getCleanPathname());
       }
 
       this.isInitialized = true;
@@ -173,38 +196,307 @@ export class ReactComponentManager {
     }
   }
 
-  private async loadGlobalMetafile(): Promise<void> {
-    if (
-      globalThis.window !== undefined &&
-      !window[RENDER_STRATEGY_CONSTANTS.pageMetafile]
-    ) {
+  private syncPageMetafileCacheFromWindow(): void {
+    if (globalThis.window !== undefined) {
+      this.pageMetafile = window[RENDER_STRATEGY_CONSTANTS.pageMetafile] || {};
+    }
+  }
+
+  private resetPageMetafileState(): void {
+    this.pageMetafile = {};
+    this.pageMetafileBuildId = null;
+    this.pageMetafileIndex = {};
+    this.pageMetafileIndexLoaded = true;
+
+    if (globalThis.window !== undefined) {
+      window[RENDER_STRATEGY_CONSTANTS.pageMetafile] = {};
+    }
+
+    dispatchSiteDebugPageMetafileEvent({
+      buildId: null,
+      kind: 'state-reset',
+      pageCount: 0,
+      pageMetafile: null,
+    });
+  }
+
+  private getInjectedPageMetafileUrl(metaName: string): string | null {
+    if (globalThis.window === undefined) {
+      return null;
+    }
+
+    const injectedValue = document
+      .querySelector(`meta[name="${metaName}"]`)
+      ?.getAttribute('content')
+      ?.trim();
+
+    return injectedValue || null;
+  }
+
+  private resolveRequestUrl(targetUrl: string): string {
+    if (/^(?:[a-z]+:)?\/\//i.test(targetUrl) || targetUrl.startsWith('/')) {
+      return targetUrl;
+    }
+
+    return baseUrl.endsWith('/')
+      ? `${baseUrl}${targetUrl}`
+      : `${baseUrl}/${targetUrl}`;
+  }
+
+  private setFallbackPageMetafileIndex(): void {
+    this.pageMetafileIndex = Object.fromEntries(
+      Object.entries(this.pageMetafile).map(([pathname, pageMetafile]) => [
+        pathname,
+        {
+          file: '',
+          loaderScript: pageMetafile.loaderScript,
+          ssrInjectScript: pageMetafile.ssrInjectScript,
+        },
+      ]),
+    );
+    this.pageMetafileIndexLoaded = true;
+  }
+
+  private async loadLegacyGlobalMetafile(): Promise<void> {
+    const response = await fetch(
+      this.resolveRequestUrl(LEGACY_PAGE_METAFILE_URL),
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Legacy page metafile request failed with status ${response.status}`,
+      );
+    }
+
+    this.pageMetafile = await response.json();
+
+    if (globalThis.window !== undefined) {
+      window[RENDER_STRATEGY_CONSTANTS.pageMetafile] = this.pageMetafile;
+    }
+
+    this.setFallbackPageMetafileIndex();
+    dispatchSiteDebugPageMetafileEvent({
+      buildId: this.pageMetafileBuildId,
+      kind: 'legacy-global-loaded',
+      pageCount: Object.keys(this.pageMetafile).length,
+      pageId: getCleanPathname(),
+      pageMetafile: this.pageMetafile[getCleanPathname()] || null,
+    });
+    Logger.success('Legacy global page metafile loaded successfully');
+    DebugLogger.info('legacy global page metafile loaded', {
+      pageCount: Object.keys(this.pageMetafile).length,
+    });
+  }
+
+  private async loadPageMetafileIndex(): Promise<void> {
+    this.syncPageMetafileCacheFromWindow();
+
+    if (this.pageMetafileIndexLoaded) {
+      return;
+    }
+
+    const injectedIndexUrl = this.getInjectedPageMetafileUrl(
+      PAGE_METAFILE_META_NAMES.index,
+    );
+
+    if (!injectedIndexUrl) {
       try {
-        const targetUrl = 'assets/vrite-page-metafile.json';
-        const requestUrl = baseUrl.endsWith('/')
-          ? baseUrl + targetUrl
-          : `${baseUrl}/${targetUrl}`;
-        const response = await fetch(requestUrl);
-        if (response.ok) {
-          this.pageMetafile = await response.json();
-          window[RENDER_STRATEGY_CONSTANTS.pageMetafile] = this.pageMetafile;
-          this.initialModulePreloads(getCleanPathname());
-          Logger.success('Global page metafile loaded successfully');
-          DebugLogger.info('global page metafile loaded', {
-            pageCount: Object.keys(this.pageMetafile).length,
-          });
-        }
+        await this.loadLegacyGlobalMetafile();
       } catch (error) {
         Logger.warn(
-          `Failed to load global page metafile, message: ${formatErrorMessage(error)}`,
+          `Failed to load page metafile index, message: ${formatErrorMessage(error)}`,
         );
-        DebugLogger.warn('global page metafile load failed', {
+        DebugLogger.warn('page metafile index load failed', {
           message: formatErrorMessage(error),
         });
-        this.pageMetafile = {};
-        window[RENDER_STRATEGY_CONSTANTS.pageMetafile] = {};
+        this.resetPageMetafileState();
       }
-    } else if (globalThis.window !== undefined) {
-      this.pageMetafile = window[RENDER_STRATEGY_CONSTANTS.pageMetafile] || {};
+      return;
+    }
+
+    try {
+      const response = await fetch(this.resolveRequestUrl(injectedIndexUrl));
+
+      if (!response.ok) {
+        throw new Error(
+          `Page metafile index request failed with status ${response.status}`,
+        );
+      }
+
+      const pageMetafileManifest =
+        (await response.json()) as Partial<PageMetafileManifest>;
+
+      if (
+        pageMetafileManifest == null ||
+        typeof pageMetafileManifest !== 'object' ||
+        pageMetafileManifest.pages == null ||
+        typeof pageMetafileManifest.pages !== 'object'
+      ) {
+        throw new Error('Page metafile index payload is invalid.');
+      }
+
+      this.pageMetafileBuildId =
+        typeof pageMetafileManifest.buildId === 'string'
+          ? pageMetafileManifest.buildId
+          : null;
+      this.pageMetafileIndex = pageMetafileManifest.pages;
+      this.pageMetafileIndexLoaded = true;
+
+      if (globalThis.window !== undefined) {
+        window[RENDER_STRATEGY_CONSTANTS.pageMetafile] = this.pageMetafile;
+      }
+
+      Logger.success('Page metafile index loaded successfully');
+      DebugLogger.info('page metafile index loaded', {
+        buildId: this.pageMetafileBuildId,
+        pageCount: Object.keys(this.pageMetafileIndex).length,
+        schemaVersion:
+          typeof pageMetafileManifest.schemaVersion === 'number'
+            ? pageMetafileManifest.schemaVersion
+            : null,
+      });
+    } catch (error) {
+      Logger.warn(
+        `Failed to load page metafile index, message: ${formatErrorMessage(error)}`,
+      );
+      DebugLogger.warn('page metafile index load failed', {
+        message: formatErrorMessage(error),
+      });
+
+      try {
+        await this.loadLegacyGlobalMetafile();
+      } catch (legacyError) {
+        Logger.warn(
+          `Failed to load legacy global page metafile, message: ${formatErrorMessage(legacyError)}`,
+        );
+        DebugLogger.warn('legacy global page metafile load failed', {
+          message: formatErrorMessage(legacyError),
+        });
+        this.resetPageMetafileState();
+      }
+    }
+  }
+
+  private cachePageMetafile(
+    pathname: string,
+    pageMetafile: PageMetafile,
+  ): void {
+    if (globalThis.window !== undefined) {
+      const cachedPageMetafiles =
+        window[RENDER_STRATEGY_CONSTANTS.pageMetafile] || {};
+
+      cachedPageMetafiles[pathname] = pageMetafile;
+      window[RENDER_STRATEGY_CONSTANTS.pageMetafile] = cachedPageMetafiles;
+      this.pageMetafile = cachedPageMetafiles;
+      dispatchSiteDebugPageMetafileEvent({
+        buildId: pageMetafile.buildId ?? this.pageMetafileBuildId,
+        kind: 'page-loaded',
+        pageCount: Object.keys(cachedPageMetafiles).length,
+        pageId: pathname,
+        pageMetafile,
+      });
+      return;
+    }
+
+    this.pageMetafile[pathname] = pageMetafile;
+    dispatchSiteDebugPageMetafileEvent({
+      buildId: pageMetafile.buildId ?? this.pageMetafileBuildId,
+      kind: 'page-loaded',
+      pageCount: Object.keys(this.pageMetafile).length,
+      pageId: pathname,
+      pageMetafile,
+    });
+  }
+
+  private async loadPageMetafile(
+    pathname: string,
+    requestUrl: string,
+  ): Promise<PageMetafile | null> {
+    try {
+      const response = await fetch(this.resolveRequestUrl(requestUrl));
+
+      if (!response.ok) {
+        throw new Error(
+          `Page metafile request failed with status ${response.status}`,
+        );
+      }
+
+      const pageMetafile = (await response.json()) as PageMetafile;
+
+      if (
+        this.pageMetafileBuildId &&
+        typeof pageMetafile.buildId === 'string' &&
+        pageMetafile.buildId !== this.pageMetafileBuildId
+      ) {
+        DebugLogger.warn('page metafile build mismatch detected', {
+          buildId: pageMetafile.buildId,
+          expectedBuildId: this.pageMetafileBuildId,
+          pageId: pathname,
+        });
+      }
+
+      this.cachePageMetafile(pathname, pageMetafile);
+      DebugLogger.info('page metafile loaded', {
+        pageId: pathname,
+        ...summarizePageMetafile(pageMetafile),
+      });
+
+      return pageMetafile;
+    } catch (error) {
+      Logger.warn(
+        `Failed to load page metafile for ${pathname}, message: ${formatErrorMessage(error)}`,
+      );
+      DebugLogger.warn('page metafile load failed', {
+        message: formatErrorMessage(error),
+        pageId: pathname,
+      });
+    }
+
+    return null;
+  }
+
+  private async ensurePageMetafile(
+    pathname: string,
+    options?: {
+      preferInjectedCurrentMeta?: boolean;
+    },
+  ): Promise<PageMetafile | null> {
+    this.syncPageMetafileCacheFromWindow();
+
+    if (this.pageMetafile[pathname]) {
+      return this.pageMetafile[pathname] || null;
+    }
+
+    await this.loadPageMetafileIndex();
+
+    if (this.pageMetafile[pathname]) {
+      return this.pageMetafile[pathname] || null;
+    }
+
+    const pendingPageMetafile = this.loadingPageMetafiles.get(pathname);
+    if (pendingPageMetafile) {
+      return pendingPageMetafile;
+    }
+
+    let requestUrl = options?.preferInjectedCurrentMeta
+      ? this.getInjectedPageMetafileUrl(PAGE_METAFILE_META_NAMES.current)
+      : null;
+
+    if (!requestUrl) {
+      requestUrl = this.pageMetafileIndex[pathname]?.file || null;
+    }
+
+    if (!requestUrl) {
+      return null;
+    }
+
+    const loadPromise = this.loadPageMetafile(pathname, requestUrl);
+    this.loadingPageMetafiles.set(pathname, loadPromise);
+
+    try {
+      return await loadPromise;
+    } finally {
+      this.loadingPageMetafiles.delete(pathname);
     }
   }
 
@@ -312,23 +604,39 @@ export class ReactComponentManager {
 
   public getAllInitialModulePreloadScripts(): string[] {
     const modulePreloadScripts = new Set<string>();
-    for (const pathname of Object.keys(this.pageMetafile)) {
-      const { loaderScript, ssrInjectScript } = this.pageMetafile[pathname];
-      modulePreloadScripts.add(loaderScript);
-      if (ssrInjectScript) {
-        modulePreloadScripts.add(ssrInjectScript);
+
+    if (Object.keys(this.pageMetafileIndex).length > 0) {
+      for (const pageMetafileIndex of Object.values(this.pageMetafileIndex)) {
+        if (pageMetafileIndex.loaderScript) {
+          modulePreloadScripts.add(pageMetafileIndex.loaderScript);
+        }
+        if (pageMetafileIndex.ssrInjectScript) {
+          modulePreloadScripts.add(pageMetafileIndex.ssrInjectScript);
+        }
+      }
+    } else {
+      for (const pathname of Object.keys(this.pageMetafile)) {
+        const { loaderScript, ssrInjectScript } = this.pageMetafile[pathname];
+        if (loaderScript) {
+          modulePreloadScripts.add(loaderScript);
+        }
+        if (ssrInjectScript) {
+          modulePreloadScripts.add(ssrInjectScript);
+        }
       }
     }
+
     return [...modulePreloadScripts];
   }
 
   public getPageComponentInfo(pathname: string): PageMetafile | null {
+    this.syncPageMetafileCacheFromWindow();
     return this.pageMetafile[pathname] || null;
   }
 
   public async loadPageComponents(): Promise<boolean> {
     const pageId = getCleanPathname();
-    const componentInfo = this.getPageComponentInfo(pageId);
+    const componentInfo = await this.ensurePageMetafile(pageId);
     if (!componentInfo) {
       DebugLogger.info('page component load skipped', {
         pageId,
@@ -782,7 +1090,11 @@ export class ReactComponentManager {
 
   public destroy(): void {
     this.reset();
+    this.loadingPageMetafiles.clear();
     this.pageMetafile = {};
+    this.pageMetafileBuildId = null;
+    this.pageMetafileIndex = {};
+    this.pageMetafileIndexLoaded = false;
     this.isInitialized = false;
     this.reactLoadPromise = null;
     this.reactLoaded = false;

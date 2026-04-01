@@ -30,7 +30,9 @@ const emit = defineEmits<{
   'select-module': [item: BundleSourceModuleSelection];
 }>();
 
-const showModules = computed(() => props.chunkDetail.moduleCount > 0);
+const showModules = computed(
+  () => props.modules.length > 0 || props.chunkDetail.moduleCount > 0,
+);
 const copyLabel = computed(() =>
   props.actionFeedbackAction === 'copy-chunk' &&
   props.actionFeedbackTarget === props.chunkDetail.file
@@ -114,6 +116,14 @@ const copyLabel = computed(() =>
         </div>
 
         <div v-if="showModules" class="site-debug-chunk-viewer__modules">
+          <div class="site-debug-detail-modal__section-header">
+            <div>
+              <p class="site-debug-section__eyebrow">Module Source</p>
+            </div>
+            <div class="site-debug-detail-modal__list-meta">
+              <span>{{ modules.length }} source modules</span>
+            </div>
+          </div>
           <div class="site-debug-detail-modal__list">
             <button
               v-for="item in modules"

@@ -63,6 +63,48 @@ pnpm add react react-dom
 
    :::
 
+## 可选：启用 Site Debug Console
+
+在接入 `@docs-islands/vitepress` 的过程中，如果你想快速查看渲染状态、包体积组成、运行时全局对象和 `HMR` 时序，建议尽早启用 `Site Debug Console` 作为内置调试入口。
+
+1. 在主题布局中挂载调试台组件，并引入样式：
+
+   ```vue
+   <!-- .vitepress/theme/components/EnhanceLayout.vue -->
+   <script setup lang="ts">
+   import SiteDebugConsole from '@docs-islands/vitepress/debug-console/client';
+   import '@docs-islands/vitepress/debug-console/client/style.css';
+   import DefaultTheme from 'vitepress/theme';
+   </script>
+
+   <template>
+     <DefaultTheme.Layout />
+     <SiteDebugConsole />
+   </template>
+   ```
+
+2. 启用方式并不只有一种：
+
+   - 使用 `?site-debug=1` 可以通过 URL 临时强制开启，使用 `?site-debug=0` 可以临时强制关闭。
+   - 一旦调试能力被开启，状态会被持久化，后续访问页面时会继续沿用，直到你再次关闭它。
+   - 在当前文档站中，还可以通过连续点击左上角 `logo` 3 次来切换开启状态。
+
+3. 当页面表现异常时，建议先按这个顺序排查：
+
+   - 点击出问题组件上的浮层徽标。
+   - 如果怀疑问题和 `JS`、`CSS` 或静态资源体积有关，打开 `Bundle Composition`。
+   - 如果需要当前页面的运行时状态，就打开 `Debug Logs`，或者直接使用下面的控制台辅助对象导出快照。
+
+浏览器控制台常用入口：
+
+```js
+globalThis.__DOCS_ISLANDS_SITE_DEBUG__.getRenderMetrics();
+globalThis.__DOCS_ISLANDS_SITE_DEBUG__.getHmrMetrics();
+globalThis.__DOCS_ISLANDS_SITE_DEBUG__.snapshotRuntime();
+```
+
+完整的面板说明和字段参考请见 [Site Debug Console](./site-debug-console.md)。
+
 ## 在 Markdown 中使用 UI 组件
 
 1. 编写 `UI` 组件：

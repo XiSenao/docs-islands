@@ -203,6 +203,41 @@ describe('bundleMultipleComponentsForBrowser', () => {
       expect(componentMetric.estimatedTotalBytes).toBeGreaterThan(0);
       expect(componentMetric.sourcePath.length).toBeGreaterThan(0);
     }
+    const cssSourceModule = buildMetrics.components
+      .flatMap((componentMetric) => componentMetric.modules)
+      .find(
+        (moduleMetric) =>
+          moduleMetric.file.endsWith('.css') &&
+          moduleMetric.sourcePath?.endsWith('rc3.css'),
+      );
+    expect(
+      cssSourceModule,
+      'CSS chunk resources should collect source modules for Module Source preview',
+    ).toBeDefined();
+    expect(cssSourceModule?.sourceAssetFile).toContain('/debug-sources/');
+    expect(
+      buildMetrics.components
+        .flatMap((componentMetric) => componentMetric.modules)
+        .some(
+          (moduleMetric) =>
+            moduleMetric.file.endsWith('.css') &&
+            moduleMetric.id.includes('browser-component-entries') &&
+            moduleMetric.id.endsWith('.tsx'),
+        ),
+      'CSS chunk resources should only expose real style source modules',
+    ).toBe(false);
+    const assetSourceModule = buildMetrics.components
+      .flatMap((componentMetric) => componentMetric.modules)
+      .find(
+        (moduleMetric) =>
+          moduleMetric.file.endsWith('.svg') &&
+          moduleMetric.sourcePath?.endsWith('react.svg'),
+      );
+    expect(
+      assetSourceModule,
+      'Asset chunk resources should collect source modules for Module Source preview',
+    ).toBeDefined();
+    expect(assetSourceModule?.sourceAssetFile).toContain('/debug-sources/');
     expect(
       buildMetrics.spaSyncEffects?.components.find(
         (component) => component.componentName === 'Landing',

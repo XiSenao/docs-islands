@@ -13,17 +13,19 @@ import type { RenderDirective } from '#dep-types/render';
 import type { ConfigType } from '#dep-types/utils';
 import {
   ALLOWED_RENDER_DIRECTIVES,
+  PAGE_METAFILE_META_NAMES,
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
 import getLoggerInstance from '#shared/logger';
+import { getHtmlOutputPathByPathname } from '#shared/path';
 import type { CheerioAPI } from 'cheerio';
 import { load } from 'cheerio';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { extname, join } from 'pathe';
+import { dirname, extname, join, relative } from 'pathe';
 import { version as reactPackageVersion } from 'react';
 import { version as reactDomPackageVersion } from 'react-dom';
 import type { DefaultTheme, UserConfig } from 'vitepress';
@@ -40,6 +42,7 @@ import { buildReactIntegrationInMPA } from './build/buildReactIntegrationInMPA';
 import { bundleMultipleComponentsForBrowser } from './build/bundleMultipleComponentsForBrowser';
 import { bundleMultipleComponentsForSSR } from './build/bundleMultipleComponentsForSSR';
 import { getComponentBundleKey } from './build/shared';
+import { createPageMetafileArtifacts } from './page-metafile-manifest';
 import type { ReactRenderController } from './react-render-controller';
 
 const loggerInstance = getLoggerInstance();
@@ -154,6 +157,110 @@ const wrapPageBuildMetrics = (
     : null,
   ssrInject: wrapRuntimeBundleMetric(metrics.ssrInject, wrapBaseUrl),
 });
+
+const escapeRegExp = (value: string): string =>
+  value.replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`);
+
+const PAGE_METAFILE_INDEX_PRELOAD_ATTR =
+  'data-docs-islands-page-metafile-preload';
+
+const stripInjectedPageMetafileReferences = (html: string): string =>
+  html
+    .replaceAll(
+      new RegExp(
+        String.raw`<meta\s+name="${escapeRegExp(PAGE_METAFILE_META_NAMES.index)}"[^>]*>\s*`,
+        'g',
+      ),
+      '',
+    )
+    .replaceAll(
+      new RegExp(
+        String.raw`<meta\s+name="${escapeRegExp(PAGE_METAFILE_META_NAMES.current)}"[^>]*>\s*`,
+        'g',
+      ),
+      '',
+    )
+    .replaceAll(
+      new RegExp(
+        String.raw`<link rel="preload" href="[^"]+" as="fetch" type="application/json" crossorigin ${PAGE_METAFILE_INDEX_PRELOAD_ATTR}="index">\s*`,
+        'g',
+      ),
+      '',
+    );
+
+export const createPageMetafileReferenceTags = ({
+  currentPagePublicPath,
+  indexPublicPath,
+}: {
+  currentPagePublicPath?: string;
+  indexPublicPath: string;
+}): string[] => {
+  const referenceTags = [
+    `<link rel="preload" href="${indexPublicPath}" as="fetch" type="application/json" crossorigin ${PAGE_METAFILE_INDEX_PRELOAD_ATTR}="index">`,
+    `<meta name="${PAGE_METAFILE_META_NAMES.index}" content="${indexPublicPath}">`,
+  ];
+
+  if (currentPagePublicPath) {
+    referenceTags.push(
+      `<meta name="${PAGE_METAFILE_META_NAMES.current}" content="${currentPagePublicPath}">`,
+    );
+  }
+
+  return referenceTags;
+};
+
+const collectHtmlFilePaths = (directoryPath: string): string[] => {
+  const htmlFilePaths: string[] = [];
+
+  for (const entry of fs.readdirSync(directoryPath, { withFileTypes: true })) {
+    const entryPath = join(directoryPath, entry.name);
+
+    if (entry.isDirectory()) {
+      htmlFilePaths.push(...collectHtmlFilePaths(entryPath));
+      continue;
+    }
+
+    if (entry.isFile() && entry.name.endsWith('.html')) {
+      htmlFilePaths.push(entryPath);
+    }
+  }
+
+  return htmlFilePaths;
+};
+
+const injectPageMetafileReferences = ({
+  currentPagePublicPathByHtmlPath,
+  indexPublicPath,
+  outDir,
+}: {
+  currentPagePublicPathByHtmlPath: Map<string, string>;
+  indexPublicPath: string;
+  outDir: string;
+}): void => {
+  for (const htmlFilePath of collectHtmlFilePaths(outDir)) {
+    const relativeHtmlPath = relative(outDir, htmlFilePath).replaceAll(
+      '\\',
+      '/',
+    );
+    const currentPagePublicPath =
+      currentPagePublicPathByHtmlPath.get(relativeHtmlPath);
+    const html = fs.readFileSync(htmlFilePath, 'utf8');
+    const sanitizedHtml = stripInjectedPageMetafileReferences(html);
+    const injectedMetaTags = createPageMetafileReferenceTags({
+      currentPagePublicPath,
+      indexPublicPath,
+    });
+
+    const updatedHtml = sanitizedHtml.includes('</head>')
+      ? sanitizedHtml.replace(
+          '</head>',
+          `${injectedMetaTags.join('\n')}\n</head>`,
+        )
+      : `${injectedMetaTags.join('\n')}\n${sanitizedHtml}`;
+
+    fs.writeFileSync(htmlFilePath, updatedHtml);
+  }
+};
 
 export function registerBuildHelper(
   vitepressConfig: UserConfig<DefaultTheme.Config>,
@@ -490,18 +597,51 @@ export function registerBuildHelper(
     const { fileName, content } = await getClientRuntimeMetafile();
     const clientRuntimeFilePath = join(matafileDir, `chunks/${fileName}`);
     fs.writeFileSync(clientRuntimeFilePath, content);
+    let pageMetafileReferences: {
+      currentPagePublicPathByHtmlPath: Map<string, string>;
+      indexPublicPath: string;
+    } | null = null;
 
     const transformedPageMetafileMap =
       renderController.getTransformedPageMetafile(cleanUrls);
     if (Object.keys(transformedPageMetafileMap).length > 0) {
-      const metafilePath = join(matafileDir, 'vrite-page-metafile.json');
+      const pageMetafileArtifacts = createPageMetafileArtifacts({
+        assetsDir,
+        pageMetafiles: transformedPageMetafileMap,
+        wrapBaseUrl,
+      });
+
+      for (const pageMetafileAsset of pageMetafileArtifacts.pages) {
+        const pageMetafileFilePath = join(
+          matafileDir,
+          pageMetafileAsset.filePath,
+        );
+        fs.mkdirSync(dirname(pageMetafileFilePath), { recursive: true });
+        fs.writeFileSync(pageMetafileFilePath, pageMetafileAsset.content);
+      }
+
+      const pageMetafileManifestFilePath = join(
+        matafileDir,
+        pageMetafileArtifacts.manifest.filePath,
+      );
+      fs.mkdirSync(dirname(pageMetafileManifestFilePath), { recursive: true });
       fs.writeFileSync(
-        metafilePath,
-        JSON.stringify(transformedPageMetafileMap, null, 2),
+        pageMetafileManifestFilePath,
+        pageMetafileArtifacts.manifest.content,
       );
-      Logger.info(
-        `Generated global page metafile with ${Object.keys(transformedPageMetafileMap).length} pages`,
-      );
+
+      pageMetafileReferences = {
+        currentPagePublicPathByHtmlPath: new Map(
+          pageMetafileArtifacts.pages.map((pageMetafileAsset) => [
+            getHtmlOutputPathByPathname(
+              pageMetafileAsset.pathname,
+              cleanUrls,
+            ).replaceAll('\\', '/'),
+            pageMetafileAsset.publicPath,
+          ]),
+        ),
+        indexPublicPath: pageMetafileArtifacts.manifest.publicPath,
+      };
     }
 
     const markdownModuleIdToSpaSyncRenderMap =
@@ -550,6 +690,17 @@ export function registerBuildHelper(
             );
         }
       }
+    }
+
+    if (pageMetafileReferences) {
+      injectPageMetafileReferences({
+        ...pageMetafileReferences,
+        outDir,
+      });
+
+      Logger.info(
+        `Generated hashed page metafile manifest with ${Object.keys(transformedPageMetafileMap).length} pages`,
+      );
     }
   };
 }
