@@ -114,7 +114,10 @@ export type BundleSourceModuleItem = BundleSourceModuleSelection & {
   canBrowseSource: boolean;
   isGeneratedVirtualModule: boolean;
   percent: string;
+  sizeDeltaLabel: string | null;
+  sizeDeltaTone: 'is-positive' | 'is-negative' | 'is-neutral' | null;
   shortFile: string;
+  sourceSizeLabel: string;
 };
 
 export interface GlobalPreset {
