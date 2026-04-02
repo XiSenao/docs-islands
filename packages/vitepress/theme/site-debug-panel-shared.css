@@ -331,6 +331,12 @@
   padding: 0.2rem 0 0.1rem;
 }
 
+.site-debug-source-viewer__preview-shell {
+  display: grid;
+  gap: 0.85rem;
+  min-height: 0;
+}
+
 .site-debug-loading-state__header {
   display: flex;
   align-items: flex-start;
@@ -734,6 +740,40 @@
   background: #12151c;
 }
 
+.site-debug-source-viewer__status {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.82rem 1rem 0.72rem;
+  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+  background: color-mix(in srgb, #12151c 88%, rgb(14 18 26 / 0.86));
+  backdrop-filter: blur(12px);
+}
+
+.site-debug-source-viewer__status strong {
+  color: rgb(228 236 247 / 0.96);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.site-debug-source-viewer__status span {
+  color: rgb(201 210 224 / 0.82);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.site-debug-source-viewer__status.is-info strong {
+  color: rgb(121 191 255 / 0.96);
+}
+
+.site-debug-source-viewer__status.is-warning strong {
+  color: rgb(255 202 112 / 0.98);
+}
+
 .site-debug-source-viewer__code::-webkit-scrollbar {
   width: 9px;
   height: 9px;
@@ -766,6 +806,58 @@
 
 .site-debug-source-viewer__code .shiki code {
   display: grid;
+}
+
+.site-debug-source-viewer__text {
+  margin: 0;
+  min-height: 100%;
+  overflow: visible;
+  color: rgb(224 231 240 / 0.94);
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.7;
+  padding: 1rem 1.05rem;
+  white-space: pre;
+}
+
+.site-debug-source-viewer__text code {
+  display: block;
+  font-family: inherit;
+}
+
+.site-debug-source-viewer__text-shell {
+  min-height: 100%;
+}
+
+.site-debug-source-viewer__text--virtual {
+  white-space: normal;
+}
+
+.site-debug-source-viewer__virtual-code {
+  display: block;
+}
+
+.site-debug-source-viewer__virtual-line,
+.site-debug-source-viewer__virtual-spacer {
+  display: block;
+}
+
+.site-debug-source-viewer__virtual-line {
+  min-height: 22px;
+  contain: content;
+  white-space: pre;
+}
+
+.site-debug-source-viewer__virtual-hint {
+  margin: 0;
+  padding: 0 1.05rem 1rem;
+  color: rgb(201 210 224 / 0.82);
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+
+.site-debug-source-viewer__virtual-hint.is-error {
+  color: color-mix(in srgb, rgb(214 78 78) 82%, rgb(201 210 224));
 }
 
 .site-debug-source-viewer__fallback {

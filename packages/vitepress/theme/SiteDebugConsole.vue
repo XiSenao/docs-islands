@@ -100,14 +100,25 @@ import {
   type SiteDebugAction,
   type SiteDebugEntry,
   type SiteDebugLoadingProgress,
+  type SiteDebugPreviewStatus,
   type SiteDebugWindow,
 } from './site-debug-shared';
 import {
+  clearRemoteTextContentCache,
+  createBackgroundCodePreviewRenderer,
+  createCodePreviewCacheKey,
+  formatCodePreviewBudgetSummary,
   formatPreviewContent,
+  getCodePreviewBudget,
   highlightCodeContent,
+  isAbortError,
+  isBackgroundCodePreviewAbortError,
   loadRemoteTextContent,
   loadRemoteTextContentByteSize,
+  waitForCodePreviewIdle,
+  waitForNextCodePreviewPaint,
   type RemoteTextContentProgress,
+  type RemoteTextContentStreamPreview,
 } from './site-debug-source-preview';
 import {
   formatPercent,
@@ -177,14 +188,18 @@ const activeOverlayMetricDetail = ref<{
 const activeBundleChunkDetail = ref<BundleChunkDetail | null>(null);
 const activeBundleSourceModule = ref<BundleSourceModuleSelection | null>(null);
 const activeBundleChunkContent = ref('');
-const activeBundleChunkHighlightedHtml = ref('');
+const activeBundleChunkPreviewHtml = ref('');
+const activeBundleChunkPreviewStatus = ref<SiteDebugPreviewStatus | null>(null);
 const activeBundleChunkState = ref<PreviewState>('idle');
 const activeBundleChunkError = ref('');
 const activeBundleChunkLoadingProgress = ref<SiteDebugLoadingProgress>(
   createSiteDebugLoadingProgress('Fetching chunk resource'),
 );
 const activeBundleSourceContent = ref('');
-const activeBundleSourceHighlightedHtml = ref('');
+const activeBundleSourcePreviewHtml = ref('');
+const activeBundleSourcePreviewStatus = ref<SiteDebugPreviewStatus | null>(
+  null,
+);
 const activeBundleSourceState = ref<PreviewState>('idle');
 const activeBundleSourceError = ref('');
 const activeBundleSourceLoadingProgress = ref<SiteDebugLoadingProgress>(
@@ -219,8 +234,22 @@ const actionFeedbackTarget = ref<string | null>(null);
 const webVitalsVersion = ref(0);
 const viewportWidthPx = ref(0);
 const viewportHeightPx = ref(0);
+const bundleChunkPreviewRenderer = createBackgroundCodePreviewRenderer();
+const bundleSourcePreviewRenderer = createBackgroundCodePreviewRenderer();
+const MAX_CACHED_CODE_PREVIEW_ENTRIES = 10;
+const cachedCodePreviews = new Map<
+  string,
+  {
+    formattedContent: string;
+    previewHtml: string;
+  }
+>();
 
 let entryId = 0;
+let bundleChunkPreviewSessionId = 0;
+let bundleSourcePreviewSessionId = 0;
+let bundleChunkPreviewLoadController: AbortController | null = null;
+let bundleSourcePreviewLoadController: AbortController | null = null;
 let restoreModalScrollLock: (() => void) | null = null;
 let originalConsoleLog: typeof console.log | null = null;
 let originalConsoleWarn: typeof console.warn | null = null;
@@ -259,8 +288,126 @@ const updateLoadingProgress = (
     ...patch,
   };
 };
+const createDeferredRichPreviewStatus = (
+  label = 'Quick preview ready',
+): SiteDebugPreviewStatus => ({
+  detail:
+    'Showing a plain-text preview now. Rich formatting will start when the browser is idle.',
+  label,
+  tone: 'info',
+});
+const createLargePreviewStatus = (
+  budget: ReturnType<typeof getCodePreviewBudget>,
+): SiteDebugPreviewStatus => ({
+  detail: `${formatCodePreviewBudgetSummary(budget)}. Using a windowed plain-text preview to keep scrolling smooth.`,
+  label: 'Large file mode',
+  tone: 'warning',
+});
+const createPlainPreviewFallbackStatus = (): SiteDebugPreviewStatus => ({
+  detail:
+    'Background rich rendering was skipped or failed. The plain-text preview remains available.',
+  label: 'Plain preview fallback',
+  tone: 'muted',
+});
+const getCachedCodePreview = (cacheKey: string) => {
+  const cachedPreview = cachedCodePreviews.get(cacheKey);
+
+  if (!cachedPreview) {
+    return null;
+  }
+
+  cachedCodePreviews.delete(cacheKey);
+  cachedCodePreviews.set(cacheKey, cachedPreview);
+  return cachedPreview;
+};
+const setCachedCodePreview = (
+  cacheKey: string,
+  preview: {
+    formattedContent: string;
+    previewHtml: string;
+  },
+) => {
+  if (cachedCodePreviews.has(cacheKey)) {
+    cachedCodePreviews.delete(cacheKey);
+  }
+
+  cachedCodePreviews.set(cacheKey, preview);
+
+  while (cachedCodePreviews.size > MAX_CACHED_CODE_PREVIEW_ENTRIES) {
+    const oldestCacheKey = cachedCodePreviews.keys().next().value;
+
+    if (typeof oldestCacheKey !== 'string') {
+      break;
+    }
+
+    cachedCodePreviews.delete(oldestCacheKey);
+  }
+};
+const cancelBundleChunkPreviewLoad = () => {
+  bundleChunkPreviewLoadController?.abort();
+  bundleChunkPreviewLoadController = null;
+};
+const cancelBundleSourcePreviewLoad = () => {
+  bundleSourcePreviewLoadController?.abort();
+  bundleSourcePreviewLoadController = null;
+};
+const resetBundleChunkPreviewState = () => {
+  bundleChunkPreviewSessionId += 1;
+  cancelBundleChunkPreviewLoad();
+  bundleChunkPreviewRenderer.cancel();
+  activeBundleChunkDetail.value = null;
+  activeBundleChunkContent.value = '';
+  activeBundleChunkPreviewHtml.value = '';
+  activeBundleChunkPreviewStatus.value = null;
+  activeBundleChunkState.value = 'idle';
+  activeBundleChunkError.value = '';
+  resetLoadingProgress(
+    activeBundleChunkLoadingProgress,
+    'Fetching chunk resource',
+  );
+};
+const resetBundleSourcePreviewState = () => {
+  bundleSourcePreviewSessionId += 1;
+  cancelBundleSourcePreviewLoad();
+  bundleSourcePreviewRenderer.cancel();
+  activeBundleSourceModule.value = null;
+  activeBundleSourceContent.value = '';
+  activeBundleSourcePreviewHtml.value = '';
+  activeBundleSourcePreviewStatus.value = null;
+  activeBundleSourceState.value = 'idle';
+  activeBundleSourceError.value = '';
+  resetLoadingProgress(
+    activeBundleSourceLoadingProgress,
+    'Fetching module source',
+  );
+};
 const formatTransferBytes = (value: number) =>
   value > 0 ? formatBytes(value) : '0 B';
+const createStreamingPreviewStatus = (
+  preview: Pick<
+    RemoteTextContentStreamPreview,
+    'isTruncated' | 'loadedBytes' | 'totalBytes'
+  >,
+): SiteDebugPreviewStatus => {
+  const transferSummary =
+    typeof preview.totalBytes === 'number' && preview.totalBytes > 0
+      ? `${formatTransferBytes(preview.loadedBytes)} / ${formatTransferBytes(preview.totalBytes)} downloaded`
+      : `${formatTransferBytes(preview.loadedBytes)} downloaded`;
+
+  return {
+    detail: preview.isTruncated
+      ? `Showing the first screen of the file while ${transferSummary}. The rest appears once the full source is ready.`
+      : `Showing the beginning of the file while ${transferSummary}. This snippet grows as more bytes arrive.`,
+    label: 'Streaming first-screen preview',
+    tone: 'info',
+  };
+};
+const createPartialPreviewErrorStatus = (): SiteDebugPreviewStatus => ({
+  detail:
+    'Download stopped before the full source finished loading. The received preview is still available below.',
+  label: 'Partial preview available',
+  tone: 'muted',
+});
 const hasFiniteByteSize = (value: number | null | undefined): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const createModuleSourceSizeCacheKey = (moduleMetric: {
@@ -672,24 +819,8 @@ const openOverlayMetricDetail = (
     kind,
     metricKey,
   };
-  activeBundleChunkDetail.value = null;
-  activeBundleChunkContent.value = '';
-  activeBundleChunkHighlightedHtml.value = '';
-  activeBundleChunkState.value = 'idle';
-  activeBundleChunkError.value = '';
-  resetLoadingProgress(
-    activeBundleChunkLoadingProgress,
-    'Fetching chunk resource',
-  );
-  activeBundleSourceModule.value = null;
-  activeBundleSourceContent.value = '';
-  activeBundleSourceHighlightedHtml.value = '';
-  activeBundleSourceState.value = 'idle';
-  activeBundleSourceError.value = '';
-  resetLoadingProgress(
-    activeBundleSourceLoadingProgress,
-    'Fetching module source',
-  );
+  resetBundleChunkPreviewState();
+  resetBundleSourcePreviewState();
   activeSpaSyncCssContent.value = '';
   activeSpaSyncCssHighlightedHtml.value = '';
   activeSpaSyncCssState.value = 'idle';
@@ -718,24 +849,8 @@ const openOverlayMetricDetail = (
 
 const closeOverlayMetricDetail = () => {
   activeOverlayMetricDetail.value = null;
-  activeBundleChunkDetail.value = null;
-  activeBundleChunkContent.value = '';
-  activeBundleChunkHighlightedHtml.value = '';
-  activeBundleChunkState.value = 'idle';
-  activeBundleChunkError.value = '';
-  resetLoadingProgress(
-    activeBundleChunkLoadingProgress,
-    'Fetching chunk resource',
-  );
-  activeBundleSourceModule.value = null;
-  activeBundleSourceContent.value = '';
-  activeBundleSourceHighlightedHtml.value = '';
-  activeBundleSourceState.value = 'idle';
-  activeBundleSourceError.value = '';
-  resetLoadingProgress(
-    activeBundleSourceLoadingProgress,
-    'Fetching module source',
-  );
+  resetBundleChunkPreviewState();
+  resetBundleSourcePreviewState();
   activeSpaSyncCssContent.value = '';
   activeSpaSyncCssHighlightedHtml.value = '';
   activeSpaSyncCssState.value = 'idle';
@@ -1147,20 +1262,19 @@ const copyActiveSpaSyncCss = async () => {
 };
 
 const closeBundleChunkDetail = () => {
-  activeBundleChunkDetail.value = null;
-  activeBundleChunkContent.value = '';
-  activeBundleChunkHighlightedHtml.value = '';
-  activeBundleChunkState.value = 'idle';
-  activeBundleChunkError.value = '';
-  resetLoadingProgress(
-    activeBundleChunkLoadingProgress,
-    'Fetching chunk resource',
-  );
+  resetBundleChunkPreviewState();
   closeBundleSourcePreview();
 };
 
 const openBundleChunkDetail = async (chunkItem: BundleChunkResourceItem) => {
   closeBundleSourcePreview();
+  const previewSessionId = ++bundleChunkPreviewSessionId;
+
+  cancelBundleChunkPreviewLoad();
+  bundleChunkPreviewRenderer.cancel();
+  const loadController = new AbortController();
+
+  bundleChunkPreviewLoadController = loadController;
   activeBundleChunkDetail.value = {
     bytes: chunkItem.bytes,
     file: chunkItem.file,
@@ -1168,7 +1282,8 @@ const openBundleChunkDetail = async (chunkItem: BundleChunkResourceItem) => {
     type: chunkItem.type,
   };
   activeBundleChunkContent.value = '';
-  activeBundleChunkHighlightedHtml.value = '';
+  activeBundleChunkPreviewHtml.value = '';
+  activeBundleChunkPreviewStatus.value = null;
   activeBundleChunkError.value = '';
   resetLoadingProgress(
     activeBundleChunkLoadingProgress,
@@ -1191,31 +1306,102 @@ const openBundleChunkDetail = async (chunkItem: BundleChunkResourceItem) => {
           'Fetching chunk resource',
         );
       },
-    });
-    updateLoadingProgress(activeBundleChunkLoadingProgress, {
-      detail: chunkItem.file,
-      indeterminate: false,
-      label: 'Formatting chunk preview',
-      value: 0.76,
-    });
-    const formattedChunkContent = await formatPreviewContent(
-      chunkContent,
-      chunkItem.file,
-    );
+      onStreamPreview: (preview) => {
+        if (previewSessionId !== bundleChunkPreviewSessionId) {
+          return;
+        }
 
-    updateLoadingProgress(activeBundleChunkLoadingProgress, {
-      detail: chunkItem.file,
-      indeterminate: false,
-      label: 'Highlighting chunk preview',
-      value: 0.92,
+        activeBundleChunkContent.value = preview.content;
+        activeBundleChunkPreviewHtml.value = '';
+        activeBundleChunkPreviewStatus.value =
+          createStreamingPreviewStatus(preview);
+      },
+      signal: loadController.signal,
     });
-    activeBundleChunkContent.value = formattedChunkContent;
-    activeBundleChunkHighlightedHtml.value = await highlightCodeContent(
-      formattedChunkContent,
-      chunkItem.file,
-    );
+
+    if (bundleChunkPreviewLoadController === loadController) {
+      bundleChunkPreviewLoadController = null;
+    }
+
+    if (previewSessionId !== bundleChunkPreviewSessionId) {
+      return;
+    }
+
+    activeBundleChunkContent.value = chunkContent;
     activeBundleChunkState.value = 'ready';
+
+    const previewBudget = getCodePreviewBudget(chunkContent);
+
+    if (!previewBudget.shouldRenderRichPreview) {
+      activeBundleChunkPreviewStatus.value =
+        createLargePreviewStatus(previewBudget);
+      return;
+    }
+
+    const previewCacheKey = createCodePreviewCacheKey(
+      chunkItem.file,
+      chunkContent,
+    );
+    const cachedPreview = getCachedCodePreview(previewCacheKey);
+
+    if (cachedPreview) {
+      activeBundleChunkContent.value = cachedPreview.formattedContent;
+      activeBundleChunkPreviewHtml.value = cachedPreview.previewHtml;
+      activeBundleChunkPreviewStatus.value = cachedPreview.previewHtml
+        ? null
+        : createPlainPreviewFallbackStatus();
+      return;
+    }
+
+    activeBundleChunkPreviewStatus.value = createDeferredRichPreviewStatus();
+    await waitForNextCodePreviewPaint();
+    await waitForCodePreviewIdle();
+
+    if (previewSessionId !== bundleChunkPreviewSessionId) {
+      return;
+    }
+
+    const previewResult = await bundleChunkPreviewRenderer.render({
+      sourceContent: chunkContent,
+      sourcePath: chunkItem.file,
+    });
+
+    if (previewSessionId !== bundleChunkPreviewSessionId) {
+      return;
+    }
+
+    activeBundleChunkContent.value = previewResult.formattedContent;
+    activeBundleChunkPreviewHtml.value = previewResult.previewHtml;
+    setCachedCodePreview(previewCacheKey, previewResult);
+    activeBundleChunkPreviewStatus.value = previewResult.previewHtml
+      ? null
+      : createPlainPreviewFallbackStatus();
   } catch (error) {
+    if (bundleChunkPreviewLoadController === loadController) {
+      bundleChunkPreviewLoadController = null;
+    }
+
+    if (
+      previewSessionId !== bundleChunkPreviewSessionId ||
+      isBackgroundCodePreviewAbortError(error) ||
+      isAbortError(error)
+    ) {
+      return;
+    }
+
+    if (activeBundleChunkState.value === 'ready') {
+      activeBundleChunkPreviewStatus.value = createPlainPreviewFallbackStatus();
+      return;
+    }
+
+    if (activeBundleChunkContent.value) {
+      activeBundleChunkState.value = 'error';
+      activeBundleChunkPreviewStatus.value = createPartialPreviewErrorStatus();
+      activeBundleChunkError.value =
+        error instanceof Error ? error.message : String(error);
+      return;
+    }
+
     activeBundleChunkState.value = 'error';
     activeBundleChunkError.value =
       error instanceof Error ? error.message : String(error);
@@ -1255,6 +1441,13 @@ const openBundleSourceModule = async (moduleMetric: {
   sourceAssetFile?: string;
   sourcePath?: string;
 }) => {
+  const previewSessionId = ++bundleSourcePreviewSessionId;
+
+  cancelBundleSourcePreviewLoad();
+  bundleSourcePreviewRenderer.cancel();
+  const loadController = new AbortController();
+
+  bundleSourcePreviewLoadController = loadController;
   activeBundleSourceModule.value = {
     file: moduleMetric.file,
     id: moduleMetric.id,
@@ -1263,7 +1456,8 @@ const openBundleSourceModule = async (moduleMetric: {
     sourcePath: moduleMetric.sourcePath,
   };
   activeBundleSourceContent.value = '';
-  activeBundleSourceHighlightedHtml.value = '';
+  activeBundleSourcePreviewHtml.value = '';
+  activeBundleSourcePreviewStatus.value = null;
   activeBundleSourceError.value = '';
   resetLoadingProgress(
     activeBundleSourceLoadingProgress,
@@ -1292,34 +1486,111 @@ const openBundleSourceModule = async (moduleMetric: {
   });
 
   try {
-    const sourceContent = moduleMetric.isGeneratedVirtualModule
-      ? await loadVirtualModulePreviewContent(moduleMetric)
-      : await loadBundleSourceContent(moduleMetric);
-    const previewPath = getBundleSourcePreviewPath(moduleMetric);
-    updateLoadingProgress(activeBundleSourceLoadingProgress, {
-      detail: previewPath,
-      indeterminate: false,
-      label: 'Formatting module source',
-      value: 0.76,
-    });
-    const formattedSourceContent = await formatPreviewContent(
-      sourceContent,
-      previewPath,
-    );
+    const handleStreamPreview = (preview: RemoteTextContentStreamPreview) => {
+      if (previewSessionId !== bundleSourcePreviewSessionId) {
+        return;
+      }
 
-    updateLoadingProgress(activeBundleSourceLoadingProgress, {
-      detail: previewPath,
-      indeterminate: false,
-      label: 'Highlighting module source',
-      value: 0.92,
-    });
-    activeBundleSourceContent.value = formattedSourceContent;
-    activeBundleSourceHighlightedHtml.value = await highlightCodeContent(
-      formattedSourceContent,
-      previewPath,
-    );
+      activeBundleSourceContent.value = preview.content;
+      activeBundleSourcePreviewHtml.value = '';
+      activeBundleSourcePreviewStatus.value =
+        createStreamingPreviewStatus(preview);
+    };
+    const sourceContent = moduleMetric.isGeneratedVirtualModule
+      ? await loadVirtualModulePreviewContent(moduleMetric, {
+          onStreamPreview: handleStreamPreview,
+          signal: loadController.signal,
+        })
+      : await loadBundleSourceContent(moduleMetric, {
+          onStreamPreview: handleStreamPreview,
+          signal: loadController.signal,
+        });
+    const previewPath = getBundleSourcePreviewPath(moduleMetric);
+
+    if (bundleSourcePreviewLoadController === loadController) {
+      bundleSourcePreviewLoadController = null;
+    }
+
+    if (previewSessionId !== bundleSourcePreviewSessionId) {
+      return;
+    }
+
+    activeBundleSourceContent.value = sourceContent;
     activeBundleSourceState.value = 'ready';
+
+    const previewBudget = getCodePreviewBudget(sourceContent);
+
+    if (!previewBudget.shouldRenderRichPreview) {
+      activeBundleSourcePreviewStatus.value =
+        createLargePreviewStatus(previewBudget);
+      return;
+    }
+
+    const previewCacheKey = createCodePreviewCacheKey(
+      previewPath,
+      sourceContent,
+    );
+    const cachedPreview = getCachedCodePreview(previewCacheKey);
+
+    if (cachedPreview) {
+      activeBundleSourceContent.value = cachedPreview.formattedContent;
+      activeBundleSourcePreviewHtml.value = cachedPreview.previewHtml;
+      activeBundleSourcePreviewStatus.value = cachedPreview.previewHtml
+        ? null
+        : createPlainPreviewFallbackStatus();
+      return;
+    }
+
+    activeBundleSourcePreviewStatus.value = createDeferredRichPreviewStatus();
+    await waitForNextCodePreviewPaint();
+    await waitForCodePreviewIdle();
+
+    if (previewSessionId !== bundleSourcePreviewSessionId) {
+      return;
+    }
+
+    const previewResult = await bundleSourcePreviewRenderer.render({
+      sourceContent,
+      sourcePath: previewPath,
+    });
+
+    if (previewSessionId !== bundleSourcePreviewSessionId) {
+      return;
+    }
+
+    activeBundleSourceContent.value = previewResult.formattedContent;
+    activeBundleSourcePreviewHtml.value = previewResult.previewHtml;
+    setCachedCodePreview(previewCacheKey, previewResult);
+    activeBundleSourcePreviewStatus.value = previewResult.previewHtml
+      ? null
+      : createPlainPreviewFallbackStatus();
   } catch (error) {
+    if (bundleSourcePreviewLoadController === loadController) {
+      bundleSourcePreviewLoadController = null;
+    }
+
+    if (
+      previewSessionId !== bundleSourcePreviewSessionId ||
+      isBackgroundCodePreviewAbortError(error) ||
+      isAbortError(error)
+    ) {
+      return;
+    }
+
+    if (activeBundleSourceState.value === 'ready') {
+      activeBundleSourcePreviewStatus.value =
+        createPlainPreviewFallbackStatus();
+      return;
+    }
+
+    if (activeBundleSourceContent.value) {
+      activeBundleSourceState.value = 'error';
+      activeBundleSourcePreviewStatus.value = createPartialPreviewErrorStatus();
+      activeBundleSourceError.value =
+        error instanceof Error ? error.message : String(error);
+      return;
+    }
+
     activeBundleSourceState.value = 'error';
     activeBundleSourceError.value =
       error instanceof Error ? error.message : String(error);
@@ -1376,22 +1647,20 @@ const copyActiveBundleSource = async () => {
 };
 
 const closeBundleSourcePreview = () => {
-  activeBundleSourceModule.value = null;
-  activeBundleSourceContent.value = '';
-  activeBundleSourceHighlightedHtml.value = '';
-  activeBundleSourceState.value = 'idle';
-  activeBundleSourceError.value = '';
-  resetLoadingProgress(
-    activeBundleSourceLoadingProgress,
-    'Fetching module source',
-  );
+  resetBundleSourcePreviewState();
 };
 
-const loadBundleSourceContent = async (moduleMetric: {
-  file: string;
-  sourceAssetFile?: string;
-  sourcePath?: string;
-}) =>
+const loadBundleSourceContent = async (
+  moduleMetric: {
+    file: string;
+    sourceAssetFile?: string;
+    sourcePath?: string;
+  },
+  options: {
+    onStreamPreview?: (preview: RemoteTextContentStreamPreview) => void;
+    signal?: AbortSignal;
+  } = {},
+) =>
   loadRemoteTextContent(
     [
       moduleMetric.sourceAssetFile,
@@ -1405,13 +1674,32 @@ const loadBundleSourceContent = async (moduleMetric: {
           'Fetching module source',
         );
       },
+      onStreamPreview: options.onStreamPreview,
+      signal: options.signal,
     },
   );
 
-const loadVirtualModulePreviewContent = async (moduleMetric: {
-  file: string;
-  id: string;
-}) => {
+const loadVirtualModulePreviewContent = async (
+  moduleMetric: {
+    file: string;
+    id: string;
+  },
+  options: {
+    onStreamPreview?: (preview: RemoteTextContentStreamPreview) => void;
+    signal?: AbortSignal;
+  } = {},
+) => {
+  const formatVirtualModulePreviewContent = (chunkContent: string) =>
+    [
+      '/*',
+      ' * Generated virtual module preview',
+      ` * Module ID: ${moduleMetric.id}`,
+      ' * This module is emitted by the bundler/CommonJS interop layer.',
+      ' * Preview content is the generated chunk output that contains it.',
+      ' */',
+      '',
+      chunkContent,
+    ].join('\n');
   const chunkContent = await loadRemoteTextContent([moduleMetric.file], {
     onProgress: (progress) => {
       applyRemoteFetchProgress(
@@ -1420,18 +1708,18 @@ const loadVirtualModulePreviewContent = async (moduleMetric: {
         'Fetching generated module preview',
       );
     },
+    onStreamPreview: options.onStreamPreview
+      ? (preview) => {
+          options.onStreamPreview?.({
+            ...preview,
+            content: formatVirtualModulePreviewContent(preview.content),
+          });
+        }
+      : undefined,
+    signal: options.signal,
   });
 
-  return [
-    '/*',
-    ' * Generated virtual module preview',
-    ` * Module ID: ${moduleMetric.id}`,
-    ' * This module is emitted by the bundler/CommonJS interop layer.',
-    ' * Preview content is the generated chunk output that contains it.',
-    ' */',
-    '',
-    chunkContent,
-  ].join('\n');
+  return formatVirtualModulePreviewContent(chunkContent);
 };
 
 const getVirtualModuleDisplayId = (moduleId: string) =>
@@ -1986,17 +2274,20 @@ const installDebugListeners = () => {
   const handlePageMetafileEvent = (
     _event: CustomEvent<SiteDebugPageMetafileEventDetail>,
   ) => {
+    clearRemoteTextContentCache();
     if (syncCurrentPageMetafile()) {
       scheduleRenderMetricOverlaySync();
     }
   };
 
   const handleRenderMetricEvent = () => {
+    clearRemoteTextContentCache();
     syncRenderMetrics();
     scheduleRenderMetricOverlaySync();
   };
 
   const handleHmrMetricEvent = () => {
+    clearRemoteTextContentCache();
     syncHmrMetrics();
   };
 
@@ -2217,30 +2508,15 @@ const copyGlobalSnapshot = async () => {
 
 const clearDebugRuntimeState = () => {
   debugOpen.value = false;
+  clearRemoteTextContentCache();
   entries.value = [];
   hmrMetrics.value = [];
   renderMetrics.value = [];
   renderMetricOverlays.value = [];
   selectedRenderMetricKey.value = null;
   activeOverlayMetricDetail.value = null;
-  activeBundleChunkDetail.value = null;
-  activeBundleChunkContent.value = '';
-  activeBundleChunkHighlightedHtml.value = '';
-  activeBundleChunkState.value = 'idle';
-  activeBundleChunkError.value = '';
-  resetLoadingProgress(
-    activeBundleChunkLoadingProgress,
-    'Fetching chunk resource',
-  );
-  activeBundleSourceModule.value = null;
-  activeBundleSourceContent.value = '';
-  activeBundleSourceHighlightedHtml.value = '';
-  activeBundleSourceState.value = 'idle';
-  activeBundleSourceError.value = '';
-  resetLoadingProgress(
-    activeBundleSourceLoadingProgress,
-    'Fetching module source',
-  );
+  resetBundleChunkPreviewState();
+  resetBundleSourcePreviewState();
   activeSpaSyncCssContent.value = '';
   activeSpaSyncCssHighlightedHtml.value = '';
   activeSpaSyncCssState.value = 'idle';
@@ -2497,6 +2773,7 @@ watch(
       href: window.location.href,
       to: value,
     });
+    clearRemoteTextContentCache();
     captureSnapshot('route snapshot');
     syncCurrentPageMetafile(true);
     syncRenderMetrics();
@@ -2566,6 +2843,8 @@ onBeforeUnmount(() => {
   stopDebugListeners?.();
   uninstallDebugHelper();
   setModalScrollLock(false);
+  bundleChunkPreviewRenderer.dispose();
+  bundleSourcePreviewRenderer.dispose();
 
   if (actionFeedbackTimer !== undefined) {
     window.clearTimeout(actionFeedbackTimer);
@@ -2827,10 +3106,12 @@ onBeforeUnmount(() => {
     :action-feedback-target="actionFeedbackTarget"
     :chunk-detail="activeBundleChunkDetail"
     :error="activeBundleChunkError"
-    :highlighted-html="activeBundleChunkHighlightedHtml"
     :loading-progress="activeBundleChunkLoadingProgress"
     :modules="activeBundleChunkModules"
+    :preview-html="activeBundleChunkPreviewHtml"
+    :preview-status="activeBundleChunkPreviewStatus"
     :selected-module="activeBundleSourceModule"
+    :source-content="activeBundleChunkContent"
     :state="activeBundleChunkState"
     @close="closeBundleChunkDetail"
     @copy="copyActiveBundleChunkContent"
@@ -2844,9 +3125,11 @@ onBeforeUnmount(() => {
     :browse-href="activeBundleSourceBrowseHref"
     :display-path="activeBundleSourcePreviewPath"
     :error="activeBundleSourceError"
-    :highlighted-html="activeBundleSourceHighlightedHtml"
     :language-label="formatSourceLanguageLabel(activeBundleSourcePreviewPath)"
     :loading-progress="activeBundleSourceLoadingProgress"
+    :preview-html="activeBundleSourcePreviewHtml"
+    :preview-status="activeBundleSourcePreviewStatus"
+    :source-content="activeBundleSourceContent"
     :state="activeBundleSourceState"
     :title="activeBundleSourceTitle"
     @close="closeBundleSourcePreview"

@@ -7,19 +7,23 @@ import type {
   PreviewState,
   SiteDebugAction,
   SiteDebugLoadingProgress,
+  SiteDebugPreviewStatus,
 } from './site-debug-shared';
 import { formatBytes, hasDisplayValue } from './site-debug-shared';
 import SiteDebugLoadingState from './SiteDebugLoadingState.vue';
+import SiteDebugSourceTextPreview from './SiteDebugSourceTextPreview.vue';
 
 const props = defineProps<{
   actionFeedbackAction: SiteDebugAction;
   actionFeedbackLabel: string;
   actionFeedbackTarget: string | null;
   chunkDetail: BundleChunkDetail;
-  highlightedHtml: string;
   loadingProgress: SiteDebugLoadingProgress;
   modules: BundleSourceModuleItem[];
+  previewHtml: string;
+  previewStatus: SiteDebugPreviewStatus | null;
   selectedModule: BundleSourceModuleSelection | null;
+  sourceContent: string;
   state: PreviewState;
   error: string;
 }>();
@@ -38,6 +42,18 @@ const copyLabel = computed(() =>
   props.actionFeedbackTarget === props.chunkDetail.file
     ? `✓ ${props.actionFeedbackLabel}`
     : 'Copy Chunk Code',
+);
+const hasPreviewBody = computed(
+  () => props.previewHtml.length > 0 || props.sourceContent.length > 0,
+);
+const showPreviewBody = computed(
+  () => props.state !== 'idle' && hasPreviewBody.value,
+);
+const shouldUseWindowedPreview = computed(
+  () =>
+    props.state === 'ready' &&
+    !props.previewHtml &&
+    props.previewStatus?.tone === 'warning',
 );
 </script>
 
@@ -98,21 +114,34 @@ const copyLabel = computed(() =>
             </div>
           </div>
 
-          <SiteDebugLoadingState
-            v-if="state === 'loading'"
-            :progress="loadingProgress"
-          />
-          <p
-            v-else-if="state === 'error'"
-            class="site-debug-overlay__panel-error"
-          >
-            {{ error }}
-          </p>
-          <div
-            v-else-if="state === 'ready'"
-            class="site-debug-source-viewer__code"
-            v-html="highlightedHtml"
-          />
+          <div class="site-debug-source-viewer__preview-shell">
+            <SiteDebugLoadingState
+              v-if="state === 'loading'"
+              :progress="loadingProgress"
+            />
+            <p v-if="state === 'error'" class="site-debug-overlay__panel-error">
+              {{ error }}
+            </p>
+            <div v-if="showPreviewBody" class="site-debug-source-viewer__code">
+              <div
+                v-if="previewStatus"
+                class="site-debug-source-viewer__status"
+                :class="`is-${previewStatus.tone}`"
+              >
+                <strong>{{ previewStatus.label }}</strong>
+                <span>{{ previewStatus.detail }}</span>
+              </div>
+              <div
+                v-if="previewHtml && state === 'ready'"
+                v-html="previewHtml"
+              />
+              <SiteDebugSourceTextPreview
+                v-else
+                :source-content="sourceContent"
+                :windowed="shouldUseWindowedPreview"
+              />
+            </div>
+          </div>
         </div>
 
         <div v-if="showModules" class="site-debug-chunk-viewer__modules">

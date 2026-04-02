@@ -1,5 +1,6 @@
 import { loadEnv } from '@docs-islands/utils';
 import vue from '@vitejs/plugin-vue';
+import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { RolldownOptions } from 'rolldown';
@@ -10,6 +11,15 @@ const { sourcemap, minify } = config;
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const entry = path.resolve(__dirname, 'theme/SiteDebugConsole.vue');
+const sourcePreviewWorkerEntry = path.resolve(
+  __dirname,
+  'theme/site-debug-source-preview.worker.ts',
+);
+const sourceTextWorkerEntry = path.resolve(
+  __dirname,
+  'theme/site-debug-source-text.worker.ts',
+);
+const themeDistDir = path.resolve(__dirname, 'dist/theme');
 
 const runtimeDependencyNames = [
   ...Object.keys(pkg.dependencies ?? {}),
@@ -33,20 +43,76 @@ const shouldExternalizeThemeRuntimeDependency = (source: string) => {
   );
 };
 
-const vueClientConfig: RolldownOptions = {
+let hasCleanedThemeDist = false;
+
+const createThemeDistCleanPlugin = () => ({
+  name: 'rolldown-plugin-clean-theme-dist',
+  async buildStart() {
+    if (hasCleanedThemeDist) {
+      return;
+    }
+
+    hasCleanedThemeDist = true;
+    await rm(themeDistDir, {
+      force: true,
+      recursive: true,
+    });
+  },
+});
+
+const createSiteDebugWorkerUrlRewritePlugin = () => ({
+  name: 'rolldown-plugin-rewrite-site-debug-worker-urls',
+  renderChunk(code: string, chunk: { fileName: string }) {
+    const chunkDirectory = path.posix.dirname(chunk.fileName);
+    const previewWorkerPath = path.posix.relative(
+      chunkDirectory,
+      'site-debug-source-preview.worker.mjs',
+    );
+    const textWorkerPath = path.posix.relative(
+      chunkDirectory,
+      'site-debug-source-text.worker.mjs',
+    );
+    const nextCode = code
+      .replaceAll('site-debug-source-preview.worker.ts', previewWorkerPath)
+      .replaceAll('site-debug-source-text.worker.ts', textWorkerPath);
+
+    if (nextCode === code) {
+      return null;
+    }
+
+    return {
+      code: nextCode,
+      map: null,
+    };
+  },
+});
+
+const createThemeOutput = (
+  overrides: Partial<NonNullable<RolldownOptions['output']>> = {},
+): NonNullable<RolldownOptions['output']> => ({
+  dir: themeDistDir,
+  format: 'es',
+  entryFileNames: '[name].mjs',
+  sourcemap,
+  minify,
+  ...overrides,
+});
+
+const debugConsoleConfig: RolldownOptions = {
   input: {
     'debug-console': entry,
   },
   external: shouldExternalizeThemeRuntimeDependency,
-  plugins: [vue()],
+  plugins: [
+    createThemeDistCleanPlugin(),
+    vue(),
+    createSiteDebugWorkerUrlRewritePlugin(),
+  ],
   transform: {
     target: 'es2020',
   },
-  output: {
-    dir: path.resolve(__dirname, 'dist/theme'),
-    format: 'es',
+  output: createThemeOutput({
     exports: 'named',
-    entryFileNames: '[name].mjs',
     chunkFileNames: 'assets/[name]-[hash].mjs',
     assetFileNames: (asset) => {
       const isCss =
@@ -59,9 +125,41 @@ const vueClientConfig: RolldownOptions = {
 
       return 'assets/[name]-[hash][extname]';
     },
-    sourcemap,
-    minify,
+  }),
+};
+
+const previewWorkerConfig: RolldownOptions = {
+  input: {
+    'site-debug-source-preview.worker': sourcePreviewWorkerEntry,
   },
+  external: shouldExternalizeThemeRuntimeDependency,
+  plugins: [
+    createThemeDistCleanPlugin(),
+    createSiteDebugWorkerUrlRewritePlugin(),
+  ],
+  transform: {
+    target: 'es2020',
+  },
+  output: createThemeOutput({
+    codeSplitting: false,
+  }),
+};
+
+const textWorkerConfig: RolldownOptions = {
+  input: {
+    'site-debug-source-text.worker': sourceTextWorkerEntry,
+  },
+  external: shouldExternalizeThemeRuntimeDependency,
+  plugins: [
+    createThemeDistCleanPlugin(),
+    createSiteDebugWorkerUrlRewritePlugin(),
+  ],
+  transform: {
+    target: 'es2020',
+  },
+  output: createThemeOutput({
+    codeSplitting: false,
+  }),
 };
 
 // const vueClientDtsConfig: RolldownOptions = {
@@ -85,6 +183,10 @@ const vueClientConfig: RolldownOptions = {
 //   },
 // };
 
-const configs: RolldownOptions[] = [vueClientConfig];
+const configs: RolldownOptions[] = [
+  debugConsoleConfig,
+  previewWorkerConfig,
+  textWorkerConfig,
+];
 
 export default configs;

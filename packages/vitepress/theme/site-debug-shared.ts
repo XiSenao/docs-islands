@@ -93,6 +93,12 @@ export interface SiteDebugLoadingProgress {
   value: number;
 }
 
+export interface SiteDebugPreviewStatus {
+  detail: string;
+  label: string;
+  tone: 'info' | 'muted' | 'warning';
+}
+
 export type BundleChunkDetail = Pick<
   BundleAssetMetric,
   'bytes' | 'file' | 'type'
