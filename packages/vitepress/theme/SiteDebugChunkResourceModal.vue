@@ -179,9 +179,22 @@ const copyLabel = computed(() =>
               </div>
               <div class="site-debug-detail-modal__list-values">
                 <strong>{{ formatBytes(item.bytes) }}</strong>
-                <span v-if="hasDisplayValue(item.percent)">{{
-                  item.percent
-                }}</span>
+                <span
+                  v-if="hasDisplayValue(item.percent)"
+                  class="site-debug-chunk-viewer__module-value-metric"
+                >
+                  Share {{ item.percent }}
+                </span>
+                <span class="site-debug-chunk-viewer__module-value-detail">
+                  {{ item.sourceSizeLabel }}
+                </span>
+                <span
+                  v-if="item.sizeDeltaLabel"
+                  class="site-debug-chunk-viewer__module-value-detail site-debug-chunk-viewer__module-value-delta"
+                  :class="item.sizeDeltaTone"
+                >
+                  {{ item.sizeDeltaLabel }}
+                </span>
               </div>
             </button>
           </div>

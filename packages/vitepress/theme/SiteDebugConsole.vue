@@ -106,6 +106,7 @@ import {
   formatPreviewContent,
   highlightCodeContent,
   loadRemoteTextContent,
+  loadRemoteTextContentByteSize,
   type RemoteTextContentProgress,
 } from './site-debug-source-preview';
 import {
@@ -132,6 +133,11 @@ import SiteDebugVsCodeLink from './SiteDebugVsCodeLink.vue';
 
 const { isDark } = useData();
 const route = useRoute();
+
+type ModuleSourceSizeCacheEntry = {
+  bytes?: number;
+  status: 'loading' | 'ready' | 'error';
+};
 
 const debugDialogRef = ref<HTMLDialogElement | null>(null);
 const ENABLE_MPA_DEBUG_UI =
@@ -198,6 +204,9 @@ const activeSpaSyncHtmlError = ref('');
 const activeSpaSyncHtmlLoadingProgress = ref<SiteDebugLoadingProgress>(
   createSiteDebugLoadingProgress('Preparing patched HTML'),
 );
+const bundleModuleSourceSizeCache = ref<
+  Map<string, ModuleSourceSizeCacheEntry>
+>(new Map());
 const globalPath = ref(getDefaultGlobalInspectorPath());
 const actionFeedback = ref<{
   action: SiteDebugAction;
@@ -228,6 +237,10 @@ let siteDebugModeToastTimer:
   | undefined;
 let siteDebugModeTriggerElements: HTMLElement[] = [];
 let siteDebugModeTriggerObserver: MutationObserver | null = null;
+const pendingBundleModuleSourceSizeRequests = new Map<
+  string,
+  Promise<ModuleSourceSizeCacheEntry>
+>();
 
 const MAX_OBJECT_KEYS = 40;
 const getDebugWindow = () => window as unknown as SiteDebugWindow;
@@ -248,6 +261,53 @@ const updateLoadingProgress = (
 };
 const formatTransferBytes = (value: number) =>
   value > 0 ? formatBytes(value) : '0 B';
+const hasFiniteByteSize = (value: number | null | undefined): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0;
+const createModuleSourceSizeCacheKey = (moduleMetric: {
+  id: string;
+  sourceAssetFile?: string;
+  sourcePath?: string;
+}) =>
+  moduleMetric.sourceAssetFile || moduleMetric.sourcePath || moduleMetric.id;
+const formatSourceToRenderedDelta = (
+  sourceBytes: number,
+  renderedBytes: number,
+) => {
+  if (!hasFiniteByteSize(sourceBytes) || !hasFiniteByteSize(renderedBytes)) {
+    return null;
+  }
+
+  if (sourceBytes <= 0) {
+    return null;
+  }
+
+  const deltaPercent = ((renderedBytes - sourceBytes) / sourceBytes) * 100;
+  const prefix = deltaPercent > 0 ? '+' : '';
+
+  return `${prefix}${deltaPercent.toFixed(1)}%`;
+};
+const getSourceToRenderedDeltaTone = (
+  sourceBytes: number,
+  renderedBytes: number,
+) => {
+  if (!hasFiniteByteSize(sourceBytes) || !hasFiniteByteSize(renderedBytes)) {
+    return null;
+  }
+
+  if (sourceBytes <= 0) {
+    return null;
+  }
+
+  if (renderedBytes > sourceBytes) {
+    return 'is-positive' as const;
+  }
+
+  if (renderedBytes < sourceBytes) {
+    return 'is-negative' as const;
+  }
+
+  return 'is-neutral' as const;
+};
 const updateViewportSize = () => {
   if (typeof window === 'undefined') {
     return;
@@ -872,16 +932,21 @@ const activeBundleChunkModules = computed(() => {
     return [];
   }
 
-  return buildMetric.modules
-    .filter(
-      (moduleMetric) =>
-        moduleMetric.file === chunkDetail.file &&
-        shouldDisplayModuleSourceForResource(
-          chunkDetail.type,
-          moduleMetric.sourcePath,
-          moduleMetric.id,
-        ),
-    )
+  const chunkModules = buildMetric.modules.filter(
+    (moduleMetric) =>
+      moduleMetric.file === chunkDetail.file &&
+      shouldDisplayModuleSourceForResource(
+        chunkDetail.type,
+        moduleMetric.sourcePath,
+        moduleMetric.id,
+      ),
+  );
+  const totalRenderedBytes = chunkModules.reduce(
+    (sum, moduleMetric) => sum + moduleMetric.bytes,
+    0,
+  );
+
+  return chunkModules
     .sort((left, right) => right.bytes - left.bytes)
     .map((moduleMetric) => {
       const isGeneratedVirtualModule =
@@ -891,6 +956,25 @@ const activeBundleChunkModules = computed(() => {
       const canBrowseSource = Boolean(
         moduleMetric.sourceAssetFile || moduleMetric.sourcePath,
       );
+      const sourceSizeEntry =
+        getBundleModuleSourceSizeCacheEntry(moduleMetric) ?? null;
+      const sourceSizeLabel =
+        sourceSizeEntry?.status === 'ready' &&
+        hasFiniteByteSize(sourceSizeEntry.bytes)
+          ? `Source ${formatTransferBytes(sourceSizeEntry.bytes)}`
+          : isGeneratedVirtualModule
+            ? 'Source n/a'
+            : sourceSizeEntry?.status === 'error'
+              ? 'Source unavailable'
+              : 'Source loading';
+      const sizeDeltaLabel =
+        sourceSizeEntry?.status === 'ready' &&
+        hasFiniteByteSize(sourceSizeEntry.bytes)
+          ? formatSourceToRenderedDelta(
+              sourceSizeEntry.bytes,
+              moduleMetric.bytes,
+            )
+          : null;
 
       return {
         bytes: moduleMetric.bytes,
@@ -899,10 +983,20 @@ const activeBundleChunkModules = computed(() => {
         file: moduleMetric.file,
         id: moduleMetric.id,
         isGeneratedVirtualModule,
-        percent: formatPercent(moduleMetric.bytes, chunkDetail.bytes),
+        percent: formatPercent(moduleMetric.bytes, totalRenderedBytes),
+        sizeDeltaLabel: sizeDeltaLabel ? `Delta ${sizeDeltaLabel}` : null,
+        sizeDeltaTone:
+          sourceSizeEntry?.status === 'ready' &&
+          hasFiniteByteSize(sourceSizeEntry.bytes)
+            ? getSourceToRenderedDeltaTone(
+                sourceSizeEntry.bytes,
+                moduleMetric.bytes,
+              )
+            : null,
         shortFile: moduleMetric.id.split('/').pop() || moduleMetric.id,
         sourceAssetFile: moduleMetric.sourceAssetFile,
         sourcePath: moduleMetric.sourcePath,
+        sourceSizeLabel,
       };
     });
 });
@@ -1352,6 +1446,93 @@ const getBundleSourcePreviewPath = (moduleMetric: {
   moduleMetric.isGeneratedVirtualModule
     ? getVirtualModuleDisplayId(moduleMetric.id) || moduleMetric.file
     : moduleMetric.sourcePath || moduleMetric.file || moduleMetric.id;
+
+const updateBundleModuleSourceSizeCacheEntry = (
+  cacheKey: string,
+  entry: ModuleSourceSizeCacheEntry,
+) => {
+  const nextCache = new Map(bundleModuleSourceSizeCache.value);
+  nextCache.set(cacheKey, entry);
+  bundleModuleSourceSizeCache.value = nextCache;
+  return entry;
+};
+
+const getBundleModuleSourceSizeCacheEntry = (moduleMetric: {
+  id: string;
+  sourceAssetFile?: string;
+  sourcePath?: string;
+}) =>
+  bundleModuleSourceSizeCache.value.get(
+    createModuleSourceSizeCacheKey(moduleMetric),
+  );
+
+const loadBundleModuleSourceByteSize = async (moduleMetric: {
+  id: string;
+  sourceAssetFile?: string;
+  sourcePath?: string;
+}) =>
+  loadRemoteTextContentByteSize(
+    [
+      moduleMetric.sourceAssetFile,
+      getResolvedDevSourceEndpoint(moduleMetric.sourcePath),
+    ],
+    {},
+  );
+
+const ensureBundleModuleSourceByteSize = async (moduleMetric: {
+  id: string;
+  isGeneratedVirtualModule?: boolean;
+  sourceAssetFile?: string;
+  sourcePath?: string;
+}) => {
+  const cacheKey = createModuleSourceSizeCacheKey(moduleMetric);
+
+  if (
+    !cacheKey ||
+    moduleMetric.isGeneratedVirtualModule ||
+    (!moduleMetric.sourceAssetFile && !moduleMetric.sourcePath)
+  ) {
+    return null;
+  }
+
+  const cachedEntry = getBundleModuleSourceSizeCacheEntry(moduleMetric);
+  if (cachedEntry?.status === 'ready') {
+    return cachedEntry;
+  }
+
+  const pendingRequest = pendingBundleModuleSourceSizeRequests.get(cacheKey);
+  if (pendingRequest) {
+    return pendingRequest;
+  }
+
+  updateBundleModuleSourceSizeCacheEntry(cacheKey, {
+    status: 'loading',
+  });
+
+  const request = (async () => {
+    try {
+      const bytes = await loadBundleModuleSourceByteSize(moduleMetric);
+
+      return hasFiniteByteSize(bytes)
+        ? updateBundleModuleSourceSizeCacheEntry(cacheKey, {
+            bytes,
+            status: 'ready',
+          })
+        : updateBundleModuleSourceSizeCacheEntry(cacheKey, {
+            status: 'error',
+          });
+    } catch {
+      return updateBundleModuleSourceSizeCacheEntry(cacheKey, {
+        status: 'error',
+      });
+    } finally {
+      pendingBundleModuleSourceSizeRequests.delete(cacheKey);
+    }
+  })();
+
+  pendingBundleModuleSourceSizeRequests.set(cacheKey, request);
+  return request;
+};
 
 const renderMetricViews = computed<RenderMetricView[]>(() => {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
@@ -2255,6 +2436,18 @@ const setModalScrollLock = (locked: boolean) => {
   restoreModalScrollLock?.();
   restoreModalScrollLock = null;
 };
+
+watch(
+  activeBundleChunkModules,
+  (modules) => {
+    modules.forEach((moduleMetric) => {
+      void ensureBundleModuleSourceByteSize(moduleMetric);
+    });
+  },
+  {
+    immediate: true,
+  },
+);
 
 watch(isDark, (value, previousValue) => {
   if (!debugEnabled.value) {

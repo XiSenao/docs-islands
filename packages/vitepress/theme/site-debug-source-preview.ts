@@ -223,6 +223,45 @@ export const loadRemoteTextContent = async (
   );
 };
 
+export const loadRemoteTextContentByteSize = async (
+  sourceCandidates: (string | null | undefined)[],
+  options: LoadRemoteTextContentOptions = {},
+) => {
+  const normalizedCandidates = sourceCandidates.filter(
+    (candidate): candidate is string => Boolean(candidate),
+  );
+
+  for (const sourceUrl of normalizedCandidates) {
+    try {
+      const response = await fetch(sourceUrl, { method: 'HEAD' });
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const totalBytesHeader = response.headers.get('content-length');
+      const totalBytes = totalBytesHeader
+        ? Number.parseInt(totalBytesHeader, 10)
+        : Number.NaN;
+
+      if (Number.isFinite(totalBytes) && totalBytes >= 0) {
+        options.onProgress?.({
+          loadedBytes: totalBytes,
+          totalBytes,
+          url: sourceUrl,
+        });
+
+        return totalBytes;
+      }
+    } catch {
+      // Fall back to streaming the full content when HEAD is unavailable.
+    }
+  }
+
+  const content = await loadRemoteTextContent(sourceCandidates, options);
+  return new TextEncoder().encode(content).byteLength;
+};
+
 export const highlightCodeContent = async (
   sourceContent: string,
   sourcePath?: string,
