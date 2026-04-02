@@ -54,6 +54,9 @@ const vitepressConfig: UserConfig<DefaultTheme.Config> = defineConfig({
     },
   },
   vite: {
+    worker: {
+      format: 'es',
+    },
     plugins: [
       {
         name: 'vite-plugin-environment-api-dependency-module-hot-update',
