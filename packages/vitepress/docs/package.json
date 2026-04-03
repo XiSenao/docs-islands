@@ -5,6 +5,7 @@
   "scripts": {
     "docs:dev": "vitepress dev",
     "docs:build": "pnpm clean:dist && wait-on -d 100 ../dist/node/index.js && vitepress build",
+    "docs:build:site-debug-reports": "DOCS_ISLANDS_SITE_DEBUG_WRITE_REPORTS=1 pnpm docs:build",
     "docs:preview": "vitepress preview",
     "typecheck": "vue-tsc --noEmit",
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",

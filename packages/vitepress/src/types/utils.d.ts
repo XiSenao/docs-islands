@@ -16,6 +16,7 @@ export interface PrintOptions {
 
 export type SiteDebugAnalysisProvider = 'claude-code' | 'doubao';
 export type SiteDebugAnalysisDoubaoThinkingType = 'enabled' | 'disabled';
+export type SiteDebugAnalysisBuildReportSourceMode = 'read-only' | 'read-write';
 
 export interface SiteDebugAnalysisProviderBaseConfig {
   /**
@@ -109,6 +110,18 @@ export interface SiteDebugAnalysisBuildReportsConfig {
    * Defaults to `true`. Set to `false` to regenerate reports on every build.
    */
   cache?: boolean;
+  /**
+   * Optional git-tracked directory used as the canonical source of saved
+   * build-time AI reports. Relative paths are resolved from the docs root.
+   */
+  sourceDir?: string;
+  /**
+   * Controls whether the build only reads committed reports or is also allowed
+   * to generate missing reports and write them back to `sourceDir`.
+   *
+   * Defaults to `read-only` when `sourceDir` is provided.
+   */
+  sourceMode?: SiteDebugAnalysisBuildReportSourceMode;
   /**
    * Explicit analysis runs to execute during build.
    * When omitted, configured provider defaults are used.

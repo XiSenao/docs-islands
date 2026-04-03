@@ -68,6 +68,58 @@ const createPageMetafiles = (): Record<string, PageMetafile> => ({
   },
 });
 
+const createSpaSyncOnlyPageMetafile = (): PageMetafile => ({
+  buildMetrics: {
+    components: [],
+    framework: 'react',
+    loader: {
+      entryFile: '/docs/assets/unified-loader.js',
+      files: [
+        {
+          bytes: 1200,
+          file: '/docs/assets/unified-loader.js',
+          type: 'js',
+        },
+      ],
+      totalBytes: 1200,
+    },
+    spaSyncEffects: {
+      components: [
+        {
+          blockingCssBytes: 0,
+          blockingCssCount: 0,
+          blockingCssFiles: [],
+          componentName: 'SiteDebugConsoleOverview',
+          embeddedHtmlPatches: [
+            {
+              bytes: 4200,
+              html: '<section>overview</section>',
+              renderId: 'render-overview',
+            },
+          ],
+          embeddedHtmlBytes: 4200,
+          renderDirectives: ['ssr:only'],
+          renderIds: ['render-overview'],
+          requiresCssLoadingRuntime: false,
+        },
+      ],
+      enabledComponentCount: 1,
+      enabledRenderCount: 1,
+      totalBlockingCssBytes: 0,
+      totalBlockingCssCount: 0,
+      totalEmbeddedHtmlBytes: 4200,
+      usesCssLoadingRuntime: false,
+    },
+    ssrInject: null,
+    totalEstimatedComponentBytes: 0,
+  },
+  cssBundlePaths: ['/docs/assets/site-debug-console.css'],
+  loaderScript: '/docs/assets/unified-loader.js',
+  modulePreloads: ['/docs/assets/SiteDebugConsoleDocs.js'],
+  pathname: '/guide/site-debug-console',
+  ssrInjectScript: '',
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
 
@@ -767,6 +819,320 @@ describe('generateSiteDebugAiBuildReports', () => {
     );
     expect(
       pageMetafiles['/guide/plain-page'].buildMetrics?.components[0]?.aiReports,
+    ).toBeUndefined();
+  });
+
+  it('generates page-grouped reports for docs-islands pages that only expose spa-sync page signals', async () => {
+    const outDir = createTempDirectory();
+    const cacheDir = createTempDirectory('site-debug-ai-cache-');
+    const pageMetafiles = {
+      '/guide/site-debug-console': createSpaSyncOnlyPageMetafile(),
+    };
+
+    writeTextFile(
+      path.join(outDir, 'assets/unified-loader.js'),
+      'export const loader = () => "loader";',
+    );
+    writeTextFile(
+      path.join(outDir, 'assets/SiteDebugConsoleDocs.js'),
+      'export const docs = () => "docs";',
+    );
+    writeTextFile(
+      path.join(outDir, 'assets/site-debug-console.css'),
+      '.site-debug-console { color: var(--vp-c-brand-1); }',
+    );
+
+    const analyzeTarget = vi.fn(async ({ provider, target }) => ({
+      detail: `Generated in test for ${provider}`,
+      model: 'doubao-test-model',
+      result: `analysis:${target.displayPath}`,
+    }));
+
+    const result = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          groupBy: 'page',
+          runs: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            enabled: true,
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir,
+      dependencies: {
+        analyzeTarget,
+        resolveCapabilities: async () => ({
+          ok: true,
+          providers: {
+            'claude-code': {
+              available: false,
+              detail: 'Unavailable in test',
+              provider: 'claude-code',
+            },
+            doubao: {
+              available: true,
+              detail: 'Available in test',
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          },
+        }),
+      },
+      outDir,
+      pageMetafiles,
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    expect(result.generatedReportCount).toBe(1);
+    expect(analyzeTarget).toHaveBeenCalledTimes(1);
+    expect(analyzeTarget).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: expect.objectContaining({
+          artifactKind: 'page-build',
+          displayPath: '/guide/site-debug-console',
+          context: expect.objectContaining({
+            artifactHeaderItems: expect.arrayContaining([
+              expect.objectContaining({
+                label: 'Module Preloads',
+                value: '1',
+              }),
+              expect.objectContaining({
+                label: 'CSS Bundles',
+                value: '1',
+              }),
+              expect.objectContaining({
+                label: 'Embedded HTML',
+                value: '4.1 KB',
+              }),
+            ]),
+            liveContextItems: expect.arrayContaining([
+              expect.objectContaining({
+                label: 'Enabled Renders',
+                value: '1',
+              }),
+            ]),
+          }),
+        }),
+      }),
+    );
+    expect(
+      pageMetafiles['/guide/site-debug-console'].buildMetrics?.aiReports,
+    ).toEqual([
+      expect.objectContaining({
+        provider: 'doubao',
+        reportFile: expect.stringContaining(
+          '/docs/assets/page-metafiles/ai/pages/site-debug-console.',
+        ),
+      }),
+    ]);
+  });
+
+  it('writes git-tracked reports in read-write mode and reuses them in read-only mode', async () => {
+    const sourceDir = createTempDirectory('site-debug-ai-source-');
+    const firstOutDir = createTempDirectory();
+    const secondOutDir = createTempDirectory();
+    const firstCacheDir = createTempDirectory('site-debug-ai-cache-');
+    const secondCacheDir = createTempDirectory('site-debug-ai-cache-');
+    const analyzeTarget = vi.fn(async ({ provider, target }) => ({
+      detail: `Generated in test for ${provider}`,
+      model: 'doubao-test-model',
+      result: `analysis:${target.displayPath}`,
+    }));
+
+    for (const outDir of [firstOutDir, secondOutDir]) {
+      writeTextFile(
+        path.join(outDir, 'assets/chunks/demo-card.js'),
+        'export const DemoCard = () => "demo";',
+      );
+      writeTextFile(
+        path.join(outDir, 'assets/sources/DemoCard.tsx'),
+        'export function DemoCard() { return <div>demo</div>; }',
+      );
+    }
+
+    const firstResult = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          groupBy: 'page',
+          runs: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+          sourceDir,
+          sourceMode: 'read-write',
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            enabled: true,
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: firstCacheDir,
+      dependencies: {
+        analyzeTarget,
+        resolveCapabilities: async () => ({
+          ok: true as const,
+          providers: {
+            'claude-code': {
+              available: false,
+              detail: 'Unavailable in test',
+              provider: 'claude-code' as const,
+            },
+            doubao: {
+              available: true,
+              detail: 'Available in test',
+              model: 'doubao-test-model',
+              provider: 'doubao' as const,
+            },
+          },
+        }),
+      },
+      outDir: firstOutDir,
+      pageMetafiles: createPageMetafiles(),
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    const secondResult = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          groupBy: 'page',
+          runs: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+          sourceDir,
+          sourceMode: 'read-only',
+        },
+        providers: {
+          doubao: {
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: secondCacheDir,
+      dependencies: {
+        analyzeTarget: vi.fn(async () => {
+          throw new Error('read-only source reports should be reused');
+        }),
+        resolveCapabilities: async () => ({
+          ok: true as const,
+          providers: {
+            'claude-code': {
+              available: false,
+              detail: 'Unavailable in test',
+              provider: 'claude-code' as const,
+            },
+            doubao: {
+              available: false,
+              detail: 'Provider should not be needed when source reports exist',
+              provider: 'doubao' as const,
+            },
+          },
+        }),
+      },
+      outDir: secondOutDir,
+      pageMetafiles: createPageMetafiles(),
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    expect(firstResult.generatedReportCount).toBe(1);
+    expect(firstResult.reusedReportCount).toBe(0);
+    expect(secondResult.generatedReportCount).toBe(0);
+    expect(secondResult.reusedReportCount).toBe(1);
+    expect(analyzeTarget).toHaveBeenCalledTimes(1);
+    expect(fs.readdirSync(path.join(sourceDir, 'pages'))).toHaveLength(1);
+  });
+
+  it('skips missing git-tracked reports in read-only mode without calling providers', async () => {
+    const outDir = createTempDirectory();
+    const pageMetafiles = createPageMetafiles();
+    const analyzeTarget = vi.fn(async ({ target }) => ({
+      detail: 'should not run',
+      model: 'doubao-test-model',
+      result: `analysis:${target.displayPath}`,
+    }));
+
+    writeTextFile(
+      path.join(outDir, 'assets/chunks/demo-card.js'),
+      'export const DemoCard = () => "demo";',
+    );
+    writeTextFile(
+      path.join(outDir, 'assets/sources/DemoCard.tsx'),
+      'export function DemoCard() { return <div>demo</div>; }',
+    );
+
+    const result = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          groupBy: 'page',
+          runs: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+          sourceDir: createTempDirectory('site-debug-ai-source-'),
+          sourceMode: 'read-only',
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            enabled: true,
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: createTempDirectory('site-debug-ai-cache-'),
+      dependencies: {
+        analyzeTarget,
+        resolveCapabilities: async () => ({
+          ok: true as const,
+          providers: {
+            'claude-code': {
+              available: false,
+              detail: 'Unavailable in test',
+              provider: 'claude-code' as const,
+            },
+            doubao: {
+              available: true,
+              detail: 'Available in test',
+              model: 'doubao-test-model',
+              provider: 'doubao' as const,
+            },
+          },
+        }),
+      },
+      outDir,
+      pageMetafiles,
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    expect(result.generatedReportCount).toBe(0);
+    expect(result.reusedReportCount).toBe(0);
+    expect(result.skippedReason).toContain('Missing committed build report');
+    expect(analyzeTarget).not.toHaveBeenCalled();
+    expect(
+      pageMetafiles['/guide/getting-started'].buildMetrics?.components[0]
+        .aiReports,
     ).toBeUndefined();
   });
 

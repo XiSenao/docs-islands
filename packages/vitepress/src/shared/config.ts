@@ -35,11 +35,18 @@ const normalizeBuildReportRuns = (
 
 const normalizeBuildReportsConfig = (
   buildReports: SiteDebugBuildReportsInput,
+  root: string,
 ) =>
   !buildReports || buildReports.enabled === false
     ? undefined
     : ({
         cache: buildReports.cache ?? true,
+        ...(buildReports.sourceDir
+          ? {
+              sourceDir: normalizePath(resolve(root, buildReports.sourceDir)),
+              sourceMode: buildReports.sourceMode ?? 'read-only',
+            }
+          : {}),
         ...(buildReports.groupBy
           ? {
               groupBy: buildReports.groupBy,
@@ -56,6 +63,7 @@ const normalizeBuildReportsConfig = (
 
 const normalizeSiteDebugAnalysisConfig = (
   siteDebug: SiteDebugUserConfig | undefined,
+  root: string,
 ): SiteDebugAnalysisUserConfig | undefined => {
   const analysisConfig = siteDebug?.analysis ?? siteDebug?.ai;
 
@@ -73,6 +81,7 @@ const normalizeSiteDebugAnalysisConfig = (
 
   const normalizedBuildReports = normalizeBuildReportsConfig(
     analysisConfig.buildReports,
+    root,
   );
 
   if (normalizedBuildReports) {
@@ -106,6 +115,7 @@ export const resolveConfig = (
   const cleanUrls = rawVitepressConfig.cleanUrls ?? false;
   const normalizedSiteDebugAnalysis = normalizeSiteDebugAnalysisConfig(
     rawVitepressConfig.siteDebug,
+    root,
   );
   const siteDebug: SiteDebugUserConfig = normalizedSiteDebugAnalysis
     ? {

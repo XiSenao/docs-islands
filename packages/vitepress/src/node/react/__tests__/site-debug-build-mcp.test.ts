@@ -43,10 +43,23 @@ const createFixtureBuild = () => {
     '/docs/assets/page-metafiles/ai/chunks/demo-card.report.json';
   const moduleReportFile =
     '/docs/assets/page-metafiles/ai/modules/demo-card-module.report.json';
+  const pageReportFile =
+    '/docs/assets/page-metafiles/ai/pages/getting-started.report.json';
   const reportId = 'doubao-demo';
+  const pageReportId = 'doubao-page';
   const pageMetafiles: Record<string, PageMetafile> = {
     '/guide/getting-started': {
       buildMetrics: {
+        aiReports: [
+          {
+            generatedAt: '2026-04-03T00:00:00.000Z',
+            model: 'doubao-test-model',
+            provider: 'doubao',
+            reportFile: pageReportFile,
+            reportId: pageReportId,
+            reportLabel: 'Doubao · doubao-test-model',
+          },
+        ],
         components: [
           {
             aiReports: {
@@ -199,9 +212,31 @@ const createFixtureBuild = () => {
       },
     },
   );
+  writeJsonFile(
+    path.join(
+      outDir,
+      'assets/page-metafiles/ai/pages/getting-started.report.json',
+    ),
+    {
+      generatedAt: '2026-04-03T00:00:00.000Z',
+      prompt: 'page prompt',
+      provider: 'doubao',
+      reportId: pageReportId,
+      reportLabel: 'Doubao · doubao-test-model',
+      result: 'page analysis',
+      target: {
+        artifactKind: 'page-build',
+        artifactLabel: '/guide/getting-started',
+        content: 'Build overview for /guide/getting-started',
+        displayPath: '/guide/getting-started',
+        language: 'text',
+      },
+    },
+  );
 
   return {
     outDir,
+    pageReportId,
     reportId,
     chunkArtifactKey: chunkFile,
     moduleArtifactKey: `${chunkFile}::${moduleId}`,
@@ -302,6 +337,19 @@ describe('SiteDebugBuildDataStore', () => {
       report: expect.objectContaining({
         prompt: 'chunk prompt',
         result: 'chunk analysis',
+      }),
+    });
+    expect(
+      dataStore.getBuildReport({
+        reportId: fixture.pageReportId,
+      }),
+    ).toMatchObject({
+      artifactKey: '/guide/getting-started',
+      artifactKind: 'page-build',
+      pageId: '/guide/getting-started',
+      report: expect.objectContaining({
+        prompt: 'page prompt',
+        result: 'page analysis',
       }),
     });
   });

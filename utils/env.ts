@@ -50,6 +50,7 @@ const managedProcessEnvSchema = z.object({
 
   // site debug
   DOCS_ISLANDS_ARK_API_KEY: z.string().default(''),
+  DOCS_ISLANDS_SITE_DEBUG_WRITE_REPORTS: envFlagSchema,
 });
 
 const runtimeProcessEnvSchema = z.object({
@@ -66,6 +67,7 @@ export interface EnvConfig {
   };
   siteDebug: {
     doubao_api_key: string;
+    write_reports: boolean;
   };
   build: {
     skipPackages: string;
@@ -228,6 +230,7 @@ export function loadEnv(options: LoadEnvOptions = defaultOptions): EnvConfig {
     },
     siteDebug: {
       doubao_api_key: finalEnv.DOCS_ISLANDS_ARK_API_KEY,
+      write_reports: finalEnv.DOCS_ISLANDS_SITE_DEBUG_WRITE_REPORTS,
     },
     build: {
       skipPackages: finalEnv.DOCS_ISLANDS_BUILD_SKIP_PACKAGES,
@@ -252,6 +255,7 @@ export function loadEnv(options: LoadEnvOptions = defaultOptions): EnvConfig {
 
 type ProcessEnvKey =
   | 'DOCS_ISLANDS_RELEASE'
+  | 'DOCS_ISLANDS_SITE_DEBUG_WRITE_REPORTS'
   | 'DOCS_ISLANDS_TEST'
   | 'DOCS_ISLANDS_SOURCEMAP'
   | 'DOCS_ISLANDS_MINIFY'

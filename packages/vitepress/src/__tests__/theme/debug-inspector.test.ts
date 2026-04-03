@@ -1,7 +1,9 @@
 import {
   createMetafileLookup,
   getBuildMetricForRender,
+  getCurrentPageCandidates,
   type PageMetafile,
+  resolvePageMetafileState,
 } from '../../../theme/debug-inspector';
 
 describe('debug-inspector build metric lookup', () => {
@@ -130,5 +132,96 @@ describe('debug-inspector build metric lookup', () => {
     expect(
       getBuildMetricForRender(lookup, 'Landing', 'landing-render-id'),
     ).toBe(fullLandingMetric);
+  });
+
+  it('prefers an explicitly provided route pathname when resolving current page metafile', () => {
+    const enPageMetafile: PageMetafile = {
+      buildMetrics: {
+        aiReports: [
+          {
+            generatedAt: '2026-04-03T00:00:00.000Z',
+            provider: 'doubao',
+            reportFile: '/docs/assets/page-metafiles/ai/pages/core-en.json',
+            reportId: 'shared-report-id',
+            reportLabel: 'Doubao',
+          },
+        ],
+        components: [],
+        spaSyncEffects: {
+          components: [],
+          enabledComponentCount: 2,
+          enabledRenderCount: 2,
+          totalBlockingCssBytes: 0,
+          totalBlockingCssCount: 0,
+          totalEmbeddedHtmlBytes: 0,
+          usesCssLoadingRuntime: false,
+        },
+        totalEstimatedComponentBytes: 0,
+      },
+      cssBundlePaths: ['/docs/assets/site-debug.css'],
+      loaderScript: '/docs/assets/unified-loader.js',
+      modulePreloads: ['/docs/assets/site-debug.js'],
+      pathname: '/core-concepts',
+      ssrInjectScript: '',
+    };
+    const zhPageMetafile: PageMetafile = {
+      buildMetrics: {
+        aiReports: [
+          {
+            generatedAt: '2026-04-03T00:00:00.000Z',
+            provider: 'doubao',
+            reportFile: '/docs/assets/page-metafiles/ai/pages/core-zh.json',
+            reportId: 'shared-report-id',
+            reportLabel: 'Doubao',
+          },
+        ],
+        components: [],
+        spaSyncEffects: {
+          components: [],
+          enabledComponentCount: 2,
+          enabledRenderCount: 2,
+          totalBlockingCssBytes: 0,
+          totalBlockingCssCount: 0,
+          totalEmbeddedHtmlBytes: 0,
+          usesCssLoadingRuntime: false,
+        },
+        totalEstimatedComponentBytes: 0,
+      },
+      cssBundlePaths: ['/docs/assets/site-debug.css'],
+      loaderScript: '/docs/assets/unified-loader.js',
+      modulePreloads: ['/docs/assets/site-debug.js'],
+      pathname: '/zh/core-concepts',
+      ssrInjectScript: '',
+    };
+    const debugWindow = {
+      __PAGE_METAFILE__: {
+        '/core-concepts': enPageMetafile,
+        '/zh/core-concepts': zhPageMetafile,
+      },
+      __VP_SITE_DATA__: {
+        base: '/docs-islands/vitepress/',
+        cleanUrls: true,
+      },
+      location: {
+        pathname: '/docs-islands/vitepress/core-concepts',
+      },
+    } as unknown as Window & {
+      __PAGE_METAFILE__: Record<string, PageMetafile>;
+      __VP_SITE_DATA__: {
+        base: string;
+        cleanUrls: boolean;
+      };
+      location: {
+        pathname: string;
+      };
+    };
+
+    expect(getCurrentPageCandidates(debugWindow, '/zh/core-concepts')[0]).toBe(
+      '/zh/core-concepts',
+    );
+    expect(
+      resolvePageMetafileState(debugWindow, '/zh/core-concepts')
+        .currentPageMetafile,
+    ).toBe(zhPageMetafile);
   });
 });

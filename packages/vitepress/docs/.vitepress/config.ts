@@ -12,7 +12,7 @@ import enConfig from '../en/config';
 import zhConfig from '../zh/config';
 
 const { release, siteDebug } = loadEnv();
-const { doubao_api_key } = siteDebug;
+const { doubao_api_key, write_reports } = siteDebug;
 
 const base = `/${vitepressRenderingStrategiesPackageJson.name.replace('@', '')}/`;
 
@@ -127,6 +127,8 @@ vitepressReactRenderingStrategies(vitepressConfig, {
         groupBy: 'page',
         includeChunks: true,
         includeModules: true,
+        sourceDir: '.vitepress/site-debug-reports',
+        sourceMode: write_reports ? 'read-write' : 'read-only',
         runs: [
           {
             label: 'Doubao Pro',

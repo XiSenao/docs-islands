@@ -1,3 +1,11 @@
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  normalize,
+  parse,
+  relative,
+} from 'pathe';
 import type {
   SiteDebugAiArtifactHeaderItem,
   SiteDebugAiBundleSummaryItem,
@@ -96,6 +104,27 @@ const SITE_DEBUG_AI_LANGUAGE_BY_EXTENSION: Record<string, string> = {
   yml: 'yaml',
   yaml: 'yaml',
 };
+const SITE_DEBUG_AI_LOCAL_PATH_ROOT_NAMES = new Set([
+  'Users',
+  'Volumes',
+  'home',
+  'private',
+  'tmp',
+  'var',
+]);
+const SITE_DEBUG_AI_PROMPT_PATH_ROOT_NAMES = new Set([
+  '.vitepress',
+  'docs',
+  'node_modules',
+  'packages',
+  'playground',
+  'public',
+  'scripts',
+  'src',
+  'test',
+  'tests',
+  'utils',
+]);
 
 const normalizeBase = (base = '/') => (base.endsWith('/') ? base : `${base}/`);
 
@@ -105,6 +134,53 @@ const formatValue = (value: number | string | null | undefined) => {
   }
 
   return String(value);
+};
+
+const sanitizePromptPathValue = (value: string): string => {
+  if (!value) {
+    return value;
+  }
+
+  const normalizedValue = normalize(value);
+
+  if (!isAbsolute(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  if (normalizedValue.startsWith('//')) {
+    return basename(normalizedValue);
+  }
+
+  const pathRoot = parse(normalizedValue).root || '/';
+  const firstPathSegment = relative(pathRoot, normalizedValue)
+    .split('/')
+    .find(Boolean);
+
+  if (
+    !firstPathSegment ||
+    !SITE_DEBUG_AI_LOCAL_PATH_ROOT_NAMES.has(firstPathSegment)
+  ) {
+    return normalizedValue;
+  }
+
+  let currentDir = dirname(normalizedValue);
+  let relativePromptPath: string | null = null;
+
+  while (true) {
+    if (SITE_DEBUG_AI_PROMPT_PATH_ROOT_NAMES.has(basename(currentDir))) {
+      relativePromptPath = relative(dirname(currentDir), normalizedValue);
+    }
+
+    const parentDir = dirname(currentDir);
+
+    if (parentDir === currentDir) {
+      break;
+    }
+
+    currentDir = parentDir;
+  }
+
+  return relativePromptPath || basename(normalizedValue);
 };
 
 const getSiteDebugAiArtifactPanelLabel = (
@@ -159,15 +235,19 @@ const formatPromptValueItems = (items: SiteDebugAiPromptValueItem[] = []) =>
     .map((item) => {
       const label = formatValue(item.label);
       const value = formatValue(item.value);
+      const displayValue =
+        label && value && label.toLowerCase().includes('path')
+          ? sanitizePromptPathValue(value)
+          : value;
 
-      return label && value ? `- ${label}: ${value}` : null;
+      return label && displayValue ? `- ${label}: ${displayValue}` : null;
     })
     .filter(Boolean);
 
 const formatChunkResourceItems = (items: SiteDebugAiChunkResourceItem[] = []) =>
   items.map((item, index) => {
     const detailLines = [
-      `   path: ${item.file}`,
+      `   path: ${sanitizePromptPathValue(item.file)}`,
       `   type: ${item.type.toUpperCase()}`,
       `   size: ${item.size}`,
       ...(item.share ? [`   share: ${item.share}`] : []),
@@ -185,7 +265,7 @@ const formatModuleItems = (items: SiteDebugAiModuleItem[] = []) =>
       item.current ? 'current selection' : null,
     ].filter(Boolean);
     const detailLines = [
-      `   module id: ${item.id}`,
+      `   module id: ${sanitizePromptPathValue(item.id)}`,
       `   rendered size: ${item.renderedSize}`,
       ...(item.share ? [`   share: ${item.share}`] : []),
       `   source: ${item.sourceInfo}`,

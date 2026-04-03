@@ -8,6 +8,8 @@ describe('resolveConfig', () => {
       siteDebug: {
         analysis: {
           buildReports: {
+            sourceDir: '.vitepress/site-debug-reports',
+            sourceMode: 'read-write',
             runs: [
               {
                 label: 'Doubao Pro',
@@ -42,6 +44,12 @@ describe('resolveConfig', () => {
     expect(config.siteDebug.analysis?.buildReports?.cache).toBe(true);
     expect(config.siteDebug.analysis?.buildReports?.includeChunks).toBe(true);
     expect(config.siteDebug.analysis?.buildReports?.includeModules).toBe(true);
+    expect(config.siteDebug.analysis?.buildReports?.sourceMode).toBe(
+      'read-write',
+    );
+    expect(config.siteDebug.analysis?.buildReports?.sourceDir).toMatch(
+      /site-debug-reports$/,
+    );
     expect(config.siteDebug.analysis?.buildReports?.runs?.[0]).toEqual({
       label: 'Doubao Pro',
       model: 'doubao-seed-1-6',

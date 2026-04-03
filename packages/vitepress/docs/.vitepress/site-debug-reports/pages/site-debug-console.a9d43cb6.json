@@ -1,0 +1,107 @@
+{
+  "detail": "Using https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+  "generatedAt": "2026-04-03T14:34:06.720Z",
+  "model": "doubao-seed-2-0-pro-260215",
+  "prompt": "## Role\nYou are an expert docs-islands / VitePress debug-console analyst for build artifacts and render-visible performance signals.\n\n## Skills\n- Read debug-console snapshots and explain what the selected artifact most likely represents.\n- Correlate the current artifact with bundle summary cards, chunk resource rows, module source rows, and visible render metrics.\n- Spot likely size concentration, duplication, runtime cost, or bundling tradeoffs from the available evidence.\n- Suggest concrete optimization follow-ups that are grounded in the snapshot rather than guessed from missing code.\n\n## Action\n1. Read the debug-console snapshot below.\n2. Explain what this artifact is and why it is likely emitted.\n3. Identify the strongest evidence from the visible debug-console data.\n4. Call out suspicious patterns, but also say explicitly when the snapshot looks normal.\n5. Suggest optimization ideas with expected impact and implementation direction.\n6. Separate confident conclusions from speculation.\n\n## Artifact-Specific Checklist\n- Summarize the page-level bundle shape using the bundle summary, chunk resources, and module source sections together.\n- Identify which chunks or assets dominate the page and whether the overall distribution looks balanced for this page.\n- Highlight the modules or generated helpers that appear to have the biggest impact on the page build.\n- Suggest page-level follow-ups such as route splitting, shared chunk cleanup, asset compression, or component-level lazy loading only when the snapshot supports them.\n- Call out what cannot be concluded without drilling into a specific chunk or module report.\n\n## Constraints\n- Base the analysis only on the debug-console information shown below.\n- Source content and raw code are intentionally excluded from this prompt.\n- Do not invent implementation details, loader behavior, or framework internals that are not supported by the snapshot.\n- Prefer citing specific cards, rows, and values from the snapshot instead of giving generic optimization advice.\n- If the evidence is insufficient, explain what remains unknown and which additional debug-console view would help.\n\n## Output\nRespond in Markdown using these sections:\n- Summary\n- What This Artifact Contains\n- Potential Problems Or Tradeoffs\n- Optimization Ideas\n- Unknowns\n\nSection guidance:\n- Summary: Say whether the artifact looks normal, borderline, or worth attention.\n- What This Artifact Contains: Describe the artifact using only the snapshot data.\n- Potential Problems Or Tradeoffs: Focus on evidence-backed concerns, not hypothetical ones.\n- Optimization Ideas: Only include actions tied to evidence from the snapshot, and mention expected impact when possible.\n- Unknowns: Call out missing information instead of filling gaps with assumptions.\n\n## Debug Console Snapshot\n\nCurrent Debug Context:\n- Page: /site-debug-console\n\nVisible Render Metrics:\n- Enabled Renders: 2\n- Blocking CSS: 0 file(s) · 0 B\n- CSS Loading Runtime: Not required\n\nArtifact Panel:\n- Panel: Page Build\n- Title: /site-debug-console\n- Path: /site-debug-console\n- Components: 2\n- Chunk Resources: 3\n- Module Sources: 0\n- Module Preloads: 1\n- CSS Bundles: 1\n- Embedded HTML: 7.4 KB\n\nBundle Summary:\n- Total: 30.3 KB\n- JS: 15.7 KB\n- CSS: 14.6 KB\n\nChunk Resources (3 shown):\n1. SiteDebugConsoleDocs.C1NneGDX.css\n   path: /docs-islands/vitepress/assets/SiteDebugConsoleDocs.C1NneGDX.css\n   type: CSS\n   size: 14.6 KB\n   share: 48.2%\n   source modules: 0\n2. SiteDebugConsoleDocs.B3wtp5mO.js\n   path: /docs-islands/vitepress/assets/chunks/SiteDebugConsoleDocs.B3wtp5mO.js\n   type: JS\n   size: 13.7 KB\n   share: 45.4%\n   source modules: 0\n3. unified-loader.XGrWIFsD.js\n   path: /docs-islands/vitepress/assets/unified-loader.XGrWIFsD.js\n   type: JS\n   size: 2.0 KB\n   share: 6.5%\n   source modules: 0",
+  "provider": "doubao",
+  "reportId": "b4d0885609a5",
+  "reportLabel": "Doubao Pro",
+  "result": "### Summary\nThis `/site-debug-console` page build artifact looks normal and low-concern, with an extremely small total payload, no render-blocking resources, and minimal runtime overhead. No critical performance issues are visible in the provided data.\n\n---\n\n### What This Artifact Contains\nThis is the production build output for the VitePress/docs-islands page at the `/site-debug-console` route, per the provided debug data:\n- Total uncompressed page weight: 30.3KB, split between 15.7KB of JavaScript and 14.6KB of CSS, plus 7.4KB of embedded HTML\n- 3 chunk resources make up the payload:\n  1. Page-specific CSS bundle `SiteDebugConsoleDocs.C1NneGDX.css` (14.6KB, 48.2% of total payload)\n  2. Page-specific JS bundle `SiteDebugConsoleDocs.B3wtp5mO.js` (13.7KB, 45.4% of total payload)\n  3. Small utility loader JS chunk `unified-loader.XGrWIFsD.js` (2.0KB, 6.5% of total payload)\n- Additional page attributes: 2 interactive island components, 1 module preload, 0 blocking CSS files, 2 enabled renders, and no source module mapping data available for any chunks.\n\n---\n\n### Potential Problems Or Tradeoffs\nNo concrete performance problems are observable from the provided data:\n- The 30.3KB total payload is well under recommended thresholds for docs pages, with no render-blocking CSS and minimal render count.\n- The only gap is that all chunks list 0 source modules, so there is no visibility into internal chunk contents to rule out minor inefficiencies like unused code or small dependency duplication.\n\n---\n\n### Optimization Ideas\nAll optimizations are low-to-minimal impact given the already small payload size:\n1. **Enable source module tracking for build reports**: Low effort, no user-facing impact, adds visibility to confirm there is no unused code or duplicated dependencies across the 2 JS chunks. This resolves the current data gap for chunk contents.\n2. **Configure Brotli/Gzip static asset compression**: If not already enabled, this will reduce total transferred payload by ~60-70% (down to ~9-12KB total compressed), delivering high performance impact for very low implementation effort.\n3. **Audit unified-loader cross-page usage**: If the 2KB `unified-loader` chunk is used across multiple docs pages, move it to a shared common chunk to eliminate redundant loading for users navigating between pages, expected impact of ~2KB saved per repeat cross-page visit. No action is needed if the loader is only used on this debug page.\n\n---\n\n### Unknowns\n- The internal contents of all chunks are unknown, as no source module mapping is provided. We cannot confirm if there is unused code, duplicated dependencies, or suboptimal code splitting for any chunk.\n- It is not specified if the listed sizes are uncompressed or transferred (compressed) sizes, so we cannot assess if compression is already configured.\n- We do not know if the `unified-loader` chunk is used exclusively on this page or across other docs routes, so we cannot confirm if moving it to a shared chunk would deliver meaningful user impact.\n- The functionality of the 2 interactive island components is unknown, so we cannot assess if component-level optimizations (e.g., lazy loading) would be beneficial (lazy loading is unlikely to help given the already tiny JS payload).\n- No unused CSS audit data is available, so we cannot confirm if the 14.6KB CSS bundle includes unused styles that could be purged.",
+  "target": {
+    "artifactKind": "page-build",
+    "artifactLabel": "/site-debug-console",
+    "bytes": 31009,
+    "content": "Build overview for /site-debug-console",
+    "context": {
+      "artifactHeaderItems": [
+        {
+          "label": "Path",
+          "value": "/site-debug-console"
+        },
+        {
+          "label": "Components",
+          "value": "2"
+        },
+        {
+          "label": "Chunk Resources",
+          "value": "3"
+        },
+        {
+          "label": "Module Sources",
+          "value": "0"
+        },
+        {
+          "label": "Module Preloads",
+          "value": "1"
+        },
+        {
+          "label": "CSS Bundles",
+          "value": "1"
+        },
+        {
+          "label": "Embedded HTML",
+          "value": "7.4 KB"
+        }
+      ],
+      "bundleSummaryItems": [
+        {
+          "label": "Total",
+          "value": "30.3 KB"
+        },
+        {
+          "label": "JS",
+          "value": "15.7 KB"
+        },
+        {
+          "label": "CSS",
+          "value": "14.6 KB"
+        }
+      ],
+      "chunkResourceItems": [
+        {
+          "file": "/docs-islands/vitepress/assets/SiteDebugConsoleDocs.C1NneGDX.css",
+          "label": "SiteDebugConsoleDocs.C1NneGDX.css",
+          "moduleCount": 0,
+          "share": "48.2%",
+          "size": "14.6 KB",
+          "type": "css"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/chunks/SiteDebugConsoleDocs.B3wtp5mO.js",
+          "label": "SiteDebugConsoleDocs.B3wtp5mO.js",
+          "moduleCount": 0,
+          "share": "45.4%",
+          "size": "13.7 KB",
+          "type": "js"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/unified-loader.XGrWIFsD.js",
+          "label": "unified-loader.XGrWIFsD.js",
+          "moduleCount": 0,
+          "share": "6.5%",
+          "size": "2.0 KB",
+          "type": "js"
+        }
+      ],
+      "liveContextItems": [
+        {
+          "label": "Enabled Renders",
+          "value": "2"
+        },
+        {
+          "label": "Blocking CSS",
+          "value": "0 file(s) · 0 B"
+        },
+        {
+          "label": "CSS Loading Runtime",
+          "value": "Not required"
+        }
+      ],
+      "moduleItems": [],
+      "pageId": "/site-debug-console",
+      "renderId": null
+    },
+    "displayPath": "/site-debug-console",
+    "language": "text"
+  }
+}

@@ -76,6 +76,11 @@ interface BuildReportExecution {
   reportLabel: string;
 }
 
+interface BuildReportSourceConfig {
+  mode: 'read-only' | 'read-write';
+  sourceDir: string;
+}
+
 export interface GenerateSiteDebugAiBuildReportsResult {
   executionCount: number;
   generatedReportCount: number;
@@ -214,6 +219,15 @@ const aggregatePageModules = (
   return [...moduleMetricByKey.values()];
 };
 
+const getPageSupportedComponentCount = (pageMetafile: PageMetafile) =>
+  Math.max(
+    pageMetafile.buildMetrics?.components.length ?? 0,
+    pageMetafile.buildMetrics?.spaSyncEffects?.enabledComponentCount ?? 0,
+  );
+
+const hasPageBuildAnalysisSignals = (pageMetafile: PageMetafile) =>
+  getPageSupportedComponentCount(pageMetafile) > 0;
+
 const getBuildReportRunConfigs = (
   aiConfig: SiteDebugAiConfig,
 ): SiteDebugAnalysisBuildReportRunConfig[] => {
@@ -296,16 +310,12 @@ const createBuildReportExecutionConfig = (
   };
 };
 
-const resolveBuildReportExecutions = async ({
-  aiConfig,
-  resolveCapabilitiesImpl,
-}: {
-  aiConfig: SiteDebugAiConfig;
-  resolveCapabilitiesImpl: typeof resolveSiteDebugAiCapabilities;
-}): Promise<{
+const createBuildReportExecutions = (
+  aiConfig: SiteDebugAiConfig,
+): {
   executions: BuildReportExecution[];
   skippedReason?: string;
-}> => {
+} => {
   const hasExplicitRuns =
     Array.isArray(aiConfig?.buildReports?.runs) ||
     Array.isArray(aiConfig?.buildReports?.models);
@@ -321,34 +331,50 @@ const resolveBuildReportExecutions = async ({
   }
 
   const executions: BuildReportExecution[] = [];
-  const skippedDetails: string[] = [];
 
   for (const runConfig of runConfigs) {
     const executionConfig = createBuildReportExecutionConfig(
       aiConfig,
       runConfig,
     );
-    const capabilities = await resolveCapabilitiesImpl(executionConfig);
-    const capability = capabilities.providers[runConfig.provider];
+    executions.push({
+      config: executionConfig,
+      provider: runConfig.provider,
+      reportId: getBuildReportExecutionId(runConfig),
+      reportLabel: getBuildReportExecutionLabel(runConfig),
+    });
+  }
+
+  return { executions };
+};
+
+const resolveAvailableBuildReportExecutions = async ({
+  executions,
+  resolveCapabilitiesImpl,
+}: {
+  executions: BuildReportExecution[];
+  resolveCapabilitiesImpl: typeof resolveSiteDebugAiCapabilities;
+}) => {
+  const availableExecutionIds = new Set<string>();
+  const skippedDetails: string[] = [];
+
+  for (const execution of executions) {
+    const capabilities = await resolveCapabilitiesImpl(execution.config);
+    const capability = capabilities.providers[execution.provider];
 
     if (capability?.available) {
-      executions.push({
-        config: executionConfig,
-        provider: runConfig.provider,
-        reportId: getBuildReportExecutionId(runConfig),
-        reportLabel: getBuildReportExecutionLabel(runConfig),
-      });
+      availableExecutionIds.add(execution.reportId);
       continue;
     }
 
     skippedDetails.push(
       capability?.detail ||
-        `Build report execution ${getBuildReportExecutionLabel(runConfig)} is unavailable.`,
+        `Build report execution ${execution.reportLabel} is unavailable.`,
     );
   }
 
   return {
-    executions,
+    availableExecutionIds,
     ...(skippedDetails.length > 0
       ? {
           skippedReason: skippedDetails.join(' '),
@@ -414,6 +440,50 @@ const getBuildReportCacheFilePath = (cacheDir: string, cacheKey: string) =>
     `${sanitizeFileStem(cacheKey)}.json`,
   );
 
+const getBuildReportArtifactDir = (
+  artifactKind: SiteDebugAiAnalysisTarget['artifactKind'],
+) =>
+  artifactKind === 'bundle-chunk'
+    ? 'chunks'
+    : artifactKind === 'bundle-module'
+      ? 'modules'
+      : 'pages';
+
+const getBuildReportSourceFilePath = ({
+  prompt,
+  provider,
+  reportId,
+  sourceDir,
+  target,
+}: {
+  prompt: string;
+  provider: SiteDebugAiProvider;
+  reportId: string;
+  sourceDir: string;
+  target: SiteDebugAiAnalysisTarget;
+}) => {
+  const safeBaseName = sanitizeFileStem(
+    basename(target.displayPath || target.artifactLabel),
+  );
+  const hash = createHash('sha256')
+    .update(
+      JSON.stringify({
+        prompt,
+        provider,
+        reportId,
+        target,
+      }),
+    )
+    .digest('hex')
+    .slice(0, 8);
+
+  return join(
+    sourceDir,
+    getBuildReportArtifactDir(target.artifactKind),
+    `${safeBaseName}.${hash}.json`,
+  );
+};
+
 const readBuildReportCache = (
   filePath: string,
 ): SiteDebugAiBuildReport | null => {
@@ -461,6 +531,20 @@ const writeBuildReportCache = ({
   fs.writeFileSync(cacheFilePath, JSON.stringify(report, null, 2));
 };
 
+const writeBuildReportSource = ({
+  filePath,
+  report,
+}: {
+  filePath: string;
+  report: SiteDebugAiBuildReport;
+}) => {
+  if (!fs.existsSync(dirname(filePath))) {
+    fs.mkdirSync(dirname(filePath), { recursive: true });
+  }
+
+  fs.writeFileSync(filePath, JSON.stringify(report, null, 2));
+};
+
 const writeBuildReportAsset = ({
   assetsDir,
   outDir,
@@ -488,12 +572,7 @@ const writeBuildReportAsset = ({
     )
     .digest('hex')
     .slice(0, 8);
-  const artifactDir =
-    report.target.artifactKind === 'bundle-chunk'
-      ? 'chunks'
-      : report.target.artifactKind === 'bundle-module'
-        ? 'modules'
-        : 'pages';
+  const artifactDir = getBuildReportArtifactDir(report.target.artifactKind);
   const relativeReportPath = join(
     SITE_DEBUG_AI_BUILD_REPORTS_DIR,
     artifactDir,
@@ -555,6 +634,28 @@ const resolveModuleSourceBytes = ({
 
   cache.set(cacheKey, sourceBytes);
   return sourceBytes;
+};
+
+const resolveOutputAssetBytes = ({
+  assetsDir,
+  outDir,
+  publicPath,
+}: {
+  assetsDir: string;
+  outDir: string;
+  publicPath: string;
+}) => {
+  const assetPath = resolveOutputAssetPath({
+    assetsDir,
+    outDir,
+    publicPath,
+  });
+
+  if (!fs.existsSync(assetPath)) {
+    return null;
+  }
+
+  return fs.statSync(assetPath).size;
 };
 
 const createBuildMetricAiContext = ({
@@ -789,8 +890,8 @@ const createPageModuleItems = ({
     0,
   );
 
-  return [...modules]
-    .sort((left, right) => right.bytes - left.bytes)
+  return modules
+    .toSorted((left, right) => right.bytes - left.bytes)
     .slice(0, PAGE_GROUPED_MODULE_LIMIT)
     .map((moduleMetric) => {
       const displayPath = getModuleDisplayPath(moduleMetric);
@@ -837,8 +938,77 @@ const createPageAnalysisTarget = ({
   pageMetafile: PageMetafile;
 }): SiteDebugAiAnalysisTarget => {
   const components = pageMetafile.buildMetrics?.components ?? [];
-  const aggregatedFiles = aggregatePageFiles(components);
+  const supportedComponentCount = getPageSupportedComponentCount(pageMetafile);
   const aggregatedModules = aggregatePageModules(components);
+  const aggregatedFiles =
+    components.length > 0
+      ? aggregatePageFiles(components)
+      : (() => {
+          const fileMetricByPath = new Map<string, BuildMetricFile>();
+          const pushFileMetric = (
+            publicPath: string | null | undefined,
+            type: BuildMetricFile['type'],
+            explicitBytes?: number | null,
+          ) => {
+            if (!publicPath) {
+              return;
+            }
+
+            const resolvedBytes =
+              explicitBytes ??
+              resolveOutputAssetBytes({
+                assetsDir,
+                outDir,
+                publicPath,
+              });
+
+            if (
+              typeof resolvedBytes !== 'number' ||
+              !Number.isFinite(resolvedBytes) ||
+              resolvedBytes <= 0
+            ) {
+              return;
+            }
+
+            const existingMetric = fileMetricByPath.get(publicPath);
+
+            if (existingMetric) {
+              existingMetric.bytes = Math.max(
+                existingMetric.bytes,
+                resolvedBytes,
+              );
+              return;
+            }
+
+            fileMetricByPath.set(publicPath, {
+              bytes: resolvedBytes,
+              file: publicPath,
+              type,
+            });
+          };
+
+          for (const loaderFile of pageMetafile.buildMetrics?.loader?.files ??
+            []) {
+            pushFileMetric(loaderFile.file, loaderFile.type, loaderFile.bytes);
+          }
+
+          pushFileMetric(
+            pageMetafile.loaderScript,
+            'js',
+            pageMetafile.buildMetrics?.loader?.totalBytes,
+          );
+          pushFileMetric(pageMetafile.ssrInjectScript, 'js');
+
+          for (const modulePreload of pageMetafile.modulePreloads) {
+            pushFileMetric(modulePreload, 'js');
+          }
+
+          for (const cssBundlePath of pageMetafile.cssBundlePaths) {
+            pushFileMetric(cssBundlePath, 'css');
+          }
+
+          return [...fileMetricByPath.values()];
+        })();
   const estimatedAssetBytes = aggregatedFiles
     .filter((fileMetric) => fileMetric.type === 'asset')
     .reduce((sum, fileMetric) => sum + fileMetric.bytes, 0);
@@ -864,7 +1034,7 @@ const createPageAnalysisTarget = ({
         },
         {
           label: 'Components',
-          value: String(components.length),
+          value: String(supportedComponentCount),
         },
         {
           label: 'Chunk Resources',
@@ -874,6 +1044,26 @@ const createPageAnalysisTarget = ({
           label: 'Module Sources',
           value: String(aggregatedModules.length),
         },
+        ...(components.length === 0
+          ? [
+              {
+                label: 'Module Preloads',
+                value: String(pageMetafile.modulePreloads.length),
+              },
+              {
+                label: 'CSS Bundles',
+                value: String(pageMetafile.cssBundlePaths.length),
+              },
+              {
+                label: 'Embedded HTML',
+                value:
+                  formatSiteDebugAiBytes(
+                    pageMetafile.buildMetrics?.spaSyncEffects
+                      ?.totalEmbeddedHtmlBytes,
+                  ) || '0 B',
+              },
+            ]
+          : []),
       ],
       bundleSummaryItems: createSiteDebugAiBundleSummaryItems({
         estimatedAssetBytes,
@@ -889,6 +1079,38 @@ const createPageAnalysisTarget = ({
       ...(components.length === 1
         ? {
             componentName: components[0].componentName,
+          }
+        : {}),
+      ...(components.length === 0
+        ? {
+            liveContextItems: [
+              {
+                label: 'Enabled Renders',
+                value: String(
+                  pageMetafile.buildMetrics?.spaSyncEffects
+                    ?.enabledRenderCount ?? 0,
+                ),
+              },
+              {
+                label: 'Blocking CSS',
+                value: `${
+                  pageMetafile.buildMetrics?.spaSyncEffects
+                    ?.totalBlockingCssCount ?? 0
+                } file(s) · ${
+                  formatSiteDebugAiBytes(
+                    pageMetafile.buildMetrics?.spaSyncEffects
+                      ?.totalBlockingCssBytes,
+                  ) || '0 B'
+                }`,
+              },
+              {
+                label: 'CSS Loading Runtime',
+                value: pageMetafile.buildMetrics?.spaSyncEffects
+                  ?.usesCssLoadingRuntime
+                  ? 'Required'
+                  : 'Not required',
+              },
+            ],
           }
         : {}),
       moduleItems: createPageModuleItems({
@@ -937,14 +1159,19 @@ export const generateSiteDebugAiBuildReports = async ({
     dependencies?.resolveCapabilities || resolveSiteDebugAiCapabilities;
   const analyzeTargetImpl =
     dependencies?.analyzeTarget || analyzeSiteDebugAiTarget;
-  const { executions, skippedReason } = await resolveBuildReportExecutions({
-    aiConfig,
-    resolveCapabilitiesImpl,
-  });
+  const { executions, skippedReason: executionPlanSkippedReason } =
+    createBuildReportExecutions(aiConfig);
+  const sourceConfig: BuildReportSourceConfig | null =
+    buildReportsConfig.sourceDir
+      ? {
+          mode: buildReportsConfig.sourceMode ?? 'read-only',
+          sourceDir: buildReportsConfig.sourceDir,
+        }
+      : null;
 
   if (executions.length === 0) {
-    if (skippedReason) {
-      Logger.warn(skippedReason);
+    if (executionPlanSkippedReason) {
+      Logger.warn(executionPlanSkippedReason);
     }
 
     return {
@@ -952,21 +1179,50 @@ export const generateSiteDebugAiBuildReports = async ({
       generatedReportCount: 0,
       providers: [],
       reusedReportCount: 0,
-      skippedReason,
+      skippedReason: executionPlanSkippedReason,
     };
   }
 
   // Omitted `cache` means "reuse reports", equivalent to `cache: true`.
   const useCache = buildReportsConfig.cache !== false;
+  const canGenerateReports =
+    !sourceConfig || sourceConfig.mode === 'read-write';
+  const canUseLocalCache = useCache && (!sourceConfig || canGenerateReports);
   const groupBy = normalizeBuildReportGroupBy(buildReportsConfig.groupBy);
   const includeChunks = buildReportsConfig.includeChunks !== false;
   const includeModules = buildReportsConfig.includeModules !== false;
+  let executionAvailability: Awaited<
+    ReturnType<typeof resolveAvailableBuildReportExecutions>
+  > | null = null;
+  const skippedReasons = new Set<string>();
+  const missingSourceDetails = new Set<string>();
   const generatedReportReferences = new Map<
     string,
     SiteDebugAiBuildReportReference
   >();
   let generatedReportCount = 0;
   let reusedReportCount = 0;
+
+  if (executionPlanSkippedReason) {
+    skippedReasons.add(executionPlanSkippedReason);
+  }
+
+  const ensureExecutionAvailability = async () => {
+    if (executionAvailability) {
+      return executionAvailability;
+    }
+
+    executionAvailability = await resolveAvailableBuildReportExecutions({
+      executions,
+      resolveCapabilitiesImpl,
+    });
+
+    if (executionAvailability.skippedReason) {
+      skippedReasons.add(executionAvailability.skippedReason);
+    }
+
+    return executionAvailability;
+  };
 
   const getOrCreateReportReference = async ({
     artifactKey,
@@ -992,11 +1248,62 @@ export const generateSiteDebugAiBuildReports = async ({
         execution.provider,
       ),
     });
-    const cachedReport = useCache
+    const sourceFilePath = sourceConfig
+      ? getBuildReportSourceFilePath({
+          prompt,
+          provider: execution.provider,
+          reportId: execution.reportId,
+          sourceDir: sourceConfig.sourceDir,
+          target,
+        })
+      : null;
+    const sourceReport = sourceFilePath
+      ? readBuildReportCache(sourceFilePath)
+      : null;
+
+    if (sourceReport) {
+      if (useCache) {
+        writeBuildReportCache({
+          cacheDir,
+          cacheKey,
+          report: sourceReport,
+        });
+      }
+
+      const reportFile = writeBuildReportAsset({
+        assetsDir,
+        outDir,
+        provider: execution.provider,
+        report: sourceReport,
+        wrapBaseUrl,
+      });
+      const reportReference = {
+        detail: sourceReport.detail,
+        generatedAt: sourceReport.generatedAt,
+        model: sourceReport.model,
+        provider: execution.provider,
+        reportFile,
+        reportId: sourceReport.reportId,
+        reportLabel: sourceReport.reportLabel,
+      };
+
+      generatedReportReferences.set(artifactKey, reportReference);
+      reusedReportCount += 1;
+      return reportReference;
+    }
+
+    const cachedReport = canUseLocalCache
       ? readBuildReportCache(getBuildReportCacheFilePath(cacheDir, cacheKey))
       : null;
 
     if (cachedReport) {
+      if (sourceFilePath && sourceConfig?.mode === 'read-write') {
+        writeBuildReportSource({
+          filePath: sourceFilePath,
+          report: cachedReport,
+        });
+      }
+
       const reportFile = writeBuildReportAsset({
         assetsDir,
         outDir,
@@ -1017,6 +1324,21 @@ export const generateSiteDebugAiBuildReports = async ({
       generatedReportReferences.set(artifactKey, reportReference);
       reusedReportCount += 1;
       return reportReference;
+    }
+
+    if (!canGenerateReports) {
+      if (sourceFilePath) {
+        missingSourceDetails.add(
+          `Missing committed build report for ${target.displayPath} (${execution.reportLabel}) at ${sourceFilePath}.`,
+        );
+      }
+      return null;
+    }
+
+    const { availableExecutionIds } = await ensureExecutionAvailability();
+
+    if (!availableExecutionIds.has(execution.reportId)) {
+      return null;
     }
 
     const generatedAt = new Date().toISOString();
@@ -1041,6 +1363,12 @@ export const generateSiteDebugAiBuildReports = async ({
       cacheKey,
       report,
     });
+    if (sourceFilePath) {
+      writeBuildReportSource({
+        filePath: sourceFilePath,
+        report,
+      });
+    }
     const reportFile = writeBuildReportAsset({
       assetsDir,
       outDir,
@@ -1067,7 +1395,7 @@ export const generateSiteDebugAiBuildReports = async ({
     const componentBuildMetrics = pageMetafile.buildMetrics?.components ?? [];
 
     const pageGroupedReportReferences =
-      groupBy === 'page' && componentBuildMetrics.length > 0
+      groupBy === 'page' && hasPageBuildAnalysisSignals(pageMetafile)
         ? await Promise.all(
             executions.map(async (execution) => {
               try {
@@ -1102,11 +1430,23 @@ export const generateSiteDebugAiBuildReports = async ({
               ): entry is readonly [
                 BuildReportExecution,
                 SiteDebugAiBuildReportReference,
-              ] => Boolean(entry),
+              ] => Boolean(entry?.[1]),
             ),
           )
         : [];
     const pageGroupedReportReferenceMap = new Map(pageGroupedReportReferences);
+
+    if (pageMetafile.buildMetrics) {
+      if (pageGroupedReportReferences.length > 0) {
+        pageMetafile.buildMetrics.aiReports = pageGroupedReportReferences
+          .map(([, reportReference]) => reportReference)
+          .toSorted((left, right) =>
+            left.reportFile.localeCompare(right.reportFile),
+          );
+      } else if (pageMetafile.buildMetrics.aiReports) {
+        delete pageMetafile.buildMetrics.aiReports;
+      }
+    }
 
     for (const buildMetric of componentBuildMetrics) {
       const chunkReports: Record<string, SiteDebugAiBuildReportReference[]> =
@@ -1167,6 +1507,9 @@ export const generateSiteDebugAiBuildReports = async ({
                 execution,
                 target: chunkTarget,
               });
+              if (!reportReference) {
+                continue;
+              }
               chunkReports[fileMetric.file] = [
                 ...(chunkReports[fileMetric.file] ?? []),
                 reportReference,
@@ -1240,6 +1583,9 @@ export const generateSiteDebugAiBuildReports = async ({
                 execution,
                 target: moduleTarget,
               });
+              if (!reportReference) {
+                continue;
+              }
               moduleReports[moduleKey] = [
                 ...(moduleReports[moduleKey] ?? []),
                 reportReference,
@@ -1271,11 +1617,20 @@ export const generateSiteDebugAiBuildReports = async ({
     );
   }
 
+  for (const missingDetail of missingSourceDetails) {
+    Logger.warn(missingDetail);
+    skippedReasons.add(missingDetail);
+  }
+
   return {
     executionCount: executions.length,
     generatedReportCount,
     providers: [...new Set(executions.map((execution) => execution.provider))],
     reusedReportCount,
-    ...(skippedReason ? { skippedReason } : {}),
+    ...(skippedReasons.size > 0
+      ? {
+          skippedReason: [...skippedReasons].join(' '),
+        }
+      : {}),
   };
 };

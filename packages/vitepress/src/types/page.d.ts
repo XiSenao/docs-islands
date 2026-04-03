@@ -89,6 +89,7 @@ export interface SpaSyncPageBuildEffects {
 }
 
 export interface PageBuildMetrics {
+  aiReports?: SiteDebugAiBuildReportReference[];
   components: ComponentBuildMetric[];
   framework: string;
   loader: RuntimeBundleMetric | null;
