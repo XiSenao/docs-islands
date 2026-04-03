@@ -12,6 +12,8 @@ permissions:
 env:
   NODE_VERSION: "20.19.0"
   FORCE_COLOR: 1
+  SITE_DEBUG_AI_CACHE_KEY_PREFIX: site-debug-ai-build-reports-v1
+  SITE_DEBUG_AI_CACHE_PATH: packages/vitepress/docs/.vitepress/cache/site-debug-ai/build-reports
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -56,6 +58,16 @@ jobs:
         uses: ./.github/actions/setup-env
         with:
           node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore Site Debug AI Cache
+        # actions/cache@v5.0.0
+        uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0
+        with:
+          enableCrossOsArchive: true
+          key: ${{ env.SITE_DEBUG_AI_CACHE_KEY_PREFIX }}-${{ hashFiles('pnpm-lock.yaml', 'packages/vitepress/docs/**/*', 'packages/vitepress/src/**/*', 'packages/vitepress/theme/**/*', 'packages/vitepress/types/**/*', 'packages/vitepress/package.json', 'utils/env.ts') }}
+          path: ${{ env.SITE_DEBUG_AI_CACHE_PATH }}
+          restore-keys: |
+            ${{ env.SITE_DEBUG_AI_CACHE_KEY_PREFIX }}-
 
       # Run lightweight analysis
       - name: Bundle Size Analysis

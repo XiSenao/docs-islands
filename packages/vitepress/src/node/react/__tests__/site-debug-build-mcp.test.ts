@@ -1,0 +1,559 @@
+/**
+ * @vitest-environment node
+ */
+import type { PageMetafile } from '#dep-types/page';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+import {
+  createSiteDebugBuildMcpServer,
+  type SiteDebugBuildPageSummary,
+} from '../../react-mcp';
+import { createPageMetafileArtifacts } from '../page-metafile-manifest';
+import {
+  type SiteDebugBuildArtifactSnapshot,
+  SiteDebugBuildDataStore,
+} from '../site-debug-build-data';
+
+const tempDirectories: string[] = [];
+
+const createTempDirectory = (prefix = 'site-debug-build-mcp-') => {
+  const directoryPath = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  tempDirectories.push(directoryPath);
+  return directoryPath;
+};
+
+const writeTextFile = (filePath: string, content: string) => {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, content);
+};
+
+const writeJsonFile = (filePath: string, value: unknown) => {
+  writeTextFile(filePath, JSON.stringify(value, null, 2));
+};
+
+const createFixtureBuild = () => {
+  const outDir = createTempDirectory();
+  const assetsDir = 'assets';
+  const sourceAssetFile = '/docs/assets/sources/DemoCard.tsx';
+  const chunkFile = '/docs/assets/chunks/demo-card.js';
+  const moduleId = '/src/components/DemoCard.tsx';
+  const chunkReportFile =
+    '/docs/assets/page-metafiles/ai/chunks/demo-card.report.json';
+  const moduleReportFile =
+    '/docs/assets/page-metafiles/ai/modules/demo-card-module.report.json';
+  const reportId = 'doubao-demo';
+  const pageMetafiles: Record<string, PageMetafile> = {
+    '/guide/getting-started': {
+      buildMetrics: {
+        components: [
+          {
+            aiReports: {
+              chunkReports: {
+                [chunkFile]: [
+                  {
+                    generatedAt: '2026-04-03T00:00:00.000Z',
+                    model: 'doubao-test-model',
+                    provider: 'doubao',
+                    reportFile: chunkReportFile,
+                    reportId,
+                    reportLabel: 'Doubao · doubao-test-model',
+                  },
+                ],
+              },
+              moduleReports: {
+                [`${chunkFile}::${moduleId}`]: [
+                  {
+                    generatedAt: '2026-04-03T00:00:00.000Z',
+                    model: 'doubao-test-model',
+                    provider: 'doubao',
+                    reportFile: moduleReportFile,
+                    reportId,
+                    reportLabel: 'Doubao · doubao-test-model',
+                  },
+                ],
+              },
+            },
+            componentName: 'DemoCard',
+            entryFile: chunkFile,
+            estimatedAssetBytes: 320,
+            estimatedCssBytes: 120,
+            estimatedJsBytes: 1560,
+            estimatedTotalBytes: 2000,
+            files: [
+              {
+                bytes: 1560,
+                file: chunkFile,
+                type: 'js',
+              },
+              {
+                bytes: 120,
+                file: '/docs/assets/chunks/demo-card.css',
+                type: 'css',
+              },
+              {
+                bytes: 320,
+                file: '/docs/assets/images/demo-card.svg',
+                type: 'asset',
+              },
+            ],
+            framework: 'react',
+            modules: [
+              {
+                bytes: 920,
+                file: chunkFile,
+                id: moduleId,
+                sourceAssetFile,
+              },
+              {
+                bytes: 320,
+                file: chunkFile,
+                id: '\0vite/modulepreload-polyfill',
+              },
+            ],
+            renderDirectives: [],
+            sourcePath: '/repo/src/components/DemoCard.tsx',
+          },
+        ],
+        framework: 'react',
+        loader: null,
+        spaSyncEffects: null,
+        ssrInject: null,
+        totalEstimatedComponentBytes: 2000,
+      },
+      cssBundlePaths: ['/docs/assets/chunks/site.css'],
+      loaderScript: '/docs/assets/loader.js',
+      modulePreloads: ['/docs/assets/preload.js'],
+      ssrInjectScript: '/docs/assets/ssr-inject.js',
+    },
+  };
+
+  const artifacts = createPageMetafileArtifacts({
+    assetsDir,
+    pageMetafiles,
+    wrapBaseUrl: (value) => `/docs${value}`,
+  });
+
+  for (const pageAsset of artifacts.pages) {
+    writeTextFile(
+      path.join(outDir, assetsDir, pageAsset.filePath),
+      pageAsset.content,
+    );
+  }
+  writeTextFile(
+    path.join(outDir, assetsDir, artifacts.manifest.filePath),
+    artifacts.manifest.content,
+  );
+
+  writeTextFile(
+    path.join(outDir, 'assets/chunks/demo-card.js'),
+    'export const DemoCard = () => "demo";',
+  );
+  writeTextFile(
+    path.join(outDir, 'assets/sources/DemoCard.tsx'),
+    'export function DemoCard() { return <div>demo</div>; }',
+  );
+  writeTextFile(
+    path.join(outDir, 'assets/chunks/demo-card.css'),
+    '.demo-card { color: red; }',
+  );
+  writeTextFile(path.join(outDir, 'assets/images/demo-card.svg'), '<svg />');
+
+  writeJsonFile(
+    path.join(outDir, 'assets/page-metafiles/ai/chunks/demo-card.report.json'),
+    {
+      generatedAt: '2026-04-03T00:00:00.000Z',
+      prompt: 'chunk prompt',
+      provider: 'doubao',
+      reportId,
+      reportLabel: 'Doubao · doubao-test-model',
+      result: 'chunk analysis',
+      target: {
+        artifactKind: 'bundle-chunk',
+        artifactLabel: 'demo-card.js',
+        content: 'export const DemoCard = () => "demo";',
+        displayPath: chunkFile,
+        language: 'js',
+      },
+    },
+  );
+  writeJsonFile(
+    path.join(
+      outDir,
+      'assets/page-metafiles/ai/modules/demo-card-module.report.json',
+    ),
+    {
+      generatedAt: '2026-04-03T00:00:00.000Z',
+      prompt: 'module prompt',
+      provider: 'doubao',
+      reportId,
+      reportLabel: 'Doubao · doubao-test-model',
+      result: 'module analysis',
+      target: {
+        artifactKind: 'bundle-module',
+        artifactLabel: 'DemoCard.tsx',
+        content: 'export function DemoCard() { return <div>demo</div>; }',
+        displayPath: moduleId,
+        language: 'tsx',
+      },
+    },
+  );
+
+  return {
+    outDir,
+    reportId,
+    chunkArtifactKey: chunkFile,
+    moduleArtifactKey: `${chunkFile}::${moduleId}`,
+  };
+};
+
+afterEach(() => {
+  for (const directoryPath of tempDirectories.splice(0)) {
+    fs.rmSync(directoryPath, {
+      force: true,
+      recursive: true,
+    });
+  }
+});
+
+describe('SiteDebugBuildDataStore', () => {
+  it('reads build overview, pages, components, artifacts, and build reports from built outputs', () => {
+    const fixture = createFixtureBuild();
+    const dataStore = new SiteDebugBuildDataStore({
+      outDir: fixture.outDir,
+    });
+
+    expect(dataStore.getBuildOverview()).toMatchObject({
+      assetsDir: 'assets',
+      buildId: expect.any(String),
+      componentCount: 1,
+      hasAiReports: true,
+      pageCount: 1,
+      schemaVersion: 1,
+      totalBundleBytes: 2000,
+    });
+
+    expect(dataStore.listPages()).toEqual([
+      expect.objectContaining<Partial<SiteDebugBuildPageSummary>>({
+        componentCount: 1,
+        hasAiReports: true,
+        pageId: '/guide/getting-started',
+        totalBundleBytes: 2000,
+      }),
+    ]);
+
+    expect(
+      dataStore.getComponent('/guide/getting-started', 'DemoCard'),
+    ).toMatchObject({
+      component: expect.objectContaining({
+        componentName: 'DemoCard',
+        estimatedTotalBytes: 2000,
+      }),
+      componentName: 'DemoCard',
+      pageId: '/guide/getting-started',
+    });
+
+    expect(
+      dataStore.getArtifact({
+        artifactKind: 'bundle-chunk',
+        displayPath: fixture.chunkArtifactKey,
+      }),
+    ).toMatchObject<Partial<SiteDebugBuildArtifactSnapshot>>({
+      artifactKey: fixture.chunkArtifactKey,
+      artifactKind: 'bundle-chunk',
+      componentName: 'DemoCard',
+      displayPath: fixture.chunkArtifactKey,
+      pageId: '/guide/getting-started',
+    });
+    expect(
+      dataStore.getArtifact({
+        artifactKind: 'bundle-module',
+        file: '/docs/assets/chunks/demo-card.js',
+        moduleId: '/src/components/DemoCard.tsx',
+      }),
+    ).toMatchObject({
+      artifactKey: fixture.moduleArtifactKey,
+      artifactKind: 'bundle-module',
+      componentName: 'DemoCard',
+      pageId: '/guide/getting-started',
+    });
+    expect(
+      dataStore.getArtifact({
+        artifactKind: 'bundle-module',
+        file: '/docs/assets/chunks/demo-card.js',
+        moduleId: '/src/components/DemoCard.tsx',
+      }).context.moduleItems?.[0],
+    ).toMatchObject({
+      current: true,
+      id: '/src/components/DemoCard.tsx',
+      sourceInfo: 'Source 54 B',
+    });
+
+    expect(
+      dataStore.getBuildReport({
+        artifactKey: fixture.chunkArtifactKey,
+      }),
+    ).toMatchObject({
+      artifactKey: fixture.chunkArtifactKey,
+      artifactKind: 'bundle-chunk',
+      componentName: 'DemoCard',
+      pageId: '/guide/getting-started',
+      report: expect.objectContaining({
+        prompt: 'chunk prompt',
+        result: 'chunk analysis',
+      }),
+    });
+  });
+
+  it('throws a clear error when the page metafile manifest is missing', () => {
+    const outDir = createTempDirectory();
+    const dataStore = new SiteDebugBuildDataStore({
+      outDir,
+    });
+
+    expect(() => dataStore.getBuildOverview()).toThrow(
+      /No page metafile directory found/,
+    );
+  });
+});
+
+describe('createSiteDebugBuildMcpServer', () => {
+  it('supports initialize, tool discovery, tool calls, resources, and predictable errors', async () => {
+    const fixture = createFixtureBuild();
+    const server = createSiteDebugBuildMcpServer({
+      outDir: fixture.outDir,
+    });
+
+    expect(
+      await server.handleMessage({
+        id: 1,
+        jsonrpc: '2.0',
+        method: 'initialize',
+      }),
+    ).toMatchObject({
+      id: 1,
+      jsonrpc: '2.0',
+      result: expect.objectContaining({
+        protocolVersion: '2024-11-05',
+      }),
+    });
+
+    const toolsListResponse = await server.handleMessage({
+      id: 2,
+      jsonrpc: '2.0',
+      method: 'tools/list',
+    });
+
+    expect(toolsListResponse).toMatchObject({
+      id: 2,
+      result: {
+        tools: expect.arrayContaining([
+          expect.objectContaining({
+            name: 'get_build_overview',
+          }),
+          expect.objectContaining({
+            name: 'get_artifact',
+          }),
+          expect.objectContaining({
+            name: 'get_build_report',
+          }),
+        ]),
+      },
+    });
+
+    const overviewResponse = await server.handleMessage({
+      id: 3,
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: {
+        arguments: {},
+        name: 'get_build_overview',
+      },
+    });
+    expect(overviewResponse).toMatchObject({
+      id: 3,
+      result: expect.objectContaining({
+        structuredContent: expect.objectContaining({
+          componentCount: 1,
+          pageCount: 1,
+        }),
+      }),
+    });
+
+    const listPagesResponse = (await server.handleMessage({
+      id: 4,
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: {
+        arguments: {},
+        name: 'list_pages',
+      },
+    })) as {
+      result: {
+        structuredContent: SiteDebugBuildPageSummary[];
+      };
+    };
+    expect(listPagesResponse.result.structuredContent[0]?.pageId).toBe(
+      '/guide/getting-started',
+    );
+
+    const pageResponse = await server.handleMessage({
+      id: 5,
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: {
+        arguments: {
+          pageId: '/guide/getting-started',
+        },
+        name: 'get_page',
+      },
+    });
+    expect(pageResponse).toMatchObject({
+      id: 5,
+      result: expect.objectContaining({
+        structuredContent: expect.objectContaining({
+          summary: expect.objectContaining({
+            pageId: '/guide/getting-started',
+          }),
+        }),
+      }),
+    });
+
+    const componentResponse = await server.handleMessage({
+      id: 6,
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: {
+        arguments: {
+          componentName: 'DemoCard',
+          pageId: '/guide/getting-started',
+        },
+        name: 'get_component',
+      },
+    });
+    expect(componentResponse).toMatchObject({
+      id: 6,
+      result: expect.objectContaining({
+        structuredContent: expect.objectContaining({
+          componentName: 'DemoCard',
+        }),
+      }),
+    });
+
+    const artifactResponse = await server.handleMessage({
+      id: 7,
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: {
+        arguments: {
+          artifactKind: 'bundle-module',
+          file: '/docs/assets/chunks/demo-card.js',
+          moduleId: '/src/components/DemoCard.tsx',
+        },
+        name: 'get_artifact',
+      },
+    });
+    expect(artifactResponse).toMatchObject({
+      id: 7,
+      result: expect.objectContaining({
+        structuredContent: expect.objectContaining({
+          artifactKey: fixture.moduleArtifactKey,
+          artifactKind: 'bundle-module',
+        }),
+      }),
+    });
+
+    const ambiguousReportResponse = await server.handleMessage({
+      id: 8,
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: {
+        arguments: {
+          reportId: fixture.reportId,
+        },
+        name: 'get_build_report',
+      },
+    });
+    expect(ambiguousReportResponse).toMatchObject({
+      id: 8,
+      result: expect.objectContaining({
+        isError: true,
+      }),
+    });
+
+    const buildReportResponse = await server.handleMessage({
+      id: 9,
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: {
+        arguments: {
+          artifactKey: fixture.chunkArtifactKey,
+        },
+        name: 'get_build_report',
+      },
+    });
+    expect(buildReportResponse).toMatchObject({
+      id: 9,
+      result: expect.objectContaining({
+        structuredContent: expect.objectContaining({
+          artifactKey: fixture.chunkArtifactKey,
+          report: expect.objectContaining({
+            prompt: 'chunk prompt',
+          }),
+        }),
+      }),
+    });
+
+    const resourcesListResponse = await server.handleMessage({
+      id: 10,
+      jsonrpc: '2.0',
+      method: 'resources/list',
+    });
+    expect(resourcesListResponse).toMatchObject({
+      id: 10,
+      result: {
+        resources: expect.arrayContaining([
+          expect.objectContaining({
+            name: 'site-debug-build-data-overview',
+          }),
+        ]),
+      },
+    });
+
+    const resourceReadResponse = await server.handleMessage({
+      id: 11,
+      jsonrpc: '2.0',
+      method: 'resources/read',
+      params: {
+        uri: 'file://docs-islands/site-debug-build-tool-guide.md',
+      },
+    });
+    expect(resourceReadResponse).toMatchObject({
+      id: 11,
+      result: {
+        contents: [
+          expect.objectContaining({
+            text: expect.stringContaining('Recommended exploration flow'),
+          }),
+        ],
+      },
+    });
+
+    const invalidToolResponse = await server.handleMessage({
+      id: 12,
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: {
+        arguments: {},
+        name: 'get_page',
+      },
+    });
+    expect(invalidToolResponse).toMatchObject({
+      id: 12,
+      result: expect.objectContaining({
+        isError: true,
+      }),
+    });
+  });
+});

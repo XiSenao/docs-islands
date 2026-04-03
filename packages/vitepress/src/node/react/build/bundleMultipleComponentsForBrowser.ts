@@ -81,6 +81,27 @@ const sortBundleAssetMetrics = (
     left.file.localeCompare(right.file),
   );
 
+const aggregateUniqueBundleAssetMetrics = (
+  componentBuildMetrics: Iterable<ComponentBuildMetric>,
+): BundleAssetMetric[] => {
+  const metricsByFile = new Map<string, BundleAssetMetric>();
+
+  for (const componentBuildMetric of componentBuildMetrics) {
+    for (const fileMetric of componentBuildMetric.files) {
+      const existingMetric = metricsByFile.get(fileMetric.file);
+
+      if (existingMetric) {
+        existingMetric.bytes = Math.max(existingMetric.bytes, fileMetric.bytes);
+        continue;
+      }
+
+      metricsByFile.set(fileMetric.file, { ...fileMetric });
+    }
+  }
+
+  return sortBundleAssetMetrics(metricsByFile.values());
+};
+
 const sortBundleModuleMetrics = (
   metrics: Iterable<BundleModuleMetric>,
 ): BundleModuleMetric[] =>
@@ -1430,6 +1451,10 @@ export async function bundleMultipleComponentsForBrowser(
 
     Logger.success(`Bundle multiple components for browser completed`);
 
+    const aggregatedPageFiles = aggregateUniqueBundleAssetMetrics(
+      componentBuildMetrics,
+    );
+
     return {
       buildMetrics: {
         components: componentBuildMetrics,
@@ -1437,8 +1462,8 @@ export async function bundleMultipleComponentsForBrowser(
         loader: loaderBuildResult.metric,
         spaSyncEffects,
         ssrInject: ssrInjectMetric,
-        totalEstimatedComponentBytes: componentBuildMetrics.reduce(
-          (sum, metric) => sum + metric.estimatedTotalBytes,
+        totalEstimatedComponentBytes: aggregatedPageFiles.reduce(
+          (sum, metric) => sum + metric.bytes,
           0,
         ),
       },

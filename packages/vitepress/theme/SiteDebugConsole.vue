@@ -34,6 +34,16 @@ import {
 } from 'vue';
 import VueJsonPretty from 'vue-json-pretty';
 import 'vue-json-pretty/lib/styles.css';
+import type { SiteDebugAiAnalysisTarget } from '../src/shared/site-debug-ai';
+import {
+  createSiteDebugAiBundleSummaryItems,
+  createSiteDebugAiChunkResourceItems,
+  createSiteDebugAiResolvedSourceState,
+  formatSiteDebugAiBytes,
+  formatSiteDebugAiPercent,
+  getSiteDebugAiEndpoint,
+  getSiteDebugAiModuleReportKey,
+} from '../src/shared/site-debug-ai';
 import {
   createMetafileLookup,
   getBuildMetricForRender as getIndexedBuildMetricForRender,
@@ -42,6 +52,7 @@ import {
   resolvePageMetafileState,
   type ComponentBuildMetric,
   type PageMetafile,
+  type SiteDebugAiBuildReportReference,
   type SpaSyncComponentEffect,
 } from './debug-inspector';
 import {
@@ -63,6 +74,7 @@ import {
   getCurrentPageId as getRuntimePageId,
   getRenderContainerElement as getRuntimeRenderContainerElement,
   getRenderContainerLabel as getRuntimeRenderContainerLabel,
+  getSiteBasePath,
   getThemeSnapshot,
 } from './site-debug-runtime';
 import {
@@ -137,6 +149,7 @@ import {
   ensureSiteDebugWebVitalsTracking,
   SITE_DEBUG_WEB_VITALS_EVENT_NAME,
 } from './site-debug-web-vitals';
+import SiteDebugAiAnalysisModal from './SiteDebugAiAnalysisModal.vue';
 import SiteDebugChunkResourceModal from './SiteDebugChunkResourceModal.vue';
 import SiteDebugMetricDetailModal from './SiteDebugMetricDetailModal.vue';
 import SiteDebugSourceViewerModal from './SiteDebugSourceViewerModal.vue';
@@ -148,6 +161,10 @@ const route = useRoute();
 type ModuleSourceSizeCacheEntry = {
   bytes?: number;
   status: 'loading' | 'ready' | 'error';
+};
+
+type PageAiModuleMetric = ComponentBuildMetric['modules'][number] & {
+  isGeneratedVirtualModule?: boolean;
 };
 
 const debugDialogRef = ref<HTMLDialogElement | null>(null);
@@ -185,6 +202,7 @@ const activeOverlayMetricDetail = ref<{
   kind: OverlayMetricDetailKind;
   metricKey: string;
 } | null>(null);
+const currentPageAiReviewOpen = ref(false);
 const activeBundleChunkDetail = ref<BundleChunkDetail | null>(null);
 const activeBundleSourceModule = ref<BundleSourceModuleSelection | null>(null);
 const activeBundleChunkContent = ref('');
@@ -237,6 +255,8 @@ const viewportHeightPx = ref(0);
 const bundleChunkPreviewRenderer = createBackgroundCodePreviewRenderer();
 const bundleSourcePreviewRenderer = createBackgroundCodePreviewRenderer();
 const MAX_CACHED_CODE_PREVIEW_ENTRIES = 10;
+const PAGE_BUILD_AI_MODULE_LIMIT = 18;
+const SITE_DEBUG_PAGE_BUILD_REPORT_PATH_SEGMENT = '/page-metafiles/ai/pages/';
 const cachedCodePreviews = new Map<
   string,
   {
@@ -1002,6 +1022,274 @@ const activeBundleSourceBrowseHref = computed(() => {
 
 const activeBundleSourceTitle = computed(
   () => activeBundleSourcePreviewPath.value.split('/').pop() || '',
+);
+const siteDebugAiEndpoint = computed(() =>
+  getSiteDebugAiEndpoint(getSiteBasePath(getDebugWindow())),
+);
+const currentPageAiComponents = computed(
+  () => currentPageMetafile.value?.buildMetrics?.components ?? [],
+);
+
+const aggregatePageBuildFiles = (
+  components: ComponentBuildMetric[],
+): ComponentBuildMetric['files'] => {
+  const fileMetricByPath = new Map<
+    string,
+    ComponentBuildMetric['files'][number]
+  >();
+
+  for (const component of components) {
+    for (const fileMetric of component.files) {
+      const existingMetric = fileMetricByPath.get(fileMetric.file);
+
+      if (existingMetric) {
+        existingMetric.bytes = Math.max(existingMetric.bytes, fileMetric.bytes);
+        continue;
+      }
+
+      fileMetricByPath.set(fileMetric.file, {
+        ...fileMetric,
+      });
+    }
+  }
+
+  return [...fileMetricByPath.values()];
+};
+
+const aggregatePageBuildModules = (
+  components: ComponentBuildMetric[],
+): PageAiModuleMetric[] => {
+  const moduleMetricByKey = new Map<string, PageAiModuleMetric>();
+
+  for (const component of components) {
+    for (const moduleMetric of component.modules) {
+      const moduleKey = getSiteDebugAiModuleReportKey(
+        moduleMetric.file,
+        moduleMetric.id,
+      );
+      const existingMetric = moduleMetricByKey.get(moduleKey);
+
+      if (existingMetric) {
+        existingMetric.bytes = Math.max(
+          existingMetric.bytes,
+          moduleMetric.bytes,
+        );
+        existingMetric.sourceAssetFile =
+          existingMetric.sourceAssetFile || moduleMetric.sourceAssetFile;
+        existingMetric.sourcePath =
+          existingMetric.sourcePath || moduleMetric.sourcePath;
+        existingMetric.isGeneratedVirtualModule =
+          existingMetric.isGeneratedVirtualModule &&
+          !moduleMetric.sourceAssetFile &&
+          !moduleMetric.sourcePath &&
+          moduleMetric.id.startsWith('\0');
+        continue;
+      }
+
+      moduleMetricByKey.set(moduleKey, {
+        ...moduleMetric,
+        isGeneratedVirtualModule:
+          !moduleMetric.sourceAssetFile &&
+          !moduleMetric.sourcePath &&
+          moduleMetric.id.startsWith('\0'),
+      });
+    }
+  }
+
+  return [...moduleMetricByKey.values()];
+};
+
+const isPageBuildReportReference = (
+  reportReference: SiteDebugAiBuildReportReference,
+) =>
+  reportReference.reportFile.includes(
+    SITE_DEBUG_PAGE_BUILD_REPORT_PATH_SEGMENT,
+  );
+
+const currentPageAiBuildReports = computed<SiteDebugAiBuildReportReference[]>(
+  () => {
+    const reportReferenceByKey = new Map<
+      string,
+      SiteDebugAiBuildReportReference
+    >();
+
+    for (const component of currentPageAiComponents.value) {
+      for (const reports of Object.values(
+        component.aiReports?.chunkReports ?? {},
+      )) {
+        for (const reportReference of reports) {
+          if (!isPageBuildReportReference(reportReference)) {
+            continue;
+          }
+
+          reportReferenceByKey.set(
+            `${reportReference.reportId}::${reportReference.reportFile}`,
+            reportReference,
+          );
+        }
+      }
+
+      for (const reports of Object.values(
+        component.aiReports?.moduleReports ?? {},
+      )) {
+        for (const reportReference of reports) {
+          if (!isPageBuildReportReference(reportReference)) {
+            continue;
+          }
+
+          reportReferenceByKey.set(
+            `${reportReference.reportId}::${reportReference.reportFile}`,
+            reportReference,
+          );
+        }
+      }
+    }
+
+    return [...reportReferenceByKey.values()].sort((left, right) =>
+      left.reportFile.localeCompare(right.reportFile),
+    );
+  },
+);
+
+const currentPageAiAggregatedFiles = computed(() =>
+  aggregatePageBuildFiles(currentPageAiComponents.value),
+);
+
+const currentPageAiAggregatedModules = computed(() =>
+  aggregatePageBuildModules(currentPageAiComponents.value),
+);
+
+const currentPageAiPrioritizedModules = computed(() =>
+  [...currentPageAiAggregatedModules.value]
+    .sort((left, right) => right.bytes - left.bytes)
+    .slice(0, PAGE_BUILD_AI_MODULE_LIMIT),
+);
+
+const createPageAiModuleItems = (modules: PageAiModuleMetric[]) => {
+  const totalRenderedBytes = modules.reduce(
+    (sum, moduleMetric) => sum + moduleMetric.bytes,
+    0,
+  );
+
+  return modules.map((moduleMetric) => {
+    const previewPath = getBundleSourcePreviewPath({
+      file: moduleMetric.file,
+      id: moduleMetric.id,
+      isGeneratedVirtualModule: moduleMetric.isGeneratedVirtualModule,
+      sourcePath: moduleMetric.sourcePath,
+    });
+    const sourceSizeEntry =
+      getBundleModuleSourceSizeCacheEntry(moduleMetric) ?? null;
+    const sourceState =
+      sourceSizeEntry?.status === 'loading'
+        ? {
+            sourceInfo: 'Source loading',
+          }
+        : createSiteDebugAiResolvedSourceState({
+            isGeneratedVirtualModule: moduleMetric.isGeneratedVirtualModule,
+            renderedBytes: moduleMetric.bytes,
+            sourceAvailable: Boolean(
+              moduleMetric.sourceAssetFile || moduleMetric.sourcePath,
+            ),
+            sourceBytes:
+              sourceSizeEntry?.status === 'ready' &&
+              hasFiniteByteSize(sourceSizeEntry.bytes)
+                ? sourceSizeEntry.bytes
+                : undefined,
+          });
+
+    return {
+      file: moduleMetric.file,
+      id: moduleMetric.id,
+      label: previewPath.split('/').pop() || moduleMetric.id,
+      renderedSize: formatSiteDebugAiBytes(moduleMetric.bytes) || '—',
+      share: formatSiteDebugAiPercent(moduleMetric.bytes, totalRenderedBytes),
+      sizeDelta: sourceState.sizeDelta,
+      sourceInfo: sourceState.sourceInfo,
+      statusLabel: sourceState.statusLabel,
+    };
+  });
+};
+
+const currentPageAiAnalysisTarget = computed<SiteDebugAiAnalysisTarget | null>(
+  () => {
+    const components = currentPageAiComponents.value;
+    const pageId = getCurrentPageId();
+    const aggregatedFiles = currentPageAiAggregatedFiles.value;
+    const aggregatedModules = currentPageAiAggregatedModules.value;
+
+    if (!components.length) {
+      return null;
+    }
+
+    const estimatedAssetBytes = aggregatedFiles
+      .filter((fileMetric) => fileMetric.type === 'asset')
+      .reduce((sum, fileMetric) => sum + fileMetric.bytes, 0);
+    const estimatedCssBytes = aggregatedFiles
+      .filter((fileMetric) => fileMetric.type === 'css')
+      .reduce((sum, fileMetric) => sum + fileMetric.bytes, 0);
+    const estimatedJsBytes = aggregatedFiles
+      .filter((fileMetric) => fileMetric.type === 'js')
+      .reduce((sum, fileMetric) => sum + fileMetric.bytes, 0);
+    const estimatedTotalBytes =
+      estimatedAssetBytes + estimatedCssBytes + estimatedJsBytes;
+
+    return {
+      artifactKind: 'page-build',
+      artifactLabel: pageId,
+      bytes: estimatedTotalBytes,
+      content: `Build overview for ${pageId}`,
+      context: {
+        artifactHeaderItems: [
+          {
+            label: 'Path',
+            value: pageId,
+          },
+          {
+            label: 'Components',
+            value: String(components.length),
+          },
+          {
+            label: 'Chunk Resources',
+            value: String(aggregatedFiles.length),
+          },
+          {
+            label: 'Module Sources',
+            value: String(aggregatedModules.length),
+          },
+        ],
+        bundleSummaryItems: createSiteDebugAiBundleSummaryItems({
+          estimatedAssetBytes,
+          estimatedCssBytes,
+          estimatedJsBytes,
+          estimatedTotalBytes,
+        }),
+        chunkResourceItems: createSiteDebugAiChunkResourceItems({
+          files: aggregatedFiles,
+          modules: aggregatedModules,
+          totalEstimatedBytes: estimatedTotalBytes,
+        }),
+        ...(components.length === 1
+          ? {
+              componentName: components[0].componentName,
+            }
+          : {}),
+        moduleItems: createPageAiModuleItems(
+          currentPageAiPrioritizedModules.value,
+        ),
+        pageId,
+        renderId: null,
+      },
+      displayPath: pageId,
+      language: 'text',
+    };
+  },
+);
+
+const canOpenCurrentPageAiReview = computed(
+  () =>
+    Boolean(currentPageAiAnalysisTarget.value) &&
+    currentPageAiBuildReports.value.length > 0,
 );
 
 const activeSpaSyncCssAssets = computed(
@@ -2353,8 +2641,10 @@ const installDebugListeners = () => {
       target?.closest('.site-debug-overlay__badge') ||
       target?.closest('.site-debug-overlay__panel') ||
       target?.closest('.site-debug-detail-modal') ||
+      target?.closest('.site-debug-ai-modal') ||
       target?.closest('.site-debug-chunk-viewer') ||
       target?.closest('.site-debug-source-viewer') ||
+      target?.closest('.site-debug-floating-actions') ||
       target?.closest('.site-debug-toggle') ||
       target?.closest('.site-debug-dialog')
     ) {
@@ -2508,6 +2798,7 @@ const copyGlobalSnapshot = async () => {
 
 const clearDebugRuntimeState = () => {
   debugOpen.value = false;
+  currentPageAiReviewOpen.value = false;
   clearRemoteTextContentCache();
   entries.value = [];
   hmrMetrics.value = [];
@@ -2672,6 +2963,7 @@ const inspectedGlobalText = computed(() => {
 const hasGlobalModalOverlay = computed(() =>
   Boolean(
     activeOverlayMetricDetail.value ||
+      currentPageAiReviewOpen.value ||
       activeBundleChunkDetail.value ||
       activeBundleSourceModule.value,
   ),
@@ -2719,6 +3011,30 @@ watch(
     modules.forEach((moduleMetric) => {
       void ensureBundleModuleSourceByteSize(moduleMetric);
     });
+  },
+  {
+    immediate: true,
+  },
+);
+
+watch(
+  currentPageAiPrioritizedModules,
+  (modules) => {
+    modules.forEach((moduleMetric) => {
+      void ensureBundleModuleSourceByteSize(moduleMetric);
+    });
+  },
+  {
+    immediate: true,
+  },
+);
+
+watch(
+  canOpenCurrentPageAiReview,
+  (value) => {
+    if (!value) {
+      currentPageAiReviewOpen.value = false;
+    }
   },
   {
     immediate: true,
@@ -2778,6 +3094,7 @@ watch(
     syncCurrentPageMetafile(true);
     syncRenderMetrics();
     scheduleRenderMetricOverlaySync();
+    currentPageAiReviewOpen.value = false;
   },
   {
     flush: 'post',
@@ -3137,6 +3454,16 @@ onBeforeUnmount(() => {
     @download="downloadActiveBundleSource"
   />
 
+  <SiteDebugAiAnalysisModal
+    v-if="currentPageAiReviewOpen && currentPageAiAnalysisTarget"
+    :analysis-target="currentPageAiAnalysisTarget"
+    :build-reports="currentPageAiBuildReports"
+    :display-path="currentPageAiAnalysisTarget.displayPath"
+    :endpoint="siteDebugAiEndpoint"
+    title="Page AI Review"
+    @close="currentPageAiReviewOpen = false"
+  />
+
   <transition name="site-debug-mode-entry-toast">
     <div
       v-if="siteDebugModeToastVisible"
@@ -3149,16 +3476,28 @@ onBeforeUnmount(() => {
     </div>
   </transition>
 
-  <button
-    v-if="debugEnabled"
-    class="site-debug-toggle"
-    type="button"
-    title="Open Site Debug Console"
-    aria-label="Open Site Debug Console"
-    @click="openDebugConsole"
-  >
-    <span>Debug Logs</span>
-  </button>
+  <div v-if="debugEnabled" class="site-debug-floating-actions">
+    <button
+      v-if="canOpenCurrentPageAiReview"
+      class="site-debug-toggle site-debug-toggle--ai"
+      type="button"
+      title="Open Page AI Reports"
+      aria-label="Open Page AI Reports"
+      @click="currentPageAiReviewOpen = true"
+    >
+      <span>AI Reports</span>
+    </button>
+
+    <button
+      class="site-debug-toggle"
+      type="button"
+      title="Open Site Debug Console"
+      aria-label="Open Site Debug Console"
+      @click="openDebugConsole"
+    >
+      <span>Debug Logs</span>
+    </button>
+  </div>
 
   <dialog
     ref="debugDialogRef"
@@ -3673,11 +4012,18 @@ onBeforeUnmount(() => {
   gap: 0.55rem;
 }
 
-.site-debug-toggle {
+.site-debug-floating-actions {
   position: fixed;
   right: 1.1rem;
-  bottom: 1.1rem;
+  bottom: max(1.1rem, calc(env(safe-area-inset-bottom, 0px) + 0.65rem));
   z-index: 120;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.7rem;
+}
+
+.site-debug-toggle {
   display: inline-flex;
   align-items: center;
   gap: 0.55rem;
@@ -3691,9 +4037,22 @@ onBeforeUnmount(() => {
   font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.08em;
+  min-height: 2.75rem;
+  max-width: min(18rem, calc(100vw - 2rem));
   padding: 0.72rem 0.92rem;
+  white-space: nowrap;
   text-transform: uppercase;
   backdrop-filter: blur(16px) saturate(1.08);
+}
+
+.site-debug-toggle--ai {
+  border-color: color-mix(
+    in srgb,
+    var(--vp-c-brand-1) 36%,
+    var(--vp-c-divider)
+  );
+  background: color-mix(in srgb, var(--vp-c-brand-1) 13%, var(--vp-c-bg-elv));
+  color: color-mix(in srgb, var(--vp-c-brand-1) 92%, var(--vp-c-text-1));
 }
 
 .site-debug-toggle:hover {
@@ -4319,9 +4678,17 @@ onBeforeUnmount(() => {
     align-items: flex-start;
   }
 
+  .site-debug-floating-actions {
+    right: max(0.75rem, env(safe-area-inset-right, 0px));
+    bottom: max(0.75rem, calc(env(safe-area-inset-bottom, 0px) + 0.45rem));
+    gap: 0.55rem;
+  }
+
   .site-debug-toggle {
-    right: 0.85rem;
-    bottom: 0.85rem;
+    width: min(13.5rem, calc(100vw - 1.5rem));
+    justify-content: center;
+    font-size: 0.76rem;
+    letter-spacing: 0.07em;
     padding: 0.68rem 0.84rem;
   }
 
@@ -4417,6 +4784,18 @@ onBeforeUnmount(() => {
 
   .site-debug-source-viewer__header {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .site-debug-floating-actions {
+    left: max(0.75rem, env(safe-area-inset-left, 0px));
+    right: max(0.75rem, env(safe-area-inset-right, 0px));
+    align-items: stretch;
+  }
+
+  .site-debug-toggle {
+    width: 100%;
   }
 }
 </style>

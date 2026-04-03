@@ -11,7 +11,8 @@ import llmstxt from 'vitepress-plugin-llms';
 import enConfig from '../en/config';
 import zhConfig from '../zh/config';
 
-const { release } = loadEnv();
+const { release, siteDebug } = loadEnv();
+const { doubao_api_key } = siteDebug;
 
 const base = `/${vitepressRenderingStrategiesPackageJson.name.replace('@', '')}/`;
 
@@ -103,6 +104,40 @@ const vitepressConfig: UserConfig<DefaultTheme.Config> = defineConfig({
   },
 });
 
-vitepressReactRenderingStrategies(vitepressConfig);
+vitepressReactRenderingStrategies(vitepressConfig, {
+  siteDebug: {
+    analysis: {
+      providers: {
+        claudeCode: {
+          command: 'claude',
+          timeoutMs: 1_200_000,
+        },
+        doubao: {
+          apiKey: doubao_api_key,
+          baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+          model: 'doubao-seed-2-0-pro-260215',
+          thinking: 'enabled',
+          maxTokens: 4096,
+          temperature: 0.2,
+          timeoutMs: 1_200_000,
+        },
+      },
+      buildReports: {
+        cache: true,
+        groupBy: 'page',
+        includeChunks: true,
+        includeModules: true,
+        runs: [
+          {
+            label: 'Doubao Pro',
+            model: 'doubao-seed-2-0-pro-260215',
+            provider: 'doubao',
+            thinking: 'enabled',
+          },
+        ],
+      },
+    },
+  },
+});
 
 export default vitepressConfig;

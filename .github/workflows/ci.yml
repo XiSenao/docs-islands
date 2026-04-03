@@ -4,6 +4,8 @@ env:
   # Reduce memory usage - 4GB is typically sufficient
   NODE_OPTIONS: --max-old-space-size=4096
   NODE_VERSION: "20.19.0"
+  SITE_DEBUG_AI_CACHE_KEY_PREFIX: site-debug-ai-build-reports-v1
+  SITE_DEBUG_AI_CACHE_PATH: packages/vitepress/docs/.vitepress/cache/site-debug-ai/build-reports
   # Install playwright binary manually (because pnpm only runs install script once)
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
   # Vitest auto retry on flaky segfault
@@ -111,6 +113,16 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      - name: Restore Site Debug AI Cache
+        # actions/cache@v5.0.0
+        uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0
+        with:
+          enableCrossOsArchive: true
+          key: ${{ env.SITE_DEBUG_AI_CACHE_KEY_PREFIX }}-${{ hashFiles('pnpm-lock.yaml', 'packages/vitepress/docs/**/*', 'packages/vitepress/src/**/*', 'packages/vitepress/theme/**/*', 'packages/vitepress/types/**/*', 'packages/vitepress/package.json', 'utils/env.ts') }}
+          path: ${{ env.SITE_DEBUG_AI_CACHE_PATH }}
+          restore-keys: |
+            ${{ env.SITE_DEBUG_AI_CACHE_KEY_PREFIX }}-
+
       - name: Build and Quality Check
         uses: ./.github/actions/build-and-check
 
@@ -144,6 +156,16 @@ jobs:
         uses: ./.github/actions/setup-env
         with:
           node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore Site Debug AI Cache
+        # actions/cache@v5.0.0
+        uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0
+        with:
+          enableCrossOsArchive: true
+          key: ${{ env.SITE_DEBUG_AI_CACHE_KEY_PREFIX }}-${{ hashFiles('pnpm-lock.yaml', 'packages/vitepress/docs/**/*', 'packages/vitepress/src/**/*', 'packages/vitepress/theme/**/*', 'packages/vitepress/types/**/*', 'packages/vitepress/package.json', 'utils/env.ts') }}
+          path: ${{ env.SITE_DEBUG_AI_CACHE_PATH }}
+          restore-keys: |
+            ${{ env.SITE_DEBUG_AI_CACHE_KEY_PREFIX }}-
 
       # Download artifacts if available (when src files changed)
       - name: Download Build Artifacts
@@ -208,6 +230,16 @@ jobs:
           node-version: ${{ matrix.node }}
           playwright: true
 
+      - name: Restore Site Debug AI Cache
+        # actions/cache@v5.0.0
+        uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0
+        with:
+          enableCrossOsArchive: true
+          key: ${{ env.SITE_DEBUG_AI_CACHE_KEY_PREFIX }}-${{ hashFiles('pnpm-lock.yaml', 'packages/vitepress/docs/**/*', 'packages/vitepress/src/**/*', 'packages/vitepress/theme/**/*', 'packages/vitepress/types/**/*', 'packages/vitepress/package.json', 'utils/env.ts') }}
+          path: ${{ env.SITE_DEBUG_AI_CACHE_PATH }}
+          restore-keys: |
+            ${{ env.SITE_DEBUG_AI_CACHE_KEY_PREFIX }}-
+
       # Download pre-built artifacts for Linux environments
       - name: Download Build Artifacts
         if: matrix.use-artifacts == true
@@ -266,6 +298,16 @@ jobs:
         uses: ./.github/actions/setup-env
         with:
           node-version: ${{ env.NODE_VERSION }}
+
+      - name: Restore Site Debug AI Cache
+        # actions/cache@v5.0.0
+        uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0
+        with:
+          enableCrossOsArchive: true
+          key: ${{ env.SITE_DEBUG_AI_CACHE_KEY_PREFIX }}-${{ hashFiles('pnpm-lock.yaml', 'packages/vitepress/docs/**/*', 'packages/vitepress/src/**/*', 'packages/vitepress/theme/**/*', 'packages/vitepress/types/**/*', 'packages/vitepress/package.json', 'utils/env.ts') }}
+          path: ${{ env.SITE_DEBUG_AI_CACHE_PATH }}
+          restore-keys: |
+            ${{ env.SITE_DEBUG_AI_CACHE_KEY_PREFIX }}-
 
       # Download pre-built packages
       - name: Download Build Artifacts
