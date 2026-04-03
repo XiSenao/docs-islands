@@ -1040,8 +1040,20 @@ const activeBundleSourceTitle = computed(
 const siteDebugAiEndpoint = computed(() =>
   getSiteDebugAiEndpoint(getSiteBasePath(getDebugWindow())),
 );
+const currentRoutePageMetafile = computed<PageMetafile | null>(() => {
+  if (typeof window === 'undefined') {
+    return currentPageMetafile.value;
+  }
+
+  const resolvedCurrentPageMetafile = resolvePageMetafileState(
+    getDebugWindow(),
+    route.path,
+  ).currentPageMetafile;
+
+  return resolvedCurrentPageMetafile ?? currentPageMetafile.value;
+});
 const currentPageAiComponents = computed(
-  () => currentPageMetafile.value?.buildMetrics?.components ?? [],
+  () => currentRoutePageMetafile.value?.buildMetrics?.components ?? [],
 );
 
 const getCurrentPageSupportedComponentCount = (pageMetafile: PageMetafile) =>
@@ -1133,7 +1145,7 @@ const currentPageAiBuildReports = computed<SiteDebugAiBuildReportReference[]>(
       SiteDebugAiBuildReportReference
     >();
     const pageReports =
-      currentPageMetafile.value?.buildMetrics?.aiReports ?? [];
+      currentRoutePageMetafile.value?.buildMetrics?.aiReports ?? [];
 
     for (const reportReference of pageReports) {
       reportReferenceByKey.set(
@@ -1242,7 +1254,7 @@ const createPageAiModuleItems = (modules: PageAiModuleMetric[]) => {
 
 const currentPageAiAnalysisTarget = computed<SiteDebugAiAnalysisTarget | null>(
   () => {
-    const pageMetafile = currentPageMetafile.value;
+    const pageMetafile = currentRoutePageMetafile.value;
     if (!pageMetafile) {
       return null;
     }
@@ -3611,6 +3623,7 @@ onBeforeUnmount(() => {
     <button
       v-if="canOpenCurrentPageAiReview"
       class="site-debug-toggle site-debug-toggle--ai"
+      style="position: static; right: auto; bottom: auto"
       type="button"
       title="Open Page AI Reports"
       aria-label="Open Page AI Reports"
@@ -3621,6 +3634,7 @@ onBeforeUnmount(() => {
 
     <button
       class="site-debug-toggle"
+      style="position: static; right: auto; bottom: auto"
       type="button"
       title="Open Site Debug Console"
       aria-label="Open Site Debug Console"

@@ -82,6 +82,11 @@ export interface SiteDebugAiBuildReport {
   target: SiteDebugAiAnalysisTarget;
 }
 
+export interface SiteDebugAiSanitizeOptions {
+  anchorPath?: string | null;
+  anchorPaths?: (string | null | undefined)[];
+}
+
 export const SITE_DEBUG_AI_PATHNAME = '__docs-islands/debug-ai';
 const SITE_DEBUG_AI_LANGUAGE_BY_EXTENSION: Record<string, string> = {
   cjs: 'js',
@@ -125,6 +130,16 @@ const SITE_DEBUG_AI_PROMPT_PATH_ROOT_NAMES = new Set([
   'tests',
   'utils',
 ]);
+const SITE_DEBUG_AI_EMBEDDED_ABSOLUTE_PATH_RE =
+  /\0*\/(?:Users|Volumes|home|private|tmp|var)\/[^\s"'<>`]+/g;
+const SITE_DEBUG_AI_EMBEDDED_PATH_LIKE_RE =
+  /\0*(?:\.{1,2}\/|\/)?(?:[\w.@-]+\/)+[\w%+.@~-]+(?:\?[^\s"'<>`]+)?/g;
+const SITE_DEBUG_AI_TRAILING_PATH_PUNCTUATION_RE = /[!),.:;?\]}]+$/;
+
+const stripControlCharacters = (value: string) =>
+  [...value]
+    .filter((character) => (character.codePointAt(0) ?? 0) >= 0x20)
+    .join('');
 
 const normalizeBase = (base = '/') => (base.endsWith('/') ? base : `${base}/`);
 
@@ -136,19 +151,152 @@ const formatValue = (value: number | string | null | undefined) => {
   return String(value);
 };
 
-const sanitizePromptPathValue = (value: string): string => {
+const getAnchorPathAncestors = (anchorPath: string): string[] => {
+  const normalizedAnchorPath = normalize(
+    stripControlCharacters(anchorPath),
+  ).replace(/[#?].*$/, '');
+
+  if (!normalizedAnchorPath || !isAbsolute(normalizedAnchorPath)) {
+    return [];
+  }
+
+  const ancestors: string[] = [];
+  let currentDir = dirname(normalizedAnchorPath);
+
+  while (true) {
+    ancestors.push(currentDir);
+    const parentDir = dirname(currentDir);
+
+    if (parentDir === currentDir) {
+      break;
+    }
+
+    currentDir = parentDir;
+  }
+
+  return ancestors;
+};
+
+const getRelativePathFromAnchor = (
+  pathCandidate: string,
+  anchorPath: string,
+): string | null => {
+  const normalizedCandidate = normalize(pathCandidate);
+  const anchorAncestors = getAnchorPathAncestors(anchorPath);
+
+  if (anchorAncestors.length === 0) {
+    return null;
+  }
+
+  if (isAbsolute(normalizedCandidate)) {
+    for (const ancestorPath of anchorAncestors) {
+      const relativeCandidate = relative(ancestorPath, normalizedCandidate);
+
+      if (
+        relativeCandidate === '' ||
+        relativeCandidate.startsWith('..') ||
+        isAbsolute(relativeCandidate)
+      ) {
+        continue;
+      }
+
+      const anchoredPath = `/${relativeCandidate}`;
+
+      if (anchoredPath === normalizedCandidate) {
+        continue;
+      }
+
+      return anchoredPath;
+    }
+
+    return null;
+  }
+
+  const candidateSegments = normalizedCandidate.split('/').filter(Boolean);
+
+  if (candidateSegments.length === 0) {
+    return null;
+  }
+
+  for (const ancestorPath of anchorAncestors) {
+    const ancestorRoot = parse(ancestorPath).root || '/';
+    const ancestorSegments = relative(ancestorRoot, ancestorPath)
+      .split('/')
+      .filter(Boolean);
+
+    for (
+      let overlapLength = Math.min(
+        ancestorSegments.length,
+        candidateSegments.length,
+      );
+      overlapLength > 0;
+      overlapLength -= 1
+    ) {
+      const ancestorSuffix = ancestorSegments.slice(-overlapLength);
+      const candidatePrefix = candidateSegments.slice(0, overlapLength);
+
+      if (ancestorSuffix.join('/') !== candidatePrefix.join('/')) {
+        continue;
+      }
+
+      const relativeSegments = candidateSegments.slice(overlapLength);
+
+      if (relativeSegments.length === 0) {
+        return '/';
+      }
+
+      return `/${relativeSegments.join('/')}`;
+    }
+  }
+
+  return null;
+};
+
+const sanitizePromptPathValue = (
+  value: string,
+  options: SiteDebugAiSanitizeOptions = {},
+): string => {
   if (!value) {
     return value;
   }
 
-  const normalizedValue = normalize(value);
+  const cleanedValue = stripControlCharacters(value);
+  const suffixMatch = /([#?].*)$/.exec(cleanedValue);
+  const suffix = suffixMatch?.[1] ?? '';
+  const pathCandidate = suffix
+    ? cleanedValue.slice(0, -suffix.length)
+    : cleanedValue;
+  const normalizedValue = normalize(pathCandidate);
+
+  const anchoredPromptPath = options.anchorPath
+    ? getRelativePathFromAnchor(normalizedValue, options.anchorPath)
+    : null;
+
+  if (anchoredPromptPath) {
+    return `${anchoredPromptPath}${suffix}`;
+  }
+
+  for (const anchorPath of options.anchorPaths ?? []) {
+    if (!anchorPath) {
+      continue;
+    }
+
+    const relativePromptPath = getRelativePathFromAnchor(
+      normalizedValue,
+      anchorPath,
+    );
+
+    if (relativePromptPath) {
+      return `${relativePromptPath}${suffix}`;
+    }
+  }
 
   if (!isAbsolute(normalizedValue)) {
-    return normalizedValue;
+    return cleanedValue;
   }
 
   if (normalizedValue.startsWith('//')) {
-    return basename(normalizedValue);
+    return `${basename(normalizedValue)}${suffix}`;
   }
 
   const pathRoot = parse(normalizedValue).root || '/';
@@ -160,7 +308,7 @@ const sanitizePromptPathValue = (value: string): string => {
     !firstPathSegment ||
     !SITE_DEBUG_AI_LOCAL_PATH_ROOT_NAMES.has(firstPathSegment)
   ) {
-    return normalizedValue;
+    return cleanedValue;
   }
 
   let currentDir = dirname(normalizedValue);
@@ -180,8 +328,70 @@ const sanitizePromptPathValue = (value: string): string => {
     currentDir = parentDir;
   }
 
-  return relativePromptPath || basename(normalizedValue);
+  return `${relativePromptPath || basename(normalizedValue)}${suffix}`;
 };
+
+export const sanitizeSiteDebugAiText = (
+  value: string,
+  options: SiteDebugAiSanitizeOptions = {},
+): string => {
+  if (!value) {
+    return value;
+  }
+
+  const replacePathMatches = (input: string, matcher: RegExp) =>
+    input.replaceAll(matcher, (match) => {
+      const trailingPunctuation =
+        SITE_DEBUG_AI_TRAILING_PATH_PUNCTUATION_RE.exec(match)?.[0] ?? '';
+      const matchWithoutTrailingPunctuation = trailingPunctuation
+        ? match.slice(0, -trailingPunctuation.length)
+        : match;
+
+      return `${sanitizePromptPathValue(
+        matchWithoutTrailingPunctuation,
+        options,
+      )}${trailingPunctuation}`;
+    });
+
+  return replacePathMatches(
+    replacePathMatches(value, SITE_DEBUG_AI_EMBEDDED_ABSOLUTE_PATH_RE),
+    SITE_DEBUG_AI_EMBEDDED_PATH_LIKE_RE,
+  );
+};
+
+const sanitizeSiteDebugAiValue = <T>(
+  value: T,
+  options: SiteDebugAiSanitizeOptions = {},
+): T => {
+  if (typeof value === 'string') {
+    return sanitizeSiteDebugAiText(value, options) as T;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeSiteDebugAiValue(item, options)) as T;
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, itemValue]) => [
+        key,
+        sanitizeSiteDebugAiValue(itemValue, options),
+      ]),
+    ) as T;
+  }
+
+  return value;
+};
+
+export const sanitizeSiteDebugAiAnalysisTarget = (
+  target: SiteDebugAiAnalysisTarget,
+  options: SiteDebugAiSanitizeOptions = {},
+): SiteDebugAiAnalysisTarget => sanitizeSiteDebugAiValue(target, options);
+
+export const sanitizeSiteDebugAiBuildReport = (
+  report: SiteDebugAiBuildReport,
+  options: SiteDebugAiSanitizeOptions = {},
+): SiteDebugAiBuildReport => sanitizeSiteDebugAiValue(report, options);
 
 const getSiteDebugAiArtifactPanelLabel = (
   artifactKind: SiteDebugAiAnalysisTargetKind,
@@ -230,24 +440,29 @@ const getSiteDebugAiArtifactChecklist = (
           '- Call out what cannot be concluded without drilling into a specific chunk or module report.',
         ];
 
-const formatPromptValueItems = (items: SiteDebugAiPromptValueItem[] = []) =>
+const formatPromptValueItems = (
+  items: SiteDebugAiPromptValueItem[] = [],
+  options: SiteDebugAiSanitizeOptions = {},
+) =>
   items
     .map((item) => {
       const label = formatValue(item.label);
       const value = formatValue(item.value);
-      const displayValue =
-        label && value && label.toLowerCase().includes('path')
-          ? sanitizePromptPathValue(value)
-          : value;
+      const displayValue = value
+        ? sanitizePromptPathValue(value, options)
+        : value;
 
       return label && displayValue ? `- ${label}: ${displayValue}` : null;
     })
     .filter(Boolean);
 
-const formatChunkResourceItems = (items: SiteDebugAiChunkResourceItem[] = []) =>
+const formatChunkResourceItems = (
+  items: SiteDebugAiChunkResourceItem[] = [],
+  options: SiteDebugAiSanitizeOptions = {},
+) =>
   items.map((item, index) => {
     const detailLines = [
-      `   path: ${sanitizePromptPathValue(item.file)}`,
+      `   path: ${sanitizePromptPathValue(item.file, options)}`,
       `   type: ${item.type.toUpperCase()}`,
       `   size: ${item.size}`,
       ...(item.share ? [`   share: ${item.share}`] : []),
@@ -255,17 +470,23 @@ const formatChunkResourceItems = (items: SiteDebugAiChunkResourceItem[] = []) =>
       ...(item.current ? ['   focus: current artifact'] : []),
     ];
 
-    return [`${index + 1}. ${item.label}`, ...detailLines].join('\n');
+    return [
+      `${index + 1}. ${sanitizePromptPathValue(item.label, options)}`,
+      ...detailLines,
+    ].join('\n');
   });
 
-const formatModuleItems = (items: SiteDebugAiModuleItem[] = []) =>
+const formatModuleItems = (
+  items: SiteDebugAiModuleItem[] = [],
+  options: SiteDebugAiSanitizeOptions = {},
+) =>
   items.map((item, index) => {
     const statusLabels = [
       item.statusLabel,
       item.current ? 'current selection' : null,
     ].filter(Boolean);
     const detailLines = [
-      `   module id: ${sanitizePromptPathValue(item.id)}`,
+      `   module id: ${sanitizePromptPathValue(item.id, options)}`,
       `   rendered size: ${item.renderedSize}`,
       ...(item.share ? [`   share: ${item.share}`] : []),
       `   source: ${item.sourceInfo}`,
@@ -275,7 +496,10 @@ const formatModuleItems = (items: SiteDebugAiModuleItem[] = []) =>
         : []),
     ];
 
-    return [`${index + 1}. ${item.label}`, ...detailLines].join('\n');
+    return [
+      `${index + 1}. ${sanitizePromptPathValue(item.label, options)}`,
+      ...detailLines,
+    ].join('\n');
   });
 
 export const getSiteDebugAiProviderLabel = (
@@ -338,6 +562,7 @@ export const inferSiteDebugAiLanguage = (sourcePath?: string): string => {
 
 export const buildSiteDebugAiAnalysisPrompt = (
   target: SiteDebugAiAnalysisTarget,
+  sanitizeOptions: SiteDebugAiSanitizeOptions = {},
 ): string => {
   const context = target.context ?? {};
   const currentDebugContextLines = [
@@ -349,26 +574,38 @@ export const buildSiteDebugAiAnalysisPrompt = (
     .map(([label, value]) => {
       const formattedValue = formatValue(value);
 
-      return formattedValue ? `- ${label}: ${formattedValue}` : null;
+      return formattedValue
+        ? `- ${label}: ${sanitizePromptPathValue(formattedValue, sanitizeOptions)}`
+        : null;
     })
     .filter(Boolean);
-  const artifactPanelLines = formatPromptValueItems([
-    {
-      label: 'Panel',
-      value: getSiteDebugAiArtifactPanelLabel(target.artifactKind),
-    },
-    {
-      label: 'Title',
-      value: target.artifactLabel,
-    },
-    ...(context.artifactHeaderItems ?? []),
-  ]);
-  const liveContextLines = formatPromptValueItems(context.liveContextItems);
-  const bundleSummaryLines = formatPromptValueItems(context.bundleSummaryItems);
+  const artifactPanelLines = formatPromptValueItems(
+    [
+      {
+        label: 'Panel',
+        value: getSiteDebugAiArtifactPanelLabel(target.artifactKind),
+      },
+      {
+        label: 'Title',
+        value: target.artifactLabel,
+      },
+      ...(context.artifactHeaderItems ?? []),
+    ],
+    sanitizeOptions,
+  );
+  const liveContextLines = formatPromptValueItems(
+    context.liveContextItems,
+    sanitizeOptions,
+  );
+  const bundleSummaryLines = formatPromptValueItems(
+    context.bundleSummaryItems,
+    sanitizeOptions,
+  );
   const chunkResourceLines = formatChunkResourceItems(
     context.chunkResourceItems,
+    sanitizeOptions,
   );
-  const moduleLines = formatModuleItems(context.moduleItems);
+  const moduleLines = formatModuleItems(context.moduleItems, sanitizeOptions);
 
   return [
     '## Role',

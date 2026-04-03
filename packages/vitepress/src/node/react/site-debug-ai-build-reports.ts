@@ -19,11 +19,20 @@ import {
   getSiteDebugAiModuleReportKey,
   getSiteDebugAiProviderLabel,
   inferSiteDebugAiLanguage,
+  sanitizeSiteDebugAiAnalysisTarget,
+  sanitizeSiteDebugAiBuildReport,
   type SiteDebugAiAnalysisTarget,
   type SiteDebugAiBuildReport,
   type SiteDebugAiProvider,
+  type SiteDebugAiSanitizeOptions,
 } from '../../shared/site-debug-ai';
 import { PAGE_METAFILE_ASSET_DIR } from './page-metafile-manifest';
+import {
+  aggregatePageFiles,
+  aggregatePageModules,
+  collectBuildReportReferencesForPageMetafiles,
+  getPageSupportedComponentCount,
+} from './site-debug-ai-build-reports-collector';
 import {
   analyzeSiteDebugAiTarget,
   resolveSiteDebugAiCapabilities,
@@ -154,79 +163,6 @@ const resolveOutputAssetPath = ({
 const normalizeBuildReportGroupBy = (
   value: BuildReportGroupBy | undefined,
 ): BuildReportGroupBy => (value === 'page' ? 'page' : 'artifact');
-
-const aggregatePageFiles = (components: BuildMetric[]): BuildMetricFile[] => {
-  const fileMetricByPath = new Map<string, BuildMetricFile>();
-
-  for (const buildMetric of components) {
-    for (const fileMetric of buildMetric.files) {
-      const existingMetric = fileMetricByPath.get(fileMetric.file);
-
-      if (existingMetric) {
-        existingMetric.bytes = Math.max(existingMetric.bytes, fileMetric.bytes);
-        continue;
-      }
-
-      fileMetricByPath.set(fileMetric.file, {
-        ...fileMetric,
-      });
-    }
-  }
-
-  return [...fileMetricByPath.values()];
-};
-
-const aggregatePageModules = (
-  components: BuildMetric[],
-): BuildMetricModule[] => {
-  const moduleMetricByKey = new Map<string, BuildMetricModule>();
-
-  for (const buildMetric of components) {
-    for (const moduleMetric of buildMetric.modules) {
-      const moduleKey = getSiteDebugAiModuleReportKey(
-        moduleMetric.file,
-        moduleMetric.id,
-      );
-      const existingMetric = moduleMetricByKey.get(moduleKey);
-
-      if (existingMetric) {
-        existingMetric.bytes = Math.max(
-          existingMetric.bytes,
-          moduleMetric.bytes,
-        );
-        existingMetric.sourceAssetFile =
-          existingMetric.sourceAssetFile || moduleMetric.sourceAssetFile;
-        existingMetric.sourcePath =
-          existingMetric.sourcePath || moduleMetric.sourcePath;
-        existingMetric.isGeneratedVirtualModule =
-          existingMetric.isGeneratedVirtualModule &&
-          !moduleMetric.sourceAssetFile &&
-          !moduleMetric.sourcePath &&
-          moduleMetric.id.startsWith('\0');
-        continue;
-      }
-
-      moduleMetricByKey.set(moduleKey, {
-        ...moduleMetric,
-        isGeneratedVirtualModule:
-          !moduleMetric.sourceAssetFile &&
-          !moduleMetric.sourcePath &&
-          moduleMetric.id.startsWith('\0'),
-      });
-    }
-  }
-
-  return [...moduleMetricByKey.values()];
-};
-
-const getPageSupportedComponentCount = (pageMetafile: PageMetafile) =>
-  Math.max(
-    pageMetafile.buildMetrics?.components.length ?? 0,
-    pageMetafile.buildMetrics?.spaSyncEffects?.enabledComponentCount ?? 0,
-  );
-
-const hasPageBuildAnalysisSignals = (pageMetafile: PageMetafile) =>
-  getPageSupportedComponentCount(pageMetafile) > 0;
 
 const getBuildReportRunConfigs = (
   aiConfig: SiteDebugAiConfig,
@@ -486,6 +422,7 @@ const getBuildReportSourceFilePath = ({
 
 const readBuildReportCache = (
   filePath: string,
+  sanitizeOptions: SiteDebugAiSanitizeOptions = {},
 ): SiteDebugAiBuildReport | null => {
   if (!fs.existsSync(filePath)) {
     return null;
@@ -507,7 +444,10 @@ const readBuildReportCache = (
       return null;
     }
 
-    return payload as SiteDebugAiBuildReport;
+    return sanitizeSiteDebugAiBuildReport(
+      payload as SiteDebugAiBuildReport,
+      sanitizeOptions,
+    );
   } catch {
     return null;
   }
@@ -517,10 +457,12 @@ const writeBuildReportCache = ({
   cacheDir,
   cacheKey,
   report,
+  sanitizeOptions = {},
 }: {
   cacheDir: string;
   cacheKey: string;
   report: SiteDebugAiBuildReport;
+  sanitizeOptions?: SiteDebugAiSanitizeOptions;
 }) => {
   const cacheFilePath = getBuildReportCacheFilePath(cacheDir, cacheKey);
 
@@ -528,21 +470,76 @@ const writeBuildReportCache = ({
     fs.mkdirSync(dirname(cacheFilePath), { recursive: true });
   }
 
-  fs.writeFileSync(cacheFilePath, JSON.stringify(report, null, 2));
+  fs.writeFileSync(
+    cacheFilePath,
+    JSON.stringify(
+      sanitizeSiteDebugAiBuildReport(report, sanitizeOptions),
+      null,
+      2,
+    ),
+  );
 };
 
 const writeBuildReportSource = ({
   filePath,
   report,
+  sanitizeOptions = {},
 }: {
   filePath: string;
   report: SiteDebugAiBuildReport;
+  sanitizeOptions?: SiteDebugAiSanitizeOptions;
 }) => {
   if (!fs.existsSync(dirname(filePath))) {
     fs.mkdirSync(dirname(filePath), { recursive: true });
   }
 
-  fs.writeFileSync(filePath, JSON.stringify(report, null, 2));
+  fs.writeFileSync(
+    filePath,
+    JSON.stringify(
+      sanitizeSiteDebugAiBuildReport(report, sanitizeOptions),
+      null,
+      2,
+    ),
+  );
+};
+
+const sanitizeBuildReportSourceDirectory = (
+  sourceDir: string,
+  sanitizeOptions: SiteDebugAiSanitizeOptions = {},
+) => {
+  if (!fs.existsSync(sourceDir)) {
+    return;
+  }
+
+  const visit = (currentPath: string) => {
+    const stat = fs.statSync(currentPath);
+
+    if (stat.isDirectory()) {
+      for (const entry of fs.readdirSync(currentPath)) {
+        visit(join(currentPath, entry));
+      }
+      return;
+    }
+
+    if (!currentPath.endsWith('.json')) {
+      return;
+    }
+
+    const rawContent = fs.readFileSync(currentPath, 'utf8');
+    const report = readBuildReportCache(currentPath, sanitizeOptions);
+
+    if (!report) {
+      return;
+    }
+
+    const sanitizedContent = `${JSON.stringify(report, null, 2)}\n`;
+
+    if (rawContent !== sanitizedContent) {
+      fs.writeFileSync(currentPath, sanitizedContent);
+    }
+  };
+
+  visit(sourceDir);
 };
 
 const writeBuildReportAsset = ({
@@ -550,12 +547,14 @@ const writeBuildReportAsset = ({
   outDir,
   provider,
   report,
+  sanitizeOptions = {},
   wrapBaseUrl,
 }: {
   assetsDir: string;
   outDir: string;
   provider: SiteDebugAiProvider;
   report: SiteDebugAiBuildReport;
+  sanitizeOptions?: SiteDebugAiSanitizeOptions;
   wrapBaseUrl: (value: string) => string;
 }) => {
   const safeBaseName = sanitizeFileStem(
@@ -584,7 +583,14 @@ const writeBuildReportAsset = ({
     fs.mkdirSync(dirname(absoluteReportPath), { recursive: true });
   }
 
-  fs.writeFileSync(absoluteReportPath, JSON.stringify(report, null, 2));
+  fs.writeFileSync(
+    absoluteReportPath,
+    JSON.stringify(
+      sanitizeSiteDebugAiBuildReport(report, sanitizeOptions),
+      null,
+      2,
+    ),
+  );
 
   return wrapBaseUrl(join('/', assetsDir, relativeReportPath));
 };
@@ -1132,6 +1138,7 @@ export const generateSiteDebugAiBuildReports = async ({
   cacheDir,
   outDir,
   pageMetafiles,
+  root,
   wrapBaseUrl,
   dependencies,
 }: {
@@ -1141,6 +1148,7 @@ export const generateSiteDebugAiBuildReports = async ({
   dependencies?: BuildReportDependencies;
   outDir: string;
   pageMetafiles: Record<string, PageMetafile>;
+  root?: string;
   wrapBaseUrl: (value: string) => string;
 }): Promise<GenerateSiteDebugAiBuildReportsResult> => {
   const buildReportsConfig = aiConfig?.buildReports;
@@ -1168,6 +1176,12 @@ export const generateSiteDebugAiBuildReports = async ({
           sourceDir: buildReportsConfig.sourceDir,
         }
       : null;
+  const sanitizeOptions: SiteDebugAiSanitizeOptions = {
+    anchorPaths: [
+      sourceConfig?.sourceDir,
+      root ? join(root, '.vitepress', 'config.ts') : undefined,
+    ],
+  };
 
   if (executions.length === 0) {
     if (executionPlanSkippedReason) {
@@ -1202,6 +1216,10 @@ export const generateSiteDebugAiBuildReports = async ({
   >();
   let generatedReportCount = 0;
   let reusedReportCount = 0;
+
+  if (sourceConfig?.mode === 'read-write') {
+    sanitizeBuildReportSourceDirectory(sourceConfig.sourceDir, sanitizeOptions);
+  }
 
   if (executionPlanSkippedReason) {
     skippedReasons.add(executionPlanSkippedReason);
@@ -1239,7 +1257,14 @@ export const generateSiteDebugAiBuildReports = async ({
       return cachedReference;
     }
 
-    const prompt = buildSiteDebugAiAnalysisPrompt(target);
+    const sanitizedTarget = sanitizeSiteDebugAiAnalysisTarget(
+      target,
+      sanitizeOptions,
+    );
+    const prompt = buildSiteDebugAiAnalysisPrompt(
+      sanitizedTarget,
+      sanitizeOptions,
+    );
     const cacheKey = getBuildReportCacheKey({
       prompt,
       provider: execution.provider,
@@ -1254,11 +1279,11 @@ export const generateSiteDebugAiBuildReports = async ({
           provider: execution.provider,
           reportId: execution.reportId,
           sourceDir: sourceConfig.sourceDir,
-          target,
+          target: sanitizedTarget,
         })
       : null;
     const sourceReport = sourceFilePath
-      ? readBuildReportCache(sourceFilePath)
+      ? readBuildReportCache(sourceFilePath, sanitizeOptions)
       : null;
 
     if (sourceReport) {
@@ -1267,6 +1292,15 @@ export const generateSiteDebugAiBuildReports = async ({
           cacheDir,
           cacheKey,
           report: sourceReport,
+          sanitizeOptions,
+        });
+      }
+
+      if (sourceFilePath && sourceConfig?.mode === 'read-write') {
+        writeBuildReportSource({
+          filePath: sourceFilePath,
+          report: sourceReport,
+          sanitizeOptions,
         });
       }
 
@@ -1275,6 +1309,7 @@ export const generateSiteDebugAiBuildReports = async ({
         outDir,
         provider: execution.provider,
         report: sourceReport,
+        sanitizeOptions,
         wrapBaseUrl,
       });
       const reportReference = {
@@ -1293,7 +1328,10 @@ export const generateSiteDebugAiBuildReports = async ({
     }
 
     const cachedReport = canUseLocalCache
-      ? readBuildReportCache(getBuildReportCacheFilePath(cacheDir, cacheKey))
+      ? readBuildReportCache(
+          getBuildReportCacheFilePath(cacheDir, cacheKey),
+          sanitizeOptions,
+        )
       : null;
 
     if (cachedReport) {
@@ -1301,6 +1339,7 @@ export const generateSiteDebugAiBuildReports = async ({
         writeBuildReportSource({
           filePath: sourceFilePath,
           report: cachedReport,
+          sanitizeOptions,
         });
       }
 
@@ -1309,6 +1348,7 @@ export const generateSiteDebugAiBuildReports = async ({
         outDir,
         provider: execution.provider,
         report: cachedReport,
+        sanitizeOptions,
         wrapBaseUrl,
       });
       const reportReference = {
@@ -1329,7 +1369,7 @@ export const generateSiteDebugAiBuildReports = async ({
     if (!canGenerateReports) {
       if (sourceFilePath) {
         missingSourceDetails.add(
-          `Missing committed build report for ${target.displayPath} (${execution.reportLabel}) at ${sourceFilePath}.`,
+          `Missing committed build report for ${sanitizedTarget.displayPath} (${execution.reportLabel}) at ${sourceFilePath}.`,
         );
       }
       return null;
@@ -1345,7 +1385,7 @@ export const generateSiteDebugAiBuildReports = async ({
     const result = await analyzeTargetImpl({
       config: execution.config,
       provider: execution.provider,
-      target,
+      target: sanitizedTarget,
     });
     const report: SiteDebugAiBuildReport = {
       detail: result.detail,
@@ -1356,17 +1396,19 @@ export const generateSiteDebugAiBuildReports = async ({
       reportId: execution.reportId,
       reportLabel: execution.reportLabel,
       result: result.result,
-      target,
+      target: sanitizedTarget,
     };
     writeBuildReportCache({
       cacheDir,
       cacheKey,
       report,
+      sanitizeOptions,
     });
     if (sourceFilePath) {
       writeBuildReportSource({
         filePath: sourceFilePath,
         report,
+        sanitizeOptions,
       });
     }
     const reportFile = writeBuildReportAsset({
@@ -1374,6 +1416,7 @@ export const generateSiteDebugAiBuildReports = async ({
       outDir,
       provider: execution.provider,
       report,
+      sanitizeOptions,
       wrapBaseUrl,
     });
     const reportReference = {
@@ -1391,225 +1434,22 @@ export const generateSiteDebugAiBuildReports = async ({
     return reportReference;
   };
 
-  for (const [pageId, pageMetafile] of Object.entries(pageMetafiles)) {
-    const componentBuildMetrics = pageMetafile.buildMetrics?.components ?? [];
-
-    const pageGroupedReportReferences =
-      groupBy === 'page' && hasPageBuildAnalysisSignals(pageMetafile)
-        ? await Promise.all(
-            executions.map(async (execution) => {
-              try {
-                const reportReference = await getOrCreateReportReference({
-                  artifactKey: [
-                    execution.reportId,
-                    execution.provider,
-                    'page-build',
-                    pageId,
-                  ].join('::'),
-                  execution,
-                  target: createPageAnalysisTarget({
-                    assetsDir,
-                    outDir,
-                    pageId,
-                    pageMetafile,
-                  }),
-                });
-
-                return [execution, reportReference] as const;
-              } catch (error) {
-                Logger.warn(
-                  `Failed to generate page AI report for ${pageId} (${execution.reportLabel}): ${error instanceof Error ? error.message : String(error)}`,
-                );
-                return null;
-              }
-            }),
-          ).then((entries) =>
-            entries.filter(
-              (
-                entry,
-              ): entry is readonly [
-                BuildReportExecution,
-                SiteDebugAiBuildReportReference,
-              ] => Boolean(entry?.[1]),
-            ),
-          )
-        : [];
-    const pageGroupedReportReferenceMap = new Map(pageGroupedReportReferences);
-
-    if (pageMetafile.buildMetrics) {
-      if (pageGroupedReportReferences.length > 0) {
-        pageMetafile.buildMetrics.aiReports = pageGroupedReportReferences
-          .map(([, reportReference]) => reportReference)
-          .toSorted((left, right) =>
-            left.reportFile.localeCompare(right.reportFile),
-          );
-      } else if (pageMetafile.buildMetrics.aiReports) {
-        delete pageMetafile.buildMetrics.aiReports;
-      }
-    }
-
-    for (const buildMetric of componentBuildMetrics) {
-      const chunkReports: Record<string, SiteDebugAiBuildReportReference[]> =
-        {};
-      const moduleReports: Record<string, SiteDebugAiBuildReportReference[]> =
-        {};
-
-      if (includeChunks) {
-        for (const fileMetric of buildMetric.files) {
-          if (groupBy === 'page') {
-            for (const execution of executions) {
-              const reportReference =
-                pageGroupedReportReferenceMap.get(execution);
-
-              if (!reportReference) {
-                continue;
-              }
-
-              chunkReports[fileMetric.file] = [
-                ...(chunkReports[fileMetric.file] ?? []),
-                reportReference,
-              ];
-            }
-
-            continue;
-          }
-
-          const chunkContent = resolveChunkContent(
-            assetsDir,
-            outDir,
-            fileMetric.file,
-          );
-
-          if (!chunkContent) {
-            continue;
-          }
-
-          const chunkTarget = createChunkAnalysisTarget({
-            assetsDir,
-            buildMetric,
-            bytes: fileMetric.bytes,
-            chunkFile: fileMetric.file,
-            chunkType: fileMetric.type,
-            content: chunkContent,
-            outDir,
-          });
-
-          for (const execution of executions) {
-            try {
-              const reportReference = await getOrCreateReportReference({
-                artifactKey: [
-                  execution.reportId,
-                  execution.provider,
-                  'bundle-chunk',
-                  buildMetric.componentName,
-                  fileMetric.file,
-                ].join('::'),
-                execution,
-                target: chunkTarget,
-              });
-              if (!reportReference) {
-                continue;
-              }
-              chunkReports[fileMetric.file] = [
-                ...(chunkReports[fileMetric.file] ?? []),
-                reportReference,
-              ];
-            } catch (error) {
-              Logger.warn(
-                `Failed to generate build chunk AI report for ${fileMetric.file} (${execution.reportLabel}): ${error instanceof Error ? error.message : String(error)}`,
-              );
-            }
-          }
-        }
-      }
-
-      if (includeModules) {
-        for (const moduleMetric of buildMetric.modules) {
-          if (groupBy === 'page') {
-            const moduleKey = getSiteDebugAiModuleReportKey(
-              moduleMetric.file,
-              moduleMetric.id,
-            );
-
-            for (const execution of executions) {
-              const reportReference =
-                pageGroupedReportReferenceMap.get(execution);
-
-              if (!reportReference) {
-                continue;
-              }
-
-              moduleReports[moduleKey] = [
-                ...(moduleReports[moduleKey] ?? []),
-                reportReference,
-              ];
-            }
-
-            continue;
-          }
-
-          const moduleContent = resolveModuleContent({
-            assetsDir,
-            moduleMetric,
-            outDir,
-          });
-
-          if (!moduleContent) {
-            continue;
-          }
-
-          const moduleKey = getSiteDebugAiModuleReportKey(
-            moduleMetric.file,
-            moduleMetric.id,
-          );
-          const moduleTarget = createModuleAnalysisTarget({
-            assetsDir,
-            buildMetric,
-            content: moduleContent,
-            moduleMetric,
-            outDir,
-          });
-
-          for (const execution of executions) {
-            try {
-              const reportReference = await getOrCreateReportReference({
-                artifactKey: [
-                  execution.reportId,
-                  execution.provider,
-                  'bundle-module',
-                  buildMetric.componentName,
-                  moduleKey,
-                ].join('::'),
-                execution,
-                target: moduleTarget,
-              });
-              if (!reportReference) {
-                continue;
-              }
-              moduleReports[moduleKey] = [
-                ...(moduleReports[moduleKey] ?? []),
-                reportReference,
-              ];
-            } catch (error) {
-              Logger.warn(
-                `Failed to generate build module AI report for ${moduleMetric.id} (${execution.reportLabel}): ${error instanceof Error ? error.message : String(error)}`,
-              );
-            }
-          }
-        }
-      }
-
-      if (
-        Object.keys(chunkReports).length > 0 ||
-        Object.keys(moduleReports).length > 0
-      ) {
-        buildMetric.aiReports = {
-          ...(Object.keys(chunkReports).length > 0 ? { chunkReports } : {}),
-          ...(Object.keys(moduleReports).length > 0 ? { moduleReports } : {}),
-        };
-      }
-    }
-  }
+  await collectBuildReportReferencesForPageMetafiles({
+    assetsDir,
+    createChunkAnalysisTarget,
+    createModuleAnalysisTarget,
+    createPageAnalysisTarget,
+    executions,
+    getOrCreateReportReference,
+    groupBy,
+    includeChunks,
+    includeModules,
+    logger: Logger,
+    outDir,
+    pageMetafiles,
+    resolveChunkContent,
+    resolveModuleContent,
+  });
 
   if (generatedReportCount > 0 || reusedReportCount > 0) {
     Logger.info(

@@ -592,7 +592,7 @@ export function registerBuildHelper(
   };
 
   vitepressConfig.buildEnd = async () => {
-    const { outDir, assetsDir, cacheDir, cleanUrls, siteDebug } = config;
+    const { outDir, assetsDir, cacheDir, cleanUrls, siteDebug, root } = config;
     const matafileDir = join(outDir, assetsDir);
     const Logger = loggerInstance.getLoggerByGroup('build-end');
     const { fileName, content } = await getClientRuntimeMetafile();
@@ -612,6 +612,7 @@ export function registerBuildHelper(
         cacheDir,
         outDir,
         pageMetafiles: transformedPageMetafileMap,
+        root,
         wrapBaseUrl,
       });
 

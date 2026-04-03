@@ -167,6 +167,8 @@ export const getCurrentPageCandidates = (
     // Keep the raw pathname if decoding fails.
   }
 
+  pathname = pathname.replace(/[#?].*$/, '');
+
   if (pathname === bareBase) {
     pathname = '/';
   } else if (pathname.startsWith(base)) {

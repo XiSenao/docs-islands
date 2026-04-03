@@ -4,6 +4,7 @@ import {
   getSiteDebugAiArtifactKindLabel,
   getSiteDebugAiEndpoint,
   getSiteDebugAiProviderLabel,
+  sanitizeSiteDebugAiBuildReport,
 } from '../site-debug-ai';
 
 describe('site-debug-ai helpers', () => {
@@ -300,5 +301,158 @@ describe('site-debug-ai helpers', () => {
 
     expect(prompt).toContain('packages/vitepress/src/components/DemoCard.tsx');
     expect(prompt).not.toContain('/Users/alice/');
+  });
+
+  it('strips virtual-module absolute filesystem paths from prompt output', () => {
+    const prompt = buildSiteDebugAiAnalysisPrompt({
+      artifactKind: 'bundle-module',
+      artifactLabel:
+        '\u0000/Users/chenjiaxiang/Project/docs-islands/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module',
+      content: 'virtual module',
+      context: {
+        moduleItems: [
+          {
+            current: true,
+            file: '/assets/chunks/jsx-runtime.js',
+            id: '\u0000/Users/chenjiaxiang/Project/docs-islands/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module',
+            label:
+              '\u0000/Users/chenjiaxiang/Project/docs-islands/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module',
+            renderedSize: '31 B',
+            share: '2.8%',
+            sourceInfo: 'Source n/a',
+            statusLabel: 'generated virtual module',
+          },
+        ],
+      },
+      displayPath:
+        '\u0000/Users/chenjiaxiang/Project/docs-islands/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module',
+      language: 'js',
+    });
+
+    expect(prompt).toContain(
+      'node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module',
+    );
+    expect(prompt).not.toContain('/Users/chenjiaxiang/');
+    expect(prompt).not.toContain('\u0000/Users/');
+  });
+
+  it('rewrites prompt module paths relative to the shared config ancestor', () => {
+    const prompt = buildSiteDebugAiAnalysisPrompt(
+      {
+        artifactKind: 'page-build',
+        artifactLabel: '/zh/core-concepts',
+        content: 'page overview',
+        context: {
+          moduleItems: [
+            {
+              file: '/docs/assets/ReactComp1.js',
+              id: '/Users/chenjiaxiang/Project/docs-islands/packages/vitepress/docs/zh/rendering-strategy-comps/react/ReactComp1.tsx',
+              label: 'ReactComp1.tsx',
+              renderedSize: '2.1 KB',
+              share: '20.0%',
+              sourceInfo: 'Source 1.8 KB',
+            },
+          ],
+          pageId: '/zh/core-concepts',
+        },
+        displayPath: '/zh/core-concepts',
+        language: 'text',
+      },
+      {
+        anchorPath:
+          '/Users/chenjiaxiang/Project/docs-islands/packages/vitepress/docs/.vitepress/config.ts',
+      },
+    );
+
+    expect(prompt).toContain(
+      'module id: /zh/rendering-strategy-comps/react/ReactComp1.tsx',
+    );
+    expect(prompt).not.toContain(
+      '/Users/chenjiaxiang/Project/docs-islands/packages/vitepress/docs/',
+    );
+  });
+
+  it('rewrites repo-relative module paths using the shared config ancestor', () => {
+    const prompt = buildSiteDebugAiAnalysisPrompt(
+      {
+        artifactKind: 'page-build',
+        artifactLabel: '/core-concepts',
+        content: 'page overview',
+        context: {
+          moduleItems: [
+            {
+              file: '/docs/assets/Landing.js',
+              id: 'packages/vitepress/docs/en/rendering-strategy-comps/react/ReactComp1.tsx',
+              label: 'ReactComp1.tsx',
+              renderedSize: '2.1 KB',
+              share: '20.0%',
+              sourceInfo: 'Source 1.8 KB',
+            },
+          ],
+          pageId: '/core-concepts',
+        },
+        displayPath: '/core-concepts',
+        language: 'text',
+      },
+      {
+        anchorPath:
+          '/Users/chenjiaxiang/Project/docs-islands/packages/vitepress/docs/.vitepress/config.ts',
+      },
+    );
+
+    expect(prompt).toContain(
+      'module id: /en/rendering-strategy-comps/react/ReactComp1.tsx',
+    );
+    expect(prompt).not.toContain('packages/vitepress/docs/en/');
+  });
+
+  it('rewrites embedded repo-relative paths inside persisted report text', () => {
+    const report = sanitizeSiteDebugAiBuildReport(
+      {
+        generatedAt: '2026-04-03T00:00:00.000Z',
+        prompt:
+          'Module Source:\\n- module id: packages/vitepress/docs/zh/rendering-strategy-comps/react/ReactComp1.tsx',
+        provider: 'doubao',
+        reportId: 'report-1',
+        reportLabel: 'Doubao Pro',
+        result:
+          'Focus packages/vitepress/docs/zh/rendering-strategy-comps/react/ReactComp1.tsx first.',
+        target: {
+          artifactKind: 'page-build',
+          artifactLabel: '/zh/core-concepts',
+          content: 'page overview',
+          context: {
+            moduleItems: [
+              {
+                file: '/docs/assets/ReactComp1.js',
+                id: 'packages/vitepress/docs/zh/rendering-strategy-comps/react/ReactComp1.tsx',
+                label: 'ReactComp1.tsx',
+                renderedSize: '2.1 KB',
+                share: '20.0%',
+                sourceInfo: 'Source 1.8 KB',
+              },
+            ],
+            pageId: '/zh/core-concepts',
+          },
+          displayPath: '/zh/core-concepts',
+          language: 'text',
+        },
+      },
+      {
+        anchorPath:
+          '/Users/chenjiaxiang/Project/docs-islands/packages/vitepress/docs/.vitepress/config.ts',
+      },
+    );
+
+    expect(report.prompt).toContain(
+      'module id: /zh/rendering-strategy-comps/react/ReactComp1.tsx',
+    );
+    expect(report.prompt).not.toContain('packages/vitepress/docs/zh/');
+    expect(report.result).toContain(
+      'Focus /zh/rendering-strategy-comps/react/ReactComp1.tsx first.',
+    );
+    expect(report.target.context?.moduleItems?.[0]?.id).toBe(
+      '/zh/rendering-strategy-comps/react/ReactComp1.tsx',
+    );
   });
 });

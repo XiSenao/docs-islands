@@ -718,6 +718,9 @@ export const waitForCodePreviewIdle = (timeoutMs = 180) =>
     globalThis.window.setTimeout(() => resolve(), 48);
   });
 
+const resolveSiteDebugWorkerUrl = (workerFileName: string): URL =>
+  new URL(workerFileName, import.meta.url);
+
 export const createBackgroundCodePreviewRenderer = () => {
   let activeRequest: {
     resolve: (value: BackgroundCodePreviewRenderResult) => void;
@@ -753,7 +756,7 @@ export const createBackgroundCodePreviewRenderer = () => {
     }
 
     worker = new Worker(
-      new URL('site-debug-source-preview.worker.ts', import.meta.url),
+      resolveSiteDebugWorkerUrl('site-debug-source-preview.worker.ts'),
       {
         type: 'module',
       },
@@ -866,7 +869,7 @@ export const createBackgroundPlainTextPreviewIndexer = () => {
     }
 
     worker = new Worker(
-      new URL('site-debug-source-text.worker.ts', import.meta.url),
+      resolveSiteDebugWorkerUrl('site-debug-source-text.worker.ts'),
       {
         type: 'module',
       },

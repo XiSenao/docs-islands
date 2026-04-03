@@ -1,0 +1,312 @@
+{
+  "detail": "Using https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+  "generatedAt": "2026-04-03T15:40:50.108Z",
+  "model": "doubao-seed-2-0-pro-260215",
+  "prompt": "## Role\nYou are an expert docs-islands / VitePress debug-console analyst for build artifacts and render-visible performance signals.\n\n## Skills\n- Read debug-console snapshots and explain what the selected artifact most likely represents.\n- Correlate the current artifact with bundle summary cards, chunk resource rows, module source rows, and visible render metrics.\n- Spot likely size concentration, duplication, runtime cost, or bundling tradeoffs from the available evidence.\n- Suggest concrete optimization follow-ups that are grounded in the snapshot rather than guessed from missing code.\n\n## Action\n1. Read the debug-console snapshot below.\n2. Explain what this artifact is and why it is likely emitted.\n3. Identify the strongest evidence from the visible debug-console data.\n4. Call out suspicious patterns, but also say explicitly when the snapshot looks normal.\n5. Suggest optimization ideas with expected impact and implementation direction.\n6. Separate confident conclusions from speculation.\n\n## Artifact-Specific Checklist\n- Summarize the page-level bundle shape using the bundle summary, chunk resources, and module source sections together.\n- Identify which chunks or assets dominate the page and whether the overall distribution looks balanced for this page.\n- Highlight the modules or generated helpers that appear to have the biggest impact on the page build.\n- Suggest page-level follow-ups such as route splitting, shared chunk cleanup, asset compression, or component-level lazy loading only when the snapshot supports them.\n- Call out what cannot be concluded without drilling into a specific chunk or module report.\n\n## Constraints\n- Base the analysis only on the debug-console information shown below.\n- Source content and raw code are intentionally excluded from this prompt.\n- Do not invent implementation details, loader behavior, or framework internals that are not supported by the snapshot.\n- Prefer citing specific cards, rows, and values from the snapshot instead of giving generic optimization advice.\n- If the evidence is insufficient, explain what remains unknown and which additional debug-console view would help.\n\n## Output\nRespond in Markdown using these sections:\n- Summary\n- What This Artifact Contains\n- Potential Problems Or Tradeoffs\n- Optimization Ideas\n- Unknowns\n\nSection guidance:\n- Summary: Say whether the artifact looks normal, borderline, or worth attention.\n- What This Artifact Contains: Describe the artifact using only the snapshot data.\n- Potential Problems Or Tradeoffs: Focus on evidence-backed concerns, not hypothetical ones.\n- Optimization Ideas: Only include actions tied to evidence from the snapshot, and mention expected impact when possible.\n- Unknowns: Call out missing information instead of filling gaps with assumptions.\n\n## Debug Console Snapshot\n\nCurrent Debug Context:\n- Page: /core-concepts\n\nArtifact Panel:\n- Panel: Page Build\n- Title: /core-concepts\n- Path: /core-concepts\n- Components: 5\n- Chunk Resources: 11\n- Module Sources: 18\n\nBundle Summary:\n- Total: 14.6 KB\n- JS: 8.9 KB\n- CSS: 1.6 KB\n- Asset: 4.0 KB\n\nChunk Resources (11 shown):\n1. jsx-runtime.BVsBYW55.js\n   path: /docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js\n   type: JS\n   size: 900 B\n   share: 6.0%\n   source modules: 5\n2. Landing.BIIMhutz.js\n   path: /docs-islands/vitepress/assets/Landing.BIIMhutz.js\n   type: JS\n   size: 3.7 KB\n   share: 25.3%\n   source modules: 3\n3. Landing.Cvl0mg3D.css\n   path: /docs-islands/vitepress/assets/Landing.Cvl0mg3D.css\n   type: CSS\n   size: 1.4 KB\n   share: 9.6%\n   source modules: 2\n4. react.CHdo91hT.svg\n   path: /docs-islands/vitepress/assets/react.CHdo91hT.svg\n   type: ASSET\n   size: 4.0 KB\n   share: 27.6%\n   source modules: 1\n5. ReactVueSharedComp.CFdqEJW9.js\n   path: /docs-islands/vitepress/assets/ReactVueSharedComp.CFdqEJW9.js\n   type: JS\n   size: 1.2 KB\n   share: 8.0%\n   source modules: 1\n6. ReactComp1.B-Ihw-Ey.js\n   path: /docs-islands/vitepress/assets/ReactComp1.B-Ihw-Ey.js\n   type: JS\n   size: 1.1 KB\n   share: 7.5%\n   source modules: 1\n7. ReactComp4.DqZJB_gl.js\n   path: /docs-islands/vitepress/assets/ReactComp4.DqZJB_gl.js\n   type: JS\n   size: 1.1 KB\n   share: 7.3%\n   source modules: 1\n8. ReactComp3.BodXeJGz.js\n   path: /docs-islands/vitepress/assets/ReactComp3.BodXeJGz.js\n   type: JS\n   size: 965 B\n   share: 6.5%\n   source modules: 1\n9. ReactComp3.COR3jQwa.css\n   path: /docs-islands/vitepress/assets/ReactComp3.COR3jQwa.css\n   type: CSS\n   size: 128 B\n   share: 0.9%\n   source modules: 1\n10. ReactComp1.CkOOUjfW.css\n   path: /docs-islands/vitepress/assets/ReactComp1.CkOOUjfW.css\n   type: CSS\n   size: 126 B\n   share: 0.8%\n   source modules: 1\n11. renderSharedLicense.7ihd1Uht.js\n   path: /docs-islands/vitepress/assets/chunks/renderSharedLicense.7ihd1Uht.js\n   type: JS\n   size: 91 B\n   share: 0.6%\n   source modules: 1\n\nModule Source (18 shown):\n1. react.svg\n   module id: en/rendering-strategy-comps/react/Landing/src/assets/react.svg\n   rendered size: 4.0 KB\n   share: 22.8%\n   source: Source 4.0 KB\n   delta: Delta 0.0%\n2. vitepress.svg\n   module id: /en/rendering-strategy-comps/react/Landing/public/vitepress.svg\n   rendered size: 2.8 KB\n   share: 15.9%\n   source: Source 2.4 KB\n   delta: Delta +16.2%\n3. ReactVueSharedComp.tsx\n   module id: /en/rendering-strategy-comps/react/ReactVueSharedComp.tsx\n   rendered size: 2.0 KB\n   share: 11.2%\n   source: Source 1.4 KB\n   delta: Delta +44.5%\n4. ReactComp1.tsx\n   module id: /en/rendering-strategy-comps/react/ReactComp1.tsx\n   rendered size: 1.7 KB\n   share: 9.8%\n   source: Source 1.1 KB\n   delta: Delta +55.5%\n5. ReactComp4.tsx\n   module id: /en/rendering-strategy-comps/react/ReactComp4.tsx\n   rendered size: 1.7 KB\n   share: 9.7%\n   source: Source 1.2 KB\n   delta: Delta +44.4%\n6. ReactComp3.tsx\n   module id: /en/rendering-strategy-comps/react/ReactComp3.tsx\n   rendered size: 1.5 KB\n   share: 8.4%\n   source: Source 1001 B\n   delta: Delta +50.9%\n7. App.tsx\n   module id: /en/rendering-strategy-comps/react/Landing/src/App.tsx\n   rendered size: 1.0 KB\n   share: 5.9%\n   source: Source 892 B\n   delta: Delta +19.7%\n8. react-jsx-runtime.production.min.js\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js\n   rendered size: 914 B\n   share: 5.1%\n   source: Source 859 B\n   delta: Delta +6.4%\n9. App.css\n   module id: /en/rendering-strategy-comps/react/Landing/src/App.css\n   rendered size: 810 B\n   share: 4.5%\n   source: Source 991 B\n   delta: Delta -18.3%\n10. index.css\n   module id: /en/rendering-strategy-comps/react/Landing/src/index.css\n   rendered size: 616 B\n   share: 3.4%\n   source: Source 752 B\n   delta: Delta -18.1%\n11. rc3.css\n   module id: /en/rendering-strategy-comps/react/css/rc3.css\n   rendered size: 128 B\n   share: 0.7%\n   source: Source 159 B\n   delta: Delta -19.5%\n12. rc1.css\n   module id: /en/rendering-strategy-comps/react/css/rc1.css\n   rendered size: 126 B\n   share: 0.7%\n   source: Source 157 B\n   delta: Delta -19.7%\n13. renderSharedLicense.ts\n   module id: /en/rendering-strategy-comps/react/shared/renderSharedLicense.ts\n   rendered size: 111 B\n   share: 0.6%\n   source: Source 209 B\n   delta: Delta -46.9%\n14. jsx-runtime.js\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js\n   rendered size: 103 B\n   share: 0.6%\n   source: Source 214 B\n   delta: Delta -51.9%\n15. react.svg\n   module id: /en/rendering-strategy-comps/react/Landing/src/assets/react.svg\n   rendered size: 45 B\n   share: 0.2%\n   source: Source 4.0 KB\n   delta: Delta -98.9%\n16. react-jsx-runtime.production.min.js\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports\n   rendered size: 40 B\n   share: 0.2%\n   source: Source n/a\n   status: generated virtual module\n17. jsx-runtime.js\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module\n   rendered size: 31 B\n   share: 0.2%\n   source: Source n/a\n   status: generated virtual module\n18. react.cjs\n   module id: react.cjs\n   rendered size: 26 B\n   share: 0.1%\n   source: Source n/a\n   status: generated virtual module",
+  "provider": "doubao",
+  "reportId": "b4d0885609a5",
+  "reportLabel": "Doubao Pro",
+  "result": "### Summary\nThis `/core-concepts` VitePress docs-islands build artifact is largely normal, with an extremely small total payload of 14.6 KB suitable for a documentation page. It has only minor, low-impact issues related to over-granular chunk splitting and an inlined asset, making it borderline for optimization attention with no critical performance risks present.\n\n---\n\n### What This Artifact Contains\nThis is the production build output for the `/core-concepts` route, which uses docs-islands architecture with 5 React-based interactive components:\n- Total bundled payload: 14.6 KB, split into 8.9 KB JS, 1.6 KB CSS, 4.0 KB static assets\n- 11 output chunks:\n  1. Largest assets: 4 KB `react.svg` (27.6% of total size), 3.7 KB Landing component JS (25.3% of total size)\n  2. 4 individual React component JS chunks (each ~1 KB, 7-8% size share each) plus 2 tiny associated CSS chunks for ReactComp1 and ReactComp3 (<130 B each)\n  3. Shared utility chunks: 900 B React JSX runtime, 1.2 KB React/Vue cross-framework shared component, 91 B shared license helper\n- Module sources confirm the 2.8 KB `vitepress.svg` module is not emitted as a separate asset (it is inlined into JS), plus 3 tiny generated virtual CommonJS wrapper modules for React dependencies.\n\n---\n\n### Potential Problems Or Tradeoffs\nAll observations are evidence-backed from the snapshot:\n1. **Over-granular chunk splitting**: 4 separate React component JS chunks (<1.2 KB each) plus 2 tiny component CSS chunks create unnecessary network request overhead, as all components are used on this single page. Request handshake/headers will be disproportionately large compared to the small payload size of these chunks.\n2. **Inlined SVG asset**: The 2.8 KB `vitepress.svg` is inlined into JS code instead of being emitted as a separate static asset, increasing JS parse/eval cost and preventing independent caching of the image.\n3. **Minor duplicate module entries**: Two entries for the same `react.svg` path appear in module sources (one full 4 KB asset, one 45 B import proxy), indicating multiple imports of the same asset across modules with negligible overhead.\n4. **Expected tradeoff**: All React component source files have 44-55% size increases from source to rendered output, which is standard overhead for docs-islands hydration wrappers and not a bug.\n\n---\n\n### Optimization Ideas\nAll actions are tied directly to evidence from the snapshot:\n1. **Group co-used component chunks**: Configure VitePress chunk splitting rules to bundle all 4 React components used on this page and their associated CSS into a single chunk. *Expected impact*: Reduce 6 network requests to 1 with no change to total payload size, improving load performance on high-latency connections.\n2. **Extract inlined VitePress SVG**: Adjust Vite asset inlining limits to exclude SVGs over 2 KB, so the 2.8 KB `vitepress.svg` is emitted as a separate cacheable asset. *Expected impact*: Reduce JS payload by ~2.8 KB, lower JS parse time, and enable cross-page caching of the image if reused.\n3. **Merge tiny shared chunks**: Combine the 900 B React JSX runtime chunk and 91 B `renderSharedLicense` chunk into a single shared dependency chunk. *Expected impact*: Reduce 2 additional network requests with no payload size increase.\n4. **Optimize SVG assets**: Run the 4 KB `react.svg` through SVGO compression. *Expected impact*: Reduce SVG size by 30-50% (1.2-2 KB total reduction) for typical unoptimized logo assets.\n5. **Conditional lazy hydration**: If any of the 5 React components are not visible in the initial viewport, enable lazy hydration for those islands. *Expected impact*: Reduce initial JS download/parse cost until the component is scrolled into view.\n\n---\n\n### Unknowns\nNo assumptions are made about missing data; the following cannot be concluded from the snapshot:\n1. Whether the 5 React components are above or below the fold, so we cannot confirm if lazy hydration is appropriate without viewport render data.\n2. Whether the `react.svg` and `vitepress.svg` assets are reused across other site pages, so we cannot quantify cross-page caching benefits of extracting these assets.\n3. Whether the current granular chunk splitting is intentional (to share components across multiple pages) or default unoptimized behavior, so we cannot confirm if merging chunks will hurt cross-page cache hit ratios.\n4. No runtime performance metrics (LCP, FID, network waterfall) are included, so we cannot measure actual user-facing impact of the observed chunk fragmentation.\n5. We cannot confirm if the duplicated `react.svg` module entries cause any runtime overhead, as they may be harmless import proxies that do not add to final payload size.",
+  "target": {
+    "artifactKind": "page-build",
+    "artifactLabel": "/core-concepts",
+    "bytes": 14925,
+    "content": "Build overview for /core-concepts",
+    "context": {
+      "artifactHeaderItems": [
+        {
+          "label": "Path",
+          "value": "/core-concepts"
+        },
+        {
+          "label": "Components",
+          "value": "5"
+        },
+        {
+          "label": "Chunk Resources",
+          "value": "11"
+        },
+        {
+          "label": "Module Sources",
+          "value": "18"
+        }
+      ],
+      "bundleSummaryItems": [
+        {
+          "label": "Total",
+          "value": "14.6 KB"
+        },
+        {
+          "label": "JS",
+          "value": "8.9 KB"
+        },
+        {
+          "label": "CSS",
+          "value": "1.6 KB"
+        },
+        {
+          "label": "Asset",
+          "value": "4.0 KB"
+        }
+      ],
+      "chunkResourceItems": [
+        {
+          "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
+          "label": "jsx-runtime.BVsBYW55.js",
+          "moduleCount": 5,
+          "share": "6.0%",
+          "size": "900 B",
+          "type": "js"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/Landing.BIIMhutz.js",
+          "label": "Landing.BIIMhutz.js",
+          "moduleCount": 3,
+          "share": "25.3%",
+          "size": "3.7 KB",
+          "type": "js"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/Landing.Cvl0mg3D.css",
+          "label": "Landing.Cvl0mg3D.css",
+          "moduleCount": 2,
+          "share": "9.6%",
+          "size": "1.4 KB",
+          "type": "css"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/react.CHdo91hT.svg",
+          "label": "react.CHdo91hT.svg",
+          "moduleCount": 1,
+          "share": "27.6%",
+          "size": "4.0 KB",
+          "type": "asset"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/ReactVueSharedComp.CFdqEJW9.js",
+          "label": "ReactVueSharedComp.CFdqEJW9.js",
+          "moduleCount": 1,
+          "share": "8.0%",
+          "size": "1.2 KB",
+          "type": "js"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/ReactComp1.B-Ihw-Ey.js",
+          "label": "ReactComp1.B-Ihw-Ey.js",
+          "moduleCount": 1,
+          "share": "7.5%",
+          "size": "1.1 KB",
+          "type": "js"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/ReactComp4.DqZJB_gl.js",
+          "label": "ReactComp4.DqZJB_gl.js",
+          "moduleCount": 1,
+          "share": "7.3%",
+          "size": "1.1 KB",
+          "type": "js"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/ReactComp3.BodXeJGz.js",
+          "label": "ReactComp3.BodXeJGz.js",
+          "moduleCount": 1,
+          "share": "6.5%",
+          "size": "965 B",
+          "type": "js"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/ReactComp3.COR3jQwa.css",
+          "label": "ReactComp3.COR3jQwa.css",
+          "moduleCount": 1,
+          "share": "0.9%",
+          "size": "128 B",
+          "type": "css"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/ReactComp1.CkOOUjfW.css",
+          "label": "ReactComp1.CkOOUjfW.css",
+          "moduleCount": 1,
+          "share": "0.8%",
+          "size": "126 B",
+          "type": "css"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/chunks/renderSharedLicense.7ihd1Uht.js",
+          "label": "renderSharedLicense.7ihd1Uht.js",
+          "moduleCount": 1,
+          "share": "0.6%",
+          "size": "91 B",
+          "type": "js"
+        }
+      ],
+      "moduleItems": [
+        {
+          "file": "/docs-islands/vitepress/assets/react.CHdo91hT.svg",
+          "id": "en/rendering-strategy-comps/react/Landing/src/assets/react.svg",
+          "label": "react.svg",
+          "renderedSize": "4.0 KB",
+          "share": "22.8%",
+          "sizeDelta": "Delta 0.0%",
+          "sourceInfo": "Source 4.0 KB"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/Landing.BIIMhutz.js",
+          "id": "/en/rendering-strategy-comps/react/Landing/public/vitepress.svg",
+          "label": "vitepress.svg",
+          "renderedSize": "2.8 KB",
+          "share": "15.9%",
+          "sizeDelta": "Delta +16.2%",
+          "sourceInfo": "Source 2.4 KB"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/ReactVueSharedComp.CFdqEJW9.js",
+          "id": "/en/rendering-strategy-comps/react/ReactVueSharedComp.tsx",
+          "label": "ReactVueSharedComp.tsx",
+          "renderedSize": "2.0 KB",
+          "share": "11.2%",
+          "sizeDelta": "Delta +44.5%",
+          "sourceInfo": "Source 1.4 KB"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/ReactComp1.B-Ihw-Ey.js",
+          "id": "/en/rendering-strategy-comps/react/ReactComp1.tsx",
+          "label": "ReactComp1.tsx",
+          "renderedSize": "1.7 KB",
+          "share": "9.8%",
+          "sizeDelta": "Delta +55.5%",
+          "sourceInfo": "Source 1.1 KB"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/ReactComp4.DqZJB_gl.js",
+          "id": "/en/rendering-strategy-comps/react/ReactComp4.tsx",
+          "label": "ReactComp4.tsx",
+          "renderedSize": "1.7 KB",
+          "share": "9.7%",
+          "sizeDelta": "Delta +44.4%",
+          "sourceInfo": "Source 1.2 KB"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/ReactComp3.BodXeJGz.js",
+          "id": "/en/rendering-strategy-comps/react/ReactComp3.tsx",
+          "label": "ReactComp3.tsx",
+          "renderedSize": "1.5 KB",
+          "share": "8.4%",
+          "sizeDelta": "Delta +50.9%",
+          "sourceInfo": "Source 1001 B"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/Landing.BIIMhutz.js",
+          "id": "/en/rendering-strategy-comps/react/Landing/src/App.tsx",
+          "label": "App.tsx",
+          "renderedSize": "1.0 KB",
+          "share": "5.9%",
+          "sizeDelta": "Delta +19.7%",
+          "sourceInfo": "Source 892 B"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
+          "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js",
+          "label": "react-jsx-runtime.production.min.js",
+          "renderedSize": "914 B",
+          "share": "5.1%",
+          "sizeDelta": "Delta +6.4%",
+          "sourceInfo": "Source 859 B"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/Landing.Cvl0mg3D.css",
+          "id": "/en/rendering-strategy-comps/react/Landing/src/App.css",
+          "label": "App.css",
+          "renderedSize": "810 B",
+          "share": "4.5%",
+          "sizeDelta": "Delta -18.3%",
+          "sourceInfo": "Source 991 B"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/Landing.Cvl0mg3D.css",
+          "id": "/en/rendering-strategy-comps/react/Landing/src/index.css",
+          "label": "index.css",
+          "renderedSize": "616 B",
+          "share": "3.4%",
+          "sizeDelta": "Delta -18.1%",
+          "sourceInfo": "Source 752 B"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/ReactComp3.COR3jQwa.css",
+          "id": "/en/rendering-strategy-comps/react/css/rc3.css",
+          "label": "rc3.css",
+          "renderedSize": "128 B",
+          "share": "0.7%",
+          "sizeDelta": "Delta -19.5%",
+          "sourceInfo": "Source 159 B"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/ReactComp1.CkOOUjfW.css",
+          "id": "/en/rendering-strategy-comps/react/css/rc1.css",
+          "label": "rc1.css",
+          "renderedSize": "126 B",
+          "share": "0.7%",
+          "sizeDelta": "Delta -19.7%",
+          "sourceInfo": "Source 157 B"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/chunks/renderSharedLicense.7ihd1Uht.js",
+          "id": "/en/rendering-strategy-comps/react/shared/renderSharedLicense.ts",
+          "label": "renderSharedLicense.ts",
+          "renderedSize": "111 B",
+          "share": "0.6%",
+          "sizeDelta": "Delta -46.9%",
+          "sourceInfo": "Source 209 B"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
+          "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js",
+          "label": "jsx-runtime.js",
+          "renderedSize": "103 B",
+          "share": "0.6%",
+          "sizeDelta": "Delta -51.9%",
+          "sourceInfo": "Source 214 B"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/Landing.BIIMhutz.js",
+          "id": "/en/rendering-strategy-comps/react/Landing/src/assets/react.svg",
+          "label": "react.svg",
+          "renderedSize": "45 B",
+          "share": "0.2%",
+          "sizeDelta": "Delta -98.9%",
+          "sourceInfo": "Source 4.0 KB"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
+          "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports",
+          "label": "react-jsx-runtime.production.min.js",
+          "renderedSize": "40 B",
+          "share": "0.2%",
+          "sourceInfo": "Source n/a",
+          "statusLabel": "generated virtual module"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
+          "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module",
+          "label": "jsx-runtime.js",
+          "renderedSize": "31 B",
+          "share": "0.2%",
+          "sourceInfo": "Source n/a",
+          "statusLabel": "generated virtual module"
+        },
+        {
+          "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
+          "id": "\u0000react.cjs",
+          "label": "react.cjs",
+          "renderedSize": "26 B",
+          "share": "0.1%",
+          "sourceInfo": "Source n/a",
+          "statusLabel": "generated virtual module"
+        }
+      ],
+      "pageId": "/core-concepts",
+      "renderId": null
+    },
+    "displayPath": "/core-concepts",
+    "language": "text"
+  }
+}
