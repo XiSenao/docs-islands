@@ -140,6 +140,7 @@ describe('site-debug-ai helpers', () => {
     expect(prompt).toContain('Artifact Panel:');
     expect(prompt).toContain('- Panel: Chunk Resource');
     expect(prompt).toContain('- Type: JS');
+    expect(prompt).toContain('- Path: /assets/ssr-inject-code.js');
     expect(prompt).toContain('Bundle Summary:');
     expect(prompt).toContain('- CSS: 2.0 KB');
     expect(prompt).toContain('Chunk Resources (1 shown):');
@@ -254,5 +255,50 @@ describe('site-debug-ai helpers', () => {
     expect(prompt).not.toContain(
       'Identify the selected chunk resource type, size, and role inside the component bundle.',
     );
+  });
+
+  it('replaces local absolute filesystem paths with relative prompt paths', () => {
+    const prompt = buildSiteDebugAiAnalysisPrompt({
+      artifactKind: 'bundle-module',
+      artifactLabel: 'DemoCard.tsx',
+      content: 'export const DemoCard = () => null;',
+      context: {
+        artifactHeaderItems: [
+          {
+            label: 'Path',
+            value:
+              '/Users/alice/Project/docs-islands/packages/vitepress/src/components/DemoCard.tsx',
+          },
+        ],
+        chunkResourceItems: [
+          {
+            current: true,
+            file: '/assets/demo-card.js',
+            label: 'demo-card.js',
+            moduleCount: 1,
+            share: '100.0%',
+            size: '2.0 KB',
+            type: 'js',
+          },
+        ],
+        moduleItems: [
+          {
+            current: true,
+            file: '/assets/demo-card.js',
+            id: '/Users/alice/Project/docs-islands/packages/vitepress/src/components/DemoCard.tsx',
+            label: 'DemoCard.tsx',
+            renderedSize: '2.0 KB',
+            share: '100.0%',
+            sourceInfo: 'Source 1.8 KB',
+          },
+        ],
+      },
+      displayPath:
+        '/Users/alice/Project/docs-islands/packages/vitepress/src/components/DemoCard.tsx',
+      language: 'tsx',
+    });
+
+    expect(prompt).toContain('packages/vitepress/src/components/DemoCard.tsx');
+    expect(prompt).not.toContain('/Users/alice/');
   });
 });

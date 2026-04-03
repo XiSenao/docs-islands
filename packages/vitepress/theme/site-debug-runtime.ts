@@ -72,11 +72,15 @@ export const getResourceTargetDetails = (target: EventTarget | null) => {
   };
 };
 
-export const getCurrentPageCandidates = (debugWindow: SiteDebugWindow) =>
-  getRuntimePageCandidates(debugWindow);
+export const getCurrentPageCandidates = (
+  debugWindow: SiteDebugWindow,
+  currentPathname?: string,
+) => getRuntimePageCandidates(debugWindow, currentPathname);
 
-export const getCurrentPageId = (debugWindow: SiteDebugWindow) =>
-  getCurrentPageCandidates(debugWindow)[0] ?? '/';
+export const getCurrentPageId = (
+  debugWindow: SiteDebugWindow,
+  currentPathname?: string,
+) => getCurrentPageCandidates(debugWindow, currentPathname)[0] ?? '/';
 
 export const getSiteBasePath = (debugWindow: SiteDebugWindow) => {
   const base = debugWindow.__VP_SITE_DATA__?.base;

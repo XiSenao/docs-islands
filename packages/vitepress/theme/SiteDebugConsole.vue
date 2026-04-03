@@ -522,9 +522,11 @@ const shouldShowLatestHmrMetric = (view: RenderMetricView) =>
 const getCurrentPageCandidates = () =>
   typeof window === 'undefined'
     ? ['/']
-    : getCurrentRuntimePageCandidates(getDebugWindow());
+    : getCurrentRuntimePageCandidates(getDebugWindow(), route.path);
 const getCurrentPageId = () =>
-  typeof window === 'undefined' ? '/' : getRuntimePageId(getDebugWindow());
+  typeof window === 'undefined'
+    ? route.path || '/'
+    : getRuntimePageId(getDebugWindow(), route.path);
 const getResolvedDevSourceEndpoint = (sourcePath?: string) =>
   typeof window === 'undefined'
     ? null
@@ -695,12 +697,17 @@ const getPageMetafileFingerprint = ({
     );
 
     return [
+      pageMetafile.pathname ?? '',
       components.length,
       moduleCount,
       fileCount,
       pageMetafile.buildMetrics?.totalEstimatedComponentBytes ?? 0,
       pageMetafile.loaderScript ?? '',
       pageMetafile.ssrInjectScript ?? '',
+      (pageMetafile.buildMetrics?.aiReports ?? [])
+        .map((report) => report.reportFile)
+        .sort((left, right) => left.localeCompare(right))
+        .join(','),
       Array.isArray(pageMetafile.cssBundlePaths)
         ? pageMetafile.cssBundlePaths.length
         : 0,
@@ -718,7 +725,12 @@ const getPageMetafileFingerprint = ({
   ].join('|');
 };
 
-const syncCurrentPageMetafile = (force = false) => {
+const syncCurrentPageMetafile = (
+  options: {
+    force?: boolean;
+    preferredPathname?: string | null;
+  } = {},
+) => {
   if (typeof window === 'undefined') {
     currentPageMetafile.value = null;
     allPageMetafiles.value = [];
@@ -726,14 +738,16 @@ const syncCurrentPageMetafile = (force = false) => {
     return true;
   }
 
+  const preferredPathname = options.preferredPathname ?? null;
+  const shouldForce = options.force === true;
   const { allPageMetafiles: nextMetafiles, currentPageMetafile: nextCurrent } =
-    resolvePageMetafileState(getDebugWindow());
+    resolvePageMetafileState(getDebugWindow(), preferredPathname || route.path);
   const nextFingerprint = getPageMetafileFingerprint({
     allPageMetafiles: nextMetafiles,
     currentPageMetafile: nextCurrent,
   });
 
-  if (!force && nextFingerprint === lastPageMetafileFingerprint) {
+  if (!shouldForce && nextFingerprint === lastPageMetafileFingerprint) {
     return false;
   }
 
@@ -1030,6 +1044,12 @@ const currentPageAiComponents = computed(
   () => currentPageMetafile.value?.buildMetrics?.components ?? [],
 );
 
+const getCurrentPageSupportedComponentCount = (pageMetafile: PageMetafile) =>
+  Math.max(
+    pageMetafile.buildMetrics?.components.length ?? 0,
+    pageMetafile.buildMetrics?.spaSyncEffects?.enabledComponentCount ?? 0,
+  );
+
 const aggregatePageBuildFiles = (
   components: ComponentBuildMetric[],
 ): ComponentBuildMetric['files'] => {
@@ -1112,6 +1132,15 @@ const currentPageAiBuildReports = computed<SiteDebugAiBuildReportReference[]>(
       string,
       SiteDebugAiBuildReportReference
     >();
+    const pageReports =
+      currentPageMetafile.value?.buildMetrics?.aiReports ?? [];
+
+    for (const reportReference of pageReports) {
+      reportReferenceByKey.set(
+        `${reportReference.reportId}::${reportReference.reportFile}`,
+        reportReference,
+      );
+    }
 
     for (const component of currentPageAiComponents.value) {
       for (const reports of Object.values(
@@ -1213,12 +1242,19 @@ const createPageAiModuleItems = (modules: PageAiModuleMetric[]) => {
 
 const currentPageAiAnalysisTarget = computed<SiteDebugAiAnalysisTarget | null>(
   () => {
+    const pageMetafile = currentPageMetafile.value;
+    if (!pageMetafile) {
+      return null;
+    }
+
     const components = currentPageAiComponents.value;
     const pageId = getCurrentPageId();
     const aggregatedFiles = currentPageAiAggregatedFiles.value;
     const aggregatedModules = currentPageAiAggregatedModules.value;
+    const supportedComponentCount =
+      getCurrentPageSupportedComponentCount(pageMetafile);
 
-    if (!components.length) {
+    if (supportedComponentCount === 0) {
       return null;
     }
 
@@ -1233,53 +1269,141 @@ const currentPageAiAnalysisTarget = computed<SiteDebugAiAnalysisTarget | null>(
       .reduce((sum, fileMetric) => sum + fileMetric.bytes, 0);
     const estimatedTotalBytes =
       estimatedAssetBytes + estimatedCssBytes + estimatedJsBytes;
+    const hasComponentBundles = components.length > 0;
+    const pageOnlyContext =
+      !hasComponentBundles && pageMetafile.buildMetrics?.spaSyncEffects
+        ? {
+            artifactHeaderItems: [
+              {
+                label: 'Path',
+                value: pageId,
+              },
+              {
+                label: 'Components',
+                value: String(supportedComponentCount),
+              },
+              {
+                label: 'Chunk Resources',
+                value: String(
+                  new Set(
+                    [
+                      pageMetafile.loaderScript,
+                      pageMetafile.ssrInjectScript,
+                      ...pageMetafile.modulePreloads,
+                      ...pageMetafile.cssBundlePaths,
+                    ].filter(Boolean),
+                  ).size,
+                ),
+              },
+              {
+                label: 'Module Sources',
+                value: '0',
+              },
+              {
+                label: 'Module Preloads',
+                value: String(pageMetafile.modulePreloads.length),
+              },
+              {
+                label: 'CSS Bundles',
+                value: String(pageMetafile.cssBundlePaths.length),
+              },
+              {
+                label: 'Embedded HTML',
+                value:
+                  formatSiteDebugAiBytes(
+                    pageMetafile.buildMetrics?.spaSyncEffects
+                      ?.totalEmbeddedHtmlBytes,
+                  ) || '0 B',
+              },
+            ],
+            liveContextItems: [
+              {
+                label: 'Enabled Renders',
+                value: String(
+                  pageMetafile.buildMetrics?.spaSyncEffects
+                    ?.enabledRenderCount ?? 0,
+                ),
+              },
+              {
+                label: 'Blocking CSS',
+                value: `${
+                  pageMetafile.buildMetrics?.spaSyncEffects
+                    ?.totalBlockingCssCount ?? 0
+                } file(s) · ${
+                  formatSiteDebugAiBytes(
+                    pageMetafile.buildMetrics?.spaSyncEffects
+                      ?.totalBlockingCssBytes,
+                  ) || '0 B'
+                }`,
+              },
+              {
+                label: 'CSS Loading Runtime',
+                value: pageMetafile.buildMetrics?.spaSyncEffects
+                  ?.usesCssLoadingRuntime
+                  ? 'Required'
+                  : 'Not required',
+              },
+            ],
+          }
+        : null;
 
     return {
       artifactKind: 'page-build',
       artifactLabel: pageId,
-      bytes: estimatedTotalBytes,
+      ...(estimatedTotalBytes > 0 ? { bytes: estimatedTotalBytes } : {}),
       content: `Build overview for ${pageId}`,
-      context: {
-        artifactHeaderItems: [
-          {
-            label: 'Path',
-            value: pageId,
+      context: hasComponentBundles
+        ? {
+            artifactHeaderItems: [
+              {
+                label: 'Path',
+                value: pageId,
+              },
+              {
+                label: 'Components',
+                value: String(supportedComponentCount),
+              },
+              {
+                label: 'Chunk Resources',
+                value: String(aggregatedFiles.length),
+              },
+              {
+                label: 'Module Sources',
+                value: String(aggregatedModules.length),
+              },
+            ],
+            bundleSummaryItems: createSiteDebugAiBundleSummaryItems({
+              estimatedAssetBytes,
+              estimatedCssBytes,
+              estimatedJsBytes,
+              estimatedTotalBytes,
+            }),
+            chunkResourceItems: createSiteDebugAiChunkResourceItems({
+              files: aggregatedFiles,
+              modules: aggregatedModules,
+              totalEstimatedBytes: estimatedTotalBytes,
+            }),
+            ...(components.length === 1
+              ? {
+                  componentName: components[0].componentName,
+                }
+              : {}),
+            moduleItems: createPageAiModuleItems(
+              currentPageAiPrioritizedModules.value,
+            ),
+            pageId,
+            renderId: null,
+          }
+        : {
+            artifactHeaderItems: pageOnlyContext?.artifactHeaderItems ?? [],
+            ...(pageOnlyContext?.liveContextItems
+              ? {
+                  liveContextItems: pageOnlyContext.liveContextItems,
+                }
+              : {}),
+            pageId,
+            renderId: null,
           },
-          {
-            label: 'Components',
-            value: String(components.length),
-          },
-          {
-            label: 'Chunk Resources',
-            value: String(aggregatedFiles.length),
-          },
-          {
-            label: 'Module Sources',
-            value: String(aggregatedModules.length),
-          },
-        ],
-        bundleSummaryItems: createSiteDebugAiBundleSummaryItems({
-          estimatedAssetBytes,
-          estimatedCssBytes,
-          estimatedJsBytes,
-          estimatedTotalBytes,
-        }),
-        chunkResourceItems: createSiteDebugAiChunkResourceItems({
-          files: aggregatedFiles,
-          modules: aggregatedModules,
-          totalEstimatedBytes: estimatedTotalBytes,
-        }),
-        ...(components.length === 1
-          ? {
-              componentName: components[0].componentName,
-            }
-          : {}),
-        moduleItems: createPageAiModuleItems(
-          currentPageAiPrioritizedModules.value,
-        ),
-        pageId,
-        renderId: null,
-      },
       displayPath: pageId,
       language: 'text',
     };
@@ -2539,7 +2663,7 @@ const installDebugListeners = () => {
   installConsolePatches();
   installDebugHelper();
   ensureSiteDebugWebVitalsTracking();
-  syncCurrentPageMetafile(true);
+  syncCurrentPageMetafile({ force: true });
   syncHmrMetrics();
   syncRenderMetrics();
   scheduleRenderMetricOverlaySync();
@@ -2560,10 +2684,14 @@ const installDebugListeners = () => {
   };
 
   const handlePageMetafileEvent = (
-    _event: CustomEvent<SiteDebugPageMetafileEventDetail>,
+    event: CustomEvent<SiteDebugPageMetafileEventDetail>,
   ) => {
     clearRemoteTextContentCache();
-    if (syncCurrentPageMetafile()) {
+    if (
+      syncCurrentPageMetafile({
+        preferredPathname: event.detail?.pageId || route.path,
+      })
+    ) {
       scheduleRenderMetricOverlaySync();
     }
   };
@@ -2729,7 +2857,7 @@ const installDebugListeners = () => {
 };
 
 const openDebugConsole = () => {
-  syncCurrentPageMetafile(true);
+  syncCurrentPageMetafile({ force: true });
   syncHmrMetrics();
   syncRenderMetrics();
   scheduleRenderMetricOverlaySync();
@@ -2831,7 +2959,7 @@ const activateDebugRuntime = () => {
     return;
   }
 
-  syncCurrentPageMetafile(true);
+  syncCurrentPageMetafile({ force: true });
   installDebugListeners();
   pushLog('info', 'debug-console', 'debug console enabled', {
     helper: 'window.__DOCS_ISLANDS_SITE_DEBUG__',
@@ -3091,7 +3219,10 @@ watch(
     });
     clearRemoteTextContentCache();
     captureSnapshot('route snapshot');
-    syncCurrentPageMetafile(true);
+    syncCurrentPageMetafile({
+      force: true,
+      preferredPathname: value,
+    });
     syncRenderMetrics();
     scheduleRenderMetricOverlaySync();
     currentPageAiReviewOpen.value = false;

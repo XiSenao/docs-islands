@@ -41,6 +41,7 @@ export interface ComponentBuildMetric {
 }
 
 export interface PageBuildMetrics {
+  aiReports?: SiteDebugAiBuildReportReference[];
   components: ComponentBuildMetric[];
   spaSyncEffects?: {
     components: {
@@ -73,7 +74,14 @@ export type SpaSyncComponentEffect = NonNullable<
 >['components'][number];
 
 export interface PageMetafile {
+  buildId?: string;
   buildMetrics?: PageBuildMetrics;
+  cssBundlePaths: string[];
+  loaderScript: string;
+  modulePreloads: string[];
+  pathname?: string;
+  schemaVersion?: number;
+  ssrInjectScript: string;
   [key: string]: unknown;
 }
 
@@ -134,6 +142,7 @@ const setPreferredBuildMetric = (
 
 export const getCurrentPageCandidates = (
   debugWindow: DebugWindow,
+  currentPathname?: string,
 ): string[] => {
   const siteData = debugWindow.__VP_SITE_DATA__ as
     | {
@@ -145,7 +154,10 @@ export const getCurrentPageCandidates = (
   const base = rawBase.endsWith('/') ? rawBase : `${rawBase}/`;
   const bareBase = base === '/' ? base : base.slice(0, -1);
   const cleanUrls = Boolean(siteData?.cleanUrls);
-  const rawPathname = debugWindow.location.pathname || '/';
+  const rawPathname =
+    (typeof currentPathname === 'string' && currentPathname.length > 0
+      ? currentPathname
+      : debugWindow.location.pathname) || '/';
 
   let pathname = rawPathname;
 
@@ -183,14 +195,18 @@ export const getCurrentPageCandidates = (
   ];
 };
 
-export const resolvePageMetafileState = (debugWindow: DebugWindow) => {
+export const resolvePageMetafileState = (
+  debugWindow: DebugWindow,
+  currentPathname?: string,
+) => {
   const pageMetafile =
     debugWindow.__PAGE_METAFILE__ ||
     debugWindow.__COMPONENT_MANAGER__?.pageMetafile;
   const allPageMetafiles = pageMetafile ? Object.values(pageMetafile) : [];
-  const currentPage = getCurrentPageCandidates(debugWindow).find((candidate) =>
-    Boolean(pageMetafile?.[candidate]),
-  );
+  const currentPage = getCurrentPageCandidates(
+    debugWindow,
+    currentPathname,
+  ).find((candidate) => Boolean(pageMetafile?.[candidate]));
 
   return {
     allPageMetafiles,

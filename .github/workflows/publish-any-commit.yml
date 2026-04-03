@@ -3,8 +3,6 @@ name: Publish Any Commit
 env:
   NODE_OPTIONS: --max-old-space-size=4096
   NODE_VERSION: "20.19.0"
-  SITE_DEBUG_AI_CACHE_KEY_PREFIX: site-debug-ai-build-reports-v1
-  SITE_DEBUG_AI_CACHE_PATH: packages/vitepress/docs/.vitepress/cache/site-debug-ai/build-reports
 
 on: [push, pull_request]
 
@@ -26,16 +24,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Restore Site Debug AI Cache
-        # actions/cache@v5.0.0
-        uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0
-        with:
-          enableCrossOsArchive: true
-          key: ${{ env.SITE_DEBUG_AI_CACHE_KEY_PREFIX }}-${{ hashFiles('pnpm-lock.yaml', 'packages/vitepress/docs/**/*', 'packages/vitepress/src/**/*', 'packages/vitepress/theme/**/*', 'packages/vitepress/types/**/*', 'packages/vitepress/package.json', 'utils/env.ts') }}
-          path: ${{ env.SITE_DEBUG_AI_CACHE_PATH }}
-          restore-keys: |
-            ${{ env.SITE_DEBUG_AI_CACHE_KEY_PREFIX }}-
 
       - name: Build
         run: DOCS_ISLANDS_MODE="production" DOCS_ISLANDS_RELEASE="1" pnpm build

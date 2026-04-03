@@ -103,7 +103,7 @@ export interface SiteDebugBuildArtifactSnapshot {
 
 export interface SiteDebugBuildReportPayload {
   artifactKey: string;
-  artifactKind: SiteDebugAiArtifactKind;
+  artifactKind: SiteDebugAiAnalysisTarget['artifactKind'];
   componentName: string;
   pageId: string;
   reference: SiteDebugAiBuildReportReference;
@@ -219,6 +219,12 @@ const countBuildReportReferences = (
 const hasComponentAiReports = (component: BuildMetric) =>
   countBuildReportReferences(component.aiReports?.chunkReports) > 0 ||
   countBuildReportReferences(component.aiReports?.moduleReports) > 0;
+
+const hasPageAiReports = (pageMetafile: PageMetafile) =>
+  (pageMetafile.buildMetrics?.aiReports?.length ?? 0) > 0 ||
+  (pageMetafile.buildMetrics?.components ?? []).some((component) =>
+    hasComponentAiReports(component),
+  );
 
 const createMissingBuildDataError = (message: string): Error => {
   const error = new Error(message);
@@ -584,9 +590,7 @@ export class SiteDebugBuildDataStore {
     return {
       componentCount: components.length,
       cssBundleCount: pageRecord.metafile.cssBundlePaths.length,
-      hasAiReports: components.some((component) =>
-        hasComponentAiReports(component),
-      ),
+      hasAiReports: hasPageAiReports(pageRecord.metafile),
       loaderScript: pageRecord.metafile.loaderScript,
       metafileFile: pageRecord.publicPath,
       modulePreloadCount: pageRecord.metafile.modulePreloads.length,
@@ -707,6 +711,18 @@ export class SiteDebugBuildDataStore {
     const reports: SiteDebugBuildReportPayload[] = [];
 
     for (const pageRecord of this.getAllPageRecords()) {
+      for (const reference of pageRecord.metafile.buildMetrics?.aiReports ??
+        []) {
+        reports.push({
+          artifactKey: pageRecord.pageId,
+          artifactKind: 'page-build',
+          componentName: pageRecord.pageId,
+          pageId: pageRecord.pageId,
+          reference,
+          report: this.readBuildReport(reference),
+        });
+      }
+
       for (const buildMetric of pageRecord.metafile.buildMetrics?.components ??
         []) {
         for (const [artifactKey, references] of Object.entries(
@@ -791,9 +807,7 @@ export class SiteDebugBuildDataStore {
       buildId: manifestInfo.payload.buildId,
       componentCount,
       hasAiReports: pageRecords.some((pageRecord) =>
-        (pageRecord.metafile.buildMetrics?.components ?? []).some((component) =>
-          hasComponentAiReports(component),
-        ),
+        hasPageAiReports(pageRecord.metafile),
       ),
       manifestFilePath: manifestInfo.filePath,
       pageCount: pageRecords.length,
