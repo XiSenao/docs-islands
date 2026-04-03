@@ -28,6 +28,7 @@ const getExternalDeps = () => {
 
 const externalDeps = getExternalDeps();
 let hasCleanedDist = false;
+const vitepressConfigTypesImport = 'import "../types/vitepress-config.js";\n';
 
 const nodePlugins: RolldownOptions['plugins'] = [
   {
@@ -50,6 +51,22 @@ const nodePlugins: RolldownOptions['plugins'] = [
     '@docs-islands/vitepress',
   ),
   generatePackageJson(),
+  {
+    name: 'rolldown-plugin-add-react-mcp-shebang',
+    generateBundle(_options: unknown, bundle: Record<string, unknown>) {
+      const output = bundle['node/react-mcp.js'];
+
+      if (
+        output &&
+        typeof output === 'object' &&
+        'code' in output &&
+        typeof output.code === 'string' &&
+        !output.code.startsWith('#!/usr/bin/env node\n')
+      ) {
+        output.code = `#!/usr/bin/env node\n${output.code}`;
+      }
+    },
+  },
   {
     name: 'rolldown-plugin-copy-readme',
     generateBundle: {
@@ -88,6 +105,36 @@ const nodePlugins: RolldownOptions['plugins'] = [
     },
   },
 ];
+
+const createVitepressConfigDtsInjectPlugin = () => ({
+  name: 'rolldown-plugin-inject-vitepress-config-dts',
+  generateBundle(_options: unknown, bundle: Record<string, unknown>) {
+    for (const fileName of ['node/index.d.ts', 'node/react.d.ts']) {
+      const output = bundle[fileName];
+
+      if (!output || typeof output !== 'object') {
+        continue;
+      }
+
+      if (
+        'source' in output &&
+        typeof output.source === 'string' &&
+        !output.source.startsWith(vitepressConfigTypesImport)
+      ) {
+        output.source = `${vitepressConfigTypesImport}${output.source}`;
+        continue;
+      }
+
+      if (
+        'code' in output &&
+        typeof output.code === 'string' &&
+        !output.code.startsWith(vitepressConfigTypesImport)
+      ) {
+        output.code = `${vitepressConfigTypesImport}${output.code}`;
+      }
+    }
+  },
+});
 
 const getSharedOptions = (platform: 'node' | 'browser') => {
   const baseDir = platform === 'node' ? 'node' : 'client';
@@ -141,6 +188,7 @@ const nodeConfig = defineConfig({
   input: {
     index: resolve(__dirname, 'src/node/index.ts'),
     react: resolve(__dirname, 'src/node/react/index.ts'),
+    'react-mcp': resolve(__dirname, 'src/node/react-mcp.ts'),
   },
   plugins: nodePlugins,
   output: {
@@ -164,6 +212,7 @@ const nodeDtsConfig = defineConfig({
   input: {
     index: resolve(__dirname, 'src/node/index.ts'),
     react: resolve(__dirname, 'src/node/react/index.ts'),
+    'react-mcp': resolve(__dirname, 'src/node/react-mcp.ts'),
   },
   plugins: [
     dts({
@@ -171,6 +220,7 @@ const nodeDtsConfig = defineConfig({
       emitDtsOnly: true,
       sourcemap,
     }),
+    createVitepressConfigDtsInjectPlugin(),
   ],
 });
 

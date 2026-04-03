@@ -44,6 +44,7 @@ import { bundleMultipleComponentsForSSR } from './build/bundleMultipleComponents
 import { getComponentBundleKey } from './build/shared';
 import { createPageMetafileArtifacts } from './page-metafile-manifest';
 import type { ReactRenderController } from './react-render-controller';
+import { generateSiteDebugAiBuildReports } from './site-debug-ai-build-reports';
 
 const loggerInstance = getLoggerInstance();
 
@@ -591,7 +592,7 @@ export function registerBuildHelper(
   };
 
   vitepressConfig.buildEnd = async () => {
-    const { outDir, assetsDir, cleanUrls } = config;
+    const { outDir, assetsDir, cacheDir, cleanUrls, siteDebug } = config;
     const matafileDir = join(outDir, assetsDir);
     const Logger = loggerInstance.getLoggerByGroup('build-end');
     const { fileName, content } = await getClientRuntimeMetafile();
@@ -605,6 +606,15 @@ export function registerBuildHelper(
     const transformedPageMetafileMap =
       renderController.getTransformedPageMetafile(cleanUrls);
     if (Object.keys(transformedPageMetafileMap).length > 0) {
+      await generateSiteDebugAiBuildReports({
+        aiConfig: siteDebug.analysis,
+        assetsDir,
+        cacheDir,
+        outDir,
+        pageMetafiles: transformedPageMetafileMap,
+        wrapBaseUrl,
+      });
+
       const pageMetafileArtifacts = createPageMetafileArtifacts({
         assetsDir,
         pageMetafiles: transformedPageMetafileMap,

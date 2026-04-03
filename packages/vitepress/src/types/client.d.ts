@@ -5,6 +5,7 @@ import type {
   ReactComponentManager,
   ReactInjectComponent,
 } from '#dep-types/react';
+import type { SiteDebugUserConfig } from '#dep-types/utils';
 import type { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
 import type * as ReactDOMClient from 'react-dom/client';
 import type { DefaultTheme, SiteConfig } from 'vitepress';
@@ -16,6 +17,14 @@ import type { DefaultTheme, SiteConfig } from 'vitepress';
 declare module 'vite' {
   interface UserConfig {
     vitepress?: SiteConfig<DefaultTheme.Config>;
+  }
+}
+
+declare module 'vitepress' {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- must match upstream VitePress generic default for declaration merging
+  interface UserConfig<ThemeConfig = any> {
+    themeConfig?: ThemeConfig;
+    siteDebug?: SiteDebugUserConfig;
   }
 }
 

@@ -1,5 +1,9 @@
 import type { SSRUpdateData, SSRUpdateRenderData } from '#dep-types/ssr';
-import type { ConfigType } from '#dep-types/utils';
+import type {
+  ConfigType,
+  SiteDebugAnalysisUserConfig,
+  SiteDebugUserConfig,
+} from '#dep-types/utils';
 import { resolveConfig } from '#shared/config';
 import {
   REACT_RENDER_STRATEGY_INJECT_RUNTIME_ID,
@@ -11,6 +15,7 @@ import { type ImportSpecifier, init, parse } from 'es-module-lexer';
 import MagicString, { type SourceMap } from 'magic-string';
 import MarkdownIt from 'markdown-it';
 import fs from 'node:fs';
+import type { ServerResponse } from 'node:http';
 import { createRequire } from 'node:module';
 import { join } from 'pathe';
 import React, { version as reactPackageVersion } from 'react';
@@ -29,6 +34,10 @@ import createVitePressPathResolverPlugin, {
 import { createImportReferenceResolver } from './export-resolver';
 import { registerBuildHelper } from './react-build-helper';
 import { ReactRenderController } from './react-render-controller';
+import {
+  handleSiteDebugAiRequest,
+  type SiteDebugAnalysisRuntimeConfig,
+} from './site-debug-ai-server';
 
 /**
  * Shared MarkdownIt instance for extracting html_block tokens from Markdown.
@@ -82,6 +91,127 @@ const isReactClientChunk = (chunkInfo: Rollup.PreRenderedChunk) => {
   );
 };
 
+const resolveSiteDebugPath = (base: string, suffix: string) => {
+  const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+
+  return `${normalizedBase}${suffix}`;
+};
+
+const sendSiteDebugAiErrorResponse = (res: ServerResponse, error: unknown) => {
+  if (res.writableEnded) {
+    return;
+  }
+
+  res.statusCode = 500;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.end(
+    JSON.stringify({
+      error: error instanceof Error ? error.message : 'AI analysis failed.',
+      ok: false,
+    }),
+  );
+};
+
+const warnIfUnsupportedNodeVersion = () => {
+  if (checkNodeVersion(process.versions.node)) {
+    return;
+  }
+
+  loggerInstance
+    .getLoggerByGroup('@docs-islands/vitepress')
+    .warn(
+      `You are using Node.js ${process.versions.node}. ` +
+        `@docs-islands/vitepress requires Node.js version 20.19+ or 22.12+. ` +
+        `Please upgrade your Node.js version.`,
+    );
+};
+
+const mergeSiteDebugAnalysisConfig = (
+  base: SiteDebugAnalysisUserConfig | undefined,
+  override: SiteDebugAnalysisUserConfig | undefined,
+): SiteDebugAnalysisUserConfig | undefined => {
+  if (!base && !override) {
+    return undefined;
+  }
+
+  const mergedProviders =
+    base?.providers || override?.providers
+      ? {
+          ...base?.providers,
+          ...override?.providers,
+          ...(base?.providers?.claudeCode || override?.providers?.claudeCode
+            ? {
+                claudeCode: {
+                  ...base?.providers?.claudeCode,
+                  ...override?.providers?.claudeCode,
+                },
+              }
+            : {}),
+          ...(base?.providers?.doubao || override?.providers?.doubao
+            ? {
+                doubao: {
+                  ...base?.providers?.doubao,
+                  ...override?.providers?.doubao,
+                },
+              }
+            : {}),
+        }
+      : undefined;
+
+  const mergedBuildReports =
+    base?.buildReports || override?.buildReports
+      ? {
+          ...base?.buildReports,
+          ...override?.buildReports,
+        }
+      : undefined;
+
+  return {
+    ...base,
+    ...override,
+    ...(mergedProviders
+      ? {
+          providers: mergedProviders,
+        }
+      : {}),
+    ...(mergedBuildReports
+      ? {
+          buildReports: mergedBuildReports,
+        }
+      : {}),
+  };
+};
+
+const mergeSiteDebugConfig = (
+  base: SiteDebugUserConfig | undefined,
+  override: SiteDebugUserConfig | undefined,
+): SiteDebugUserConfig | undefined => {
+  if (!base && !override) {
+    return undefined;
+  }
+
+  const mergedAnalysis = mergeSiteDebugAnalysisConfig(
+    base?.analysis,
+    override?.analysis,
+  );
+  const mergedAi = mergeSiteDebugAnalysisConfig(base?.ai, override?.ai);
+
+  return {
+    ...base,
+    ...override,
+    ...(mergedAnalysis
+      ? {
+          analysis: mergedAnalysis,
+        }
+      : {}),
+    ...(mergedAi
+      ? {
+          ai: mergedAi,
+        }
+      : {}),
+  };
+};
+
 interface TransformContext {
   resolveId: (id: string, importer?: string) => Promise<{ id: string } | null>;
 }
@@ -133,20 +263,29 @@ function checkNodeVersion(nodeVersion: string): boolean {
   return isSupported;
 }
 
+export interface VitepressReactRenderingStrategiesOptions {
+  siteDebug?: SiteDebugUserConfig;
+}
+
 export default function vitepressReactRenderingStrategies(
   vitepressConfig: UserConfig<DefaultTheme.Config>,
+  options?: VitepressReactRenderingStrategiesOptions,
 ): void {
-  if (!checkNodeVersion(process.versions.node)) {
-    loggerInstance
-      .getLoggerByGroup('@docs-islands/vitepress')
-      .warn(
-        `You are using Node.js ${process.versions.node}. ` +
-          `@docs-islands/vitepress requires Node.js version 20.19+ or 22.12+. ` +
-          `Please upgrade your Node.js version.`,
-      );
+  warnIfUnsupportedNodeVersion();
+  const mergedSiteDebug = mergeSiteDebugConfig(
+    vitepressConfig.siteDebug,
+    options?.siteDebug,
+  );
+
+  if (mergedSiteDebug) {
+    vitepressConfig.siteDebug = mergedSiteDebug;
   }
+
   let ssr = false;
   const siteConfig: ConfigType = resolveConfig(vitepressConfig);
+  const siteDebugAnalysis = siteConfig.siteDebug.analysis as
+    | SiteDebugAnalysisRuntimeConfig
+    | undefined;
   const renderController = new ReactRenderController();
 
   registerBuildHelper(vitepressConfig, siteConfig, renderController);
@@ -724,10 +863,21 @@ export default function vitepressReactRenderingStrategies(
           }
 
           const requestUrl = new URL(req.url, 'http://docs-islands.local');
-          const normalizedBase = siteConfig.base.endsWith('/')
-            ? siteConfig.base
-            : `${siteConfig.base}/`;
-          const debugSourcePath = `${normalizedBase}__docs-islands/debug-source`;
+          const debugAiPath = resolveSiteDebugPath(
+            siteConfig.base,
+            '__docs-islands/debug-ai',
+          );
+          const debugSourcePath = resolveSiteDebugPath(
+            siteConfig.base,
+            '__docs-islands/debug-source',
+          );
+
+          if (requestUrl.pathname === debugAiPath) {
+            handleSiteDebugAiRequest(req, res, siteDebugAnalysis).catch(
+              (error) => sendSiteDebugAiErrorResponse(res, error),
+            );
+            return;
+          }
 
           if (requestUrl.pathname !== debugSourcePath) {
             next();

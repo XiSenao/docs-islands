@@ -198,6 +198,20 @@ describe('bundleMultipleComponentsForBrowser', () => {
       buildMetrics.spaSyncEffects?.totalEmbeddedHtmlBytes ?? 0,
     ).toBeGreaterThan(0);
     expect(buildMetrics.totalEstimatedComponentBytes).toBeGreaterThan(0);
+    const uniquePageFileBytes = [
+      ...buildMetrics.components
+        .flatMap((componentMetric) => componentMetric.files)
+        .reduce((fileMetricMap, fileMetric) => {
+          const existingMetric = fileMetricMap.get(fileMetric.file);
+
+          if (!existingMetric || existingMetric.bytes < fileMetric.bytes) {
+            fileMetricMap.set(fileMetric.file, fileMetric);
+          }
+
+          return fileMetricMap;
+        }, new Map<string, (typeof buildMetrics.components)[number]['files'][number]>()),
+    ].reduce((sum, [, fileMetric]) => sum + fileMetric.bytes, 0);
+    expect(buildMetrics.totalEstimatedComponentBytes).toBe(uniquePageFileBytes);
     for (const componentMetric of buildMetrics.components) {
       expect(componentMetric.files.length).toBeGreaterThan(0);
       expect(componentMetric.estimatedTotalBytes).toBeGreaterThan(0);

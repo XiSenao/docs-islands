@@ -45,6 +45,63 @@ function findPluginByName(
 }
 
 describe('vitepressReactRenderingStrategies', () => {
+  it('merges siteDebug from the second options argument into the VitePress config', async () => {
+    const { default: vitepressReactRenderingStrategies } = await import(
+      '../index'
+    );
+
+    const vitepressConfig: any = {
+      siteDebug: {
+        analysis: {
+          providers: {
+            claudeCode: {
+              command: 'claude',
+              timeoutMs: 240_000,
+            },
+          },
+        },
+      },
+    };
+
+    vitepressReactRenderingStrategies(vitepressConfig, {
+      siteDebug: {
+        analysis: {
+          providers: {
+            doubao: {
+              apiKey: 'test-key',
+              model: 'doubao-seed-2-0-pro-260215',
+            },
+          },
+          buildReports: {
+            runs: [
+              {
+                label: 'Doubao Pro',
+                model: 'doubao-seed-2-0-pro-260215',
+                provider: 'doubao',
+                thinking: 'enabled',
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    expect(
+      vitepressConfig.siteDebug.analysis?.providers?.claudeCode?.command,
+    ).toBe('claude');
+    expect(vitepressConfig.siteDebug.analysis?.providers?.doubao?.model).toBe(
+      'doubao-seed-2-0-pro-260215',
+    );
+    expect(vitepressConfig.siteDebug.analysis?.buildReports?.runs).toEqual([
+      {
+        label: 'Doubao Pro',
+        model: 'doubao-seed-2-0-pro-260215',
+        provider: 'doubao',
+        thinking: 'enabled',
+      },
+    ]);
+  });
+
   it('logs error and strips scripts when multiple <script lang="react"> blocks exist in one html_block', async () => {
     const { default: vitepressReactRenderingStrategies } = await import(
       '../index'

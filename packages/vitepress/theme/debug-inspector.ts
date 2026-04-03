@@ -14,7 +14,23 @@ export interface BundleModuleMetric {
   sourcePath?: string;
 }
 
+export interface SiteDebugAiBuildReportReference {
+  detail?: string;
+  generatedAt: string;
+  model?: string;
+  provider: 'claude-code' | 'doubao';
+  reportId: string;
+  reportLabel: string;
+  reportFile: string;
+}
+
+export interface ComponentBuildMetricAiReports {
+  chunkReports?: Record<string, SiteDebugAiBuildReportReference[]>;
+  moduleReports?: Record<string, SiteDebugAiBuildReportReference[]>;
+}
+
 export interface ComponentBuildMetric {
+  aiReports?: ComponentBuildMetricAiReports;
   componentName: string;
   estimatedAssetBytes: number;
   estimatedCssBytes: number;

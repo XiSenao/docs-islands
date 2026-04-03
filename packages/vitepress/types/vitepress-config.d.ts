@@ -1,19 +1,3 @@
-/**
- * Configuration and utility types
- */
-
-export type ConsoleThemeValue =
-  | 'red'
-  | 'green'
-  | 'yellow'
-  | 'blue'
-  | 'redBright';
-
-export interface PrintOptions {
-  theme?: ConsoleThemeValue;
-  bold?: boolean;
-}
-
 export type SiteDebugAnalysisProvider = 'claude-code' | 'doubao';
 export type SiteDebugAnalysisDoubaoThinkingType = 'enabled' | 'disabled';
 
@@ -170,16 +154,10 @@ export interface SiteDebugUserConfig {
   ai?: SiteDebugAiUserConfig;
 }
 
-export interface ConfigType {
-  root: string;
-  outDir: string;
-  base: string;
-  srcDir: string;
-  assetsDir: string;
-  mpa: boolean;
-  publicDir: string;
-  cacheDir: string;
-  cleanUrls: boolean;
-  siteDebug: SiteDebugUserConfig;
-  wrapBaseUrl: (path: string) => string;
+declare module 'vitepress' {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- must match upstream VitePress generic default for declaration merging
+  interface UserConfig<ThemeConfig = any> {
+    themeConfig?: ThemeConfig;
+    siteDebug?: SiteDebugUserConfig;
+  }
 }

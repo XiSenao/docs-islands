@@ -33,7 +33,7 @@ const envFlagSchema = z
   })
   .default(false);
 
-const processEnvSchema = z.object({
+const managedProcessEnvSchema = z.object({
   DOCS_ISLANDS_RELEASE: envFlagSchema,
   DOCS_ISLANDS_TEST: envFlagSchema,
   DOCS_ISLANDS_SOURCEMAP: envBooleanSchema,
@@ -47,6 +47,15 @@ const processEnvSchema = z.object({
 
   // build
   DOCS_ISLANDS_BUILD_SKIP_PACKAGES: z.string().default(''),
+
+  // site debug
+  DOCS_ISLANDS_ARK_API_KEY: z.string().default(''),
+});
+
+const runtimeProcessEnvSchema = z.object({
+  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: z.string().optional(),
+  ProgramFiles: z.string().optional(),
+  'ProgramFiles(x86)': z.string().optional(),
 });
 
 export interface EnvConfig {
@@ -55,12 +64,20 @@ export interface EnvConfig {
     minify: boolean;
     silence: boolean;
   };
+  siteDebug: {
+    doubao_api_key: string;
+  };
   build: {
     skipPackages: string;
   };
   test: {
     ws_endpoint: string | undefined;
     port: string | undefined;
+  };
+  runtime: {
+    chromiumExecutablePath: string | undefined;
+    programFiles: string | undefined;
+    programFilesX86: string | undefined;
   };
   debug: boolean;
   env: Environment;
@@ -199,7 +216,9 @@ export function loadEnv(options: LoadEnvOptions = defaultOptions): EnvConfig {
   }
 
   // ── Step 5: Validate and map final configuration ──
-  const finalEnv = processEnvSchema.parse(process.env);
+  const finalEnv = managedProcessEnvSchema
+    .merge(runtimeProcessEnvSchema)
+    .parse(process.env);
 
   cachedEnv = {
     config: {
@@ -207,12 +226,20 @@ export function loadEnv(options: LoadEnvOptions = defaultOptions): EnvConfig {
       minify: finalEnv.DOCS_ISLANDS_MINIFY,
       silence: finalEnv.DOCS_ISLANDS_SILENCE_LOG,
     },
+    siteDebug: {
+      doubao_api_key: finalEnv.DOCS_ISLANDS_ARK_API_KEY,
+    },
     build: {
       skipPackages: finalEnv.DOCS_ISLANDS_BUILD_SKIP_PACKAGES,
     },
     test: {
       ws_endpoint: finalEnv.WS_ENDPOINT,
       port: finalEnv.PORT,
+    },
+    runtime: {
+      chromiumExecutablePath: finalEnv.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+      programFiles: finalEnv.ProgramFiles,
+      programFilesX86: finalEnv['ProgramFiles(x86)'],
     },
     debug: finalEnv.DOCS_ISLANDS_DEBUG,
     release: finalEnv.DOCS_ISLANDS_RELEASE,
@@ -230,12 +257,13 @@ type ProcessEnvKey =
   | 'DOCS_ISLANDS_MINIFY'
   | 'DOCS_ISLANDS_SILENCE_LOG'
   | 'DOCS_ISLANDS_DEBUG'
+  | 'DOCS_ISLANDS_ARK_API_KEY'
   | 'WS_ENDPOINT'
   | 'PORT'
   | 'DOCS_ISLANDS_BUILD_SKIP_PACKAGES';
 
 const injectKeySchema: z.ZodType<'DOCS_ISLANDS_MODE' | ProcessEnvKey> = z.union(
-  [z.literal('DOCS_ISLANDS_MODE'), processEnvSchema.keyof()],
+  [z.literal('DOCS_ISLANDS_MODE'), managedProcessEnvSchema.keyof()],
 );
 
 export type InjectableKey = z.infer<typeof injectKeySchema>;

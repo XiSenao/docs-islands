@@ -33,7 +33,7 @@
     "access": "public"
   },
   "scripts": {
-    "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
+    "lint": "eslint . --config ./eslint.config.mjs --fix --cache --cache-location ./node_modules/.cache/eslint/",
     "lint:package": "tsx scripts/lint-package.ts",
     "lint:package:publint": "tsx scripts/lint-package.ts --tool publint",
     "lint:package:attw": "tsx scripts/lint-package.ts --tool attw",
@@ -52,7 +52,7 @@
     "release:beta": "tsx scripts/release.ts --type prerelease --preid beta",
     "release:alpha": "tsx scripts/release.ts --type prerelease --preid alpha",
     "release:dry": "tsx scripts/release.ts --dry-run --type patch",
-    "test": "pnpm test:unit && pnpm --filter @docs-islands/vitepress-playground test:e2e",
+    "test": "pnpm test:unit && pnpm --dir ./playground test:e2e",
     "test:unit": "vitest run",
     "clean": "del-cli .eslintcache dist coverage node_modules"
   },
@@ -162,6 +162,10 @@
       "default": "./theme/debug-console.css"
     },
     "./react": "./src/node/react/index.ts",
+    "./react/mcp": {
+      "types": "./src/node/react-mcp.ts",
+      "default": "./src/node/react-mcp.ts"
+    },
     "./react/client": "./src/client/react/index.ts",
     "./package.json": "./package.json",
     "./internal/debug": "./src/shared/debug.ts",
@@ -176,6 +180,9 @@
     }
   },
   "types": "./node/index.d.ts",
+  "bin": {
+    "docs-islands-vitepress-site-debug-mcp": "./node/react-mcp.js"
+  },
   "typesVersions": {
     "*": {
       "client": [
@@ -189,6 +196,9 @@
       ],
       "react": [
         "./node/react.d.ts"
+      ],
+      "react/mcp": [
+        "./node/react-mcp.d.ts"
       ],
       "react/client": [
         "./client/react.d.mts"

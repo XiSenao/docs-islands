@@ -1,11 +1,14 @@
 import { loadEnv } from '@docs-islands/utils/env';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 const { ci } = loadEnv();
 
 const timeout = 50_000;
+const root = fileURLToPath(new URL('.', import.meta.url));
 
 export default defineConfig({
+  root,
   test: {
     include: ['**/*.test.ts'],
     setupFiles: ['vitestSetup.ts'],

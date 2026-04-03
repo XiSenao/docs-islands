@@ -1,6 +1,9 @@
-import { injectEnvs, loadEnv } from '@docs-islands/utils/env';
+import { injectEnvs, loadEnv } from '@docs-islands/utils';
 import getPort from 'get-port';
+import fs from 'node:fs';
 import type { Server } from 'node:net';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { type BrowserServer, chromium } from 'playwright-chromium';
 import type { ViteDevServer } from 'vite';
 import { createServer } from 'vitepress';
@@ -8,14 +11,47 @@ import { createServer } from 'vitepress';
 let browserServer: BrowserServer;
 let server: ViteDevServer | Server;
 
-const root = '.';
+const root = fileURLToPath(new URL('.', import.meta.url));
 
-const { ci, debug } = loadEnv();
+const { ci, debug, runtime } = loadEnv();
+
+const resolveChromiumExecutablePath = () => {
+  const bundledExecutablePath = chromium.executablePath();
+
+  if (bundledExecutablePath && fs.existsSync(bundledExecutablePath)) {
+    return bundledExecutablePath;
+  }
+
+  const override = runtime.chromiumExecutablePath?.trim();
+
+  if (override) {
+    return override;
+  }
+
+  const candidatePaths = [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    path.join(
+      runtime.programFiles || 'C:/Program Files',
+      'Google/Chrome/Application/chrome.exe',
+    ),
+    path.join(
+      runtime.programFilesX86 || 'C:/Program Files (x86)',
+      'Google/Chrome/Application/chrome.exe',
+    ),
+  ];
+
+  return candidatePaths.find((candidatePath) => fs.existsSync(candidatePath));
+};
 
 export async function setup(): Promise<void> {
   browserServer = await chromium.launchServer({
     headless: !debug,
     args: ci ? ['--no-sandbox', '--disable-setuid-sandbox'] : undefined,
+    executablePath: resolveChromiumExecutablePath(),
   });
   const port = await getPort();
   injectEnvs({
