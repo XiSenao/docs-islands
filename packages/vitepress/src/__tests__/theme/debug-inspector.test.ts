@@ -224,4 +224,62 @@ describe('debug-inspector build metric lookup', () => {
         .currentPageMetafile,
     ).toBe(zhPageMetafile);
   });
+
+  it('ignores query parameters and hashes when resolving the current page metafile', () => {
+    const pageMetafile: PageMetafile = {
+      buildMetrics: {
+        aiReports: [
+          {
+            generatedAt: '2026-04-04T00:00:00.000Z',
+            provider: 'doubao',
+            reportFile:
+              '/docs/assets/page-metafiles/ai/pages/rendering-strategy.json',
+            reportId: 'rendering-strategy-report-id',
+            reportLabel: 'Doubao',
+          },
+        ],
+        components: [],
+        totalEstimatedComponentBytes: 0,
+      },
+      cssBundlePaths: [],
+      loaderScript: '/docs/assets/unified-loader.js',
+      modulePreloads: [],
+      pathname: '/blog/rendering-strategy',
+      ssrInjectScript: '',
+    };
+    const debugWindow = {
+      __PAGE_METAFILE__: {
+        '/blog/rendering-strategy': pageMetafile,
+      },
+      __VP_SITE_DATA__: {
+        base: '/',
+        cleanUrls: true,
+      },
+      location: {
+        pathname: '/blog/rendering-strategy',
+      },
+    } as unknown as Window & {
+      __PAGE_METAFILE__: Record<string, PageMetafile>;
+      __VP_SITE_DATA__: {
+        base: string;
+        cleanUrls: boolean;
+      };
+      location: {
+        pathname: string;
+      };
+    };
+
+    expect(
+      getCurrentPageCandidates(
+        debugWindow,
+        '/blog/rendering-strategy?site-debug=1#overview',
+      )[0],
+    ).toBe('/blog/rendering-strategy');
+    expect(
+      resolvePageMetafileState(
+        debugWindow,
+        '/blog/rendering-strategy?site-debug=1#overview',
+      ).currentPageMetafile,
+    ).toBe(pageMetafile);
+  });
 });

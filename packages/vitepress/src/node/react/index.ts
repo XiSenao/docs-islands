@@ -112,6 +112,47 @@ const sendSiteDebugAiErrorResponse = (res: ServerResponse, error: unknown) => {
   );
 };
 
+const collectCssModulesInSSR = (
+  module: ModuleNode,
+  hasVisited: Set<string>,
+  srcDir: string,
+): string[] | null => {
+  if (!module?.id || hasVisited.has(module.id)) {
+    return null;
+  }
+
+  hasVisited.add(module.id);
+  const { importedModules, id: moduleId } = module;
+
+  if (!moduleId || moduleId.includes('node_modules')) {
+    return null;
+  }
+
+  if (moduleId.endsWith('.css')) {
+    return [moduleId.replace(srcDir, '')];
+  }
+
+  const collectedCssModules = new Set<string>();
+
+  for (const importedModule of importedModules) {
+    const collectedCssPaths = collectCssModulesInSSR(
+      importedModule,
+      hasVisited,
+      srcDir,
+    );
+
+    if (!collectedCssPaths) {
+      continue;
+    }
+
+    for (const cssPath of collectedCssPaths) {
+      collectedCssModules.add(cssPath);
+    }
+  }
+
+  return [...collectedCssModules];
+};
+
 const warnIfUnsupportedNodeVersion = () => {
   if (checkNodeVersion(process.versions.node)) {
     return;
@@ -911,37 +952,6 @@ export default function vitepressReactRenderingStrategies(
           }
         });
 
-        const collectCssModulesInSSR = (
-          module: ModuleNode,
-          hasVisited: Set<string>,
-        ): string[] | null => {
-          if (!module?.id || hasVisited.has(module.id)) {
-            return null;
-          }
-          hasVisited.add(module.id);
-          const { importedModules, id: moduleId } = module;
-          if (!moduleId || moduleId.includes('node_modules')) {
-            return null;
-          }
-          if (moduleId.endsWith('.css')) {
-            return [moduleId.replace(siteConfig.srcDir, '')];
-          }
-          const collectCssModules = new Set<string>();
-          if (importedModules.size > 0) {
-            for (const importedModule of importedModules) {
-              const collected = collectCssModulesInSSR(
-                importedModule,
-                hasVisited,
-              );
-              if (collected) {
-                for (const cssPath of collected) {
-                  collectCssModules.add(cssPath);
-                }
-              }
-            }
-          }
-          return [...collectCssModules];
-        };
         server.ws.on(
           'vrite-ssr-update',
           async (
@@ -1007,6 +1017,7 @@ export default function vitepressReactRenderingStrategies(
                     collectCssModulesInSSR(
                       ssrOnlyModuleGraph as ModuleNode,
                       new Set(),
+                      siteConfig.srcDir,
                     ) || [];
                 }
 

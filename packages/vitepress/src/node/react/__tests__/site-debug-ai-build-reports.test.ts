@@ -536,6 +536,137 @@ describe('generateSiteDebugAiBuildReports', () => {
     expect(chunkReference?.reportId).toBe(moduleReference?.reportId);
   });
 
+  it('sanitizes local absolute filesystem paths before persisting page reports', async () => {
+    const outDir = createTempDirectory();
+    const cacheDir = createTempDirectory('site-debug-ai-cache-');
+    const sourceDir = createTempDirectory('site-debug-ai-source-');
+    const pageMetafiles = createPageMetafiles();
+    const componentMetric =
+      pageMetafiles['/guide/getting-started'].buildMetrics?.components[0];
+
+    if (!componentMetric) {
+      throw new Error('Expected component metric to be present in test setup.');
+    }
+
+    componentMetric.modules = [
+      {
+        bytes: 920,
+        file: '/docs/assets/chunks/demo-card.js',
+        id: '\u0000/Users/alice/Project/docs-islands/packages/vitepress/src/components/DemoCard.tsx?commonjs-module',
+        sourcePath:
+          '/Users/alice/Project/docs-islands/packages/vitepress/src/components/DemoCard.tsx',
+      },
+    ];
+
+    writeTextFile(
+      path.join(outDir, 'assets/chunks/demo-card.js'),
+      'export const DemoCard = () => "demo";',
+    );
+
+    await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          groupBy: 'page',
+          runs: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+          sourceDir,
+          sourceMode: 'read-write',
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            enabled: true,
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir,
+      dependencies: {
+        analyzeTarget: async ({ target }) => ({
+          detail: 'Generated in test',
+          model: 'doubao-test-model',
+          result: `analysis:${target.context?.moduleItems?.[0]?.id ?? 'missing'}`,
+        }),
+        resolveCapabilities: async () => ({
+          ok: true,
+          providers: {
+            'claude-code': {
+              available: false,
+              detail: 'Unavailable in test',
+              provider: 'claude-code',
+            },
+            doubao: {
+              available: true,
+              detail: 'Available in test',
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          },
+        }),
+      },
+      outDir,
+      pageMetafiles,
+      root: '/Users/alice/Project/docs-islands/packages/vitepress/docs',
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    const pageReportFiles = fs.readdirSync(
+      path.join(outDir, 'assets/page-metafiles/ai/pages'),
+    );
+    const sourceReportFiles = fs.readdirSync(path.join(sourceDir, 'pages'));
+    const pageReport = JSON.parse(
+      fs.readFileSync(
+        path.join(outDir, 'assets/page-metafiles/ai/pages', pageReportFiles[0]),
+        'utf8',
+      ),
+    ) as {
+      prompt: string;
+      result: string;
+      target: {
+        context?: {
+          moduleItems?: {
+            id: string;
+          }[];
+        };
+      };
+    };
+    const sourceReport = JSON.parse(
+      fs.readFileSync(
+        path.join(sourceDir, 'pages', sourceReportFiles[0]),
+        'utf8',
+      ),
+    ) as {
+      prompt: string;
+      result: string;
+      target: {
+        context?: {
+          moduleItems?: {
+            id: string;
+          }[];
+        };
+      };
+    };
+
+    expect(pageReport.prompt).not.toContain('/Users/alice/');
+    expect(pageReport.result).not.toContain('/Users/alice/');
+    expect(pageReport.target.context?.moduleItems?.[0]?.id).not.toContain(
+      '/Users/alice/',
+    );
+    expect(pageReport.target.context?.moduleItems?.[0]?.id).toContain(
+      '/src/components/DemoCard.tsx?commonjs-module',
+    );
+    expect(sourceReport.prompt).not.toContain('/Users/alice/');
+    expect(sourceReport.result).not.toContain('/Users/alice/');
+    expect(sourceReport.target.context?.moduleItems?.[0]?.id).toContain(
+      '/src/components/DemoCard.tsx?commonjs-module',
+    );
+  });
+
   it('deduplicates shared chunk and module metrics in page-grouped prompts', async () => {
     const outDir = createTempDirectory();
     const cacheDir = createTempDirectory('site-debug-ai-cache-');
