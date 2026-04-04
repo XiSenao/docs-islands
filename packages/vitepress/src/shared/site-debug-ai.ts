@@ -82,6 +82,16 @@ export interface SiteDebugAiBuildReport {
   target: SiteDebugAiAnalysisTarget;
 }
 
+export interface SiteDebugAiRequestTrace {
+  artifactKind: SiteDebugAiAnalysisTargetKind;
+  displayPath: string;
+  model?: string;
+  promptBytes: number;
+  provider: SiteDebugAiProvider;
+  providerRequestId: string;
+  timeoutMs: number | 'infinite';
+}
+
 export interface SiteDebugAiSanitizeOptions {
   anchorPath?: string | null;
   anchorPaths?: (string | null | undefined)[];

@@ -2,11 +2,15 @@ import type {
   PageMetafile,
   SiteDebugAiBuildReportReference,
 } from '#dep-types/page';
-import type { SiteDebugAnalysisBuildReportRunConfig } from '#dep-types/utils';
+import type {
+  SiteDebugAnalysisBuildReportCacheStrategy,
+  SiteDebugAnalysisBuildReportModelConfig,
+  SiteDebugAnalysisBuildReportsConfig,
+} from '#dep-types/utils';
 import getLoggerInstance from '#shared/logger';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
-import { basename, dirname, join } from 'pathe';
+import { basename, dirname, isAbsolute, join, resolve } from 'pathe';
 import {
   buildSiteDebugAiAnalysisPrompt,
   createSiteDebugAiArtifactHeaderItems,
@@ -85,9 +89,14 @@ interface BuildReportExecution {
   reportLabel: string;
 }
 
-interface BuildReportSourceConfig {
-  mode: 'read-only' | 'read-write';
-  sourceDir: string;
+interface BuildReportCacheConfig {
+  dir: string;
+  strategy: SiteDebugAnalysisBuildReportCacheStrategy;
+}
+
+interface StoredBuildReportCacheEntry {
+  cacheKey: string | null;
+  report: SiteDebugAiBuildReport;
 }
 
 export interface GenerateSiteDebugAiBuildReportsResult {
@@ -106,13 +115,12 @@ type BuildMetricModule = BuildMetric['modules'][number] & {
   isGeneratedVirtualModule?: boolean;
 };
 type BuildReportGroupBy = 'artifact' | 'page';
+type BuildReportCacheInput = SiteDebugAnalysisBuildReportsConfig['cache'];
 
 const sanitizeFileStem = (value: string) =>
   value.replaceAll(/[^\w.-]/g, '_') || 'artifact';
-const SITE_DEBUG_AI_BUILD_REPORTS_CACHE_DIR = join(
-  'site-debug-ai',
-  'build-reports',
-);
+const SITE_DEBUG_AI_BUILD_REPORTS_DEFAULT_CACHE_DIR =
+  '.vitepress/cache/site-debug-reports';
 const PAGE_GROUPED_MODULE_LIMIT = 18;
 
 const isTextLikeArtifact = (filePath?: string) => {
@@ -162,81 +170,111 @@ const resolveOutputAssetPath = ({
 
 const normalizeBuildReportGroupBy = (
   value: BuildReportGroupBy | undefined,
-): BuildReportGroupBy => (value === 'page' ? 'page' : 'artifact');
+): BuildReportGroupBy => (value === 'artifact' ? 'artifact' : 'page');
 
-const getBuildReportRunConfigs = (
-  aiConfig: SiteDebugAiConfig,
-): SiteDebugAnalysisBuildReportRunConfig[] => {
-  const explicitRuns = Array.isArray(aiConfig?.buildReports?.runs)
-    ? aiConfig.buildReports.runs
-    : Array.isArray(aiConfig?.buildReports?.models)
-      ? aiConfig.buildReports.models
-      : undefined;
+const resolveDefaultBuildReportCacheDir = ({
+  cacheDir,
+  root,
+}: {
+  cacheDir: string;
+  root?: string;
+}) =>
+  root
+    ? resolve(root, SITE_DEBUG_AI_BUILD_REPORTS_DEFAULT_CACHE_DIR)
+    : join(cacheDir, 'site-debug-reports');
 
-  if (explicitRuns) {
-    return explicitRuns.filter(
-      Boolean,
-    ) as SiteDebugAnalysisBuildReportRunConfig[];
+const resolveBuildReportCacheConfig = ({
+  cache,
+  cacheDir,
+  root,
+}: {
+  cache: BuildReportCacheInput | undefined;
+  cacheDir: string;
+  root?: string;
+}): BuildReportCacheConfig | null => {
+  if (cache === false) {
+    return null;
   }
 
-  const fallbackRuns: SiteDebugAnalysisBuildReportRunConfig[] = [];
+  const defaultCacheDir = resolveDefaultBuildReportCacheDir({ cacheDir, root });
+  const cacheOptions =
+    typeof cache === 'object' && cache !== null ? cache : undefined;
+
+  const configuredDir = cacheOptions?.dir?.trim();
+
+  return {
+    dir: configuredDir
+      ? isAbsolute(configuredDir)
+        ? configuredDir
+        : resolve(root ?? process.cwd(), configuredDir)
+      : defaultCacheDir,
+    strategy: cacheOptions?.strategy === 'fallback' ? 'fallback' : 'exact',
+  };
+};
+
+const getBuildReportModelConfigs = (
+  aiConfig: SiteDebugAiConfig,
+): SiteDebugAnalysisBuildReportModelConfig[] => {
+  const explicitModels = Array.isArray(aiConfig?.buildReports?.models)
+    ? aiConfig.buildReports.models
+    : undefined;
+
+  if (explicitModels) {
+    return explicitModels.filter(
+      Boolean,
+    ) as SiteDebugAnalysisBuildReportModelConfig[];
+  }
+
+  const fallbackModels: SiteDebugAnalysisBuildReportModelConfig[] = [];
 
   if (aiConfig?.providers?.claudeCode) {
-    fallbackRuns.push({
+    fallbackModels.push({
       provider: 'claude-code',
     });
   }
 
   if (aiConfig?.providers?.doubao?.model?.trim()) {
-    fallbackRuns.push({
+    fallbackModels.push({
       model: aiConfig.providers.doubao.model.trim(),
       provider: 'doubao',
-      ...(aiConfig.providers.doubao.thinking
-        ? {
-            thinking: aiConfig.providers.doubao.thinking,
-          }
-        : {}),
+      thinking: aiConfig.providers.doubao.thinking ?? false,
     });
   }
 
-  return fallbackRuns;
+  return fallbackModels;
 };
 
 const getBuildReportExecutionLabel = (
-  runConfig: SiteDebugAnalysisBuildReportRunConfig,
+  modelConfig: SiteDebugAnalysisBuildReportModelConfig,
 ) =>
-  runConfig.label?.trim() ||
-  (runConfig.provider === 'doubao'
-    ? `${getSiteDebugAiProviderLabel('doubao')} · ${runConfig.model}`
-    : getSiteDebugAiProviderLabel(runConfig.provider));
+  modelConfig.label?.trim() ||
+  (modelConfig.provider === 'doubao'
+    ? `${getSiteDebugAiProviderLabel('doubao')} · ${modelConfig.model}`
+    : getSiteDebugAiProviderLabel(modelConfig.provider));
 
 const getBuildReportExecutionId = (
-  runConfig: SiteDebugAnalysisBuildReportRunConfig,
+  modelConfig: SiteDebugAnalysisBuildReportModelConfig,
 ) =>
   createHash('sha256')
-    .update(JSON.stringify(runConfig))
+    .update(JSON.stringify(modelConfig))
     .digest('hex')
     .slice(0, 12);
 
 const createBuildReportExecutionConfig = (
   aiConfig: SiteDebugAiConfig,
-  runConfig: SiteDebugAnalysisBuildReportRunConfig,
+  modelConfig: SiteDebugAnalysisBuildReportModelConfig,
 ): SiteDebugAiConfig => {
   const providers = {
     ...aiConfig?.providers,
   };
 
-  if (runConfig.provider === 'doubao') {
+  if (modelConfig.provider === 'doubao') {
     const doubaoProviderConfig = providers.doubao || {};
 
     providers.doubao = {
       ...doubaoProviderConfig,
-      model: runConfig.model,
-      ...(runConfig.thinking
-        ? {
-            thinking: runConfig.thinking,
-          }
-        : {}),
+      model: modelConfig.model,
+      thinking: modelConfig.thinking ?? false,
     };
   }
 
@@ -252,32 +290,30 @@ const createBuildReportExecutions = (
   executions: BuildReportExecution[];
   skippedReason?: string;
 } => {
-  const hasExplicitRuns =
-    Array.isArray(aiConfig?.buildReports?.runs) ||
-    Array.isArray(aiConfig?.buildReports?.models);
-  const runConfigs = getBuildReportRunConfigs(aiConfig);
+  const hasExplicitModels = Array.isArray(aiConfig?.buildReports?.models);
+  const modelConfigs = getBuildReportModelConfigs(aiConfig);
 
-  if (runConfigs.length === 0) {
+  if (modelConfigs.length === 0) {
     return {
       executions: [],
-      skippedReason: hasExplicitRuns
-        ? 'No build-time analysis runs are configured. Add siteDebug.analysis.buildReports.runs entries to execute build reports.'
-        : 'No build-time analysis providers are ready to run reports. Set siteDebug.analysis.buildReports.runs or provide a default model in siteDebug.analysis.providers.',
+      skippedReason: hasExplicitModels
+        ? 'No build-time analysis models are configured. Add siteDebug.analysis.buildReports.models entries to execute build reports.'
+        : 'No build-time analysis providers are ready to run reports. Set siteDebug.analysis.buildReports.models or provide a default model in siteDebug.analysis.providers.',
     };
   }
 
   const executions: BuildReportExecution[] = [];
 
-  for (const runConfig of runConfigs) {
+  for (const modelConfig of modelConfigs) {
     const executionConfig = createBuildReportExecutionConfig(
       aiConfig,
-      runConfig,
+      modelConfig,
     );
     executions.push({
       config: executionConfig,
-      provider: runConfig.provider,
-      reportId: getBuildReportExecutionId(runConfig),
-      reportLabel: getBuildReportExecutionLabel(runConfig),
+      provider: modelConfig.provider,
+      reportId: getBuildReportExecutionId(modelConfig),
+      reportLabel: getBuildReportExecutionLabel(modelConfig),
     });
   }
 
@@ -369,11 +405,19 @@ const getBuildReportCacheKey = ({
     )
     .digest('hex');
 
-const getBuildReportCacheFilePath = (cacheDir: string, cacheKey: string) =>
+const getBuildReportCacheFilePath = ({
+  artifactKey,
+  cacheDir,
+  target,
+}: {
+  artifactKey: string;
+  cacheDir: string;
+  target: SiteDebugAiAnalysisTarget;
+}) =>
   join(
     cacheDir,
-    SITE_DEBUG_AI_BUILD_REPORTS_CACHE_DIR,
-    `${sanitizeFileStem(cacheKey)}.json`,
+    getBuildReportArtifactDir(target.artifactKind),
+    `${sanitizeFileStem(basename(target.displayPath || target.artifactLabel))}.${createHash('sha256').update(artifactKey).digest('hex').slice(0, 8)}.json`,
   );
 
 const getBuildReportArtifactDir = (
@@ -385,107 +429,96 @@ const getBuildReportArtifactDir = (
       ? 'modules'
       : 'pages';
 
-const getBuildReportSourceFilePath = ({
-  prompt,
-  provider,
-  reportId,
-  sourceDir,
-  target,
-}: {
-  prompt: string;
-  provider: SiteDebugAiProvider;
-  reportId: string;
-  sourceDir: string;
-  target: SiteDebugAiAnalysisTarget;
-}) => {
-  const safeBaseName = sanitizeFileStem(
-    basename(target.displayPath || target.artifactLabel),
-  );
-  const hash = createHash('sha256')
-    .update(
-      JSON.stringify({
-        prompt,
-        provider,
-        reportId,
-        target,
-      }),
-    )
-    .digest('hex')
-    .slice(0, 8);
+const normalizeBuildReportCachePayload = (
+  payload: unknown,
+  sanitizeOptions: SiteDebugAiSanitizeOptions = {},
+): SiteDebugAiBuildReport | null => {
+  if (
+    !payload ||
+    typeof payload !== 'object' ||
+    typeof (payload as Partial<SiteDebugAiBuildReport>).result !== 'string' ||
+    typeof (payload as Partial<SiteDebugAiBuildReport>).reportId !== 'string' ||
+    typeof (payload as Partial<SiteDebugAiBuildReport>).reportLabel !==
+      'string' ||
+    typeof (payload as Partial<SiteDebugAiBuildReport>).prompt !== 'string' ||
+    ((payload as Partial<SiteDebugAiBuildReport>).provider !== 'claude-code' &&
+      (payload as Partial<SiteDebugAiBuildReport>).provider !== 'doubao') ||
+    !(payload as Partial<SiteDebugAiBuildReport>).target
+  ) {
+    return null;
+  }
 
-  return join(
-    sourceDir,
-    getBuildReportArtifactDir(target.artifactKind),
-    `${safeBaseName}.${hash}.json`,
+  return sanitizeSiteDebugAiBuildReport(
+    payload as SiteDebugAiBuildReport,
+    sanitizeOptions,
   );
 };
 
-const readBuildReportCache = (
+const readBuildReportCacheEntry = (
   filePath: string,
   sanitizeOptions: SiteDebugAiSanitizeOptions = {},
-): SiteDebugAiBuildReport | null => {
+): StoredBuildReportCacheEntry | null => {
   if (!fs.existsSync(filePath)) {
     return null;
   }
 
   try {
-    const payload = JSON.parse(
-      fs.readFileSync(filePath, 'utf8'),
-    ) as Partial<SiteDebugAiBuildReport>;
+    const payload = JSON.parse(fs.readFileSync(filePath, 'utf8')) as
+      | {
+          cacheKey?: string | null;
+          report?: unknown;
+        }
+      | unknown;
 
     if (
-      typeof payload.result !== 'string' ||
-      typeof payload.reportId !== 'string' ||
-      typeof payload.reportLabel !== 'string' ||
-      typeof payload.prompt !== 'string' ||
-      (payload.provider !== 'claude-code' && payload.provider !== 'doubao') ||
-      !payload.target
+      payload &&
+      typeof payload === 'object' &&
+      'report' in payload &&
+      payload.report
     ) {
-      return null;
+      const storedPayload = payload as {
+        cacheKey?: string | null;
+        report: unknown;
+      };
+      const report = normalizeBuildReportCachePayload(
+        storedPayload.report,
+        sanitizeOptions,
+      );
+
+      if (!report) {
+        return null;
+      }
+
+      return {
+        cacheKey:
+          typeof storedPayload.cacheKey === 'string'
+            ? storedPayload.cacheKey
+            : null,
+        report,
+      };
     }
 
-    return sanitizeSiteDebugAiBuildReport(
-      payload as SiteDebugAiBuildReport,
-      sanitizeOptions,
-    );
+    const report = normalizeBuildReportCachePayload(payload, sanitizeOptions);
+
+    return report
+      ? {
+          cacheKey: null,
+          report,
+        }
+      : null;
   } catch {
     return null;
   }
 };
 
-const writeBuildReportCache = ({
-  cacheDir,
+const writeBuildReportCacheEntry = ({
+  filePath,
   cacheKey,
   report,
   sanitizeOptions = {},
 }: {
-  cacheDir: string;
-  cacheKey: string;
-  report: SiteDebugAiBuildReport;
-  sanitizeOptions?: SiteDebugAiSanitizeOptions;
-}) => {
-  const cacheFilePath = getBuildReportCacheFilePath(cacheDir, cacheKey);
-
-  if (!fs.existsSync(dirname(cacheFilePath))) {
-    fs.mkdirSync(dirname(cacheFilePath), { recursive: true });
-  }
-
-  fs.writeFileSync(
-    cacheFilePath,
-    JSON.stringify(
-      sanitizeSiteDebugAiBuildReport(report, sanitizeOptions),
-      null,
-      2,
-    ),
-  );
-};
-
-const writeBuildReportSource = ({
-  filePath,
-  report,
-  sanitizeOptions = {},
-}: {
   filePath: string;
+  cacheKey: string | null;
   report: SiteDebugAiBuildReport;
   sanitizeOptions?: SiteDebugAiSanitizeOptions;
 }) => {
@@ -495,19 +528,22 @@ const writeBuildReportSource = ({
 
   fs.writeFileSync(
     filePath,
-    JSON.stringify(
-      sanitizeSiteDebugAiBuildReport(report, sanitizeOptions),
+    `${JSON.stringify(
+      {
+        cacheKey,
+        report: sanitizeSiteDebugAiBuildReport(report, sanitizeOptions),
+      } satisfies StoredBuildReportCacheEntry,
       null,
       2,
-    ),
+    )}\n`,
   );
 };
 
-const sanitizeBuildReportSourceDirectory = (
-  sourceDir: string,
+const sanitizeBuildReportCacheDirectory = (
+  cacheDir: string,
   sanitizeOptions: SiteDebugAiSanitizeOptions = {},
 ) => {
-  if (!fs.existsSync(sourceDir)) {
+  if (!fs.existsSync(cacheDir)) {
     return;
   }
 
@@ -526,20 +562,27 @@ const sanitizeBuildReportSourceDirectory = (
     }
 
     const rawContent = fs.readFileSync(currentPath, 'utf8');
-    const report = readBuildReportCache(currentPath, sanitizeOptions);
+    const cacheEntry = readBuildReportCacheEntry(currentPath, sanitizeOptions);
 
-    if (!report) {
+    if (!cacheEntry) {
       return;
     }
 
-    const sanitizedContent = `${JSON.stringify(report, null, 2)}\n`;
+    const sanitizedContent = `${JSON.stringify(
+      {
+        cacheKey: cacheEntry.cacheKey,
+        report: cacheEntry.report,
+      } satisfies StoredBuildReportCacheEntry,
+      null,
+      2,
+    )}\n`;
 
     if (rawContent !== sanitizedContent) {
       fs.writeFileSync(currentPath, sanitizedContent);
     }
   };
 
-  visit(sourceDir);
+  visit(cacheDir);
 };
 
 const writeBuildReportAsset = ({
@@ -1153,7 +1196,7 @@ export const generateSiteDebugAiBuildReports = async ({
 }): Promise<GenerateSiteDebugAiBuildReportsResult> => {
   const buildReportsConfig = aiConfig?.buildReports;
 
-  if (!buildReportsConfig || buildReportsConfig.enabled === false) {
+  if (!buildReportsConfig) {
     return {
       executionCount: 0,
       generatedReportCount: 0,
@@ -1169,16 +1212,14 @@ export const generateSiteDebugAiBuildReports = async ({
     dependencies?.analyzeTarget || analyzeSiteDebugAiTarget;
   const { executions, skippedReason: executionPlanSkippedReason } =
     createBuildReportExecutions(aiConfig);
-  const sourceConfig: BuildReportSourceConfig | null =
-    buildReportsConfig.sourceDir
-      ? {
-          mode: buildReportsConfig.sourceMode ?? 'read-only',
-          sourceDir: buildReportsConfig.sourceDir,
-        }
-      : null;
+  const buildReportCacheConfig = resolveBuildReportCacheConfig({
+    cache: buildReportsConfig.cache,
+    cacheDir,
+    root,
+  });
   const sanitizeOptions: SiteDebugAiSanitizeOptions = {
     anchorPaths: [
-      sourceConfig?.sourceDir,
+      buildReportCacheConfig?.dir,
       root ? join(root, '.vitepress', 'config.ts') : undefined,
     ],
   };
@@ -1197,19 +1238,13 @@ export const generateSiteDebugAiBuildReports = async ({
     };
   }
 
-  // Omitted `cache` means "reuse reports", equivalent to `cache: true`.
-  const useCache = buildReportsConfig.cache !== false;
-  const canGenerateReports =
-    !sourceConfig || sourceConfig.mode === 'read-write';
-  const canUseLocalCache = useCache && (!sourceConfig || canGenerateReports);
   const groupBy = normalizeBuildReportGroupBy(buildReportsConfig.groupBy);
-  const includeChunks = buildReportsConfig.includeChunks !== false;
-  const includeModules = buildReportsConfig.includeModules !== false;
+  const includeChunks = buildReportsConfig.includeChunks === true;
+  const includeModules = buildReportsConfig.includeModules === true;
   let executionAvailability: Awaited<
     ReturnType<typeof resolveAvailableBuildReportExecutions>
   > | null = null;
   const skippedReasons = new Set<string>();
-  const missingSourceDetails = new Set<string>();
   const generatedReportReferences = new Map<
     string,
     SiteDebugAiBuildReportReference
@@ -1217,8 +1252,11 @@ export const generateSiteDebugAiBuildReports = async ({
   let generatedReportCount = 0;
   let reusedReportCount = 0;
 
-  if (sourceConfig?.mode === 'read-write') {
-    sanitizeBuildReportSourceDirectory(sourceConfig.sourceDir, sanitizeOptions);
+  if (buildReportCacheConfig) {
+    sanitizeBuildReportCacheDirectory(
+      buildReportCacheConfig.dir,
+      sanitizeOptions,
+    );
   }
 
   if (executionPlanSkippedReason) {
@@ -1273,71 +1311,28 @@ export const generateSiteDebugAiBuildReports = async ({
         execution.provider,
       ),
     });
-    const sourceFilePath = sourceConfig
-      ? getBuildReportSourceFilePath({
-          prompt,
-          provider: execution.provider,
-          reportId: execution.reportId,
-          sourceDir: sourceConfig.sourceDir,
+    const cacheFilePath = buildReportCacheConfig
+      ? getBuildReportCacheFilePath({
+          artifactKey,
+          cacheDir: buildReportCacheConfig.dir,
           target: sanitizedTarget,
         })
       : null;
-    const sourceReport = sourceFilePath
-      ? readBuildReportCache(sourceFilePath, sanitizeOptions)
+    const cachedEntry = cacheFilePath
+      ? readBuildReportCacheEntry(cacheFilePath, sanitizeOptions)
       : null;
-
-    if (sourceReport) {
-      if (useCache) {
-        writeBuildReportCache({
-          cacheDir,
-          cacheKey,
-          report: sourceReport,
-          sanitizeOptions,
-        });
-      }
-
-      if (sourceFilePath && sourceConfig?.mode === 'read-write') {
-        writeBuildReportSource({
-          filePath: sourceFilePath,
-          report: sourceReport,
-          sanitizeOptions,
-        });
-      }
-
-      const reportFile = writeBuildReportAsset({
-        assetsDir,
-        outDir,
-        provider: execution.provider,
-        report: sourceReport,
-        sanitizeOptions,
-        wrapBaseUrl,
-      });
-      const reportReference = {
-        detail: sourceReport.detail,
-        generatedAt: sourceReport.generatedAt,
-        model: sourceReport.model,
-        provider: execution.provider,
-        reportFile,
-        reportId: sourceReport.reportId,
-        reportLabel: sourceReport.reportLabel,
-      };
-
-      generatedReportReferences.set(artifactKey, reportReference);
-      reusedReportCount += 1;
-      return reportReference;
-    }
-
-    const cachedReport = canUseLocalCache
-      ? readBuildReportCache(
-          getBuildReportCacheFilePath(cacheDir, cacheKey),
-          sanitizeOptions,
-        )
-      : null;
+    const cachedReport =
+      cachedEntry &&
+      (buildReportCacheConfig?.strategy === 'fallback' ||
+        cachedEntry.cacheKey === cacheKey)
+        ? cachedEntry.report
+        : null;
 
     if (cachedReport) {
-      if (sourceFilePath && sourceConfig?.mode === 'read-write') {
-        writeBuildReportSource({
-          filePath: sourceFilePath,
+      if (cacheFilePath) {
+        writeBuildReportCacheEntry({
+          cacheKey: cachedEntry?.cacheKey ?? null,
+          filePath: cacheFilePath,
           report: cachedReport,
           sanitizeOptions,
         });
@@ -1366,15 +1361,6 @@ export const generateSiteDebugAiBuildReports = async ({
       return reportReference;
     }
 
-    if (!canGenerateReports) {
-      if (sourceFilePath) {
-        missingSourceDetails.add(
-          `Missing committed build report for ${sanitizedTarget.displayPath} (${execution.reportLabel}) at ${sourceFilePath}.`,
-        );
-      }
-      return null;
-    }
-
     const { availableExecutionIds } = await ensureExecutionAvailability();
 
     if (!availableExecutionIds.has(execution.reportId)) {
@@ -1398,15 +1384,10 @@ export const generateSiteDebugAiBuildReports = async ({
       result: result.result,
       target: sanitizedTarget,
     };
-    writeBuildReportCache({
-      cacheDir,
-      cacheKey,
-      report,
-      sanitizeOptions,
-    });
-    if (sourceFilePath) {
-      writeBuildReportSource({
-        filePath: sourceFilePath,
+    if (cacheFilePath) {
+      writeBuildReportCacheEntry({
+        cacheKey,
+        filePath: cacheFilePath,
         report,
         sanitizeOptions,
       });
@@ -1455,11 +1436,6 @@ export const generateSiteDebugAiBuildReports = async ({
     Logger.info(
       `Build-time AI reports across ${executions.length} execution${executions.length === 1 ? '' : 's'}: generated ${generatedReportCount}, reused ${reusedReportCount}.`,
     );
-  }
-
-  for (const missingDetail of missingSourceDetails) {
-    Logger.warn(missingDetail);
-    skippedReasons.add(missingDetail);
   }
 
   return {

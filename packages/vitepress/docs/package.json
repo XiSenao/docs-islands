@@ -5,7 +5,6 @@
   "scripts": {
     "docs:dev": "vitepress dev",
     "docs:build": "pnpm clean:dist && wait-on -d 100 ../dist/node/index.js && vitepress build",
-    "docs:build:site-debug-reports": "DOCS_ISLANDS_SITE_DEBUG_WRITE_REPORTS=1 pnpm docs:build",
     "docs:preview": "vitepress preview",
     "typecheck": "vue-tsc --noEmit",
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
@@ -45,6 +44,7 @@
     "tsx": "catalog:dev",
     "pathe": "catalog:dev",
     "wait-on": "catalog:dev",
-    "del-cli": "catalog:dev"
+    "del-cli": "catalog:dev",
+    "is-in-ci": "catalog:dev"
   }
 }

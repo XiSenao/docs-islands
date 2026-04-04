@@ -930,6 +930,7 @@ const loadBuildReport = async (report = activeBuildReport.value) => {
     }
 
     analysisState.value = 'error';
+    analysisDetail.value = '';
     analysisError.value =
       error instanceof Error
         ? error.message
@@ -1008,6 +1009,7 @@ const copyPrompt = async () => {
     );
   } catch (error) {
     analysisState.value = 'error';
+    analysisDetail.value = '';
     analysisError.value =
       error instanceof Error ? error.message : 'Failed to copy AI prompt.';
   }
@@ -1022,6 +1024,7 @@ const copyResult = async () => {
     await copyText(analysisResult.value, 'copy-result', 'Result Copied');
   } catch (error) {
     analysisState.value = 'error';
+    analysisDetail.value = '';
     analysisError.value =
       error instanceof Error ? error.message : 'Failed to copy AI result.';
   }
@@ -1044,12 +1047,14 @@ const runAnalysis = async () => {
 
   if (!props.endpoint) {
     analysisState.value = 'error';
+    analysisDetail.value = '';
     analysisError.value = providerDetail.value;
     return;
   }
 
   if (currentCapability.value?.available !== true) {
     analysisState.value = 'error';
+    analysisDetail.value = '';
     analysisError.value = providerDetail.value;
     return;
   }
@@ -1087,7 +1092,12 @@ const runAnalysis = async () => {
     );
 
     if (!response.ok || payload.ok !== true || !payload.result) {
-      throw new Error(payload.error || 'AI analysis request failed.');
+      analysisState.value = 'error';
+      analysisDetail.value = payload.detail || '';
+      analysisError.value = payload.error || 'AI analysis request failed.';
+      analysisProvider.value = payload.provider || selectedProvider.value;
+      analysisResolvedTarget.value = props.analysisTarget;
+      return;
     }
 
     applyAnalysisResult({
@@ -1104,6 +1114,7 @@ const runAnalysis = async () => {
     }
 
     analysisState.value = 'error';
+    analysisDetail.value = '';
     analysisError.value =
       error instanceof Error ? error.message : 'AI analysis request failed.';
   } finally {
@@ -1270,6 +1281,12 @@ watch(
 
     <p v-if="analysisState === 'error'" class="site-debug-overlay__panel-error">
       {{ analysisError }}
+    </p>
+    <p
+      v-if="analysisState === 'error' && analysisDetail"
+      class="site-debug-overlay__panel-meta"
+    >
+      {{ analysisDetail }}
     </p>
 
     <div v-if="analysisState === 'ready'" class="site-debug-ai-panel__result">

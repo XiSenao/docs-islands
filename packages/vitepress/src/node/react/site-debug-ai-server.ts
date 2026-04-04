@@ -1,5 +1,7 @@
 import type { SiteDebugAnalysisUserConfig } from '#dep-types/utils';
+import Logger, { formatErrorMessage } from '@docs-islands/utils/logger';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   buildSiteDebugAiAnalysisPrompt,
@@ -10,14 +12,17 @@ import {
   type SiteDebugAiCapabilitiesResponse,
   type SiteDebugAiProvider,
   type SiteDebugAiProviderCapability,
+  type SiteDebugAiRequestTrace,
 } from '../../shared/site-debug-ai';
 
 const DEFAULT_DOUBAO_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
 const REQUEST_BODY_LIMIT_BYTES = 1024 * 1024;
 const CLAUDE_PROBE_CACHE_TTL_MS = 30_000;
 const CLAUDE_PROBE_TIMEOUT_MS = 4000;
-const DEFAULT_CLAUDE_ANALYSIS_TIMEOUT_MS = 240_000;
-const DEFAULT_DOUBAO_ANALYSIS_TIMEOUT_MS = 120_000;
+const DEFAULT_ANALYSIS_TIMEOUT_MS = Number.POSITIVE_INFINITY;
+const SiteDebugAiLogger = new Logger(
+  '@docs-islands/vitepress',
+).getLoggerByGroup('site-debug-ai');
 
 export interface SiteDebugAnalysisRuntimeConfig {
   buildReports?: SiteDebugAnalysisUserConfig['buildReports'];
@@ -34,6 +39,33 @@ export interface SiteDebugAiExecutionResult {
   detail?: string;
   model?: string;
   result: string;
+}
+
+class SiteDebugAiExecutionError extends Error {
+  declare readonly detail?: string;
+  declare readonly statusCode: number;
+
+  constructor(
+    message: string,
+    options?: {
+      cause?: unknown;
+      detail?: string;
+      statusCode?: number;
+    },
+  ) {
+    super(message, options?.cause ? { cause: options.cause } : undefined);
+    this.name = 'SiteDebugAiExecutionError';
+    Object.defineProperty(this, 'detail', {
+      configurable: true,
+      value: options?.detail,
+      writable: true,
+    });
+    Object.defineProperty(this, 'statusCode', {
+      configurable: true,
+      value: options?.statusCode ?? 500,
+      writable: true,
+    });
+  }
 }
 
 interface ClaudeProbeCacheEntry {
@@ -130,6 +162,14 @@ const normalizePositiveInteger = (value: number | undefined) => {
   return normalizedValue;
 };
 
+const normalizeTimeoutMs = (value: number | undefined) => {
+  if (value === Number.POSITIVE_INFINITY) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return normalizePositiveInteger(value);
+};
+
 const normalizeTemperature = (value: number | undefined) =>
   typeof value === 'number' &&
   Number.isFinite(value) &&
@@ -142,8 +182,8 @@ const getClaudeCommand = (config: SiteDebugAiConfig) =>
   getClaudeProviderConfig(config)?.command?.trim() || 'claude';
 
 const getClaudeTimeoutMs = (config: SiteDebugAiConfig) =>
-  normalizePositiveInteger(getClaudeProviderConfig(config)?.timeoutMs) ||
-  DEFAULT_CLAUDE_ANALYSIS_TIMEOUT_MS;
+  normalizeTimeoutMs(getClaudeProviderConfig(config)?.timeoutMs) ??
+  DEFAULT_ANALYSIS_TIMEOUT_MS;
 
 const resolveDoubaoBaseUrl = (config: SiteDebugAiConfig) =>
   (
@@ -151,8 +191,8 @@ const resolveDoubaoBaseUrl = (config: SiteDebugAiConfig) =>
   ).replace(/\/+$/, '');
 
 const getDoubaoTimeoutMs = (config: SiteDebugAiConfig) =>
-  normalizePositiveInteger(getDoubaoProviderConfig(config)?.timeoutMs) ||
-  DEFAULT_DOUBAO_ANALYSIS_TIMEOUT_MS;
+  normalizeTimeoutMs(getDoubaoProviderConfig(config)?.timeoutMs) ??
+  DEFAULT_ANALYSIS_TIMEOUT_MS;
 
 const getDoubaoTemperature = (config: SiteDebugAiConfig) =>
   normalizeTemperature(getDoubaoProviderConfig(config)?.temperature);
@@ -160,13 +200,189 @@ const getDoubaoTemperature = (config: SiteDebugAiConfig) =>
 const getDoubaoMaxTokens = (config: SiteDebugAiConfig) =>
   normalizePositiveInteger(getDoubaoProviderConfig(config)?.maxTokens);
 
-const getDoubaoThinkingType = (config: SiteDebugAiConfig) => {
+const getDoubaoThinkingType = (
+  config: SiteDebugAiConfig,
+): 'enabled' | 'disabled' | undefined => {
   const thinking = getDoubaoProviderConfig(config)?.thinking;
 
-  return thinking === 'enabled' || thinking === 'disabled'
-    ? thinking
-    : undefined;
+  return thinking === true
+    ? 'enabled'
+    : thinking === false
+      ? 'disabled'
+      : undefined;
 };
+
+const formatDurationMs = (value: number) => {
+  if (!Number.isFinite(value)) {
+    return 'Infinity';
+  }
+
+  if (value < 1000) {
+    return `${value} ms`;
+  }
+
+  const seconds = value / 1000;
+
+  if (seconds < 60) {
+    return `${Number.isInteger(seconds) ? seconds : seconds.toFixed(1)} s`;
+  }
+
+  const minutes = seconds / 60;
+
+  return `${Number.isInteger(minutes) ? minutes : minutes.toFixed(1)} min`;
+};
+
+const formatByteCount = (value: number) => {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+
+  const units = ['KB', 'MB', 'GB'];
+  let normalizedValue = value;
+  let unitIndex = -1;
+
+  while (normalizedValue >= 1024 && unitIndex < units.length - 1) {
+    normalizedValue /= 1024;
+    unitIndex += 1;
+  }
+
+  const formattedValue =
+    normalizedValue >= 10 || Number.isInteger(normalizedValue)
+      ? normalizedValue.toFixed(0)
+      : normalizedValue.toFixed(1);
+
+  return `${formattedValue} ${units[unitIndex]}`;
+};
+
+const createProviderRequestId = ({
+  prompt,
+  provider,
+  target,
+}: {
+  prompt: string;
+  provider: SiteDebugAiProvider;
+  target: SiteDebugAiAnalysisTarget;
+}) =>
+  createHash('sha256')
+    .update(
+      JSON.stringify({
+        artifactKind: target.artifactKind,
+        displayPath: target.displayPath,
+        prompt,
+        provider,
+      }),
+    )
+    .digest('hex')
+    .slice(0, 12);
+
+const createRequestTrace = ({
+  model,
+  prompt,
+  provider,
+  target,
+  timeoutMs,
+}: {
+  model?: string;
+  prompt: string;
+  provider: SiteDebugAiProvider;
+  target: SiteDebugAiAnalysisTarget;
+  timeoutMs: number;
+}): SiteDebugAiRequestTrace => ({
+  artifactKind: target.artifactKind,
+  displayPath: target.displayPath,
+  ...(model ? { model } : {}),
+  promptBytes: Buffer.byteLength(prompt, 'utf8'),
+  provider,
+  providerRequestId: createProviderRequestId({
+    prompt,
+    provider,
+    target,
+  }),
+  timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : 'infinite',
+});
+
+const formatRequestTraceDetail = (trace: SiteDebugAiRequestTrace) =>
+  [
+    `Trace ${trace.providerRequestId}`,
+    `${getSiteDebugAiProviderLabel(trace.provider)}`,
+    trace.model ? `model ${trace.model}` : null,
+    `${trace.artifactKind} ${trace.displayPath}`,
+    `prompt ${formatByteCount(trace.promptBytes)}`,
+    trace.timeoutMs === 'infinite'
+      ? 'timeout disabled'
+      : `timeout ${formatDurationMs(trace.timeoutMs)}`,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(' · ');
+
+const logAiRequestStarted = (trace: SiteDebugAiRequestTrace) => {
+  SiteDebugAiLogger.info(
+    `Starting AI analysis: ${formatRequestTraceDetail(trace)}`,
+  );
+};
+
+const logAiRequestSucceeded = ({
+  elapsedMs,
+  result,
+  trace,
+}: {
+  elapsedMs: number;
+  result: string;
+  trace: SiteDebugAiRequestTrace;
+}) => {
+  SiteDebugAiLogger.success(
+    `AI analysis returned data: ${formatRequestTraceDetail(trace)} · response ${formatByteCount(
+      Buffer.byteLength(result, 'utf8'),
+    )} · elapsed ${formatDurationMs(elapsedMs)}`,
+  );
+};
+
+const logAiRequestFailed = ({
+  elapsedMs,
+  error,
+  trace,
+}: {
+  elapsedMs: number;
+  error: unknown;
+  trace: SiteDebugAiRequestTrace;
+}) => {
+  SiteDebugAiLogger.error(
+    `AI analysis returned no data: ${formatRequestTraceDetail(trace)} · elapsed ${formatDurationMs(
+      elapsedMs,
+    )} · reason ${formatErrorMessage(error)}`,
+  );
+};
+
+const createTimeoutExecutionError = ({
+  trace,
+}: {
+  trace: SiteDebugAiRequestTrace;
+}) => {
+  const detail = formatRequestTraceDetail(trace);
+
+  return new SiteDebugAiExecutionError(
+    `${getSiteDebugAiProviderLabel(trace.provider)} analysis timed out. ${detail}`,
+    {
+      detail,
+      statusCode: 504,
+    },
+  );
+};
+
+const createExecutionFailure = ({
+  detail,
+  message,
+  statusCode,
+}: {
+  detail: string;
+  message: string;
+  statusCode?: number;
+}) =>
+  new SiteDebugAiExecutionError(`${message} ${detail}`.trim(), {
+    detail,
+    statusCode,
+  });
+
 const resolveTextContent = (value: unknown): string => {
   if (typeof value === 'string') {
     return value.trim();
@@ -207,16 +423,7 @@ const probeClaudeCode = async (
     return {
       available: false,
       detail:
-        'Configure siteDebug.analysis.providers.claudeCode to enable Claude Code analysis.',
-      provider: 'claude-code',
-    };
-  }
-
-  if (providerConfig?.enabled === false) {
-    return {
-      available: false,
-      detail:
-        'Claude Code is disabled by siteDebug.analysis.providers.claudeCode.enabled.',
+        'Configure siteDebug.analysis.providers.claudeCode to use Claude Code analysis.',
       provider: 'claude-code',
     };
   }
@@ -324,16 +531,7 @@ const getDoubaoCapability = (
     return {
       available: false,
       detail:
-        'Configure siteDebug.analysis.providers.doubao to enable Doubao analysis.',
-      provider: 'doubao',
-    };
-  }
-
-  if (providerConfig?.enabled === false) {
-    return {
-      available: false,
-      detail:
-        'Doubao is disabled by siteDebug.analysis.providers.doubao.enabled.',
+        'Configure siteDebug.analysis.providers.doubao to use Doubao analysis.',
       provider: 'doubao',
     };
   }
@@ -379,9 +577,20 @@ export const resolveSiteDebugAiCapabilities = async (
 const runClaudeCodeAnalysis = async (
   prompt: string,
   config: SiteDebugAiConfig,
+  target: SiteDebugAiAnalysisTarget,
 ): Promise<SiteDebugAiExecutionResult> =>
   new Promise((resolve, reject) => {
     const command = getClaudeCommand(config);
+    const timeoutMs = getClaudeTimeoutMs(config);
+    const trace = createRequestTrace({
+      model: command,
+      prompt,
+      provider: 'claude-code',
+      target,
+      timeoutMs,
+    });
+    const startedAt = Date.now();
+    logAiRequestStarted(trace);
     const child = spawn(
       command,
       [
@@ -404,13 +613,18 @@ const runClaudeCodeAnalysis = async (
     const stderrChunks: Buffer[] = [];
     let completed = false;
 
-    const fail = (message: string) => {
+    const fail = (error: Error) => {
       if (completed) {
         return;
       }
 
       completed = true;
-      reject(new Error(message));
+      logAiRequestFailed({
+        elapsedMs: Date.now() - startedAt,
+        error,
+        trace,
+      });
+      reject(error);
     };
 
     const finish = (payload: {
@@ -423,13 +637,20 @@ const runClaudeCodeAnalysis = async (
       }
 
       completed = true;
+      logAiRequestSucceeded({
+        elapsedMs: Date.now() - startedAt,
+        result: payload.result,
+        trace,
+      });
       resolve(payload);
     };
 
-    const timeout = setTimeout(() => {
-      child.kill('SIGTERM');
-      fail('Claude Code analysis timed out.');
-    }, getClaudeTimeoutMs(config));
+    const timeout = Number.isFinite(timeoutMs)
+      ? setTimeout(() => {
+          child.kill('SIGTERM');
+          fail(createTimeoutExecutionError({ trace }));
+        }, timeoutMs)
+      : null;
 
     child.stdout.on('data', (chunk: Buffer | string) => {
       stdoutChunks.push(
@@ -443,17 +664,33 @@ const runClaudeCodeAnalysis = async (
     });
 
     child.on('error', (error) => {
-      clearTimeout(timeout);
-      fail(error.message || 'Failed to launch Claude Code.');
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+      reject(
+        createExecutionFailure({
+          detail: formatRequestTraceDetail(trace),
+          message: error.message || 'Failed to launch Claude Code.',
+          statusCode: 500,
+        }),
+      );
     });
 
     child.on('close', (code) => {
-      clearTimeout(timeout);
+      if (timeout) {
+        clearTimeout(timeout);
+      }
       const stdout = Buffer.concat(stdoutChunks).toString('utf8').trim();
       const stderr = Buffer.concat(stderrChunks).toString('utf8').trim();
 
       if (code !== 0) {
-        fail(stderr || stdout || 'Claude Code analysis failed.');
+        reject(
+          createExecutionFailure({
+            detail: formatRequestTraceDetail(trace),
+            message: stderr || stdout || 'Claude Code analysis failed.',
+            statusCode: 500,
+          }),
+        );
         return;
       }
 
@@ -466,7 +703,13 @@ const runClaudeCodeAnalysis = async (
         const result = payload.result?.trim();
 
         if (!result) {
-          fail('Claude Code returned an empty analysis result.');
+          reject(
+            createExecutionFailure({
+              detail: formatRequestTraceDetail(trace),
+              message: 'Claude Code returned an empty analysis result.',
+              statusCode: 502,
+            }),
+          );
           return;
         }
 
@@ -479,7 +722,13 @@ const runClaudeCodeAnalysis = async (
         });
       } catch {
         if (!stdout) {
-          fail(stderr || 'Claude Code returned invalid JSON output.');
+          reject(
+            createExecutionFailure({
+              detail: formatRequestTraceDetail(trace),
+              message: stderr || 'Claude Code returned invalid JSON output.',
+              statusCode: 502,
+            }),
+          );
           return;
         }
 
@@ -494,28 +743,46 @@ const runClaudeCodeAnalysis = async (
 const runDoubaoAnalysis = async (
   prompt: string,
   config: SiteDebugAiConfig,
+  target: SiteDebugAiAnalysisTarget,
 ): Promise<SiteDebugAiExecutionResult> => {
   const capability = getDoubaoCapability(config);
   const providerConfig = getDoubaoProviderConfig(config);
   const maxTokens = getDoubaoMaxTokens(config);
   const thinking = getDoubaoThinkingType(config);
   const temperature = getDoubaoTemperature(config);
+  const timeoutMs = getDoubaoTimeoutMs(config);
+  const trace = createRequestTrace({
+    model: providerConfig?.model,
+    prompt,
+    provider: 'doubao',
+    target,
+    timeoutMs,
+  });
+  const startedAt = Date.now();
 
   if (
     !capability.available ||
     !providerConfig?.apiKey ||
     !providerConfig.model
   ) {
-    throw new Error(capability.detail);
+    throw createExecutionFailure({
+      detail: formatRequestTraceDetail(trace),
+      message: capability.detail,
+      statusCode: 400,
+    });
   }
+
+  logAiRequestStarted(trace);
 
   const providerApiKey = providerConfig.apiKey;
   const providerModel = providerConfig.model;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => {
-    controller.abort();
-  }, getDoubaoTimeoutMs(config));
+  const timeout = Number.isFinite(timeoutMs)
+    ? setTimeout(() => {
+        controller.abort();
+      }, timeoutMs)
+    : null;
 
   try {
     const response = await fetch(
@@ -559,17 +826,33 @@ const runDoubaoAnalysis = async (
     };
 
     if (!response.ok) {
-      throw new Error(
-        payload.error?.message ||
+      throw createExecutionFailure({
+        detail: formatRequestTraceDetail(trace),
+        message:
+          payload.error?.message ||
           `Doubao request failed with HTTP ${response.status}.`,
-      );
+        statusCode:
+          response.status === 408 || response.status === 504
+            ? 504
+            : response.status,
+      });
     }
 
     const content = resolveTextContent(payload.choices?.[0]?.message?.content);
 
     if (!content) {
-      throw new Error('Doubao returned an empty analysis result.');
+      throw createExecutionFailure({
+        detail: formatRequestTraceDetail(trace),
+        message: 'Doubao returned an empty analysis result.',
+        statusCode: 502,
+      });
     }
+
+    logAiRequestSucceeded({
+      elapsedMs: Date.now() - startedAt,
+      result: content,
+      trace,
+    });
 
     return {
       detail: capability.detail,
@@ -577,13 +860,32 @@ const runDoubaoAnalysis = async (
       result: content,
     };
   } catch (error) {
+    logAiRequestFailed({
+      elapsedMs: Date.now() - startedAt,
+      error,
+      trace,
+    });
+
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error('Doubao analysis timed out.');
+      throw createTimeoutExecutionError({ trace });
     }
 
-    throw error;
+    if (error instanceof SiteDebugAiExecutionError) {
+      throw error;
+    }
+
+    throw createExecutionFailure({
+      detail: formatRequestTraceDetail(trace),
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Doubao analysis request failed.',
+      statusCode: 500,
+    });
   } finally {
-    clearTimeout(timeout);
+    if (timeout) {
+      clearTimeout(timeout);
+    }
   }
 };
 
@@ -620,13 +922,16 @@ export const analyzeSiteDebugAiTarget = async ({
   const capability = capabilityResponse.providers[provider];
 
   if (!capability?.available) {
-    throw new Error(
-      capability?.detail ||
+    throw createExecutionFailure({
+      detail: `${provider} ${target.artifactKind} ${target.displayPath}`,
+      message:
+        capability?.detail ||
         `${getSiteDebugAiProviderLabel(provider)} is not available in the current siteDebug.analysis configuration.`,
-    );
+      statusCode: 400,
+    });
   }
 
-  return handler(buildSiteDebugAiAnalysisPrompt(target), config);
+  return handler(buildSiteDebugAiAnalysisPrompt(target), config, target);
 };
 
 export const handleSiteDebugAiRequest = async (
@@ -634,6 +939,9 @@ export const handleSiteDebugAiRequest = async (
   res: ServerResponse,
   config: SiteDebugAiConfig,
 ): Promise<void> => {
+  let provider: SiteDebugAiProvider | undefined;
+  let prompt: string | undefined;
+
   if (req.method === 'GET') {
     sendJson(res, 200, await resolveSiteDebugAiCapabilities(config));
     return;
@@ -649,8 +957,8 @@ export const handleSiteDebugAiRequest = async (
 
   try {
     const body = await readJsonBody<SiteDebugAiAnalyzeRequest>(req);
-    const provider = body.provider;
-    const prompt = buildSiteDebugAiAnalysisPrompt(body.target);
+    provider = body.provider;
+    prompt = buildSiteDebugAiAnalysisPrompt(body.target);
     const capabilityResponse = await resolveSiteDebugAiCapabilities(config);
     const capability = capabilityResponse.providers[provider];
 
@@ -690,6 +998,26 @@ export const handleSiteDebugAiRequest = async (
   } catch (error) {
     if (isJsonRequestError(error)) {
       sendJson(res, error.statusCode, {
+        error: error.message,
+        ok: false,
+      });
+      return;
+    }
+
+    if (error instanceof SiteDebugAiExecutionError) {
+      if (provider && prompt) {
+        sendJson(res, error.statusCode, {
+          detail: error.detail,
+          error: error.message,
+          ok: false,
+          prompt,
+          provider,
+        } satisfies SiteDebugAiAnalyzeResponse);
+        return;
+      }
+
+      sendJson(res, error.statusCode, {
+        detail: error.detail,
         error: error.message,
         ok: false,
       });

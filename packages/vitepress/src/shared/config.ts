@@ -1,6 +1,7 @@
 import type {
   ConfigType,
-  SiteDebugAnalysisBuildReportRunConfig,
+  SiteDebugAnalysisBuildReportModelConfig,
+  SiteDebugAnalysisBuildReportsCacheConfig,
   SiteDebugAnalysisUserConfig,
   SiteDebugUserConfig,
 } from '#dep-types/utils';
@@ -10,62 +11,90 @@ import { normalizePath } from 'vite';
 import type { DefaultTheme, UserConfig } from 'vitepress';
 
 type SiteDebugBuildReportsInput = SiteDebugAnalysisUserConfig['buildReports'];
+const SITE_DEBUG_AI_BUILD_REPORTS_DEFAULT_CACHE_DIR =
+  '.vitepress/cache/site-debug-reports';
 
-const normalizeBuildReportRuns = (
+const normalizeBuildReportModels = (
   buildReports: SiteDebugBuildReportsInput,
-): SiteDebugAnalysisBuildReportRunConfig[] | undefined => {
+): SiteDebugAnalysisBuildReportModelConfig[] | undefined => {
   if (!buildReports) {
     return undefined;
   }
 
-  const explicitRuns = Array.isArray(buildReports.runs)
-    ? buildReports.runs
+  return Array.isArray(buildReports.models)
+    ? (buildReports.models.filter(Boolean).map((model) =>
+        model.provider === 'doubao'
+          ? {
+              ...model,
+              thinking: model.thinking ?? false,
+            }
+          : model,
+      ) as SiteDebugAnalysisBuildReportModelConfig[])
     : undefined;
-  const legacyModels = Array.isArray(buildReports.models)
-    ? buildReports.models
-    : undefined;
-  const normalizedRuns = explicitRuns ?? legacyModels;
+};
 
-  return normalizedRuns
-    ? (normalizedRuns.filter(
-        Boolean,
-      ) as SiteDebugAnalysisBuildReportRunConfig[])
+const normalizeAnalysisProviders = (
+  providers: SiteDebugAnalysisUserConfig['providers'],
+) =>
+  providers
+    ? {
+        ...providers,
+        ...(providers.doubao
+          ? {
+              doubao: {
+                ...providers.doubao,
+                thinking: providers.doubao.thinking ?? false,
+              },
+            }
+          : {}),
+      }
     : undefined;
+
+const normalizeBuildReportCache = (
+  cache: NonNullable<SiteDebugBuildReportsInput>['cache'],
+  root: string,
+): SiteDebugAnalysisBuildReportsCacheConfig => {
+  if (cache === false) {
+    return false;
+  }
+
+  const cacheOptions =
+    typeof cache === 'object' && cache !== null ? cache : undefined;
+  const cacheDir =
+    typeof cacheOptions?.dir === 'string' && cacheOptions.dir.trim()
+      ? cacheOptions.dir
+      : SITE_DEBUG_AI_BUILD_REPORTS_DEFAULT_CACHE_DIR;
+  const strategy = cacheOptions?.strategy === 'fallback' ? 'fallback' : 'exact';
+
+  return {
+    dir: normalizePath(resolve(root, cacheDir)),
+    strategy,
+  };
 };
 
 const normalizeBuildReportsConfig = (
   buildReports: SiteDebugBuildReportsInput,
   root: string,
 ) =>
-  !buildReports || buildReports.enabled === false
-    ? undefined
-    : ({
-        cache: buildReports.cache ?? true,
-        ...(buildReports.sourceDir
+  buildReports
+    ? ({
+        cache: normalizeBuildReportCache(buildReports.cache, root),
+        groupBy: buildReports.groupBy ?? 'page',
+        includeChunks: buildReports.includeChunks ?? false,
+        includeModules: buildReports.includeModules ?? false,
+        ...(normalizeBuildReportModels(buildReports)
           ? {
-              sourceDir: normalizePath(resolve(root, buildReports.sourceDir)),
-              sourceMode: buildReports.sourceMode ?? 'read-only',
+              models: normalizeBuildReportModels(buildReports),
             }
           : {}),
-        ...(buildReports.groupBy
-          ? {
-              groupBy: buildReports.groupBy,
-            }
-          : {}),
-        includeChunks: buildReports.includeChunks ?? true,
-        includeModules: buildReports.includeModules ?? true,
-        ...(normalizeBuildReportRuns(buildReports)
-          ? {
-              runs: normalizeBuildReportRuns(buildReports),
-            }
-          : {}),
-      } satisfies NonNullable<SiteDebugAnalysisUserConfig['buildReports']>);
+      } satisfies NonNullable<SiteDebugAnalysisUserConfig['buildReports']>)
+    : undefined;
 
 const normalizeSiteDebugAnalysisConfig = (
   siteDebug: SiteDebugUserConfig | undefined,
   root: string,
 ): SiteDebugAnalysisUserConfig | undefined => {
-  const analysisConfig = siteDebug?.analysis ?? siteDebug?.ai;
+  const analysisConfig = siteDebug?.analysis;
 
   if (!analysisConfig) {
     return undefined;
@@ -73,10 +102,12 @@ const normalizeSiteDebugAnalysisConfig = (
 
   const normalizedAnalysis: SiteDebugAnalysisUserConfig = {};
 
-  if (analysisConfig.providers) {
-    normalizedAnalysis.providers = {
-      ...analysisConfig.providers,
-    };
+  const normalizedProviders = normalizeAnalysisProviders(
+    analysisConfig.providers,
+  );
+
+  if (normalizedProviders) {
+    normalizedAnalysis.providers = normalizedProviders;
   }
 
   const normalizedBuildReports = normalizeBuildReportsConfig(
@@ -119,7 +150,6 @@ export const resolveConfig = (
   );
   const siteDebug: SiteDebugUserConfig = normalizedSiteDebugAnalysis
     ? {
-        ai: normalizedSiteDebugAnalysis,
         analysis: normalizedSiteDebugAnalysis,
       }
     : {};

@@ -44,6 +44,7 @@ jobs:
         # gitleaks/gitleaks-action@v2.3.9.
         uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
         env:
+          GITLEAKS_CONFIG: .gitleaks.toml
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Secret Alert Issue
