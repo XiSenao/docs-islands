@@ -6,6 +6,7 @@ import type {
   SiteDebugLoadingProgress,
   SiteDebugPreviewStatus,
 } from './site-debug-shared';
+import type { CodePreviewMode } from './site-debug-source-preview';
 import SiteDebugLoadingState from './SiteDebugLoadingState.vue';
 import SiteDebugSourceTextPreview from './SiteDebugSourceTextPreview.vue';
 import SiteDebugVsCodeLink from './SiteDebugVsCodeLink.vue';
@@ -19,6 +20,7 @@ const props = defineProps<{
   languageLabel: string;
   loadingProgress: SiteDebugLoadingProgress;
   previewHtml: string;
+  previewMode: CodePreviewMode;
   previewStatus: SiteDebugPreviewStatus | null;
   sourceContent: string;
   state: PreviewState;
@@ -43,10 +45,7 @@ const showPreviewBody = computed(
   () => props.state !== 'idle' && hasPreviewBody.value,
 );
 const shouldUseWindowedPreview = computed(
-  () =>
-    props.state === 'ready' &&
-    !props.previewHtml &&
-    props.previewStatus?.tone === 'warning',
+  () => props.state === 'ready' && props.previewMode !== 'rich-html',
 );
 </script>
 
@@ -118,7 +117,13 @@ const shouldUseWindowedPreview = computed(
           <div v-if="previewHtml && state === 'ready'" v-html="previewHtml" />
           <SiteDebugSourceTextPreview
             v-else
+            :preview-mode="
+              previewMode === 'virtual-highlight'
+                ? 'virtual-highlight'
+                : 'plain-text'
+            "
             :source-content="sourceContent"
+            :source-path="displayPath"
             :windowed="shouldUseWindowedPreview"
           />
         </div>

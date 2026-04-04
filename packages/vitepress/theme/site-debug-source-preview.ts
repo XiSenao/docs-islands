@@ -1,4 +1,26 @@
 import { formatBytes, inferSourceLanguage } from './site-debug-shared';
+import {
+  createWindowedCodePreviewRangeRenderer,
+  isWindowedCodePreviewSupersededError,
+  type WindowedCodePreviewRangeInput,
+  type WindowedCodePreviewRangeResult,
+} from './site-debug-source-highlight';
+import {
+  createPlainTextPreviewLineIndex,
+  type PlainTextPreviewLineIndex,
+} from './site-debug-source-text-index';
+
+export {
+  WINDOWED_HIGHLIGHT_BATCH_LINES,
+  type CodePreviewTheme,
+  type WindowedCodePreviewLine,
+  type WindowedCodePreviewRangeInput,
+  type WindowedCodePreviewRangeResult,
+} from './site-debug-source-highlight';
+export {
+  createPlainTextPreviewLineIndex,
+  type PlainTextPreviewLineIndex,
+} from './site-debug-source-text-index';
 
 export interface RemoteTextContentProgress {
   loadedBytes: number;
@@ -24,8 +46,12 @@ export interface LoadRemoteTextContentOptions {
 export interface CodePreviewBudget {
   byteLength: number;
   lineCount: number;
+  mode: CodePreviewMode;
   shouldRenderRichPreview: boolean;
+  shouldRenderWindowedHighlight: boolean;
 }
+
+export type CodePreviewMode = 'plain-text' | 'rich-html' | 'virtual-highlight';
 
 export interface BackgroundCodePreviewRenderInput {
   sourceContent: string;
@@ -35,11 +61,6 @@ export interface BackgroundCodePreviewRenderInput {
 export interface BackgroundCodePreviewRenderResult {
   formattedContent: string;
   previewHtml: string;
-}
-
-export interface PlainTextPreviewLineIndex {
-  lineCount: number;
-  lineStartOffsets: Uint32Array;
 }
 
 interface RemoteTextContentCacheEntry {
@@ -85,6 +106,27 @@ type BackgroundPlainTextLineIndexResponse =
   | BackgroundPlainTextLineIndexErrorResponse
   | BackgroundPlainTextLineIndexSuccessResponse;
 
+interface BackgroundWindowedCodePreviewWorkerRequest
+  extends WindowedCodePreviewRangeInput {
+  requestId: number;
+}
+
+interface BackgroundWindowedCodePreviewWorkerSuccessResponse
+  extends WindowedCodePreviewRangeResult {
+  requestId: number;
+  success: true;
+}
+
+interface BackgroundWindowedCodePreviewWorkerErrorResponse {
+  error: string;
+  requestId: number;
+  success: false;
+}
+
+type BackgroundWindowedCodePreviewWorkerResponse =
+  | BackgroundWindowedCodePreviewWorkerErrorResponse
+  | BackgroundWindowedCodePreviewWorkerSuccessResponse;
+
 const HTML_ESCAPE_PATTERN = /["&'<>]/g;
 const HTML_ESCAPE_REPLACEMENTS: Record<string, string> = {
   '"': '&quot;',
@@ -96,6 +138,9 @@ const HTML_ESCAPE_REPLACEMENTS: Record<string, string> = {
 const BACKGROUND_PREVIEW_ABORT_ERROR = 'SiteDebugBackgroundPreviewAborted';
 const MAX_RICH_PREVIEW_BYTES = 128 * 1024;
 const MAX_RICH_PREVIEW_LINES = 3200;
+const MAX_WINDOWED_HIGHLIGHT_PREVIEW_BYTES = 1024 * 1024;
+const MAX_WINDOWED_HIGHLIGHT_PREVIEW_LINES = 20_000;
+export const WINDOWED_HIGHLIGHT_OVERSCAN_LINES = 120;
 const CONTENT_SIGNATURE_SAMPLE_LENGTH = 160;
 export const STREAMING_PREVIEW_MAX_CHARACTERS = 24_000;
 const STREAMING_PREVIEW_MIN_UPDATE_CHARACTERS = 2048;
@@ -242,9 +287,24 @@ export const getCodePreviewBudget = (
   return {
     byteLength,
     lineCount,
+    mode:
+      byteLength <= MAX_RICH_PREVIEW_BYTES &&
+      lineCount <= MAX_RICH_PREVIEW_LINES
+        ? 'rich-html'
+        : byteLength <= MAX_WINDOWED_HIGHLIGHT_PREVIEW_BYTES &&
+            lineCount <= MAX_WINDOWED_HIGHLIGHT_PREVIEW_LINES
+          ? 'virtual-highlight'
+          : 'plain-text',
     shouldRenderRichPreview:
       byteLength <= MAX_RICH_PREVIEW_BYTES &&
       lineCount <= MAX_RICH_PREVIEW_LINES,
+    shouldRenderWindowedHighlight:
+      !(
+        byteLength <= MAX_RICH_PREVIEW_BYTES &&
+        lineCount <= MAX_RICH_PREVIEW_LINES
+      ) &&
+      byteLength <= MAX_WINDOWED_HIGHLIGHT_PREVIEW_BYTES &&
+      lineCount <= MAX_WINDOWED_HIGHLIGHT_PREVIEW_LINES,
   };
 };
 
@@ -671,6 +731,24 @@ export const highlightCodeContent = async (
   }
 };
 
+export const renderCodePreview = async (
+  input: BackgroundCodePreviewRenderInput,
+): Promise<BackgroundCodePreviewRenderResult> => {
+  const formattedContent = await formatPreviewContent(
+    input.sourceContent,
+    input.sourcePath,
+  );
+  const previewHtml = await highlightCodeContent(
+    formattedContent,
+    input.sourcePath,
+  );
+
+  return {
+    formattedContent,
+    previewHtml,
+  };
+};
+
 const createBackgroundPreviewAbortError = () => {
   const error = new Error('Background preview request was superseded.');
 
@@ -718,13 +796,10 @@ export const waitForCodePreviewIdle = (timeoutMs = 180) =>
     globalThis.window.setTimeout(() => resolve(), 48);
   });
 
-const resolveSiteDebugWorkerUrl = (workerFileName: string): URL =>
-  new URL(workerFileName, import.meta.url);
-
 export const createBackgroundCodePreviewRenderer = () => {
   let activeRequest: {
     resolve: (value: BackgroundCodePreviewRenderResult) => void;
-    reject: (reason?: unknown) => void;
+    reject: (reason?: unknown) => void | Promise<void>;
     requestId: number;
   } | null = null;
   let requestId = 0;
@@ -755,8 +830,11 @@ export const createBackgroundCodePreviewRenderer = () => {
       return worker;
     }
 
+    // Keep the worker URL inline so downstream Vite/Rolldown builds can
+    // statically detect and emit the worker entry instead of leaving a
+    // runtime-relative URL that points at a missing file.
     worker = new Worker(
-      resolveSiteDebugWorkerUrl('site-debug-source-preview.worker.ts'),
+      new URL('site-debug-source-preview.worker.ts', import.meta.url),
       {
         type: 'module',
       },
@@ -804,10 +882,7 @@ export const createBackgroundCodePreviewRenderer = () => {
     },
     render(input: BackgroundCodePreviewRenderInput) {
       if (typeof Worker === 'undefined') {
-        return Promise.resolve<BackgroundCodePreviewRenderResult>({
-          formattedContent: input.sourceContent,
-          previewHtml: '',
-        });
+        return renderCodePreview(input);
       }
 
       if (activeRequest) {
@@ -815,21 +890,243 @@ export const createBackgroundCodePreviewRenderer = () => {
       }
 
       const currentRequestId = ++requestId;
-      const activeWorker = ensureWorker();
+      let activeWorker: Worker;
+
+      try {
+        activeWorker = ensureWorker();
+      } catch {
+        return renderCodePreview(input);
+      }
 
       return new Promise<BackgroundCodePreviewRenderResult>(
         (resolve, reject) => {
+          const rejectWithForegroundFallback = (reason?: unknown) => {
+            if (isBackgroundCodePreviewAbortError(reason)) {
+              reject(reason);
+              return;
+            }
+
+            // Recover when workers are unavailable or blocked by runtime policy.
+            renderCodePreview(input)
+              .then(resolve)
+              .catch((fallbackError) => {
+                reject(fallbackError);
+              });
+          };
+
           activeRequest = {
             resolve,
-            reject,
+            reject: rejectWithForegroundFallback,
             requestId: currentRequestId,
           };
+
+          try {
+            activeWorker.postMessage({
+              requestId: currentRequestId,
+              ...input,
+            } satisfies BackgroundCodePreviewWorkerRequest);
+          } catch (error) {
+            activeRequest = null;
+            rejectWithForegroundFallback(error);
+          }
+        },
+      );
+    },
+  };
+};
+
+export const createBackgroundWindowedCodePreviewHighlighter = () => {
+  let activeRequest: {
+    input: WindowedCodePreviewRangeInput;
+    reject: (reason?: unknown) => void;
+    requestId: number;
+    resolve: (value: WindowedCodePreviewRangeResult) => void;
+  } | null = null;
+  let requestId = 0;
+  let worker: Worker | null = null;
+  const foregroundRenderer = createWindowedCodePreviewRangeRenderer();
+
+  const rejectActiveRequest = (error: Error) => {
+    if (!activeRequest) {
+      return;
+    }
+
+    const { reject } = activeRequest;
+
+    activeRequest = null;
+    reject(error);
+  };
+
+  const startForegroundRender = (
+    input: WindowedCodePreviewRangeInput,
+    currentRequestId: number,
+    resolve: (value: WindowedCodePreviewRangeResult) => void,
+    reject: (reason?: unknown) => void,
+  ) => {
+    activeRequest = {
+      input,
+      reject,
+      requestId: currentRequestId,
+      resolve,
+    };
+
+    foregroundRenderer
+      .render(input, () => activeRequest?.requestId === currentRequestId)
+      .then((result) => {
+        if (activeRequest?.requestId !== currentRequestId) {
+          return;
+        }
+
+        activeRequest = null;
+        resolve(result);
+      })
+      .catch((error) => {
+        if (activeRequest?.requestId !== currentRequestId) {
+          return;
+        }
+
+        activeRequest = null;
+
+        if (isWindowedCodePreviewSupersededError(error)) {
+          reject(createBackgroundPreviewAbortError());
+          return;
+        }
+
+        reject(error);
+      });
+  };
+
+  const terminateWorker = () => {
+    if (worker) {
+      worker.terminate();
+      worker = null;
+    }
+  };
+
+  const ensureWorker = () => {
+    if (worker) {
+      return worker;
+    }
+
+    worker = new Worker(
+      new URL('site-debug-source-highlight.worker.ts', import.meta.url),
+      {
+        type: 'module',
+      },
+    );
+
+    worker.addEventListener(
+      'message',
+      (event: MessageEvent<BackgroundWindowedCodePreviewWorkerResponse>) => {
+        if (
+          !activeRequest ||
+          event.data.requestId !== activeRequest.requestId
+        ) {
+          return;
+        }
+
+        const {
+          input,
+          reject,
+          resolve,
+          requestId: activeRequestId,
+        } = activeRequest;
+
+        activeRequest = null;
+
+        if (!event.data.success) {
+          startForegroundRender(input, activeRequestId, resolve, reject);
+          return;
+        }
+
+        resolve({
+          checkpointLine: event.data.checkpointLine,
+          resolvedEndLine: event.data.resolvedEndLine,
+          resolvedStartLine: event.data.resolvedStartLine,
+          rootStyle: event.data.rootStyle,
+          tokenLines: event.data.tokenLines,
+        });
+      },
+    );
+
+    worker.addEventListener('error', () => {
+      const currentRequest = activeRequest;
+
+      terminateWorker();
+
+      if (!currentRequest) {
+        return;
+      }
+
+      activeRequest = null;
+      startForegroundRender(
+        currentRequest.input,
+        currentRequest.requestId,
+        currentRequest.resolve,
+        currentRequest.reject,
+      );
+    });
+
+    return worker;
+  };
+
+  return {
+    cancel() {
+      rejectActiveRequest(createBackgroundPreviewAbortError());
+    },
+    dispose() {
+      rejectActiveRequest(createBackgroundPreviewAbortError());
+      terminateWorker();
+      foregroundRenderer.clear();
+    },
+    render(input: WindowedCodePreviewRangeInput) {
+      if (activeRequest) {
+        rejectActiveRequest(createBackgroundPreviewAbortError());
+      }
+
+      const currentRequestId = ++requestId;
+
+      return new Promise<WindowedCodePreviewRangeResult>((resolve, reject) => {
+        const rejectWithForegroundFallback = (reason?: unknown) => {
+          if (isBackgroundCodePreviewAbortError(reason)) {
+            reject(reason);
+            return;
+          }
+
+          startForegroundRender(input, currentRequestId, resolve, reject);
+        };
+
+        if (typeof Worker === 'undefined') {
+          rejectWithForegroundFallback();
+          return;
+        }
+
+        let activeWorker: Worker;
+
+        try {
+          activeWorker = ensureWorker();
+        } catch {
+          startForegroundRender(input, currentRequestId, resolve, reject);
+          return;
+        }
+
+        activeRequest = {
+          input,
+          reject,
+          requestId: currentRequestId,
+          resolve,
+        };
+
+        try {
           activeWorker.postMessage({
             requestId: currentRequestId,
             ...input,
-          } satisfies BackgroundCodePreviewWorkerRequest);
-        },
-      );
+          } satisfies BackgroundWindowedCodePreviewWorkerRequest);
+        } catch (error) {
+          activeRequest = null;
+          rejectWithForegroundFallback(error);
+        }
+      });
     },
   };
 };
@@ -868,8 +1165,11 @@ export const createBackgroundPlainTextPreviewIndexer = () => {
       return worker;
     }
 
+    // Keep the worker URL inline so downstream Vite/Rolldown builds can
+    // statically detect and emit the worker entry instead of leaving a
+    // runtime-relative URL that points at a missing file.
     worker = new Worker(
-      resolveSiteDebugWorkerUrl('site-debug-source-text.worker.ts'),
+      new URL('site-debug-source-text.worker.ts', import.meta.url),
       {
         type: 'module',
       },
@@ -917,12 +1217,7 @@ export const createBackgroundPlainTextPreviewIndexer = () => {
     },
     index(sourceContent: string) {
       if (typeof Worker === 'undefined') {
-        return Promise.resolve<PlainTextPreviewLineIndex>({
-          lineCount: sourceContent.length > 0 ? 1 : 0,
-          lineStartOffsets: new Uint32Array(
-            sourceContent.length > 0 ? [0] : [],
-          ),
-        });
+        return Promise.resolve(createPlainTextPreviewLineIndex(sourceContent));
       }
 
       if (activeRequest) {
@@ -930,18 +1225,43 @@ export const createBackgroundPlainTextPreviewIndexer = () => {
       }
 
       const currentRequestId = ++requestId;
-      const activeWorker = ensureWorker();
+      let activeWorker: Worker;
+
+      try {
+        activeWorker = ensureWorker();
+      } catch {
+        return Promise.resolve(createPlainTextPreviewLineIndex(sourceContent));
+      }
 
       return new Promise<PlainTextPreviewLineIndex>((resolve, reject) => {
+        const rejectWithForegroundFallback = (reason?: unknown) => {
+          if (isBackgroundCodePreviewAbortError(reason)) {
+            reject(reason);
+            return;
+          }
+
+          try {
+            resolve(createPlainTextPreviewLineIndex(sourceContent));
+          } catch (fallbackError) {
+            reject(fallbackError);
+          }
+        };
+
         activeRequest = {
-          reject,
+          reject: rejectWithForegroundFallback,
           requestId: currentRequestId,
           resolve,
         };
-        activeWorker.postMessage({
-          requestId: currentRequestId,
-          sourceContent,
-        });
+
+        try {
+          activeWorker.postMessage({
+            requestId: currentRequestId,
+            sourceContent,
+          });
+        } catch (error) {
+          activeRequest = null;
+          rejectWithForegroundFallback(error);
+        }
       });
     },
   };
