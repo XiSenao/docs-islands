@@ -100,6 +100,7 @@ describe('vitepressReactRenderingStrategies', () => {
         thinking: 'enabled',
       },
     ]);
+    expect(vitepressConfig.vite?.worker?.format).toBe('es');
   });
 
   it('logs error and strips scripts when multiple <script lang="react"> blocks exist in one html_block', async () => {

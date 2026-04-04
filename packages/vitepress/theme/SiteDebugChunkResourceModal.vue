@@ -10,6 +10,7 @@ import type {
   SiteDebugPreviewStatus,
 } from './site-debug-shared';
 import { formatBytes, hasDisplayValue } from './site-debug-shared';
+import type { CodePreviewMode } from './site-debug-source-preview';
 import SiteDebugLoadingState from './SiteDebugLoadingState.vue';
 import SiteDebugSourceTextPreview from './SiteDebugSourceTextPreview.vue';
 
@@ -21,6 +22,7 @@ const props = defineProps<{
   loadingProgress: SiteDebugLoadingProgress;
   modules: BundleSourceModuleItem[];
   previewHtml: string;
+  previewMode: CodePreviewMode;
   previewStatus: SiteDebugPreviewStatus | null;
   selectedModule: BundleSourceModuleSelection | null;
   sourceContent: string;
@@ -50,10 +52,7 @@ const showPreviewBody = computed(
   () => props.state !== 'idle' && hasPreviewBody.value,
 );
 const shouldUseWindowedPreview = computed(
-  () =>
-    props.state === 'ready' &&
-    !props.previewHtml &&
-    props.previewStatus?.tone === 'warning',
+  () => props.state === 'ready' && props.previewMode !== 'rich-html',
 );
 </script>
 
@@ -137,7 +136,13 @@ const shouldUseWindowedPreview = computed(
               />
               <SiteDebugSourceTextPreview
                 v-else
+                :preview-mode="
+                  previewMode === 'virtual-highlight'
+                    ? 'virtual-highlight'
+                    : 'plain-text'
+                "
                 :source-content="sourceContent"
+                :source-path="chunkDetail.file"
                 :windowed="shouldUseWindowedPreview"
               />
             </div>

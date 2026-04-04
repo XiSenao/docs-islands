@@ -1443,6 +1443,15 @@ export default function vitepressReactRenderingStrategies(
     siteConfig.cleanUrls,
   );
 
+  if (!vitepressConfig.vite.worker) {
+    vitepressConfig.vite.worker = {};
+  }
+  if (!vitepressConfig.vite.worker.format) {
+    // Site debug source preview uses module workers that may code-split during
+    // downstream Vite builds. The default IIFE worker output breaks that build.
+    vitepressConfig.vite.worker.format = 'es';
+  }
+
   if (!vitepressConfig.vite.plugins) {
     vitepressConfig.vite.plugins = [];
   }

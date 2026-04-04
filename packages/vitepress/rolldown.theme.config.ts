@@ -19,6 +19,10 @@ const sourceTextWorkerEntry = path.resolve(
   __dirname,
   'theme/site-debug-source-text.worker.ts',
 );
+const sourceHighlightWorkerEntry = path.resolve(
+  __dirname,
+  'theme/site-debug-source-highlight.worker.ts',
+);
 const themeDistDir = path.resolve(__dirname, 'dist/theme');
 
 const runtimeDependencyNames = [
@@ -72,9 +76,14 @@ const createSiteDebugWorkerUrlRewritePlugin = () => ({
       chunkDirectory,
       'site-debug-source-text.worker.mjs',
     );
+    const highlightWorkerPath = path.posix.relative(
+      chunkDirectory,
+      'site-debug-source-highlight.worker.mjs',
+    );
     const nextCode = code
       .replaceAll('site-debug-source-preview.worker.ts', previewWorkerPath)
-      .replaceAll('site-debug-source-text.worker.ts', textWorkerPath);
+      .replaceAll('site-debug-source-text.worker.ts', textWorkerPath)
+      .replaceAll('site-debug-source-highlight.worker.ts', highlightWorkerPath);
 
     if (nextCode === code) {
       return null;
@@ -162,6 +171,23 @@ const textWorkerConfig: RolldownOptions = {
   }),
 };
 
+const highlightWorkerConfig: RolldownOptions = {
+  input: {
+    'site-debug-source-highlight.worker': sourceHighlightWorkerEntry,
+  },
+  external: shouldExternalizeThemeRuntimeDependency,
+  plugins: [
+    createThemeDistCleanPlugin(),
+    createSiteDebugWorkerUrlRewritePlugin(),
+  ],
+  transform: {
+    target: 'es2020',
+  },
+  output: createThemeOutput({
+    codeSplitting: false,
+  }),
+};
+
 // const vueClientDtsConfig: RolldownOptions = {
 //   input: {
 //     'debug-console': entry,
@@ -187,6 +213,7 @@ const configs: RolldownOptions[] = [
   debugConsoleConfig,
   previewWorkerConfig,
   textWorkerConfig,
+  highlightWorkerConfig,
 ];
 
 export default configs;

@@ -129,6 +129,7 @@ import {
   loadRemoteTextContentByteSize,
   waitForCodePreviewIdle,
   waitForNextCodePreviewPaint,
+  type CodePreviewMode,
   type RemoteTextContentProgress,
   type RemoteTextContentStreamPreview,
 } from './site-debug-source-preview';
@@ -207,6 +208,7 @@ const activeBundleChunkDetail = ref<BundleChunkDetail | null>(null);
 const activeBundleSourceModule = ref<BundleSourceModuleSelection | null>(null);
 const activeBundleChunkContent = ref('');
 const activeBundleChunkPreviewHtml = ref('');
+const activeBundleChunkPreviewMode = ref<CodePreviewMode>('plain-text');
 const activeBundleChunkPreviewStatus = ref<SiteDebugPreviewStatus | null>(null);
 const activeBundleChunkState = ref<PreviewState>('idle');
 const activeBundleChunkError = ref('');
@@ -215,6 +217,7 @@ const activeBundleChunkLoadingProgress = ref<SiteDebugLoadingProgress>(
 );
 const activeBundleSourceContent = ref('');
 const activeBundleSourcePreviewHtml = ref('');
+const activeBundleSourcePreviewMode = ref<CodePreviewMode>('plain-text');
 const activeBundleSourcePreviewStatus = ref<SiteDebugPreviewStatus | null>(
   null,
 );
@@ -316,11 +319,18 @@ const createDeferredRichPreviewStatus = (
   label,
   tone: 'info',
 });
-const createLargePreviewStatus = (
+const createWindowedHighlightPreviewStatus = (
   budget: ReturnType<typeof getCodePreviewBudget>,
 ): SiteDebugPreviewStatus => ({
-  detail: `${formatCodePreviewBudgetSummary(budget)}. Using a windowed plain-text preview to keep scrolling smooth.`,
+  detail: `${formatCodePreviewBudgetSummary(budget)}. Using a windowed syntax-highlight preview to keep scrolling smooth.`,
   label: 'Large file mode',
+  tone: 'warning',
+});
+const createPlainTextLargePreviewStatus = (
+  budget: ReturnType<typeof getCodePreviewBudget>,
+): SiteDebugPreviewStatus => ({
+  detail: `${formatCodePreviewBudgetSummary(budget)}. Too large for windowed syntax highlighting, so a windowed plain-text preview stays active.`,
+  label: 'Plain-text large file mode',
   tone: 'warning',
 });
 const createPlainPreviewFallbackStatus = (): SiteDebugPreviewStatus => ({
@@ -378,6 +388,7 @@ const resetBundleChunkPreviewState = () => {
   activeBundleChunkDetail.value = null;
   activeBundleChunkContent.value = '';
   activeBundleChunkPreviewHtml.value = '';
+  activeBundleChunkPreviewMode.value = 'plain-text';
   activeBundleChunkPreviewStatus.value = null;
   activeBundleChunkState.value = 'idle';
   activeBundleChunkError.value = '';
@@ -393,6 +404,7 @@ const resetBundleSourcePreviewState = () => {
   activeBundleSourceModule.value = null;
   activeBundleSourceContent.value = '';
   activeBundleSourcePreviewHtml.value = '';
+  activeBundleSourcePreviewMode.value = 'plain-text';
   activeBundleSourcePreviewStatus.value = null;
   activeBundleSourceState.value = 'idle';
   activeBundleSourceError.value = '';
@@ -1737,6 +1749,7 @@ const openBundleChunkDetail = async (chunkItem: BundleChunkResourceItem) => {
 
         activeBundleChunkContent.value = preview.content;
         activeBundleChunkPreviewHtml.value = '';
+        activeBundleChunkPreviewMode.value = 'plain-text';
         activeBundleChunkPreviewStatus.value =
           createStreamingPreviewStatus(preview);
       },
@@ -1756,9 +1769,17 @@ const openBundleChunkDetail = async (chunkItem: BundleChunkResourceItem) => {
 
     const previewBudget = getCodePreviewBudget(chunkContent);
 
-    if (!previewBudget.shouldRenderRichPreview) {
+    if (previewBudget.mode === 'virtual-highlight') {
       activeBundleChunkPreviewStatus.value =
-        createLargePreviewStatus(previewBudget);
+        createWindowedHighlightPreviewStatus(previewBudget);
+      activeBundleChunkPreviewMode.value = 'virtual-highlight';
+      return;
+    }
+
+    if (previewBudget.mode === 'plain-text') {
+      activeBundleChunkPreviewStatus.value =
+        createPlainTextLargePreviewStatus(previewBudget);
+      activeBundleChunkPreviewMode.value = 'plain-text';
       return;
     }
 
@@ -1771,6 +1792,9 @@ const openBundleChunkDetail = async (chunkItem: BundleChunkResourceItem) => {
     if (cachedPreview) {
       activeBundleChunkContent.value = cachedPreview.formattedContent;
       activeBundleChunkPreviewHtml.value = cachedPreview.previewHtml;
+      activeBundleChunkPreviewMode.value = cachedPreview.previewHtml
+        ? 'rich-html'
+        : 'plain-text';
       activeBundleChunkPreviewStatus.value = cachedPreview.previewHtml
         ? null
         : createPlainPreviewFallbackStatus();
@@ -1778,6 +1802,7 @@ const openBundleChunkDetail = async (chunkItem: BundleChunkResourceItem) => {
     }
 
     activeBundleChunkPreviewStatus.value = createDeferredRichPreviewStatus();
+    activeBundleChunkPreviewMode.value = 'rich-html';
     await waitForNextCodePreviewPaint();
     await waitForCodePreviewIdle();
 
@@ -1797,6 +1822,9 @@ const openBundleChunkDetail = async (chunkItem: BundleChunkResourceItem) => {
     activeBundleChunkContent.value = previewResult.formattedContent;
     activeBundleChunkPreviewHtml.value = previewResult.previewHtml;
     setCachedCodePreview(previewCacheKey, previewResult);
+    activeBundleChunkPreviewMode.value = previewResult.previewHtml
+      ? 'rich-html'
+      : 'plain-text';
     activeBundleChunkPreviewStatus.value = previewResult.previewHtml
       ? null
       : createPlainPreviewFallbackStatus();
@@ -1814,6 +1842,7 @@ const openBundleChunkDetail = async (chunkItem: BundleChunkResourceItem) => {
     }
 
     if (activeBundleChunkState.value === 'ready') {
+      activeBundleChunkPreviewMode.value = 'plain-text';
       activeBundleChunkPreviewStatus.value = createPlainPreviewFallbackStatus();
       return;
     }
@@ -1917,6 +1946,7 @@ const openBundleSourceModule = async (moduleMetric: {
 
       activeBundleSourceContent.value = preview.content;
       activeBundleSourcePreviewHtml.value = '';
+      activeBundleSourcePreviewMode.value = 'plain-text';
       activeBundleSourcePreviewStatus.value =
         createStreamingPreviewStatus(preview);
     };
@@ -1944,9 +1974,17 @@ const openBundleSourceModule = async (moduleMetric: {
 
     const previewBudget = getCodePreviewBudget(sourceContent);
 
-    if (!previewBudget.shouldRenderRichPreview) {
+    if (previewBudget.mode === 'virtual-highlight') {
       activeBundleSourcePreviewStatus.value =
-        createLargePreviewStatus(previewBudget);
+        createWindowedHighlightPreviewStatus(previewBudget);
+      activeBundleSourcePreviewMode.value = 'virtual-highlight';
+      return;
+    }
+
+    if (previewBudget.mode === 'plain-text') {
+      activeBundleSourcePreviewStatus.value =
+        createPlainTextLargePreviewStatus(previewBudget);
+      activeBundleSourcePreviewMode.value = 'plain-text';
       return;
     }
 
@@ -1959,6 +1997,9 @@ const openBundleSourceModule = async (moduleMetric: {
     if (cachedPreview) {
       activeBundleSourceContent.value = cachedPreview.formattedContent;
       activeBundleSourcePreviewHtml.value = cachedPreview.previewHtml;
+      activeBundleSourcePreviewMode.value = cachedPreview.previewHtml
+        ? 'rich-html'
+        : 'plain-text';
       activeBundleSourcePreviewStatus.value = cachedPreview.previewHtml
         ? null
         : createPlainPreviewFallbackStatus();
@@ -1966,6 +2007,7 @@ const openBundleSourceModule = async (moduleMetric: {
     }
 
     activeBundleSourcePreviewStatus.value = createDeferredRichPreviewStatus();
+    activeBundleSourcePreviewMode.value = 'rich-html';
     await waitForNextCodePreviewPaint();
     await waitForCodePreviewIdle();
 
@@ -1985,6 +2027,9 @@ const openBundleSourceModule = async (moduleMetric: {
     activeBundleSourceContent.value = previewResult.formattedContent;
     activeBundleSourcePreviewHtml.value = previewResult.previewHtml;
     setCachedCodePreview(previewCacheKey, previewResult);
+    activeBundleSourcePreviewMode.value = previewResult.previewHtml
+      ? 'rich-html'
+      : 'plain-text';
     activeBundleSourcePreviewStatus.value = previewResult.previewHtml
       ? null
       : createPlainPreviewFallbackStatus();
@@ -2002,6 +2047,7 @@ const openBundleSourceModule = async (moduleMetric: {
     }
 
     if (activeBundleSourceState.value === 'ready') {
+      activeBundleSourcePreviewMode.value = 'plain-text';
       activeBundleSourcePreviewStatus.value =
         createPlainPreviewFallbackStatus();
       return;
@@ -3569,6 +3615,7 @@ onBeforeUnmount(() => {
     :loading-progress="activeBundleChunkLoadingProgress"
     :modules="activeBundleChunkModules"
     :preview-html="activeBundleChunkPreviewHtml"
+    :preview-mode="activeBundleChunkPreviewMode"
     :preview-status="activeBundleChunkPreviewStatus"
     :selected-module="activeBundleSourceModule"
     :source-content="activeBundleChunkContent"
@@ -3588,6 +3635,7 @@ onBeforeUnmount(() => {
     :language-label="formatSourceLanguageLabel(activeBundleSourcePreviewPath)"
     :loading-progress="activeBundleSourceLoadingProgress"
     :preview-html="activeBundleSourcePreviewHtml"
+    :preview-mode="activeBundleSourcePreviewMode"
     :preview-status="activeBundleSourcePreviewStatus"
     :source-content="activeBundleSourceContent"
     :state="activeBundleSourceState"
