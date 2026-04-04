@@ -8,30 +8,30 @@ describe('resolveConfig', () => {
       siteDebug: {
         analysis: {
           buildReports: {
-            sourceDir: '.vitepress/site-debug-reports',
-            sourceMode: 'read-write',
-            runs: [
+            cache: {
+              dir: '.vitepress/site-debug-reports',
+              strategy: 'fallback',
+            },
+            models: [
               {
                 label: 'Doubao Pro',
                 model: 'doubao-seed-1-6',
                 provider: 'doubao',
-                thinking: 'enabled',
+                thinking: true,
               },
             ],
           },
           providers: {
             claudeCode: {
               command: 'claude',
-              enabled: true,
               timeoutMs: 180_000,
             },
             doubao: {
               apiKey: 'test-key',
               baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-              enabled: true,
               maxTokens: 4096,
               model: 'doubao-seed-1-6',
-              thinking: 'enabled',
+              thinking: true,
               temperature: 0.1,
               timeoutMs: 90_000,
             },
@@ -41,20 +41,18 @@ describe('resolveConfig', () => {
     });
 
     expect(config.base).toBe('/docs/');
-    expect(config.siteDebug.analysis?.buildReports?.cache).toBe(true);
-    expect(config.siteDebug.analysis?.buildReports?.includeChunks).toBe(true);
-    expect(config.siteDebug.analysis?.buildReports?.includeModules).toBe(true);
-    expect(config.siteDebug.analysis?.buildReports?.sourceMode).toBe(
-      'read-write',
-    );
-    expect(config.siteDebug.analysis?.buildReports?.sourceDir).toMatch(
-      /site-debug-reports$/,
-    );
-    expect(config.siteDebug.analysis?.buildReports?.runs?.[0]).toEqual({
+    expect(config.siteDebug.analysis?.buildReports?.cache).toEqual({
+      dir: expect.stringMatching(/site-debug-reports$/),
+      strategy: 'fallback',
+    });
+    expect(config.siteDebug.analysis?.buildReports?.groupBy).toBe('page');
+    expect(config.siteDebug.analysis?.buildReports?.includeChunks).toBe(false);
+    expect(config.siteDebug.analysis?.buildReports?.includeModules).toBe(false);
+    expect(config.siteDebug.analysis?.buildReports?.models?.[0]).toEqual({
       label: 'Doubao Pro',
       model: 'doubao-seed-1-6',
       provider: 'doubao',
-      thinking: 'enabled',
+      thinking: true,
     });
     expect(config.siteDebug.analysis?.providers?.claudeCode?.command).toBe(
       'claude',
@@ -66,75 +64,65 @@ describe('resolveConfig', () => {
     expect(config.siteDebug.analysis?.providers?.doubao?.model).toBe(
       'doubao-seed-1-6',
     );
-    expect(config.siteDebug.analysis?.providers?.doubao?.thinking).toBe(
-      'enabled',
-    );
+    expect(config.siteDebug.analysis?.providers?.doubao?.thinking).toBe(true);
     expect(config.siteDebug.analysis?.providers?.doubao?.temperature).toBe(0.1);
     expect(config.siteDebug.analysis?.providers?.doubao?.timeoutMs).toBe(
       90_000,
     );
-    expect(config.siteDebug.ai).toEqual(config.siteDebug.analysis);
+    expect(config.siteDebug).not.toHaveProperty('ai');
   });
 
-  it('maps legacy siteDebug.ai and buildReports.models to the new analysis shape', () => {
+  it('fills cache option defaults when cache is true', () => {
     const config = resolveConfig({
       siteDebug: {
-        ai: {
+        analysis: {
           buildReports: {
-            models: [
-              {
-                model: 'doubao-seed-2-0',
-                provider: 'doubao',
-              },
-            ],
-          },
-          providers: {
-            doubao: {
-              apiKey: 'test-key',
-              model: 'doubao-seed-2-0',
-            },
+            cache: true,
           },
         },
       },
     });
 
-    expect(config.siteDebug.analysis?.buildReports?.cache).toBe(true);
-    expect(config.siteDebug.analysis?.buildReports?.includeChunks).toBe(true);
-    expect(config.siteDebug.analysis?.buildReports?.includeModules).toBe(true);
-    expect(config.siteDebug.analysis?.buildReports?.runs).toEqual([
-      {
-        model: 'doubao-seed-2-0',
-        provider: 'doubao',
-      },
-    ]);
-    expect(config.siteDebug.analysis?.providers?.doubao?.model).toBe(
-      'doubao-seed-2-0',
-    );
+    expect(config.siteDebug.analysis?.buildReports?.cache).toEqual({
+      dir: expect.stringMatching(/\.vitepress\/cache\/site-debug-reports$/),
+      strategy: 'exact',
+    });
   });
 
-  it('treats buildReports presence as enabled and still honors the legacy enabled: false escape hatch', () => {
-    const enabledByPresence = resolveConfig({
+  it('fills cache option defaults when cache config is enabled', () => {
+    const config = resolveConfig({
+      siteDebug: {
+        analysis: {
+          buildReports: {
+            cache: {},
+          },
+        },
+      },
+    });
+
+    expect(config.siteDebug.analysis?.buildReports?.cache).toEqual({
+      dir: expect.stringMatching(/\.vitepress\/cache\/site-debug-reports$/),
+      strategy: 'exact',
+    });
+  });
+
+  it('treats buildReports presence as enabled and defaults cache to true', () => {
+    const config = resolveConfig({
       siteDebug: {
         analysis: {
           buildReports: {},
         },
       },
     });
-    const legacyDisabled = resolveConfig({
-      siteDebug: {
-        analysis: {
-          buildReports: {
-            enabled: false,
-          },
-        },
-      },
-    });
 
-    expect(enabledByPresence.siteDebug.analysis?.buildReports).toEqual({
-      cache: true,
-      includeChunks: true,
-      includeModules: true,
+    expect(config.siteDebug.analysis?.buildReports).toEqual({
+      cache: {
+        dir: expect.stringMatching(/\.vitepress\/cache\/site-debug-reports$/),
+        strategy: 'exact',
+      },
+      groupBy: 'page',
+      includeChunks: false,
+      includeModules: false,
     });
-    expect(legacyDisabled.siteDebug.analysis?.buildReports).toBeUndefined();
   });
 });

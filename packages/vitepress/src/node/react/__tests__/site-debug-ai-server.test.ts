@@ -52,7 +52,7 @@ afterEach(() => {
 });
 
 describe('resolveSiteDebugAiCapabilities', () => {
-  it('keeps providers disabled until they are explicitly configured', async () => {
+  it('marks providers unavailable until they are configured', async () => {
     const capabilities = await resolveSiteDebugAiCapabilities();
 
     expect(capabilities.providers['claude-code'].available).toBe(false);
@@ -71,7 +71,6 @@ describe('resolveSiteDebugAiCapabilities', () => {
         doubao: {
           apiKey: 'test-key',
           baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-          enabled: true,
           model: 'doubao-seed-1-6',
         },
       },
@@ -139,10 +138,9 @@ describe('resolveSiteDebugAiCapabilities', () => {
       providers: {
         doubao: {
           apiKey: 'test-key',
-          enabled: true,
           maxTokens: 2048,
           model: 'doubao-seed-2-0-pro-260215',
-          thinking: 'enabled',
+          thinking: true,
           temperature: 0.1,
         },
       },
@@ -185,7 +183,6 @@ describe('resolveSiteDebugAiCapabilities', () => {
       providers: {
         doubao: {
           apiKey: 'test-key',
-          enabled: true,
           model: 'doubao-seed-2-0-pro-260215',
           timeoutMs: 5,
         },
@@ -193,7 +190,12 @@ describe('resolveSiteDebugAiCapabilities', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(response.res.statusCode).toBe(500);
-    expect(response.getJson().error).toBe('Doubao analysis timed out.');
+    expect(response.res.statusCode).toBe(504);
+    const payload = response.getJson();
+
+    expect(payload.error).toContain('Doubao analysis timed out.');
+    expect(payload.error).toContain('Trace ');
+    expect(payload.error).toContain('bundle-module /src/component.ts');
+    expect(payload.error).toContain('timeout 5 ms');
   });
 });

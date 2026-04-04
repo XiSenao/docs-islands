@@ -73,12 +73,12 @@ describe('vitepressReactRenderingStrategies', () => {
             },
           },
           buildReports: {
-            runs: [
+            models: [
               {
                 label: 'Doubao Pro',
                 model: 'doubao-seed-2-0-pro-260215',
                 provider: 'doubao',
-                thinking: 'enabled',
+                thinking: true,
               },
             ],
           },
@@ -92,12 +92,12 @@ describe('vitepressReactRenderingStrategies', () => {
     expect(vitepressConfig.siteDebug.analysis?.providers?.doubao?.model).toBe(
       'doubao-seed-2-0-pro-260215',
     );
-    expect(vitepressConfig.siteDebug.analysis?.buildReports?.runs).toEqual([
+    expect(vitepressConfig.siteDebug.analysis?.buildReports?.models).toEqual([
       {
         label: 'Doubao Pro',
         model: 'doubao-seed-2-0-pro-260215',
         provider: 'doubao',
-        thinking: 'enabled',
+        thinking: true,
       },
     ]);
     expect(vitepressConfig.vite?.worker?.format).toBe('es');

@@ -1,0 +1,10 @@
+title = "docs-islands gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Ignore committed site debug reports"
+paths = [
+  '''(?:^|/)packages/vitepress/docs/\.vitepress/site-debug-reports(?:/.*)?$''',
+]

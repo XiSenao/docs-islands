@@ -757,8 +757,7 @@
   width: min(92vw, 1100px);
   min-width: 0;
   max-height: min(88vh, 920px);
-  overflow: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--vp-c-divider) 78%, transparent);
   border-radius: 28px;
   background: linear-gradient(
@@ -779,11 +778,13 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.9rem;
+  min-width: 0;
 }
 
 .site-debug-ai-modal__title {
   display: grid;
   gap: 0.18rem;
+  min-width: 0;
 }
 
 .site-debug-ai-modal__title p {
@@ -806,6 +807,7 @@
   display: flex;
   align-items: center;
   gap: 0.55rem;
+  min-width: 0;
   min-height: 2.9rem;
   border: 1px solid color-mix(in srgb, var(--vp-c-divider) 72%, transparent);
   border-radius: 16px;
@@ -822,8 +824,14 @@
 }
 
 .site-debug-ai-modal__body {
+  display: grid;
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }
 
 .site-debug-ai-modal__body .site-debug-ai-panel {
@@ -1581,6 +1589,11 @@
     flex-direction: column;
   }
 
+  .site-debug-ai-panel > .site-debug-detail-modal__section-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .site-debug-detail-modal__list-values {
     justify-items: start;
   }
@@ -1593,7 +1606,28 @@
     flex-direction: column;
   }
 
+  .site-debug-ai-panel__result-meta {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .site-debug-ai-panel__result-meta span {
+    max-width: 100%;
+    width: 100%;
+    justify-content: flex-start;
+    min-height: 0;
+    padding-block: 0.35rem;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
   .site-debug-ai-panel__view-toggle {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
     align-self: flex-start;
   }
@@ -1608,7 +1642,17 @@
   }
 
   .site-debug-ai-panel__page-report-grid > .site-debug-ai-panel__section-card {
-    height: clamp(18rem, 40vh, 24rem);
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .site-debug-ai-panel__page-report-grid
+    > .site-debug-ai-panel__section-card
+    .site-debug-ai-panel__markdown {
+    overflow: visible;
+    padding-right: 0;
+    scrollbar-gutter: auto;
   }
 
   .site-debug-ai-panel__metric-strip {
@@ -1630,11 +1674,53 @@
       max(0.85rem, calc(env(safe-area-inset-bottom, 0px) + 0.35rem));
   }
 
-  .site-debug-ai-modal__header .site-debug-dialog__actions {
+  .site-debug-ai-modal__header .site-debug-dialog__actions,
+  .site-debug-ai-panel
+    > .site-debug-detail-modal__section-header
+    .site-debug-dialog__actions {
     width: 100%;
   }
 
+  .site-debug-ai-modal__header .site-debug-dialog__actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .site-debug-ai-modal__header .site-debug-dialog__actions {
+    gap: 0.5rem;
+  }
+
+  .site-debug-ai-modal__header .site-debug-source-viewer__chip {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .site-debug-ai-panel
+    > .site-debug-detail-modal__section-header
+    .site-debug-dialog__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+  }
+
+  .site-debug-ai-panel
+    > .site-debug-detail-modal__section-header
+    .site-debug-dialog__action {
+    width: 100%;
+    min-height: 2.5rem;
+    padding-inline: 0.72rem;
+  }
+
+  .site-debug-ai-panel
+    > .site-debug-detail-modal__section-header
+    .site-debug-dialog__action--primary {
+    grid-column: 1 / -1;
+  }
+
   .site-debug-ai-modal__header .site-debug-dialog__action {
+    width: 100%;
     min-height: 2.5rem;
   }
 
@@ -1648,6 +1734,12 @@
 }
 
 @media (max-width: 560px) {
+  .site-debug-ai-panel
+    > .site-debug-detail-modal__section-header
+    .site-debug-dialog__actions {
+    grid-template-columns: 1fr;
+  }
+
   .site-debug-ai-panel__metric-strip {
     grid-template-columns: 1fr;
   }

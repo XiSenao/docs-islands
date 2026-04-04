@@ -254,19 +254,20 @@ catalogs:
       version: 3.2.4
 
 overrides:
+  '@eslint/eslintrc>js-yaml': 4.1.1
   '@swc/core': 1.13.5
   '@types/node': 20.19.0
   gray-matter>js-yaml: 3.14.2
-  '@eslint/eslintrc>js-yaml': 4.1.1
+  minimatch@^10.0.0: ^10.2.3
+  minimatch@^10.0.0>brace-expansion: 5.0.5
   minimatch@^3.0.0: ^3.1.4
   minimatch@^3.0.0>brace-expansion: 5.0.5
   minimatch@^9.0.0: ^9.0.7
   minimatch@^9.0.0>brace-expansion: 5.0.5
-  minimatch@^10.0.0: ^10.2.3
-  minimatch@^10.0.0>brace-expansion: 5.0.5
-  undici-types: ^6.24.0
-  picomatch@^4.0.0: 4.0.4
   picomatch@^2.0.0: 2.3.2
+  picomatch@^4.0.0: 4.0.4
+  undici-types: ^6.24.0
+  lodash: 4.18.0
 
 pnpmfileChecksum: sha256-x3x6qzOGjFrkKfMAQHGX/Ewnd3zcLHAUIpmDMRU6wjs=
 
@@ -696,6 +697,9 @@ importers:
       eslint:
         specifier: catalog:lint
         version: 9.39.2
+      is-in-ci:
+        specifier: catalog:dev
+        version: 2.0.0
       pathe:
         specifier: catalog:dev
         version: 2.0.3

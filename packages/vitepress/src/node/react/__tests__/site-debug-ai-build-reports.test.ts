@@ -136,7 +136,6 @@ describe('generateSiteDebugAiBuildReports', () => {
         providers: {
           doubao: {
             apiKey: 'test-key',
-            enabled: true,
             model: 'doubao-test-model',
           },
         },
@@ -158,7 +157,7 @@ describe('generateSiteDebugAiBuildReports', () => {
     ).toBeUndefined();
   });
 
-  it('treats buildReports presence as enabled and derives default runs from configured providers', async () => {
+  it('treats buildReports presence as enabled and derives default models from configured providers', async () => {
     const outDir = createTempDirectory();
     const cacheDir = createTempDirectory('site-debug-ai-cache-');
     const pageMetafiles = createPageMetafiles();
@@ -213,15 +212,15 @@ describe('generateSiteDebugAiBuildReports', () => {
     });
 
     expect(result.executionCount).toBe(1);
-    expect(result.generatedReportCount).toBe(2);
+    expect(result.generatedReportCount).toBe(1);
     expect(result.providers).toEqual(['doubao']);
   });
 
-  it('treats an explicit empty runs list as no-op instead of falling back to provider defaults', async () => {
+  it('treats an explicit empty models list as no-op instead of falling back to provider defaults', async () => {
     const result = await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
-          runs: [],
+          models: [],
         },
         providers: {
           doubao: {
@@ -241,7 +240,7 @@ describe('generateSiteDebugAiBuildReports', () => {
     expect(result.generatedReportCount).toBe(0);
     expect(result.providers).toEqual([]);
     expect(result.skippedReason).toContain(
-      'siteDebug.analysis.buildReports.runs',
+      'siteDebug.analysis.buildReports.models',
     );
   });
 
@@ -264,20 +263,22 @@ describe('generateSiteDebugAiBuildReports', () => {
     const result = await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
-          runs: [
+          groupBy: 'artifact',
+          includeChunks: true,
+          includeModules: true,
+          models: [
             {
               model: 'doubao-test-model',
               provider: 'doubao',
-              thinking: 'enabled',
+              thinking: true,
             },
           ],
         },
         providers: {
           doubao: {
             apiKey: 'test-key',
-            enabled: true,
             model: 'doubao-test-model',
-            thinking: 'enabled',
+            thinking: true,
           },
         },
       },
@@ -448,7 +449,9 @@ describe('generateSiteDebugAiBuildReports', () => {
       aiConfig: {
         buildReports: {
           groupBy: 'page',
-          runs: [
+          includeChunks: true,
+          includeModules: true,
+          models: [
             {
               model: 'doubao-test-model',
               provider: 'doubao',
@@ -458,7 +461,6 @@ describe('generateSiteDebugAiBuildReports', () => {
         providers: {
           doubao: {
             apiKey: 'test-key',
-            enabled: true,
             model: 'doubao-test-model',
           },
         },
@@ -536,10 +538,9 @@ describe('generateSiteDebugAiBuildReports', () => {
     expect(chunkReference?.reportId).toBe(moduleReference?.reportId);
   });
 
-  it('sanitizes local absolute filesystem paths before persisting page reports', async () => {
+  it('sanitizes local absolute filesystem paths before persisting cached page reports', async () => {
     const outDir = createTempDirectory();
     const cacheDir = createTempDirectory('site-debug-ai-cache-');
-    const sourceDir = createTempDirectory('site-debug-ai-source-');
     const pageMetafiles = createPageMetafiles();
     const componentMetric =
       pageMetafiles['/guide/getting-started'].buildMetrics?.components[0];
@@ -566,20 +567,21 @@ describe('generateSiteDebugAiBuildReports', () => {
     await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
+          cache: {
+            dir: cacheDir,
+            strategy: 'exact',
+          },
           groupBy: 'page',
-          runs: [
+          models: [
             {
               model: 'doubao-test-model',
               provider: 'doubao',
             },
           ],
-          sourceDir,
-          sourceMode: 'read-write',
         },
         providers: {
           doubao: {
             apiKey: 'test-key',
-            enabled: true,
             model: 'doubao-test-model',
           },
         },
@@ -618,7 +620,7 @@ describe('generateSiteDebugAiBuildReports', () => {
     const pageReportFiles = fs.readdirSync(
       path.join(outDir, 'assets/page-metafiles/ai/pages'),
     );
-    const sourceReportFiles = fs.readdirSync(path.join(sourceDir, 'pages'));
+    const cachedReportFiles = fs.readdirSync(path.join(cacheDir, 'pages'));
     const pageReport = JSON.parse(
       fs.readFileSync(
         path.join(outDir, 'assets/page-metafiles/ai/pages', pageReportFiles[0]),
@@ -635,22 +637,25 @@ describe('generateSiteDebugAiBuildReports', () => {
         };
       };
     };
-    const sourceReport = JSON.parse(
+    const cachedReportPayload = JSON.parse(
       fs.readFileSync(
-        path.join(sourceDir, 'pages', sourceReportFiles[0]),
+        path.join(cacheDir, 'pages', cachedReportFiles[0]),
         'utf8',
       ),
     ) as {
-      prompt: string;
-      result: string;
-      target: {
-        context?: {
-          moduleItems?: {
-            id: string;
-          }[];
+      report: {
+        prompt: string;
+        result: string;
+        target: {
+          context?: {
+            moduleItems?: {
+              id: string;
+            }[];
+          };
         };
       };
     };
+    const cachedReport = cachedReportPayload.report;
 
     expect(pageReport.prompt).not.toContain('/Users/alice/');
     expect(pageReport.result).not.toContain('/Users/alice/');
@@ -660,9 +665,9 @@ describe('generateSiteDebugAiBuildReports', () => {
     expect(pageReport.target.context?.moduleItems?.[0]?.id).toContain(
       '/src/components/DemoCard.tsx?commonjs-module',
     );
-    expect(sourceReport.prompt).not.toContain('/Users/alice/');
-    expect(sourceReport.result).not.toContain('/Users/alice/');
-    expect(sourceReport.target.context?.moduleItems?.[0]?.id).toContain(
+    expect(cachedReport.prompt).not.toContain('/Users/alice/');
+    expect(cachedReport.result).not.toContain('/Users/alice/');
+    expect(cachedReport.target.context?.moduleItems?.[0]?.id).toContain(
       '/src/components/DemoCard.tsx?commonjs-module',
     );
   });
@@ -769,7 +774,7 @@ describe('generateSiteDebugAiBuildReports', () => {
       aiConfig: {
         buildReports: {
           groupBy: 'page',
-          runs: [
+          models: [
             {
               model: 'doubao-test-model',
               provider: 'doubao',
@@ -779,7 +784,6 @@ describe('generateSiteDebugAiBuildReports', () => {
         providers: {
           doubao: {
             apiKey: 'test-key',
-            enabled: true,
             model: 'doubao-test-model',
           },
         },
@@ -897,7 +901,7 @@ describe('generateSiteDebugAiBuildReports', () => {
       aiConfig: {
         buildReports: {
           groupBy: 'page',
-          runs: [
+          models: [
             {
               model: 'doubao-test-model',
               provider: 'doubao',
@@ -907,7 +911,6 @@ describe('generateSiteDebugAiBuildReports', () => {
         providers: {
           doubao: {
             apiKey: 'test-key',
-            enabled: true,
             model: 'doubao-test-model',
           },
         },
@@ -983,7 +986,7 @@ describe('generateSiteDebugAiBuildReports', () => {
       aiConfig: {
         buildReports: {
           groupBy: 'page',
-          runs: [
+          models: [
             {
               model: 'doubao-test-model',
               provider: 'doubao',
@@ -993,7 +996,6 @@ describe('generateSiteDebugAiBuildReports', () => {
         providers: {
           doubao: {
             apiKey: 'test-key',
-            enabled: true,
             model: 'doubao-test-model',
           },
         },
@@ -1068,12 +1070,11 @@ describe('generateSiteDebugAiBuildReports', () => {
     ]);
   });
 
-  it('writes git-tracked reports in read-write mode and reuses them in read-only mode', async () => {
-    const sourceDir = createTempDirectory('site-debug-ai-source-');
+  it('reuses exact cached reports when the cache key matches', async () => {
+    const reportCacheDir = createTempDirectory('site-debug-ai-cache-');
     const firstOutDir = createTempDirectory();
     const secondOutDir = createTempDirectory();
-    const firstCacheDir = createTempDirectory('site-debug-ai-cache-');
-    const secondCacheDir = createTempDirectory('site-debug-ai-cache-');
+    const vitepressCacheDir = createTempDirectory('vitepress-cache-');
     const analyzeTarget = vi.fn(async ({ provider, target }) => ({
       detail: `Generated in test for ${provider}`,
       model: 'doubao-test-model',
@@ -1094,26 +1095,27 @@ describe('generateSiteDebugAiBuildReports', () => {
     const firstResult = await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
+          cache: {
+            dir: reportCacheDir,
+            strategy: 'exact',
+          },
           groupBy: 'page',
-          runs: [
+          models: [
             {
               model: 'doubao-test-model',
               provider: 'doubao',
             },
           ],
-          sourceDir,
-          sourceMode: 'read-write',
         },
         providers: {
           doubao: {
             apiKey: 'test-key',
-            enabled: true,
             model: 'doubao-test-model',
           },
         },
       },
       assetsDir: 'assets',
-      cacheDir: firstCacheDir,
+      cacheDir: vitepressCacheDir,
       dependencies: {
         analyzeTarget,
         resolveCapabilities: async () => ({
@@ -1141,27 +1143,30 @@ describe('generateSiteDebugAiBuildReports', () => {
     const secondResult = await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
+          cache: {
+            dir: reportCacheDir,
+            strategy: 'exact',
+          },
           groupBy: 'page',
-          runs: [
+          models: [
             {
               model: 'doubao-test-model',
               provider: 'doubao',
             },
           ],
-          sourceDir,
-          sourceMode: 'read-only',
         },
         providers: {
           doubao: {
+            apiKey: 'another-key',
             model: 'doubao-test-model',
           },
         },
       },
       assetsDir: 'assets',
-      cacheDir: secondCacheDir,
+      cacheDir: vitepressCacheDir,
       dependencies: {
         analyzeTarget: vi.fn(async () => {
-          throw new Error('read-only source reports should be reused');
+          throw new Error('exact cache should be reused');
         }),
         resolveCapabilities: async () => ({
           ok: true as const,
@@ -1173,7 +1178,7 @@ describe('generateSiteDebugAiBuildReports', () => {
             },
             doubao: {
               available: false,
-              detail: 'Provider should not be needed when source reports exist',
+              detail: 'Provider should not be needed when exact cache hits',
               provider: 'doubao' as const,
             },
           },
@@ -1189,50 +1194,51 @@ describe('generateSiteDebugAiBuildReports', () => {
     expect(secondResult.generatedReportCount).toBe(0);
     expect(secondResult.reusedReportCount).toBe(1);
     expect(analyzeTarget).toHaveBeenCalledTimes(1);
-    expect(fs.readdirSync(path.join(sourceDir, 'pages'))).toHaveLength(1);
+    expect(fs.readdirSync(path.join(reportCacheDir, 'pages'))).toHaveLength(1);
   });
 
-  it('skips missing git-tracked reports in read-only mode without calling providers', async () => {
-    const outDir = createTempDirectory();
-    const pageMetafiles = createPageMetafiles();
-    const analyzeTarget = vi.fn(async ({ target }) => ({
-      detail: 'should not run',
+  it('treats cache: true as exact cache with default options', async () => {
+    const vitepressCacheDir = createTempDirectory('vitepress-cache-');
+    const firstOutDir = createTempDirectory();
+    const secondOutDir = createTempDirectory();
+    const analyzeTarget = vi.fn(async ({ provider, target }) => ({
+      detail: `Generated in test for ${provider}`,
       model: 'doubao-test-model',
       result: `analysis:${target.displayPath}`,
     }));
 
-    writeTextFile(
-      path.join(outDir, 'assets/chunks/demo-card.js'),
-      'export const DemoCard = () => "demo";',
-    );
-    writeTextFile(
-      path.join(outDir, 'assets/sources/DemoCard.tsx'),
-      'export function DemoCard() { return <div>demo</div>; }',
-    );
+    for (const outDir of [firstOutDir, secondOutDir]) {
+      writeTextFile(
+        path.join(outDir, 'assets/chunks/demo-card.js'),
+        'export const DemoCard = () => "demo";',
+      );
+      writeTextFile(
+        path.join(outDir, 'assets/sources/DemoCard.tsx'),
+        'export function DemoCard() { return <div>demo</div>; }',
+      );
+    }
 
-    const result = await generateSiteDebugAiBuildReports({
+    await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
+          cache: true,
           groupBy: 'page',
-          runs: [
+          models: [
             {
               model: 'doubao-test-model',
               provider: 'doubao',
             },
           ],
-          sourceDir: createTempDirectory('site-debug-ai-source-'),
-          sourceMode: 'read-only',
         },
         providers: {
           doubao: {
             apiKey: 'test-key',
-            enabled: true,
             model: 'doubao-test-model',
           },
         },
       },
       assetsDir: 'assets',
-      cacheDir: createTempDirectory('site-debug-ai-cache-'),
+      cacheDir: vitepressCacheDir,
       dependencies: {
         analyzeTarget,
         resolveCapabilities: async () => ({
@@ -1252,92 +1258,17 @@ describe('generateSiteDebugAiBuildReports', () => {
           },
         }),
       },
-      outDir,
-      pageMetafiles,
-      wrapBaseUrl: (value) => `/docs${value}`,
-    });
-
-    expect(result.generatedReportCount).toBe(0);
-    expect(result.reusedReportCount).toBe(0);
-    expect(result.skippedReason).toContain('Missing committed build report');
-    expect(analyzeTarget).not.toHaveBeenCalled();
-    expect(
-      pageMetafiles['/guide/getting-started'].buildMetrics?.components[0]
-        .aiReports,
-    ).toBeUndefined();
-  });
-
-  it('reuses cached reports by default when cache is omitted, equivalent to cache: true', async () => {
-    const cacheDir = createTempDirectory('site-debug-ai-cache-');
-    const firstOutDir = createTempDirectory();
-    const secondOutDir = createTempDirectory();
-    const analyzeTarget = vi.fn(async ({ provider, target }) => ({
-      detail: `Generated in test for ${provider}`,
-      model: 'doubao-test-model',
-      result: `analysis:${target.displayPath}`,
-    }));
-    const dependencies = {
-      analyzeTarget,
-      resolveCapabilities: async () => ({
-        ok: true as const,
-        providers: {
-          'claude-code': {
-            available: false,
-            detail: 'Unavailable in test',
-            provider: 'claude-code' as const,
-          },
-          doubao: {
-            available: true,
-            detail: 'Available in test',
-            model: 'doubao-test-model',
-            provider: 'doubao' as const,
-          },
-        },
-      }),
-    };
-
-    for (const outDir of [firstOutDir, secondOutDir]) {
-      writeTextFile(
-        path.join(outDir, 'assets/chunks/demo-card.js'),
-        'export const DemoCard = () => "demo";',
-      );
-      writeTextFile(
-        path.join(outDir, 'assets/sources/DemoCard.tsx'),
-        'export function DemoCard() { return <div>demo</div>; }',
-      );
-    }
-
-    const firstResult = await generateSiteDebugAiBuildReports({
-      aiConfig: {
-        buildReports: {
-          runs: [
-            {
-              model: 'doubao-test-model',
-              provider: 'doubao',
-            },
-          ],
-        },
-        providers: {
-          doubao: {
-            apiKey: 'test-key',
-            enabled: true,
-            model: 'doubao-test-model',
-            temperature: 0.2,
-          },
-        },
-      },
-      assetsDir: 'assets',
-      cacheDir,
-      dependencies,
       outDir: firstOutDir,
       pageMetafiles: createPageMetafiles(),
       wrapBaseUrl: (value) => `/docs${value}`,
     });
-    const secondPageMetafiles = createPageMetafiles();
+
     const secondResult = await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
-          runs: [
+          cache: true,
+          groupBy: 'page',
+          models: [
             {
               model: 'doubao-test-model',
               provider: 'doubao',
@@ -1346,46 +1277,54 @@ describe('generateSiteDebugAiBuildReports', () => {
         },
         providers: {
           doubao: {
-            apiKey: 'another-key',
-            enabled: true,
+            apiKey: 'changed-key',
             model: 'doubao-test-model',
-            temperature: 0.2,
           },
         },
       },
       assetsDir: 'assets',
-      cacheDir,
+      cacheDir: vitepressCacheDir,
       dependencies: {
-        ...dependencies,
         analyzeTarget: vi.fn(async () => {
-          throw new Error('cache should be reused');
+          throw new Error('cache: true should reuse exact cache by default');
+        }),
+        resolveCapabilities: async () => ({
+          ok: true as const,
+          providers: {
+            'claude-code': {
+              available: false,
+              detail: 'Unavailable in test',
+              provider: 'claude-code' as const,
+            },
+            doubao: {
+              available: false,
+              detail:
+                'Provider should not be needed when default exact cache hits',
+              provider: 'doubao' as const,
+            },
+          },
         }),
       },
       outDir: secondOutDir,
-      pageMetafiles: secondPageMetafiles,
+      pageMetafiles: createPageMetafiles(),
       wrapBaseUrl: (value) => `/docs${value}`,
     });
 
-    expect(firstResult.generatedReportCount).toBe(2);
-    expect(firstResult.executionCount).toBe(1);
-    expect(firstResult.providers).toEqual(['doubao']);
-    expect(firstResult.reusedReportCount).toBe(0);
-    expect(analyzeTarget).toHaveBeenCalledTimes(2);
     expect(secondResult.generatedReportCount).toBe(0);
-    expect(secondResult.executionCount).toBe(1);
-    expect(secondResult.providers).toEqual(['doubao']);
-    expect(secondResult.reusedReportCount).toBe(2);
+    expect(secondResult.reusedReportCount).toBe(1);
+    expect(analyzeTarget).toHaveBeenCalledTimes(1);
     expect(
-      secondPageMetafiles['/guide/getting-started'].buildMetrics?.components[0]
-        .aiReports?.chunkReports?.['/docs/assets/chunks/demo-card.js']?.[0]
-        ?.reportFile,
-    ).toContain('/docs/assets/page-metafiles/ai/chunks/');
+      fs.readdirSync(
+        path.join(vitepressCacheDir, 'site-debug-reports', 'pages'),
+      ),
+    ).toHaveLength(1);
   });
 
-  it('bypasses cached reports when cache is disabled', async () => {
-    const cacheDir = createTempDirectory('site-debug-ai-cache-');
+  it('regenerates exact cached reports when the cache key changes', async () => {
+    const reportCacheDir = createTempDirectory('site-debug-ai-cache-');
     const firstOutDir = createTempDirectory();
     const secondOutDir = createTempDirectory();
+    const vitepressCacheDir = createTempDirectory('vitepress-cache-');
     const analyzeTarget = vi
       .fn()
       .mockImplementationOnce(async ({ target }) => ({
@@ -1394,19 +1333,9 @@ describe('generateSiteDebugAiBuildReports', () => {
         result: `first:${target.displayPath}`,
       }))
       .mockImplementationOnce(async ({ target }) => ({
-        detail: 'initial run',
+        detail: 'exact rerun',
         model: 'doubao-test-model',
-        result: `first:${target.displayPath}`,
-      }))
-      .mockImplementationOnce(async ({ target }) => ({
-        detail: 'forced rerun',
-        model: 'doubao-test-model',
-        result: `forced:${target.displayPath}`,
-      }))
-      .mockImplementationOnce(async ({ target }) => ({
-        detail: 'forced rerun',
-        model: 'doubao-test-model',
-        result: `forced:${target.displayPath}`,
+        result: `exact:${target.displayPath}`,
       }));
     const dependencies = {
       analyzeTarget,
@@ -1442,7 +1371,12 @@ describe('generateSiteDebugAiBuildReports', () => {
     await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
-          runs: [
+          cache: {
+            dir: reportCacheDir,
+            strategy: 'exact',
+          },
+          groupBy: 'page',
+          models: [
             {
               model: 'doubao-test-model',
               provider: 'doubao',
@@ -1452,24 +1386,28 @@ describe('generateSiteDebugAiBuildReports', () => {
         providers: {
           doubao: {
             apiKey: 'test-key',
-            enabled: true,
             model: 'doubao-test-model',
+            temperature: 0.2,
           },
         },
       },
       assetsDir: 'assets',
-      cacheDir,
+      cacheDir: vitepressCacheDir,
       dependencies,
       outDir: firstOutDir,
       pageMetafiles: createPageMetafiles(),
       wrapBaseUrl: (value) => `/docs${value}`,
     });
 
-    const forcedResult = await generateSiteDebugAiBuildReports({
+    const exactResult = await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
-          cache: false,
-          runs: [
+          cache: {
+            dir: reportCacheDir,
+            strategy: 'exact',
+          },
+          groupBy: 'page',
+          models: [
             {
               model: 'doubao-test-model',
               provider: 'doubao',
@@ -1479,23 +1417,259 @@ describe('generateSiteDebugAiBuildReports', () => {
         providers: {
           doubao: {
             apiKey: 'test-key',
-            enabled: true,
             model: 'doubao-test-model',
+            temperature: 0.7,
           },
         },
       },
       assetsDir: 'assets',
-      cacheDir,
+      cacheDir: vitepressCacheDir,
       dependencies,
       outDir: secondOutDir,
       pageMetafiles: createPageMetafiles(),
       wrapBaseUrl: (value) => `/docs${value}`,
     });
 
-    expect(analyzeTarget).toHaveBeenCalledTimes(4);
-    expect(forcedResult.generatedReportCount).toBe(2);
-    expect(forcedResult.executionCount).toBe(1);
-    expect(forcedResult.providers).toEqual(['doubao']);
-    expect(forcedResult.reusedReportCount).toBe(0);
+    expect(analyzeTarget).toHaveBeenCalledTimes(2);
+    expect(exactResult.generatedReportCount).toBe(1);
+    expect(exactResult.executionCount).toBe(1);
+    expect(exactResult.providers).toEqual(['doubao']);
+    expect(exactResult.reusedReportCount).toBe(0);
+  });
+
+  it('reuses cached reports in fallback mode even when the cache key changes', async () => {
+    const reportCacheDir = createTempDirectory('site-debug-ai-cache-');
+    const firstOutDir = createTempDirectory();
+    const secondOutDir = createTempDirectory();
+    const vitepressCacheDir = createTempDirectory('vitepress-cache-');
+    const analyzeTarget = vi.fn(async ({ provider, target }) => ({
+      detail: `Generated in test for ${provider}`,
+      model: 'doubao-test-model',
+      result: `analysis:${target.displayPath}`,
+    }));
+    const dependencies = {
+      analyzeTarget,
+      resolveCapabilities: async () => ({
+        ok: true as const,
+        providers: {
+          'claude-code': {
+            available: false,
+            detail: 'Unavailable in test',
+            provider: 'claude-code' as const,
+          },
+          doubao: {
+            available: true,
+            detail: 'Available in test',
+            model: 'doubao-test-model',
+            provider: 'doubao' as const,
+          },
+        },
+      }),
+    };
+
+    for (const outDir of [firstOutDir, secondOutDir]) {
+      writeTextFile(
+        path.join(outDir, 'assets/chunks/demo-card.js'),
+        'export const DemoCard = () => "demo";',
+      );
+      writeTextFile(
+        path.join(outDir, 'assets/sources/DemoCard.tsx'),
+        'export function DemoCard() { return <div>demo</div>; }',
+      );
+    }
+
+    const firstResult = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: {
+            dir: reportCacheDir,
+            strategy: 'fallback',
+          },
+          groupBy: 'page',
+          includeChunks: true,
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+            temperature: 0.2,
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies,
+      outDir: firstOutDir,
+      pageMetafiles: createPageMetafiles(),
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    const secondPageMetafiles = createPageMetafiles();
+    const secondResult = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: {
+            dir: reportCacheDir,
+            strategy: 'fallback',
+          },
+          groupBy: 'page',
+          includeChunks: true,
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+            temperature: 0.7,
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies: {
+        ...dependencies,
+        analyzeTarget: vi.fn(async () => {
+          throw new Error('fallback cache should be reused');
+        }),
+      },
+      outDir: secondOutDir,
+      pageMetafiles: secondPageMetafiles,
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    expect(firstResult.generatedReportCount).toBe(1);
+    expect(firstResult.reusedReportCount).toBe(0);
+    expect(analyzeTarget).toHaveBeenCalledTimes(1);
+    expect(secondResult.generatedReportCount).toBe(0);
+    expect(secondResult.executionCount).toBe(1);
+    expect(secondResult.providers).toEqual(['doubao']);
+    expect(secondResult.reusedReportCount).toBe(1);
+    expect(
+      secondPageMetafiles['/guide/getting-started'].buildMetrics?.components[0]
+        .aiReports?.chunkReports?.['/docs/assets/chunks/demo-card.js']?.[0]
+        ?.reportFile,
+    ).toContain('/docs/assets/page-metafiles/ai/pages/');
+  });
+
+  it('reuses exact cache by default when cache is omitted', async () => {
+    const vitepressCacheDir = createTempDirectory('vitepress-cache-');
+    const firstOutDir = createTempDirectory();
+    const secondOutDir = createTempDirectory();
+    const analyzeTarget = vi.fn(async ({ target }) => ({
+      detail: 'initial run',
+      model: 'doubao-test-model',
+      result: `first:${target.displayPath}`,
+    }));
+    const dependencies = {
+      analyzeTarget,
+      resolveCapabilities: async () => ({
+        ok: true as const,
+        providers: {
+          'claude-code': {
+            available: false,
+            detail: 'Unavailable in test',
+            provider: 'claude-code' as const,
+          },
+          doubao: {
+            available: true,
+            detail: 'Available in test',
+            model: 'doubao-test-model',
+            provider: 'doubao' as const,
+          },
+        },
+      }),
+    };
+
+    for (const outDir of [firstOutDir, secondOutDir]) {
+      writeTextFile(
+        path.join(outDir, 'assets/chunks/demo-card.js'),
+        'export const DemoCard = () => "demo";',
+      );
+      writeTextFile(
+        path.join(outDir, 'assets/sources/DemoCard.tsx'),
+        'export function DemoCard() { return <div>demo</div>; }',
+      );
+    }
+
+    await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          groupBy: 'page',
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies,
+      outDir: firstOutDir,
+      pageMetafiles: createPageMetafiles(),
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    const defaultCacheResult = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          groupBy: 'page',
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies: {
+        ...dependencies,
+        analyzeTarget: vi.fn(async () => {
+          throw new Error(
+            'default cache should be reused when cache is omitted',
+          );
+        }),
+      },
+      outDir: secondOutDir,
+      pageMetafiles: createPageMetafiles(),
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    expect(analyzeTarget).toHaveBeenCalledTimes(1);
+    expect(defaultCacheResult.generatedReportCount).toBe(0);
+    expect(defaultCacheResult.executionCount).toBe(1);
+    expect(defaultCacheResult.providers).toEqual(['doubao']);
+    expect(defaultCacheResult.reusedReportCount).toBe(1);
+    expect(
+      fs.readdirSync(
+        path.join(vitepressCacheDir, 'site-debug-reports', 'pages'),
+      ),
+    ).toHaveLength(1);
   });
 });

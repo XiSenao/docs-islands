@@ -15,16 +15,39 @@ export interface PrintOptions {
 }
 
 export type SiteDebugAnalysisProvider = 'claude-code' | 'doubao';
-export type SiteDebugAnalysisDoubaoThinkingType = 'enabled' | 'disabled';
-export type SiteDebugAnalysisBuildReportSourceMode = 'read-only' | 'read-write';
+export type SiteDebugAnalysisDoubaoThinkingType = boolean;
+export type SiteDebugAnalysisBuildReportCacheStrategy = 'exact' | 'fallback';
+
+export interface SiteDebugAnalysisBuildReportsCacheOptions {
+  /**
+   * Directory for persisted AI reports cache.
+   * Relative paths are resolved from the docs root.
+   *
+   * @default '.vitepress/cache/site-debug-reports'
+   */
+  dir?: string;
+  /**
+   * Cache lookup strategy.
+   *
+   * - 'exact': require a cacheKey match; regenerate on miss.
+   * - 'fallback': reuse any cached report for the same target if present;
+   *   regenerate only when no cached report exists.
+   *
+   * @default 'exact'
+   */
+  strategy?: SiteDebugAnalysisBuildReportCacheStrategy;
+}
+
+export type SiteDebugAnalysisBuildReportsCacheConfig =
+  | false
+  | true
+  | SiteDebugAnalysisBuildReportsCacheOptions;
 
 export interface SiteDebugAnalysisProviderBaseConfig {
   /**
-   * Explicitly enables or disables the provider.
-   */
-  enabled?: boolean;
-  /**
    * Maximum time to wait for a single analysis request, in milliseconds.
+   *
+   * When omitted, defaults to `Infinity` and does not enforce a local timeout.
    */
   timeoutMs?: number;
 }
@@ -56,7 +79,9 @@ export interface SiteDebugAnalysisDoubaoConfig
    */
   model?: string;
   /**
-   * Reasoning mode forwarded as `thinking.type` in the ChatCompletions request.
+   * Whether reasoning mode is enabled for the ChatCompletions request.
+   *
+   * @default false
    */
   thinking?: SiteDebugAnalysisDoubaoThinkingType;
   /**
@@ -66,7 +91,7 @@ export interface SiteDebugAnalysisDoubaoConfig
   temperature?: number;
 }
 
-interface SiteDebugAnalysisBuildReportRunBaseConfig {
+interface SiteDebugAnalysisBuildReportModelBaseConfig {
   /**
    * Optional label shown in the debug console for the generated report.
    */
@@ -77,72 +102,64 @@ interface SiteDebugAnalysisBuildReportRunBaseConfig {
   provider: SiteDebugAnalysisProvider;
 }
 
-export interface SiteDebugAnalysisBuildReportClaudeCodeRunConfig
-  extends SiteDebugAnalysisBuildReportRunBaseConfig {
+export interface SiteDebugAnalysisBuildReportClaudeCodeModelConfig
+  extends SiteDebugAnalysisBuildReportModelBaseConfig {
   provider: 'claude-code';
 }
 
-export interface SiteDebugAnalysisBuildReportDoubaoRunConfig
-  extends SiteDebugAnalysisBuildReportRunBaseConfig {
+export interface SiteDebugAnalysisBuildReportDoubaoModelConfig
+  extends SiteDebugAnalysisBuildReportModelBaseConfig {
   /**
-   * Doubao model used for this build-time analysis run.
+   * Doubao model used for this build-time analysis model.
    */
   model: string;
   provider: 'doubao';
   /**
-   * Optional reasoning mode override for this build-time analysis run.
+   * Whether reasoning mode is enabled for this build-time analysis model.
+   *
+   * @default false
    */
   thinking?: SiteDebugAnalysisDoubaoThinkingType;
 }
 
-export type SiteDebugAnalysisBuildReportRunConfig =
-  | SiteDebugAnalysisBuildReportClaudeCodeRunConfig
-  | SiteDebugAnalysisBuildReportDoubaoRunConfig;
+export type SiteDebugAnalysisBuildReportModelConfig =
+  | SiteDebugAnalysisBuildReportClaudeCodeModelConfig
+  | SiteDebugAnalysisBuildReportDoubaoModelConfig;
 
 export interface SiteDebugAnalysisBuildReportsConfig {
   /**
-   * Legacy compatibility flag for enabling build-time analysis reports.
-   * Prefer omitting `buildReports` entirely to disable the feature.
-   */
-  enabled?: boolean;
-  /**
-   * Reuses cached build-time reports when the provider config and artifact input are unchanged.
-   * Defaults to `true`. Set to `false` to regenerate reports on every build.
-   */
-  cache?: boolean;
-  /**
-   * Optional git-tracked directory used as the canonical source of saved
-   * build-time AI reports. Relative paths are resolved from the docs root.
-   */
-  sourceDir?: string;
-  /**
-   * Controls whether the build only reads committed reports or is also allowed
-   * to generate missing reports and write them back to `sourceDir`.
+   * Build-time AI report cache behavior.
    *
-   * Defaults to `read-only` when `sourceDir` is provided.
+   * When omitted, defaults to `true`.
+   *
+   * - false: always regenerate reports during build.
+   * - true: persist and reuse cached reports with default options.
+   * - object: persist and reuse cached reports with custom options.
    */
-  sourceMode?: SiteDebugAnalysisBuildReportSourceMode;
+  cache?: SiteDebugAnalysisBuildReportsCacheConfig;
   /**
-   * Explicit analysis runs to execute during build.
+   * Explicit analysis models to execute during build.
    * When omitted, configured provider defaults are used.
    */
-  runs?: SiteDebugAnalysisBuildReportRunConfig[];
-  /**
-   * Legacy alias for `runs`.
-   */
-  models?: SiteDebugAnalysisBuildReportRunConfig[];
+  models?: SiteDebugAnalysisBuildReportModelConfig[];
   /**
    * Controls whether build-time AI prompts are generated per artifact or per page.
    * When set to `page`, one page-level report is generated and associated with
    * every chunk/module artifact on that page.
+   *
+   * @default 'page'
    */
   groupBy?: 'artifact' | 'page';
   /**
    * Includes chunk resource reports in the build output.
+   *
+   * @default false
    */
   includeChunks?: boolean;
   /**
    * Includes module source reports in the build output.
+   *
+   * @default false
    */
   includeModules?: boolean;
 }
@@ -164,11 +181,17 @@ export type SiteDebugAiProviderBaseConfig = SiteDebugAnalysisProviderBaseConfig;
 export type SiteDebugAiClaudeCodeConfig = SiteDebugAnalysisClaudeCodeConfig;
 export type SiteDebugAiDoubaoConfig = SiteDebugAnalysisDoubaoConfig;
 export type SiteDebugAiBuildReportClaudeCodeModelConfig =
-  SiteDebugAnalysisBuildReportClaudeCodeRunConfig;
+  SiteDebugAnalysisBuildReportClaudeCodeModelConfig;
 export type SiteDebugAiBuildReportDoubaoModelConfig =
-  SiteDebugAnalysisBuildReportDoubaoRunConfig;
+  SiteDebugAnalysisBuildReportDoubaoModelConfig;
 export type SiteDebugAiBuildReportModelConfig =
-  SiteDebugAnalysisBuildReportRunConfig;
+  SiteDebugAnalysisBuildReportModelConfig;
+export type SiteDebugAiBuildReportCacheStrategy =
+  SiteDebugAnalysisBuildReportCacheStrategy;
+export type SiteDebugAiBuildReportsCacheOptions =
+  SiteDebugAnalysisBuildReportsCacheOptions;
+export type SiteDebugAiBuildReportsCacheConfig =
+  SiteDebugAnalysisBuildReportsCacheConfig;
 export type SiteDebugAiBuildReportsConfig = SiteDebugAnalysisBuildReportsConfig;
 export type SiteDebugAiUserConfig = SiteDebugAnalysisUserConfig;
 
@@ -177,10 +200,6 @@ export interface SiteDebugUserConfig {
    * Analysis integration for the site debug console.
    */
   analysis?: SiteDebugAnalysisUserConfig;
-  /**
-   * Legacy alias for `analysis`.
-   */
-  ai?: SiteDebugAiUserConfig;
 }
 
 export interface ConfigType {

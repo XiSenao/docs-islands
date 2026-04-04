@@ -235,7 +235,6 @@ const mergeSiteDebugConfig = (
     base?.analysis,
     override?.analysis,
   );
-  const mergedAi = mergeSiteDebugAnalysisConfig(base?.ai, override?.ai);
 
   return {
     ...base,
@@ -243,11 +242,6 @@ const mergeSiteDebugConfig = (
     ...(mergedAnalysis
       ? {
           analysis: mergedAnalysis,
-        }
-      : {}),
-    ...(mergedAi
-      ? {
-          ai: mergedAi,
         }
       : {}),
   };

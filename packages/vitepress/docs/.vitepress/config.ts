@@ -1,6 +1,7 @@
 import { loadEnv } from '@docs-islands/utils';
 import vitepressRenderingStrategiesPackageJson from '@docs-islands/vitepress/package.json' with { type: 'json' };
 import vitepressReactRenderingStrategies from '@docs-islands/vitepress/react';
+import isInCi from 'is-in-ci';
 import { join } from 'pathe';
 import { type DefaultTheme, defineConfig, type UserConfig } from 'vitepress';
 import {
@@ -12,7 +13,7 @@ import enConfig from '../en/config';
 import zhConfig from '../zh/config';
 
 const { release, siteDebug } = loadEnv();
-const { doubao_api_key, write_reports } = siteDebug;
+const { doubao_api_key } = siteDebug;
 
 const base = `/${vitepressRenderingStrategiesPackageJson.name.replace('@', '')}/`;
 
@@ -107,31 +108,33 @@ vitepressReactRenderingStrategies(vitepressConfig, {
       providers: {
         claudeCode: {
           command: 'claude',
-          timeoutMs: 1_200_000,
+          timeoutMs: 300_000,
         },
         doubao: {
           apiKey: doubao_api_key,
           baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
           model: 'doubao-seed-2-0-pro-260215',
-          thinking: 'enabled',
+          thinking: true,
           maxTokens: 4096,
           temperature: 0.2,
-          timeoutMs: 1_200_000,
+          timeoutMs: 300_000,
         },
       },
       buildReports: {
-        cache: true,
+        cache: {
+          dir: '.vitepress/site-debug-reports',
+          // Environmental factors can cause prompts to be unstable, thereby destroying cacheKey.
+          strategy: isInCi ? 'fallback' : 'exact',
+        },
         groupBy: 'page',
         includeChunks: true,
         includeModules: true,
-        sourceDir: '.vitepress/site-debug-reports',
-        sourceMode: write_reports ? 'read-write' : 'read-only',
-        runs: [
+        models: [
           {
             label: 'Doubao Pro',
             model: 'doubao-seed-2-0-pro-260215',
             provider: 'doubao',
-            thinking: 'enabled',
+            thinking: true,
           },
         ],
       },

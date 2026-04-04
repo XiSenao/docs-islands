@@ -98,6 +98,19 @@ const filterResolvedExecutionReportEntries = <
       Boolean(entry?.[1]),
   );
 
+const formatBuildReportErrorMessage = (error: unknown) => {
+  const baseMessage = error instanceof Error ? error.message : String(error);
+  const detail =
+    error &&
+    typeof error === 'object' &&
+    'detail' in error &&
+    typeof error.detail === 'string'
+      ? error.detail
+      : '';
+
+  return detail ? `${baseMessage} (${detail})` : baseMessage;
+};
+
 const collectPageGroupedReportReferences = async <
   TExecution extends BuildReportExecutionLike,
 >({
@@ -153,7 +166,7 @@ const collectPageGroupedReportReferences = async <
         return reportReference ? ([execution, reportReference] as const) : null;
       } catch (error) {
         logger.warn(
-          `Failed to generate page AI report for ${pageId} (${execution.reportLabel}): ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to generate page AI report for ${pageId} (${execution.reportLabel}): ${formatBuildReportErrorMessage(error)}`,
         );
         return null;
       }
@@ -314,7 +327,7 @@ const collectChunkReportsForBuildMetric = async <
         appendReportReference(chunkReports, fileMetric.file, reportReference);
       } catch (error) {
         logger.warn(
-          `Failed to generate build chunk AI report for ${fileMetric.file} (${execution.reportLabel}): ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to generate build chunk AI report for ${fileMetric.file} (${execution.reportLabel}): ${formatBuildReportErrorMessage(error)}`,
         );
       }
     }
@@ -423,7 +436,7 @@ const collectModuleReportsForBuildMetric = async <
         appendReportReference(moduleReports, moduleKey, reportReference);
       } catch (error) {
         logger.warn(
-          `Failed to generate build module AI report for ${moduleMetric.id} (${execution.reportLabel}): ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to generate build module AI report for ${moduleMetric.id} (${execution.reportLabel}): ${formatBuildReportErrorMessage(error)}`,
         );
       }
     }
