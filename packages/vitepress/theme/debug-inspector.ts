@@ -18,7 +18,8 @@ export interface SiteDebugAiBuildReportReference {
   detail?: string;
   generatedAt: string;
   model?: string;
-  provider: 'claude-code' | 'doubao';
+  prompt?: string;
+  provider: 'doubao';
   reportId: string;
   reportLabel: string;
   reportFile: string;

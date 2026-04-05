@@ -10,12 +10,12 @@ import type {
   SiteDebugAiProvider,
 } from '../src/shared/site-debug-ai';
 import {
-  buildSiteDebugAiAnalysisPrompt,
   getSiteDebugAiArtifactKindLabel,
   getSiteDebugAiProviderLabel,
 } from '../src/shared/site-debug-ai';
 import SiteDebugLoadingState from './SiteDebugLoadingState.vue';
 import type { SiteDebugAiBuildReportReference } from './debug-inspector';
+import { resolveSiteDebugAiCopyPrompt } from './site-debug-ai-copy-prompt';
 import {
   createSiteDebugLoadingProgress,
   type PreviewState,
@@ -28,7 +28,7 @@ const props = defineProps<{
   endpoint: string | null;
 }>();
 
-const PROVIDERS: SiteDebugAiProvider[] = ['claude-code', 'doubao'];
+const PROVIDERS: SiteDebugAiProvider[] = ['doubao'];
 type AnalysisViewMode = 'rendered' | 'raw';
 
 interface AnalysisSection {
@@ -455,7 +455,7 @@ const deriveFocusMetricSignal = ({
   };
 };
 
-const selectedProvider = ref<SiteDebugAiProvider>('claude-code');
+const selectedProvider = ref<SiteDebugAiProvider>('doubao');
 const capabilities = ref<SiteDebugAiCapabilitiesResponse['providers'] | null>(
   null,
 );
@@ -474,8 +474,9 @@ const analysisResolvedTarget = ref<SiteDebugAiAnalysisTarget | null>(null);
 const selectedAnalysisView = ref<AnalysisViewMode>('rendered');
 const lastLoadedBuildReportFile = ref('');
 const isRunningLiveAnalysis = ref(false);
+const buildReportPromptByFile = ref<Record<string, string>>({});
 const analysisLoadingProgress = ref<SiteDebugLoadingProgress>(
-  createSiteDebugLoadingProgress('Waiting for AI analysis'),
+  createSiteDebugLoadingProgress('Waiting for analysis'),
 );
 const lastAction = ref<'copy-prompt' | 'copy-result' | null>(null);
 const lastActionLabel = ref('');
@@ -739,6 +740,15 @@ const shouldShowLiveAnalysisControls = computed(
   () => !hasBuildReports.value && hasAnyAvailableLiveProvider.value,
 );
 const shouldShowProviderDetail = computed(() => !hasBuildReports.value);
+const promptToCopy = computed(() =>
+  resolveSiteDebugAiCopyPrompt({
+    activeBuildReport: activeBuildReport.value,
+    analysisSource: analysisSource.value,
+    buildReportPromptByFile: buildReportPromptByFile.value,
+    liveAnalysisTarget: props.analysisTarget,
+    resolvedAnalysisTarget: resolvedAnalysisTarget.value,
+  }),
+);
 const copyPromptLabel = computed(() =>
   lastAction.value === 'copy-prompt'
     ? `✓ ${lastActionLabel.value}`
@@ -751,7 +761,7 @@ const copyResultLabel = computed(() =>
 );
 const providerDetail = computed(() => {
   if (capabilitiesState.value === 'loading') {
-    return 'Checking provider availability from the Vite dev server...';
+    return 'Checking real-time analysis availability from the Vite dev server...';
   }
 
   if (currentCapability.value?.detail) {
@@ -762,20 +772,20 @@ const providerDetail = computed(() => {
     return capabilitiesError.value;
   }
 
-  return 'Prompt copy is always available. Direct provider execution requires the Vite dev server middleware and siteDebug.analysis provider config.';
+  return 'Prompt copy is always available. Running real-time analysis directly requires the Vite dev server middleware and siteDebug.analysis provider config.';
 });
 const analysisHint = computed(() =>
   hasBuildReports.value
-    ? 'This artifact already has a build-time AI report. Review the generated result and the exact model that produced it below.'
-    : 'Review the current chunk or module source with Claude Code or Doubao. Prompt copy works even when direct provider execution is unavailable.',
+    ? 'This artifact already has a saved build-time report. Review the generated result and the exact model that produced it below.'
+    : 'Review the current chunk or module source with Doubao. Prompt copy still works when real-time analysis is unavailable.',
 );
 const analysisSourceLabel = computed(() => {
   if (analysisSource.value === 'build-report') {
-    return 'Build Report';
+    return 'Build-time Report';
   }
 
   if (analysisSource.value === 'live-analysis') {
-    return 'Live Analysis';
+    return 'Real-time Analysis';
   }
 
   return '';
@@ -830,7 +840,7 @@ const resetAnalysisState = () => {
   analysisResolvedTarget.value = null;
   selectedAnalysisView.value = 'rendered';
   analysisLoadingProgress.value = createSiteDebugLoadingProgress(
-    'Waiting for AI analysis',
+    'Waiting for analysis',
   );
 };
 
@@ -888,9 +898,9 @@ const loadBuildReport = async (report = activeBuildReport.value) => {
   analysisState.value = 'loading';
   analysisLoadingProgress.value = {
     detail:
-      'Loading the build-time AI report generated from the latest build output.',
+      'Loading the saved build-time report generated from the latest build output.',
     indeterminate: true,
-    label: 'Loading build report',
+    label: 'Loading build-time report',
     value: 0.18,
   };
 
@@ -903,15 +913,25 @@ const loadBuildReport = async (report = activeBuildReport.value) => {
 
     const payload = await getResponseJson<Partial<SiteDebugAiBuildReport>>(
       response,
-      'Failed to load build-time AI report JSON.',
+      'Failed to load saved build-time report JSON.',
     );
 
     if (
       !response.ok ||
       typeof payload.result !== 'string' ||
-      (payload.provider !== 'claude-code' && payload.provider !== 'doubao')
+      payload.provider !== 'doubao'
     ) {
-      throw new Error('Failed to load build-time AI report.');
+      throw new Error('Failed to load saved build-time report.');
+    }
+
+    if (
+      typeof payload.prompt === 'string' &&
+      payload.prompt.trim().length > 0
+    ) {
+      buildReportPromptByFile.value = {
+        ...buildReportPromptByFile.value,
+        [report.reportFile]: payload.prompt,
+      };
     }
 
     applyAnalysisResult({
@@ -934,7 +954,7 @@ const loadBuildReport = async (report = activeBuildReport.value) => {
     analysisError.value =
       error instanceof Error
         ? error.message
-        : 'Failed to load build-time AI report.';
+        : 'Failed to load saved build-time report.';
   }
 };
 
@@ -943,7 +963,7 @@ const loadCapabilities = async (force = false) => {
     capabilities.value = null;
     capabilitiesState.value = 'error';
     capabilitiesError.value =
-      'AI endpoint is unavailable. Start the Vite dev server with siteDebug.analysis configured to run Claude Code or Doubao directly from the debug console.';
+      'The real-time analysis endpoint is unavailable. Start the Vite dev server with siteDebug.analysis configured to run Doubao directly from the debug console.';
     return;
   }
 
@@ -962,7 +982,7 @@ const loadCapabilities = async (force = false) => {
     const response = await fetch(props.endpoint);
     const payload = await getResponseJson<CapabilitiesPayload>(
       response,
-      'Live AI analysis is only available from the Vite dev server. Preview/build output can open build reports, but cannot call providers directly.',
+      'Real-time AI analysis is only available from the Vite dev server. Preview/build output can open saved build-time reports, but cannot call providers directly.',
     );
 
     if (!response.ok || !('ok' in payload) || payload.ok !== true) {
@@ -997,16 +1017,12 @@ const copyText = async (
 };
 
 const copyPrompt = async () => {
-  if (!props.analysisTarget) {
+  if (!promptToCopy.value) {
     return;
   }
 
   try {
-    await copyText(
-      buildSiteDebugAiAnalysisPrompt(props.analysisTarget),
-      'copy-prompt',
-      'Prompt Copied',
-    );
+    await copyText(promptToCopy.value, 'copy-prompt', 'Prompt Copied');
   } catch (error) {
     analysisState.value = 'error';
     analysisDetail.value = '';
@@ -1066,7 +1082,7 @@ const runAnalysis = async () => {
   analysisLoadingProgress.value = {
     detail: `${selectedProviderLabel.value} is reviewing the current artifact.`,
     indeterminate: true,
-    label: 'Waiting for AI analysis',
+    label: 'Running real-time analysis',
     value: 0.32,
   };
 
@@ -1088,7 +1104,7 @@ const runAnalysis = async () => {
 
     const payload = await getResponseJson<SiteDebugAiAnalyzeResponse>(
       response,
-      'Live AI analysis is only available from the Vite dev server. Preview/build output can open build reports, but cannot call providers directly.',
+      'Real-time AI analysis is only available from the Vite dev server. Preview/build output can open saved build-time reports, but cannot call providers directly.',
     );
 
     if (!response.ok || payload.ok !== true || !payload.result) {
@@ -1189,13 +1205,13 @@ watch(
     <div class="site-debug-detail-modal__section-header">
       <div>
         <p class="site-debug-section__eyebrow">AI Analysis</p>
-        <h4 class="site-debug-section__title">Build Artifact Review</h4>
+        <h4 class="site-debug-section__title">Artifact Analysis</h4>
       </div>
       <div class="site-debug-dialog__actions">
         <button
           type="button"
           class="site-debug-dialog__action"
-          :disabled="!analysisTarget"
+          :disabled="!promptToCopy"
           @click="copyPrompt"
         >
           {{ copyPromptLabel }}

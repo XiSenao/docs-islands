@@ -9,6 +9,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getSiteDebugAiModuleReportKey } from '../../../shared/site-debug-ai';
 import { generateSiteDebugAiBuildReports } from '../site-debug-ai-build-reports';
 
+const { mockLoggerInfo, mockLoggerWarn } = vi.hoisted(() => ({
+  mockLoggerInfo: vi.fn(),
+  mockLoggerWarn: vi.fn(),
+}));
+
+vi.mock('#shared/logger', () => ({
+  default: () => ({
+    getLoggerByGroup: () => ({
+      debug: vi.fn(),
+      error: vi.fn(),
+      info: mockLoggerInfo,
+      success: vi.fn(),
+      warn: mockLoggerWarn,
+    }),
+  }),
+}));
+
 const tempDirectories: string[] = [];
 
 const createTempDirectory = (prefix = 'site-debug-ai-build-reports-') => {
@@ -83,6 +100,28 @@ const createPageMetafiles = (): Record<string, PageMetafile> => ({
   },
 });
 
+const createMultiPageMetafiles = (
+  routePaths: string[],
+): Record<string, PageMetafile> =>
+  Object.fromEntries(
+    routePaths.map((routePath) => {
+      const pageMetafile = createPageMetafiles()['/guide/getting-started'];
+
+      return [
+        routePath,
+        {
+          ...pageMetafile,
+          pathname: routePath,
+        } satisfies PageMetafile,
+      ];
+    }),
+  );
+
+const flushPromises = () =>
+  new Promise<void>((resolve) => {
+    setImmediate(resolve);
+  });
+
 const createSpaSyncOnlyPageMetafile = (): PageMetafile => ({
   buildMetrics: {
     components: [],
@@ -151,8 +190,64 @@ const createSpaSyncOnlyPageMetafile = (): PageMetafile => ({
   ssrInjectScript: '',
 });
 
+const createSpaSyncOnlyPageMetafileWithPageClientChunk = (
+  pageClientChunkFile: string,
+): PageMetafile => {
+  const pageMetafile = createSpaSyncOnlyPageMetafile();
+
+  if (pageMetafile.buildMetrics?.spaSyncEffects) {
+    pageMetafile.buildMetrics.spaSyncEffects.pageClientChunkFile =
+      pageClientChunkFile;
+  }
+
+  return pageMetafile;
+};
+
+const createSpaSyncOnlyRootPageMetafile = (): PageMetafile => {
+  const pageMetafile = createSpaSyncOnlyPageMetafile();
+
+  pageMetafile.pathname = '/core-concepts';
+
+  if (pageMetafile.buildMetrics?.spaSyncEffects) {
+    delete pageMetafile.buildMetrics.spaSyncEffects.pageClientChunkFile;
+  }
+
+  return pageMetafile;
+};
+
+const writeOutputAsset = (
+  outDir: string,
+  publicPath: string,
+  content: string,
+) =>
+  writeTextFile(
+    path.join(
+      outDir,
+      publicPath.replace(/^\/docs\/assets\//, 'assets/').replace(/^\/+/, ''),
+    ),
+    content,
+  );
+
+const createPageContexts = (
+  pageMetafiles: Record<string, PageMetafile>,
+): Record<string, { filePath: string; routePath: string }> =>
+  Object.fromEntries(
+    Object.keys(pageMetafiles).map((routePath) => [
+      routePath,
+      {
+        filePath: `${path.join(
+          '/repo/docs',
+          routePath.replace(/^\/+/, '').replace(/\/$/, '') || 'index',
+        )}.md`,
+        routePath,
+      },
+    ]),
+  );
+
 afterEach(() => {
   vi.restoreAllMocks();
+  mockLoggerInfo.mockReset();
+  mockLoggerWarn.mockReset();
 
   for (const directoryPath of tempDirectories.splice(0)) {
     fs.rmSync(directoryPath, { force: true, recursive: true });
@@ -188,20 +283,7 @@ describe('generateSiteDebugAiBuildReports', () => {
     ).toBeUndefined();
   });
 
-  it('treats buildReports presence as enabled and derives default models from configured providers', async () => {
-    const outDir = createTempDirectory();
-    const cacheDir = createTempDirectory('site-debug-ai-cache-');
-    const pageMetafiles = createPageMetafiles();
-
-    writeTextFile(
-      path.join(outDir, 'assets/chunks/demo-card.js'),
-      'export const DemoCard = () => "demo";',
-    );
-    writeTextFile(
-      path.join(outDir, 'assets/sources/DemoCard.tsx'),
-      'export function DemoCard() { return <div>demo</div>; }',
-    );
-
+  it('skips build-time AI report analysis when buildReports.models is omitted', async () => {
     const result = await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {},
@@ -213,41 +295,21 @@ describe('generateSiteDebugAiBuildReports', () => {
         },
       },
       assetsDir: 'assets',
-      cacheDir,
-      dependencies: {
-        analyzeTarget: async ({ target }) => ({
-          detail: 'Generated from provider defaults',
-          model: 'doubao-test-model',
-          result: `analysis:${target.displayPath}`,
-        }),
-        resolveCapabilities: async () => ({
-          ok: true,
-          providers: {
-            'claude-code': {
-              available: false,
-              detail: 'Unavailable in test',
-              provider: 'claude-code',
-            },
-            doubao: {
-              available: true,
-              detail: 'Available in test',
-              model: 'doubao-test-model',
-              provider: 'doubao',
-            },
-          },
-        }),
-      },
-      outDir,
-      pageMetafiles,
+      cacheDir: createTempDirectory('site-debug-ai-cache-'),
+      outDir: createTempDirectory(),
+      pageMetafiles: createPageMetafiles(),
       wrapBaseUrl: (value) => `/docs${value}`,
     });
 
-    expect(result.executionCount).toBe(1);
-    expect(result.generatedReportCount).toBe(1);
-    expect(result.providers).toEqual(['doubao']);
+    expect(result.executionCount).toBe(0);
+    expect(result.generatedReportCount).toBe(0);
+    expect(result.providers).toEqual([]);
+    expect(result.skippedReason).toContain(
+      'siteDebug.analysis.buildReports.models',
+    );
   });
 
-  it('treats an explicit empty models list as no-op instead of falling back to provider defaults', async () => {
+  it('treats an explicit empty models list as no-op instead of running reports', async () => {
     const result = await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
@@ -275,7 +337,7 @@ describe('generateSiteDebugAiBuildReports', () => {
     );
   });
 
-  it('writes chunk and module build reports and attaches references', async () => {
+  it('writes a single page build report and attaches page references to chunk and module entries', async () => {
     const outDir = createTempDirectory();
     const cacheDir = createTempDirectory('site-debug-ai-cache-');
     const pageMetafiles = createPageMetafiles();
@@ -294,7 +356,6 @@ describe('generateSiteDebugAiBuildReports', () => {
     const result = await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
-          groupBy: 'artifact',
           includeChunks: true,
           includeModules: true,
           models: [
@@ -324,11 +385,151 @@ describe('generateSiteDebugAiBuildReports', () => {
         resolveCapabilities: async () => ({
           ok: true,
           providers: {
-            'claude-code': {
-              available: false,
-              detail: 'Unavailable in test',
-              provider: 'claude-code',
+            doubao: {
+              available: true,
+              detail: 'Available in test',
+              model: 'doubao-test-model',
+              provider: 'doubao',
             },
+          },
+        }),
+      },
+      outDir,
+      pageContexts: createPageContexts(pageMetafiles),
+      pageMetafiles,
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    const pageReportFiles = fs.readdirSync(
+      path.join(outDir, 'assets/page-metafiles/ai/pages'),
+    );
+    const moduleKey = getSiteDebugAiModuleReportKey(
+      '/docs/assets/chunks/demo-card.js',
+      '/src/components/DemoCard.tsx',
+    );
+
+    expect(result.executionCount).toBe(1);
+    expect(result.generatedReportCount).toBe(1);
+    expect(result.providers).toEqual(['doubao']);
+    expect(pageReportFiles).toHaveLength(1);
+    expect(componentMetric?.aiReports?.chunkReports).toEqual({
+      '/docs/assets/chunks/demo-card.js': [
+        expect.objectContaining({
+          provider: 'doubao',
+          reportFile: expect.stringContaining(
+            '/docs/assets/page-metafiles/ai/pages/',
+          ),
+          reportId: expect.any(String),
+          reportLabel: expect.stringContaining('Doubao'),
+        }),
+      ],
+    });
+    expect(componentMetric?.aiReports?.moduleReports).toEqual({
+      [moduleKey]: [
+        expect.objectContaining({
+          provider: 'doubao',
+          reportFile: expect.stringContaining(
+            '/docs/assets/page-metafiles/ai/pages/',
+          ),
+          reportId: expect.any(String),
+          reportLabel: expect.stringContaining('Doubao'),
+        }),
+      ],
+    });
+
+    const pageReportPath = path.join(
+      outDir,
+      'assets/page-metafiles/ai/pages',
+      pageReportFiles[0],
+    );
+    const pageReport = JSON.parse(fs.readFileSync(pageReportPath, 'utf8')) as {
+      prompt: string;
+      provider: string;
+      reportId: string;
+      reportLabel: string;
+      result: string;
+      target: { artifactKind: string; displayPath: string };
+    };
+
+    expect(pageReport.provider).toBe('doubao');
+    expect(pageReport.reportId).toBeTruthy();
+    expect(pageReport.reportLabel).toContain('Doubao');
+    expect(pageReport.prompt).toContain('## Current Page Snapshot');
+    expect(pageReport.prompt).toContain(
+      'Prioritize build diagnosis over descriptive inventory.',
+    );
+    expect(pageReport.prompt).toContain(
+      'Current Page Rendered React Components:',
+    );
+    expect(pageReport.prompt).toContain('Build Chunks (1 shown):');
+    expect(pageReport.prompt).toContain('Chunk Modules:');
+    expect(pageReport.prompt).toContain('Top Page Resources');
+    expect(pageReport.prompt).toContain('Top Page Modules');
+    expect(pageReport.result).toContain('/guide/getting-started');
+    expect(pageReport.target.artifactKind).toBe('page-build');
+    expect(pageReport.target.displayPath).toBe('/guide/getting-started');
+    expect(
+      fs.existsSync(path.join(outDir, 'assets/page-metafiles/ai/chunks')),
+    ).toBe(false);
+    expect(
+      fs.existsSync(path.join(outDir, 'assets/page-metafiles/ai/modules')),
+    ).toBe(false);
+    expect(result.reusedReportCount).toBe(0);
+  });
+
+  it('dispatches page build report analysis in parallel across eligible pages', async () => {
+    const outDir = createTempDirectory();
+    const pageMetafiles = createMultiPageMetafiles([
+      '/guide/getting-started',
+      '/guide/advanced',
+    ]);
+    const firstPageRelease = Promise.withResolvers<void>();
+    const analyzeTarget = vi.fn(async ({ target }) => {
+      if (target.displayPath === '/guide/getting-started') {
+        await firstPageRelease.promise;
+      }
+
+      return {
+        detail: `Generated in test for ${target.displayPath}`,
+        model: 'doubao-test-model',
+        result: `analysis:${target.displayPath}`,
+      };
+    });
+
+    writeTextFile(
+      path.join(outDir, 'assets/chunks/demo-card.js'),
+      'export const DemoCard = () => "demo";',
+    );
+    writeTextFile(
+      path.join(outDir, 'assets/sources/DemoCard.tsx'),
+      'export function DemoCard() { return <div>demo</div>; }',
+    );
+
+    const resultPromise = generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: false,
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: createTempDirectory('site-debug-ai-cache-'),
+      dependencies: {
+        analyzeTarget,
+        resolveCapabilities: async () => ({
+          ok: true,
+          providers: {
             doubao: {
               available: true,
               detail: 'Available in test',
@@ -343,118 +544,290 @@ describe('generateSiteDebugAiBuildReports', () => {
       wrapBaseUrl: (value) => `/docs${value}`,
     });
 
-    const reportFiles = fs.readdirSync(
-      path.join(outDir, 'assets/page-metafiles/ai/chunks'),
+    await flushPromises();
+
+    expect(analyzeTarget).toHaveBeenCalledTimes(2);
+    expect(analyzeTarget).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        target: expect.objectContaining({
+          displayPath: '/guide/getting-started',
+        }),
+      }),
     );
-    const moduleReportFiles = fs.readdirSync(
-      path.join(outDir, 'assets/page-metafiles/ai/modules'),
-    );
-    const moduleKey = getSiteDebugAiModuleReportKey(
-      '/docs/assets/chunks/demo-card.js',
-      '/src/components/DemoCard.tsx',
+    expect(analyzeTarget).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        target: expect.objectContaining({
+          displayPath: '/guide/advanced',
+        }),
+      }),
     );
 
-    expect(result.executionCount).toBe(1);
+    firstPageRelease.resolve();
+
+    const result = await resultPromise;
     expect(result.generatedReportCount).toBe(2);
-    expect(result.providers).toEqual(['doubao']);
-    expect(reportFiles).toHaveLength(1);
-    expect(moduleReportFiles).toHaveLength(1);
-    expect(componentMetric?.aiReports?.chunkReports).toEqual({
-      '/docs/assets/chunks/demo-card.js': [
-        expect.objectContaining({
-          provider: 'doubao',
-          reportFile: expect.stringContaining(
-            '/docs/assets/page-metafiles/ai/chunks/',
-          ),
-          reportId: expect.any(String),
-          reportLabel: expect.stringContaining('Doubao'),
-        }),
-      ],
-    });
-    expect(componentMetric?.aiReports?.moduleReports).toEqual({
-      [moduleKey]: [
-        expect.objectContaining({
-          provider: 'doubao',
-          reportFile: expect.stringContaining(
-            '/docs/assets/page-metafiles/ai/modules/',
-          ),
-          reportId: expect.any(String),
-          reportLabel: expect.stringContaining('Doubao'),
-        }),
-      ],
-    });
-
-    const chunkReportPath = path.join(
-      outDir,
-      'assets/page-metafiles/ai/chunks',
-      reportFiles[0],
-    );
-    const moduleReportPath = path.join(
-      outDir,
-      'assets/page-metafiles/ai/modules',
-      moduleReportFiles[0],
-    );
-    const chunkReport = JSON.parse(
-      fs.readFileSync(chunkReportPath, 'utf8'),
-    ) as {
-      prompt: string;
-      provider: string;
-      reportId: string;
-      reportLabel: string;
-      result: string;
-      target: { displayPath: string };
-    };
-    const moduleReport = JSON.parse(
-      fs.readFileSync(moduleReportPath, 'utf8'),
-    ) as {
-      prompt: string;
-      provider: string;
-      reportId: string;
-      reportLabel: string;
-      result: string;
-      target: { displayPath: string };
-    };
-
-    expect(chunkReport.provider).toBe('doubao');
-    expect(chunkReport.reportId).toBeTruthy();
-    expect(chunkReport.reportLabel).toContain('Doubao');
-    expect(chunkReport.prompt).toContain('## Role');
-    expect(chunkReport.prompt).toContain('## Artifact-Specific Checklist');
-    expect(chunkReport.prompt).toContain('## Constraints');
-    expect(chunkReport.prompt).toContain('## Debug Console Snapshot');
-    expect(chunkReport.prompt).toContain(
-      'Identify the selected chunk resource type, size, and role inside the component bundle.',
-    );
-    expect(chunkReport.prompt).toContain('Current Debug Context:');
-    expect(chunkReport.prompt).toContain('Artifact Panel:');
-    expect(chunkReport.prompt).toContain('Bundle Summary:');
-    expect(chunkReport.prompt).toContain('Chunk Resources (1 shown):');
-    expect(chunkReport.prompt).toContain('Module Source (1 shown):');
-    expect(chunkReport.prompt).not.toContain('Visible Render Metrics:');
-    expect(chunkReport.prompt).not.toContain('Artifact metadata:');
-    expect(chunkReport.result).toContain('/docs/assets/chunks/demo-card.js');
-    expect(moduleReport.provider).toBe('doubao');
-    expect(moduleReport.reportId).toBeTruthy();
-    expect(moduleReport.reportLabel).toContain('Doubao');
-    expect(moduleReport.prompt).toContain('## Role');
-    expect(moduleReport.prompt).toContain('## Artifact-Specific Checklist');
-    expect(moduleReport.prompt).toContain('## Debug Console Snapshot');
-    expect(moduleReport.prompt).toContain(
-      'Identify what role the selected module likely plays inside its parent chunk, using the module row, artifact panel, and surrounding chunk context.',
-    );
-    expect(moduleReport.prompt).toContain('Artifact Panel:');
-    expect(moduleReport.prompt).toContain('Bundle Summary:');
-    expect(moduleReport.prompt).toContain('Module Source (1 shown):');
-    expect(moduleReport.prompt).not.toContain('Visible Render Metrics:');
-    expect(moduleReport.prompt).not.toContain('Artifact metadata:');
-    expect(moduleReport.result).toContain('/src/components/DemoCard.tsx');
-    expect(moduleReport.target.displayPath).toBe(
-      '/src/components/DemoCard.tsx',
-    );
     expect(result.reusedReportCount).toBe(0);
   });
 
-  it('groups build-time prompts by page when buildReports.groupBy is set to page', async () => {
+  it('uses resolvePage to select pages and apply page-local chunk, module, and cache overrides', async () => {
+    const outDir = createTempDirectory();
+    const vitepressCacheDir = createTempDirectory('site-debug-ai-cache-');
+    const pageReportCacheDir = createTempDirectory('page-report-cache-');
+    const pageMetafiles = createPageMetafiles();
+    const componentMetric =
+      pageMetafiles['/guide/getting-started'].buildMetrics?.components[0];
+
+    writeTextFile(
+      path.join(outDir, 'assets/chunks/demo-card.js'),
+      'export const DemoCard = () => "demo";',
+    );
+    writeTextFile(
+      path.join(outDir, 'assets/sources/DemoCard.tsx'),
+      'export function DemoCard() { return <div>demo</div>; }',
+    );
+
+    const resolvePage = vi.fn(({ routePath }: { routePath: string }) =>
+      routePath === '/guide/getting-started'
+        ? {
+            cache: {
+              dir: pageReportCacheDir,
+              strategy: 'exact' as const,
+            },
+            includeChunks: true,
+            includeModules: true,
+          }
+        : false,
+    );
+
+    const result = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: false,
+          includeChunks: false,
+          includeModules: false,
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+          resolvePage,
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies: {
+        analyzeTarget: async ({ provider, target }) => ({
+          detail: `Generated in test for ${provider}`,
+          model: 'doubao-test-model',
+          result: `analysis:${target.displayPath}`,
+        }),
+        resolveCapabilities: async () => ({
+          ok: true,
+          providers: {
+            doubao: {
+              available: true,
+              detail: 'Available in test',
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          },
+        }),
+      },
+      outDir,
+      pageContexts: createPageContexts(pageMetafiles),
+      pageMetafiles,
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    expect(result.generatedReportCount).toBe(1);
+    expect(resolvePage).toHaveBeenCalledTimes(1);
+    expect(resolvePage).toHaveBeenCalledWith({
+      filePath: '/repo/docs/guide/getting-started.md',
+      routePath: '/guide/getting-started',
+    });
+    expect(
+      componentMetric?.aiReports?.chunkReports?.[
+        '/docs/assets/chunks/demo-card.js'
+      ]?.[0]?.reportFile,
+    ).toContain('/docs/assets/page-metafiles/ai/pages/');
+    expect(
+      Object.keys(componentMetric?.aiReports?.moduleReports ?? {}),
+    ).toHaveLength(1);
+    expect(fs.readdirSync(path.join(pageReportCacheDir, 'pages'))).toHaveLength(
+      1,
+    );
+  });
+
+  it('keeps page-local cache directories isolated when resolvePage returns different dirs per page', async () => {
+    const firstOutDir = createTempDirectory();
+    const secondOutDir = createTempDirectory();
+    const vitepressCacheDir = createTempDirectory('site-debug-ai-cache-');
+    const gettingStartedCacheDir = createTempDirectory(
+      'getting-started-cache-',
+    );
+    const advancedCacheDir = createTempDirectory('advanced-cache-');
+    const routePaths = ['/guide/getting-started', '/guide/advanced'];
+    const firstPageMetafiles = createMultiPageMetafiles(routePaths);
+    const secondPageMetafiles = createMultiPageMetafiles(routePaths);
+    const analyzeTarget = vi.fn(async ({ target }) => ({
+      detail: `Generated in test for ${target.displayPath}`,
+      model: 'doubao-test-model',
+      result: `analysis:${target.displayPath}`,
+    }));
+    const resolvePage = vi.fn(({ routePath }: { routePath: string }) => {
+      if (routePath === '/guide/getting-started') {
+        return {
+          cache: {
+            dir: gettingStartedCacheDir,
+            strategy: 'exact' as const,
+          },
+        };
+      }
+
+      if (routePath === '/guide/advanced') {
+        return {
+          cache: {
+            dir: advancedCacheDir,
+            strategy: 'exact' as const,
+          },
+        };
+      }
+
+      return false;
+    });
+
+    for (const outDir of [firstOutDir, secondOutDir]) {
+      writeTextFile(
+        path.join(outDir, 'assets/chunks/demo-card.js'),
+        'export const DemoCard = () => "demo";',
+      );
+      writeTextFile(
+        path.join(outDir, 'assets/sources/DemoCard.tsx'),
+        'export function DemoCard() { return <div>demo</div>; }',
+      );
+    }
+
+    const firstResult = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: false,
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+          resolvePage,
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies: {
+        analyzeTarget,
+        resolveCapabilities: async () => ({
+          ok: true as const,
+          providers: {
+            doubao: {
+              available: true,
+              detail: 'Available in test',
+              model: 'doubao-test-model',
+              provider: 'doubao' as const,
+            },
+          },
+        }),
+      },
+      outDir: firstOutDir,
+      pageContexts: createPageContexts(firstPageMetafiles),
+      pageMetafiles: firstPageMetafiles,
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    const gettingStartedCacheFiles = fs.readdirSync(
+      path.join(gettingStartedCacheDir, 'pages'),
+    );
+    const advancedCacheFiles = fs.readdirSync(
+      path.join(advancedCacheDir, 'pages'),
+    );
+
+    expect(firstResult.generatedReportCount).toBe(2);
+    expect(firstResult.reusedReportCount).toBe(0);
+    expect(analyzeTarget).toHaveBeenCalledTimes(2);
+    expect(gettingStartedCacheFiles).toHaveLength(1);
+    expect(advancedCacheFiles).toHaveLength(1);
+    expect(gettingStartedCacheFiles[0]).toContain('getting-started');
+    expect(advancedCacheFiles[0]).toContain('advanced');
+
+    const secondAnalyzeTarget = vi.fn(async () => {
+      throw new Error('page-local exact caches should be reused');
+    });
+
+    const secondResult = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: false,
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+          resolvePage,
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies: {
+        analyzeTarget: secondAnalyzeTarget,
+        resolveCapabilities: async () => ({
+          ok: true as const,
+          providers: {
+            doubao: {
+              available: false,
+              detail: 'Provider should not be needed when exact cache hits',
+              provider: 'doubao' as const,
+            },
+          },
+        }),
+      },
+      outDir: secondOutDir,
+      pageContexts: createPageContexts(secondPageMetafiles),
+      pageMetafiles: secondPageMetafiles,
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    expect(secondResult.generatedReportCount).toBe(0);
+    expect(secondResult.reusedReportCount).toBe(2);
+    expect(secondAnalyzeTarget).not.toHaveBeenCalled();
+    expect(fs.readdirSync(path.join(gettingStartedCacheDir, 'pages'))).toEqual(
+      gettingStartedCacheFiles,
+    );
+    expect(fs.readdirSync(path.join(advancedCacheDir, 'pages'))).toEqual(
+      advancedCacheFiles,
+    );
+  });
+
+  it('reuses page reports across chunk and module references when detail expansion is enabled', async () => {
     const outDir = createTempDirectory();
     const cacheDir = createTempDirectory('site-debug-ai-cache-');
     const pageMetafiles = createPageMetafiles();
@@ -479,7 +852,6 @@ describe('generateSiteDebugAiBuildReports', () => {
     const result = await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
-          groupBy: 'page',
           includeChunks: true,
           includeModules: true,
           models: [
@@ -503,11 +875,6 @@ describe('generateSiteDebugAiBuildReports', () => {
         resolveCapabilities: async () => ({
           ok: true,
           providers: {
-            'claude-code': {
-              available: false,
-              detail: 'Unavailable in test',
-              provider: 'claude-code',
-            },
             doubao: {
               available: true,
               detail: 'Available in test',
@@ -518,6 +885,7 @@ describe('generateSiteDebugAiBuildReports', () => {
         }),
       },
       outDir,
+      pageContexts: createPageContexts(pageMetafiles),
       pageMetafiles,
       wrapBaseUrl: (value) => `/docs${value}`,
     });
@@ -619,7 +987,6 @@ describe('generateSiteDebugAiBuildReports', () => {
             dir: cacheDir,
             strategy: 'exact',
           },
-          groupBy: 'page',
           models: [
             {
               model: 'doubao-test-model',
@@ -645,11 +1012,6 @@ describe('generateSiteDebugAiBuildReports', () => {
         resolveCapabilities: async () => ({
           ok: true,
           providers: {
-            'claude-code': {
-              available: false,
-              detail: 'Unavailable in test',
-              provider: 'claude-code',
-            },
             doubao: {
               available: true,
               detail: 'Available in test',
@@ -821,7 +1183,6 @@ describe('generateSiteDebugAiBuildReports', () => {
     await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
-          groupBy: 'page',
           models: [
             {
               model: 'doubao-test-model',
@@ -843,11 +1204,6 @@ describe('generateSiteDebugAiBuildReports', () => {
         resolveCapabilities: async () => ({
           ok: true,
           providers: {
-            'claude-code': {
-              available: false,
-              detail: 'Unavailable in test',
-              provider: 'claude-code',
-            },
             doubao: {
               available: true,
               detail: 'Available in test',
@@ -958,7 +1314,6 @@ describe('generateSiteDebugAiBuildReports', () => {
       await generateSiteDebugAiBuildReports({
         aiConfig: {
           buildReports: {
-            groupBy: 'page',
             includeChunks: testCase.includeChunks,
             includeModules: testCase.includeModules,
             models: [
@@ -986,11 +1341,6 @@ describe('generateSiteDebugAiBuildReports', () => {
           resolveCapabilities: async () => ({
             ok: true,
             providers: {
-              'claude-code': {
-                available: false,
-                detail: 'Unavailable in test',
-                provider: 'claude-code',
-              },
               doubao: {
                 available: true,
                 detail: 'Available in test',
@@ -1036,7 +1386,7 @@ describe('generateSiteDebugAiBuildReports', () => {
     }
   });
 
-  it('only includes pages with docs-islands component build metrics in page-grouped analysis', async () => {
+  it('only calls resolvePage for eligible docs-islands pages', async () => {
     const outDir = createTempDirectory();
     const cacheDir = createTempDirectory('site-debug-ai-cache-');
     const pageMetafiles = {
@@ -1072,11 +1422,14 @@ describe('generateSiteDebugAiBuildReports', () => {
       model: 'doubao-test-model',
       result: `analysis:${target.displayPath}`,
     }));
+    const resolvePage = vi.fn(({ routePath }: { routePath: string }) =>
+      routePath === '/guide/getting-started' ? {} : false,
+    );
 
     const result = await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
-          groupBy: 'page',
+          resolvePage,
           models: [
             {
               model: 'doubao-test-model',
@@ -1098,11 +1451,6 @@ describe('generateSiteDebugAiBuildReports', () => {
         resolveCapabilities: async () => ({
           ok: true,
           providers: {
-            'claude-code': {
-              available: false,
-              detail: 'Unavailable in test',
-              provider: 'claude-code',
-            },
             doubao: {
               available: true,
               detail: 'Available in test',
@@ -1113,11 +1461,17 @@ describe('generateSiteDebugAiBuildReports', () => {
         }),
       },
       outDir,
+      pageContexts: createPageContexts(pageMetafiles),
       pageMetafiles,
       wrapBaseUrl: (value) => `/docs${value}`,
     });
 
     expect(result.generatedReportCount).toBe(1);
+    expect(resolvePage).toHaveBeenCalledTimes(1);
+    expect(resolvePage).toHaveBeenCalledWith({
+      filePath: '/repo/docs/guide/getting-started.md',
+      routePath: '/guide/getting-started',
+    });
     expect(analyzeTarget).toHaveBeenCalledTimes(1);
     expect(analyzeTarget).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1161,7 +1515,6 @@ describe('generateSiteDebugAiBuildReports', () => {
     const result = await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
-          groupBy: 'page',
           models: [
             {
               model: 'doubao-test-model',
@@ -1183,11 +1536,6 @@ describe('generateSiteDebugAiBuildReports', () => {
         resolveCapabilities: async () => ({
           ok: true,
           providers: {
-            'claude-code': {
-              available: false,
-              detail: 'Unavailable in test',
-              provider: 'claude-code',
-            },
             doubao: {
               available: true,
               detail: 'Available in test',
@@ -1290,7 +1638,6 @@ describe('generateSiteDebugAiBuildReports', () => {
             dir: reportCacheDir,
             strategy: 'exact',
           },
-          groupBy: 'page',
           models: [
             {
               model: 'doubao-test-model',
@@ -1312,11 +1659,6 @@ describe('generateSiteDebugAiBuildReports', () => {
         resolveCapabilities: async () => ({
           ok: true as const,
           providers: {
-            'claude-code': {
-              available: false,
-              detail: 'Unavailable in test',
-              provider: 'claude-code' as const,
-            },
             doubao: {
               available: true,
               detail: 'Available in test',
@@ -1338,7 +1680,6 @@ describe('generateSiteDebugAiBuildReports', () => {
             dir: reportCacheDir,
             strategy: 'exact',
           },
-          groupBy: 'page',
           models: [
             {
               model: 'doubao-test-model',
@@ -1362,11 +1703,6 @@ describe('generateSiteDebugAiBuildReports', () => {
         resolveCapabilities: async () => ({
           ok: true as const,
           providers: {
-            'claude-code': {
-              available: false,
-              detail: 'Unavailable in test',
-              provider: 'claude-code' as const,
-            },
             doubao: {
               available: false,
               detail: 'Provider should not be needed when exact cache hits',
@@ -1386,6 +1722,254 @@ describe('generateSiteDebugAiBuildReports', () => {
     expect(secondResult.reusedReportCount).toBe(1);
     expect(analyzeTarget).toHaveBeenCalledTimes(1);
     expect(fs.readdirSync(path.join(reportCacheDir, 'pages'))).toHaveLength(1);
+  });
+
+  it('reuses exact cache when only the report label changes', async () => {
+    const reportCacheDir = createTempDirectory('site-debug-ai-cache-');
+    const firstOutDir = createTempDirectory();
+    const secondOutDir = createTempDirectory();
+    const vitepressCacheDir = createTempDirectory('vitepress-cache-');
+    const analyzeTarget = vi.fn(async ({ provider, target }) => ({
+      detail: `Generated in test for ${provider}`,
+      model: 'doubao-test-model',
+      result: `analysis:${target.displayPath}`,
+    }));
+
+    for (const outDir of [firstOutDir, secondOutDir]) {
+      writeTextFile(
+        path.join(outDir, 'assets/chunks/demo-card.js'),
+        'export const DemoCard = () => "demo";',
+      );
+      writeTextFile(
+        path.join(outDir, 'assets/sources/DemoCard.tsx'),
+        'export function DemoCard() { return <div>demo</div>; }',
+      );
+    }
+
+    await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: {
+            dir: reportCacheDir,
+            strategy: 'exact',
+          },
+          models: [
+            {
+              label: 'Doubao Pro',
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies: {
+        analyzeTarget,
+        resolveCapabilities: async () => ({
+          ok: true as const,
+          providers: {
+            doubao: {
+              available: true,
+              detail: 'Available in test',
+              model: 'doubao-test-model',
+              provider: 'doubao' as const,
+            },
+          },
+        }),
+      },
+      outDir: firstOutDir,
+      pageMetafiles: createPageMetafiles(),
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    const secondResult = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: {
+            dir: reportCacheDir,
+            strategy: 'exact',
+          },
+          models: [
+            {
+              label: 'Renamed Doubao Pro',
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies: {
+        analyzeTarget: vi.fn(async () => {
+          throw new Error('label-only changes should reuse exact cache');
+        }),
+        resolveCapabilities: async () => ({
+          ok: true as const,
+          providers: {
+            doubao: {
+              available: false,
+              detail: 'Provider should not be needed when exact cache hits',
+              provider: 'doubao' as const,
+            },
+          },
+        }),
+      },
+      outDir: secondOutDir,
+      pageMetafiles: createPageMetafiles(),
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    const [pageReportFile] = fs.readdirSync(
+      path.join(secondOutDir, 'assets/page-metafiles/ai/pages'),
+    );
+    const reusedReport = JSON.parse(
+      fs.readFileSync(
+        path.join(
+          secondOutDir,
+          'assets/page-metafiles/ai/pages',
+          pageReportFile,
+        ),
+        'utf8',
+      ),
+    ) as {
+      reportId: string;
+      reportLabel: string;
+    };
+
+    expect(secondResult.generatedReportCount).toBe(0);
+    expect(secondResult.reusedReportCount).toBe(1);
+    expect(analyzeTarget).toHaveBeenCalledTimes(1);
+    expect(fs.readdirSync(path.join(reportCacheDir, 'pages'))).toHaveLength(1);
+    expect(reusedReport.reportLabel).toBe('Renamed Doubao Pro');
+    expect(reusedReport.reportId).toBeTruthy();
+  });
+
+  it('reuses exact cache when only provider timeoutMs changes', async () => {
+    const reportCacheDir = createTempDirectory('site-debug-ai-cache-');
+    const firstOutDir = createTempDirectory();
+    const secondOutDir = createTempDirectory();
+    const vitepressCacheDir = createTempDirectory('vitepress-cache-');
+    const analyzeTarget = vi.fn(async ({ provider, target }) => ({
+      detail: `Generated in test for ${provider}`,
+      model: 'doubao-test-model',
+      result: `analysis:${target.displayPath}`,
+    }));
+
+    for (const outDir of [firstOutDir, secondOutDir]) {
+      writeTextFile(
+        path.join(outDir, 'assets/chunks/demo-card.js'),
+        'export const DemoCard = () => "demo";',
+      );
+      writeTextFile(
+        path.join(outDir, 'assets/sources/DemoCard.tsx'),
+        'export function DemoCard() { return <div>demo</div>; }',
+      );
+    }
+
+    await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: {
+            dir: reportCacheDir,
+            strategy: 'exact',
+          },
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+            timeoutMs: 60_000,
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies: {
+        analyzeTarget,
+        resolveCapabilities: async () => ({
+          ok: true as const,
+          providers: {
+            doubao: {
+              available: true,
+              detail: 'Available in test',
+              model: 'doubao-test-model',
+              provider: 'doubao' as const,
+            },
+          },
+        }),
+      },
+      outDir: firstOutDir,
+      pageMetafiles: createPageMetafiles(),
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    const secondResult = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: {
+            dir: reportCacheDir,
+            strategy: 'exact',
+          },
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+            timeoutMs: 300_000,
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies: {
+        analyzeTarget: vi.fn(async () => {
+          throw new Error('timeout-only changes should reuse exact cache');
+        }),
+        resolveCapabilities: async () => ({
+          ok: true as const,
+          providers: {
+            doubao: {
+              available: false,
+              detail: 'Provider should not be needed when exact cache hits',
+              provider: 'doubao' as const,
+            },
+          },
+        }),
+      },
+      outDir: secondOutDir,
+      pageMetafiles: createPageMetafiles(),
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    expect(secondResult.generatedReportCount).toBe(0);
+    expect(secondResult.reusedReportCount).toBe(1);
+    expect(analyzeTarget).toHaveBeenCalledTimes(1);
   });
 
   it('treats cache: true as exact cache with default options', async () => {
@@ -1413,7 +1997,6 @@ describe('generateSiteDebugAiBuildReports', () => {
       aiConfig: {
         buildReports: {
           cache: true,
-          groupBy: 'page',
           models: [
             {
               model: 'doubao-test-model',
@@ -1435,11 +2018,6 @@ describe('generateSiteDebugAiBuildReports', () => {
         resolveCapabilities: async () => ({
           ok: true as const,
           providers: {
-            'claude-code': {
-              available: false,
-              detail: 'Unavailable in test',
-              provider: 'claude-code' as const,
-            },
             doubao: {
               available: true,
               detail: 'Available in test',
@@ -1458,7 +2036,6 @@ describe('generateSiteDebugAiBuildReports', () => {
       aiConfig: {
         buildReports: {
           cache: true,
-          groupBy: 'page',
           models: [
             {
               model: 'doubao-test-model',
@@ -1482,11 +2059,6 @@ describe('generateSiteDebugAiBuildReports', () => {
         resolveCapabilities: async () => ({
           ok: true as const,
           providers: {
-            'claude-code': {
-              available: false,
-              detail: 'Unavailable in test',
-              provider: 'claude-code' as const,
-            },
             doubao: {
               available: false,
               detail:
@@ -1533,11 +2105,6 @@ describe('generateSiteDebugAiBuildReports', () => {
       resolveCapabilities: async () => ({
         ok: true as const,
         providers: {
-          'claude-code': {
-            available: false,
-            detail: 'Unavailable in test',
-            provider: 'claude-code' as const,
-          },
           doubao: {
             available: true,
             detail: 'Available in test',
@@ -1566,7 +2133,6 @@ describe('generateSiteDebugAiBuildReports', () => {
             dir: reportCacheDir,
             strategy: 'exact',
           },
-          groupBy: 'page',
           models: [
             {
               model: 'doubao-test-model',
@@ -1597,7 +2163,6 @@ describe('generateSiteDebugAiBuildReports', () => {
             dir: reportCacheDir,
             strategy: 'exact',
           },
-          groupBy: 'page',
           models: [
             {
               model: 'doubao-test-model',
@@ -1626,6 +2191,469 @@ describe('generateSiteDebugAiBuildReports', () => {
     expect(exactResult.executionCount).toBe(1);
     expect(exactResult.providers).toEqual(['doubao']);
     expect(exactResult.reusedReportCount).toBe(0);
+    expect(
+      mockLoggerInfo.mock.calls.some(
+        ([message]) =>
+          typeof message === 'string' &&
+          message.includes(
+            'Exact build-time AI report cache miss for /guide/getting-started',
+          ) &&
+          message.includes(
+            'provider snapshot changed (temperature: 0.2 -> 0.7)',
+          ),
+      ),
+    ).toBe(true);
+  });
+
+  it('logs when exact cache is invalidated because the prompt changes', async () => {
+    const reportCacheDir = createTempDirectory('site-debug-ai-cache-');
+    const firstOutDir = createTempDirectory();
+    const secondOutDir = createTempDirectory();
+    const vitepressCacheDir = createTempDirectory('vitepress-cache-');
+    const analyzeTarget = vi
+      .fn()
+      .mockImplementationOnce(async ({ target }) => ({
+        detail: 'initial run',
+        model: 'doubao-test-model',
+        result: `first:${target.displayPath}`,
+      }))
+      .mockImplementationOnce(async ({ target }) => ({
+        detail: 'prompt rerun',
+        model: 'doubao-test-model',
+        result: `second:${target.displayPath}`,
+      }));
+    const dependencies = {
+      analyzeTarget,
+      resolveCapabilities: async () => ({
+        ok: true as const,
+        providers: {
+          doubao: {
+            available: true,
+            detail: 'Available in test',
+            model: 'doubao-test-model',
+            provider: 'doubao' as const,
+          },
+        },
+      }),
+    };
+
+    for (const outDir of [firstOutDir, secondOutDir]) {
+      writeTextFile(
+        path.join(outDir, 'assets/chunks/demo-card.js'),
+        'export const DemoCard = () => "demo";',
+      );
+      writeTextFile(
+        path.join(outDir, 'assets/sources/DemoCard.tsx'),
+        'export function DemoCard() { return <div>demo</div>; }',
+      );
+    }
+
+    await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: {
+            dir: reportCacheDir,
+            strategy: 'exact',
+          },
+          includeChunks: false,
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies,
+      outDir: firstOutDir,
+      pageMetafiles: createPageMetafiles(),
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    const secondResult = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: {
+            dir: reportCacheDir,
+            strategy: 'exact',
+          },
+          includeChunks: true,
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies,
+      outDir: secondOutDir,
+      pageMetafiles: createPageMetafiles(),
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    expect(analyzeTarget).toHaveBeenCalledTimes(2);
+    expect(secondResult.generatedReportCount).toBe(1);
+    expect(secondResult.reusedReportCount).toBe(0);
+    expect(
+      mockLoggerInfo.mock.calls.some(
+        ([message]) =>
+          typeof message === 'string' &&
+          message.includes(
+            'Exact build-time AI report cache miss for /guide/getting-started',
+          ) &&
+          message.includes('analysis prompt changed') &&
+          message.includes('Composition Detail:'),
+      ),
+    ).toBe(true);
+  });
+
+  it('reuses exact cache when only hashed asset filenames change inside the prompt', async () => {
+    const reportCacheDir = createTempDirectory('site-debug-ai-cache-');
+    const firstOutDir = createTempDirectory();
+    const secondOutDir = createTempDirectory();
+    const vitepressCacheDir = createTempDirectory('vitepress-cache-');
+    const firstPageClientChunkFile =
+      '/docs/assets/guide/site-debug-console.AAAA1111.js';
+    const secondPageClientChunkFile =
+      '/docs/assets/guide/site-debug-console.BBBB2222.js';
+    const pageMetafiles = {
+      '/guide/site-debug-console':
+        createSpaSyncOnlyPageMetafileWithPageClientChunk(
+          firstPageClientChunkFile,
+        ),
+    } satisfies Record<string, PageMetafile>;
+    const analyzeTarget = vi.fn(async ({ provider, target }) => ({
+      detail: `Generated in test for ${provider}`,
+      model: 'doubao-test-model',
+      result: `analysis:${target.displayPath}`,
+    }));
+
+    for (const [outDir, pageClientChunkFile] of [
+      [firstOutDir, firstPageClientChunkFile],
+      [secondOutDir, secondPageClientChunkFile],
+    ] as const) {
+      writeOutputAsset(
+        outDir,
+        pageClientChunkFile,
+        'export const siteDebugConsolePage = "static-page-client-chunk";',
+      );
+      writeOutputAsset(
+        outDir,
+        '/docs/assets/unified-loader.js',
+        'export const loader = "loader";',
+      );
+      writeOutputAsset(
+        outDir,
+        '/docs/assets/site-debug-console.css',
+        '.site-debug-console{display:block;}',
+      );
+      writeOutputAsset(
+        outDir,
+        '/docs/assets/SiteDebugConsoleDocs.js',
+        'export const SiteDebugConsoleDocs = "docs";',
+      );
+    }
+
+    const firstResult = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: {
+            dir: reportCacheDir,
+            strategy: 'exact',
+          },
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies: {
+        analyzeTarget,
+        resolveCapabilities: async () => ({
+          ok: true as const,
+          providers: {
+            doubao: {
+              available: true,
+              detail: 'Available in test',
+              model: 'doubao-test-model',
+              provider: 'doubao' as const,
+            },
+          },
+        }),
+      },
+      outDir: firstOutDir,
+      pageMetafiles,
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    const secondResult = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: {
+            dir: reportCacheDir,
+            strategy: 'exact',
+          },
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies: {
+        analyzeTarget: vi.fn(async () => {
+          throw new Error(
+            'exact cache should be reused after hash normalization',
+          );
+        }),
+        resolveCapabilities: async () => ({
+          ok: true as const,
+          providers: {
+            doubao: {
+              available: false,
+              detail: 'Provider should not be needed when exact cache hits',
+              provider: 'doubao' as const,
+            },
+          },
+        }),
+      },
+      outDir: secondOutDir,
+      pageMetafiles: {
+        '/guide/site-debug-console':
+          createSpaSyncOnlyPageMetafileWithPageClientChunk(
+            secondPageClientChunkFile,
+          ),
+      },
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    expect(firstResult.generatedReportCount).toBe(1);
+    expect(firstResult.reusedReportCount).toBe(0);
+    expect(secondResult.generatedReportCount).toBe(0);
+    expect(secondResult.reusedReportCount).toBe(1);
+    expect(analyzeTarget).toHaveBeenCalledTimes(1);
+    expect(
+      mockLoggerInfo.mock.calls.some(
+        ([message]) =>
+          typeof message === 'string' &&
+          message.includes(
+            'Exact build-time AI report cache miss for /guide/site-debug-console',
+          ),
+      ),
+    ).toBe(false);
+  });
+
+  it('reuses exact cache across rebuilds for rewritten root pages without explicit page client chunk metadata', async () => {
+    const reportCacheDir = createTempDirectory('site-debug-ai-cache-');
+    const firstOutDir = createTempDirectory();
+    const secondOutDir = createTempDirectory();
+    const vitepressCacheDir = createTempDirectory('vitepress-cache-');
+    const firstPageClientChunkFile =
+      '/docs/assets/core-concepts.md.AAAA1111.js';
+    const secondPageClientChunkFile =
+      '/docs/assets/core-concepts.md.BBBB2222.js';
+    const pageMetafiles = {
+      '/core-concepts': createSpaSyncOnlyRootPageMetafile(),
+    } satisfies Record<string, PageMetafile>;
+    const analyzeTarget = vi.fn(async ({ provider, target }) => ({
+      detail: `Generated in test for ${provider}`,
+      model: 'doubao-test-model',
+      result: `analysis:${target.displayPath}`,
+    }));
+
+    writeOutputAsset(
+      firstOutDir,
+      firstPageClientChunkFile,
+      'export const coreConceptsPage = "static-page-client-chunk";',
+    );
+    writeOutputAsset(
+      firstOutDir,
+      '/docs/assets/unified-loader.js',
+      'export const loader = "loader";',
+    );
+    writeOutputAsset(
+      firstOutDir,
+      '/docs/assets/site-debug-console.css',
+      '.site-debug-console{display:block;}',
+    );
+    writeOutputAsset(
+      firstOutDir,
+      '/docs/assets/SiteDebugConsoleDocs.js',
+      'export const SiteDebugConsoleDocs = "docs";',
+    );
+
+    const firstResult = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: {
+            dir: reportCacheDir,
+            strategy: 'exact',
+          },
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies: {
+        analyzeTarget,
+        resolveCapabilities: async () => ({
+          ok: true as const,
+          providers: {
+            doubao: {
+              available: true,
+              detail: 'Available in test',
+              model: 'doubao-test-model',
+              provider: 'doubao' as const,
+            },
+          },
+        }),
+      },
+      outDir: firstOutDir,
+      pageMetafiles,
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    writeOutputAsset(
+      secondOutDir,
+      firstPageClientChunkFile,
+      'export const staleCoreConceptsPage = "stale-page-client-chunk";',
+    );
+    writeOutputAsset(
+      secondOutDir,
+      secondPageClientChunkFile,
+      'export const coreConceptsPage = "static-page-client-chunk";',
+    );
+    fs.utimesSync(
+      path.join(secondOutDir, 'assets/core-concepts.md.AAAA1111.js'),
+      new Date('2026-04-05T08:00:00.000Z'),
+      new Date('2026-04-05T08:00:00.000Z'),
+    );
+    fs.utimesSync(
+      path.join(secondOutDir, 'assets/core-concepts.md.BBBB2222.js'),
+      new Date('2026-04-05T09:00:00.000Z'),
+      new Date('2026-04-05T09:00:00.000Z'),
+    );
+    writeOutputAsset(
+      secondOutDir,
+      '/docs/assets/unified-loader.js',
+      'export const loader = "loader";',
+    );
+    writeOutputAsset(
+      secondOutDir,
+      '/docs/assets/site-debug-console.css',
+      '.site-debug-console{display:block;}',
+    );
+    writeOutputAsset(
+      secondOutDir,
+      '/docs/assets/SiteDebugConsoleDocs.js',
+      'export const SiteDebugConsoleDocs = "docs";',
+    );
+
+    const secondResult = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: {
+            dir: reportCacheDir,
+            strategy: 'exact',
+          },
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          ],
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+            model: 'doubao-test-model',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies: {
+        analyzeTarget: vi.fn(async () => {
+          throw new Error(
+            'exact cache should be reused for rewritten root pages after rebuild',
+          );
+        }),
+        resolveCapabilities: async () => ({
+          ok: true as const,
+          providers: {
+            doubao: {
+              available: false,
+              detail: 'Provider should not be needed when exact cache hits',
+              provider: 'doubao' as const,
+            },
+          },
+        }),
+      },
+      outDir: secondOutDir,
+      pageContexts: {
+        '/core-concepts': {
+          filePath: '/repo/docs/en/core-concepts.md',
+          routePath: '/core-concepts',
+        },
+      },
+      pageMetafiles: {
+        '/core-concepts': createSpaSyncOnlyRootPageMetafile(),
+      },
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    expect(firstResult.generatedReportCount).toBe(1);
+    expect(firstResult.reusedReportCount).toBe(0);
+    expect(secondResult.generatedReportCount).toBe(0);
+    expect(secondResult.reusedReportCount).toBe(1);
+    expect(analyzeTarget).toHaveBeenCalledTimes(1);
   });
 
   it('reuses cached reports in fallback mode even when the cache key changes', async () => {
@@ -1643,11 +2671,6 @@ describe('generateSiteDebugAiBuildReports', () => {
       resolveCapabilities: async () => ({
         ok: true as const,
         providers: {
-          'claude-code': {
-            available: false,
-            detail: 'Unavailable in test',
-            provider: 'claude-code' as const,
-          },
           doubao: {
             available: true,
             detail: 'Available in test',
@@ -1676,7 +2699,6 @@ describe('generateSiteDebugAiBuildReports', () => {
             dir: reportCacheDir,
             strategy: 'fallback',
           },
-          groupBy: 'page',
           includeChunks: true,
           models: [
             {
@@ -1709,7 +2731,6 @@ describe('generateSiteDebugAiBuildReports', () => {
             dir: reportCacheDir,
             strategy: 'fallback',
           },
-          groupBy: 'page',
           includeChunks: true,
           models: [
             {
@@ -1747,6 +2768,18 @@ describe('generateSiteDebugAiBuildReports', () => {
     expect(secondResult.providers).toEqual(['doubao']);
     expect(secondResult.reusedReportCount).toBe(1);
     expect(
+      mockLoggerInfo.mock.calls.some(
+        ([message]) =>
+          typeof message === 'string' &&
+          message.includes(
+            'Fallback build-time AI report cache reuse for /guide/getting-started',
+          ) &&
+          message.includes(
+            'provider snapshot changed (temperature: 0.2 -> 0.7)',
+          ),
+      ),
+    ).toBe(true);
+    expect(
       secondPageMetafiles['/guide/getting-started'].buildMetrics?.components[0]
         .aiReports?.chunkReports?.['/docs/assets/chunks/demo-card.js']?.[0]
         ?.reportFile,
@@ -1767,11 +2800,6 @@ describe('generateSiteDebugAiBuildReports', () => {
       resolveCapabilities: async () => ({
         ok: true as const,
         providers: {
-          'claude-code': {
-            available: false,
-            detail: 'Unavailable in test',
-            provider: 'claude-code' as const,
-          },
           doubao: {
             available: true,
             detail: 'Available in test',
@@ -1796,7 +2824,6 @@ describe('generateSiteDebugAiBuildReports', () => {
     await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
-          groupBy: 'page',
           models: [
             {
               model: 'doubao-test-model',
@@ -1822,7 +2849,6 @@ describe('generateSiteDebugAiBuildReports', () => {
     const defaultCacheResult = await generateSiteDebugAiBuildReports({
       aiConfig: {
         buildReports: {
-          groupBy: 'page',
           models: [
             {
               model: 'doubao-test-model',

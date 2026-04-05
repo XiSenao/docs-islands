@@ -4,7 +4,12 @@ title = "docs-islands gitleaks config"
 useDefault = true
 
 [allowlist]
-description = "Ignore committed site debug reports"
+description = "Ignore non-secret cacheKey fields in generated debug reports"
+regexes = [
+  '''"cacheKey"\s*:\s*"[\w.=-]{10,150}"'''
+]
 paths = [
   '''(?:^|/)packages/vitepress/docs/\.vitepress/site-debug-reports(?:/.*)?$''',
 ]
+
+

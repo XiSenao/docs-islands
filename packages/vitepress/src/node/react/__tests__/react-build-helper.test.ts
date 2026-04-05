@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { PAGE_METAFILE_META_NAMES } from '../../../shared/constants';
-import { createPageMetafileReferenceTags } from '../react-build-helper';
+import { createPathResolver } from '../../plugins/vite-plugin-vitepress-path-resolver';
+import {
+  createPageMetafileReferenceTags,
+  resolveSiteDebugBuildReportPageContext,
+} from '../react-build-helper';
 
 describe('react-build-helper page metafile references', () => {
   it('creates a preload tag plus page metafile meta tags', () => {
@@ -26,5 +30,38 @@ describe('react-build-helper page metafile references', () => {
       '<link rel="preload" href="/docs/assets/page-metafiles/manifest.aaaaaaaa.json" as="fetch" type="application/json" crossorigin data-docs-islands-page-metafile-preload="index">',
       `<meta name="${PAGE_METAFILE_META_NAMES.index}" content="/docs/assets/page-metafiles/manifest.aaaaaaaa.json">`,
     ]);
+  });
+
+  it('resolves rewritten root routes back to their source markdown files', () => {
+    const pathResolver = createPathResolver({
+      srcDir: 'packages/vitepress/docs',
+      site: {
+        base: '/docs-islands/vitepress/',
+        cleanUrls: true,
+      },
+      pages: ['en/core-concepts.md', 'zh/core-concepts.md'],
+      rewrites: {
+        inv: {
+          'core-concepts.md': 'en/core-concepts.md',
+        },
+        map: {
+          'en/core-concepts.md': 'core-concepts.md',
+        },
+      },
+    } as any);
+
+    expect(
+      resolveSiteDebugBuildReportPageContext({
+        cleanUrls: true,
+        pageId: '/core-concepts',
+        pathResolver,
+        srcDir: 'packages/vitepress/docs',
+      }),
+    ).toEqual({
+      filePath: expect.stringMatching(
+        /packages\/vitepress\/docs\/en\/core-concepts\.md$/,
+      ),
+      routePath: '/core-concepts',
+    });
   });
 });

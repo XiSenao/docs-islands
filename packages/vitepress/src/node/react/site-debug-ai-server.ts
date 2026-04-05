@@ -1,6 +1,5 @@
 import type { SiteDebugAnalysisUserConfig } from '#dep-types/utils';
 import Logger, { formatErrorMessage } from '@docs-islands/utils/logger';
-import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
@@ -17,8 +16,6 @@ import {
 
 const DEFAULT_DOUBAO_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
 const REQUEST_BODY_LIMIT_BYTES = 1024 * 1024;
-const CLAUDE_PROBE_CACHE_TTL_MS = 30_000;
-const CLAUDE_PROBE_TIMEOUT_MS = 4000;
 const DEFAULT_ANALYSIS_TIMEOUT_MS = Number.POSITIVE_INFINITY;
 const SiteDebugAiLogger = new Logger(
   '@docs-islands/vitepress',
@@ -68,18 +65,10 @@ class SiteDebugAiExecutionError extends Error {
   }
 }
 
-interface ClaudeProbeCacheEntry {
-  capability: SiteDebugAiProviderCapability;
-  command: string;
-  expiresAt: number;
-}
-
 interface JsonRequestError {
   message: string;
   statusCode: number;
 }
-
-let claudeProbeCache: ClaudeProbeCacheEntry | null = null;
 
 const createJsonError = (
   statusCode: number,
@@ -142,9 +131,6 @@ const readJsonBody = async <T>(
     });
   });
 
-const getClaudeProviderConfig = (config: SiteDebugAiConfig) =>
-  config?.providers?.claudeCode;
-
 const getDoubaoProviderConfig = (config: SiteDebugAiConfig) =>
   config?.providers?.doubao;
 
@@ -177,13 +163,6 @@ const normalizeTemperature = (value: number | undefined) =>
   value <= 2
     ? value
     : undefined;
-
-const getClaudeCommand = (config: SiteDebugAiConfig) =>
-  getClaudeProviderConfig(config)?.command?.trim() || 'claude';
-
-const getClaudeTimeoutMs = (config: SiteDebugAiConfig) =>
-  normalizeTimeoutMs(getClaudeProviderConfig(config)?.timeoutMs) ??
-  DEFAULT_ANALYSIS_TIMEOUT_MS;
 
 const resolveDoubaoBaseUrl = (config: SiteDebugAiConfig) =>
   (
@@ -414,114 +393,6 @@ const resolveTextContent = (value: unknown): string => {
   return '';
 };
 
-const probeClaudeCode = async (
-  config: SiteDebugAiConfig,
-): Promise<SiteDebugAiProviderCapability> => {
-  const providerConfig = getClaudeProviderConfig(config);
-
-  if (!providerConfig) {
-    return {
-      available: false,
-      detail:
-        'Configure siteDebug.analysis.providers.claudeCode to use Claude Code analysis.',
-      provider: 'claude-code',
-    };
-  }
-
-  const command = getClaudeCommand(config);
-  const now = Date.now();
-
-  if (
-    claudeProbeCache &&
-    claudeProbeCache.command === command &&
-    claudeProbeCache.expiresAt > now
-  ) {
-    return claudeProbeCache.capability;
-  }
-
-  const capability = await new Promise<SiteDebugAiProviderCapability>(
-    (resolve) => {
-      const child = spawn(command, ['--version'], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-      const stdoutChunks: Buffer[] = [];
-      const stderrChunks: Buffer[] = [];
-      let resolved = false;
-
-      const finish = (nextCapability: SiteDebugAiProviderCapability) => {
-        if (resolved) {
-          return;
-        }
-
-        resolved = true;
-        resolve(nextCapability);
-      };
-
-      const timeout = setTimeout(() => {
-        child.kill('SIGTERM');
-        finish({
-          available: false,
-          detail: `Timed out while probing "${command} --version".`,
-          provider: 'claude-code',
-        });
-      }, CLAUDE_PROBE_TIMEOUT_MS);
-
-      child.stdout.on('data', (chunk: Buffer | string) => {
-        stdoutChunks.push(
-          Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)),
-        );
-      });
-      child.stderr.on('data', (chunk: Buffer | string) => {
-        stderrChunks.push(
-          Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)),
-        );
-      });
-
-      child.on('error', (error) => {
-        clearTimeout(timeout);
-        finish({
-          available: false,
-          detail: error.message || `Unable to start "${command}".`,
-          provider: 'claude-code',
-        });
-      });
-
-      child.on('close', (code) => {
-        clearTimeout(timeout);
-        const stdout = Buffer.concat(stdoutChunks).toString('utf8').trim();
-        const stderr = Buffer.concat(stderrChunks).toString('utf8').trim();
-
-        if (code === 0) {
-          finish({
-            available: true,
-            detail: stdout || `Using "${command}" in headless mode.`,
-            model: stdout || undefined,
-            provider: 'claude-code',
-          });
-          return;
-        }
-
-        finish({
-          available: false,
-          detail:
-            stderr ||
-            stdout ||
-            `The "${command}" CLI is not available for site-debug AI analysis.`,
-          provider: 'claude-code',
-        });
-      });
-    },
-  );
-
-  claudeProbeCache = {
-    capability,
-    command,
-    expiresAt: now + CLAUDE_PROBE_CACHE_TTL_MS,
-  };
-
-  return capability;
-};
-
 const getDoubaoCapability = (
   config: SiteDebugAiConfig,
 ): SiteDebugAiProviderCapability => {
@@ -568,177 +439,10 @@ export const resolveSiteDebugAiCapabilities = async (
   return {
     ok: true,
     providers: {
-      'claude-code': await probeClaudeCode(config),
       doubao: getDoubaoCapability(config),
     },
   };
 };
-
-const runClaudeCodeAnalysis = async (
-  prompt: string,
-  config: SiteDebugAiConfig,
-  target: SiteDebugAiAnalysisTarget,
-): Promise<SiteDebugAiExecutionResult> =>
-  new Promise((resolve, reject) => {
-    const command = getClaudeCommand(config);
-    const timeoutMs = getClaudeTimeoutMs(config);
-    const trace = createRequestTrace({
-      model: command,
-      prompt,
-      provider: 'claude-code',
-      target,
-      timeoutMs,
-    });
-    const startedAt = Date.now();
-    logAiRequestStarted(trace);
-    const child = spawn(
-      command,
-      [
-        '-p',
-        prompt,
-        '--output-format',
-        'json',
-        '--allowedTools',
-        'Read,Grep,Glob',
-        '--permission-mode',
-        'plan',
-        '--cwd',
-        process.cwd(),
-      ],
-      {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    );
-    const stdoutChunks: Buffer[] = [];
-    const stderrChunks: Buffer[] = [];
-    let completed = false;
-
-    const fail = (error: Error) => {
-      if (completed) {
-        return;
-      }
-
-      completed = true;
-      logAiRequestFailed({
-        elapsedMs: Date.now() - startedAt,
-        error,
-        trace,
-      });
-      reject(error);
-    };
-
-    const finish = (payload: {
-      detail?: string;
-      model?: string;
-      result: string;
-    }) => {
-      if (completed) {
-        return;
-      }
-
-      completed = true;
-      logAiRequestSucceeded({
-        elapsedMs: Date.now() - startedAt,
-        result: payload.result,
-        trace,
-      });
-      resolve(payload);
-    };
-
-    const timeout = Number.isFinite(timeoutMs)
-      ? setTimeout(() => {
-          child.kill('SIGTERM');
-          fail(createTimeoutExecutionError({ trace }));
-        }, timeoutMs)
-      : null;
-
-    child.stdout.on('data', (chunk: Buffer | string) => {
-      stdoutChunks.push(
-        Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)),
-      );
-    });
-    child.stderr.on('data', (chunk: Buffer | string) => {
-      stderrChunks.push(
-        Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)),
-      );
-    });
-
-    child.on('error', (error) => {
-      if (timeout) {
-        clearTimeout(timeout);
-      }
-      reject(
-        createExecutionFailure({
-          detail: formatRequestTraceDetail(trace),
-          message: error.message || 'Failed to launch Claude Code.',
-          statusCode: 500,
-        }),
-      );
-    });
-
-    child.on('close', (code) => {
-      if (timeout) {
-        clearTimeout(timeout);
-      }
-      const stdout = Buffer.concat(stdoutChunks).toString('utf8').trim();
-      const stderr = Buffer.concat(stderrChunks).toString('utf8').trim();
-
-      if (code !== 0) {
-        reject(
-          createExecutionFailure({
-            detail: formatRequestTraceDetail(trace),
-            message: stderr || stdout || 'Claude Code analysis failed.',
-            statusCode: 500,
-          }),
-        );
-        return;
-      }
-
-      try {
-        const payload = JSON.parse(stdout) as {
-          result?: string;
-          subtype?: string;
-          total_cost_usd?: number;
-        };
-        const result = payload.result?.trim();
-
-        if (!result) {
-          reject(
-            createExecutionFailure({
-              detail: formatRequestTraceDetail(trace),
-              message: 'Claude Code returned an empty analysis result.',
-              statusCode: 502,
-            }),
-          );
-          return;
-        }
-
-        finish({
-          detail:
-            typeof payload.total_cost_usd === 'number'
-              ? `Cost $${payload.total_cost_usd.toFixed(4)}`
-              : payload.subtype,
-          result,
-        });
-      } catch {
-        if (!stdout) {
-          reject(
-            createExecutionFailure({
-              detail: formatRequestTraceDetail(trace),
-              message: stderr || 'Claude Code returned invalid JSON output.',
-              statusCode: 502,
-            }),
-          );
-          return;
-        }
-
-        finish({
-          detail: 'Claude Code returned plain-text output.',
-          result: stdout,
-        });
-      }
-    });
-  });
 
 const runDoubaoAnalysis = async (
   prompt: string,
@@ -889,20 +593,6 @@ const runDoubaoAnalysis = async (
   }
 };
 
-const resolveAnalysisHandler = (provider: SiteDebugAiProvider) => {
-  switch (provider) {
-    case 'claude-code': {
-      return runClaudeCodeAnalysis;
-    }
-    case 'doubao': {
-      return runDoubaoAnalysis;
-    }
-    default: {
-      return null;
-    }
-  }
-};
-
 export const analyzeSiteDebugAiTarget = async ({
   config,
   provider,
@@ -912,12 +602,6 @@ export const analyzeSiteDebugAiTarget = async ({
   provider: SiteDebugAiProvider;
   target: SiteDebugAiAnalysisTarget;
 }): Promise<SiteDebugAiExecutionResult> => {
-  const handler = resolveAnalysisHandler(provider);
-
-  if (!handler) {
-    throw new Error(`Unsupported provider: ${provider}`);
-  }
-
   const capabilityResponse = await resolveSiteDebugAiCapabilities(config);
   const capability = capabilityResponse.providers[provider];
 
@@ -931,7 +615,11 @@ export const analyzeSiteDebugAiTarget = async ({
     });
   }
 
-  return handler(buildSiteDebugAiAnalysisPrompt(target), config, target);
+  return runDoubaoAnalysis(
+    buildSiteDebugAiAnalysisPrompt(target),
+    config,
+    target,
+  );
 };
 
 export const handleSiteDebugAiRequest = async (

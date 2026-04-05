@@ -11,7 +11,10 @@ import type {
   SpaSyncComponentSideEffectMetric,
 } from '#dep-types/page';
 import type { RenderDirective } from '#dep-types/render';
-import type { ConfigType } from '#dep-types/utils';
+import type {
+  ConfigType,
+  SiteDebugAiBuildReportsPageContext,
+} from '#dep-types/utils';
 import {
   ALLOWED_RENDER_DIRECTIVES,
   PAGE_METAFILE_META_NAMES,
@@ -226,6 +229,101 @@ export const createPageMetafileReferenceTags = ({
   }
 
   return referenceTags;
+};
+
+export const resolveSiteDebugBuildReportPageContext = ({
+  cleanUrls,
+  pageId,
+  pathResolver,
+  srcDir,
+}: {
+  cleanUrls: boolean;
+  pageId: string;
+  pathResolver?: VitePressPathResolver | null;
+  srcDir: string;
+}): SiteDebugAiBuildReportsPageContext => {
+  const fallbackPagePath = getPagePathByPathname(pageId, cleanUrls).replace(
+    /^\/+/,
+    '',
+  );
+  let filePath = normalizePath(join(srcDir, fallbackPagePath));
+
+  if (pathResolver) {
+    try {
+      filePath = normalizePath(pathResolver.urlToMarkdownPath(pageId));
+    } catch {
+      // Fall back to the route-derived page path when rewrites are unavailable.
+    }
+  }
+
+  return {
+    filePath,
+    routePath: pageId,
+  };
+};
+
+const writeSpaSyncRenderedPageClientChunks = ({
+  clientRuntimeFileName,
+  markdownModuleIdToSpaSyncRenderMap,
+  outDir,
+}: {
+  clientRuntimeFileName: string;
+  markdownModuleIdToSpaSyncRenderMap: ReturnType<
+    ReactRenderController['getMarkdownModuleIdToSpaSyncRenderMap']
+  >;
+  outDir: string;
+}) => {
+  if (markdownModuleIdToSpaSyncRenderMap.size === 0) {
+    return;
+  }
+
+  for (const [
+    markdownModuleId,
+    spaSyncRender,
+  ] of markdownModuleIdToSpaSyncRenderMap.entries()) {
+    const { outputPath, code, renderIdToSpaSyncRenderMap } = spaSyncRender;
+    const { code: transformedCode, stats } = transformReactSSRIntegrationCode(
+      code,
+      (props: ExtractedProps) => {
+        const renderId =
+          props[RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()];
+        if (
+          typeof renderId === 'string' &&
+          renderIdToSpaSyncRenderMap.has(renderId)
+        ) {
+          const { ssrHtml, ssrCssBundlePaths } =
+            renderIdToSpaSyncRenderMap.get(renderId)!;
+          return {
+            clientRuntimeFileName,
+            ssrCssBundlePaths,
+            ssrHtml,
+          };
+        }
+        return {
+          clientRuntimeFileName,
+          ssrCssBundlePaths: new Set(),
+          ssrHtml: '',
+        };
+      },
+    );
+
+    if (stats.totalTransformations > 0) {
+      loggerInstance.getLoggerByGroup('react-ssr-integration-processor')
+        .success(`
+            Complete ${stats.totalTransformations} pre-rendering injections for page ${markdownModuleId}
+
+            ${stats.transformedNodes.map((node) => `- Line ${node.line}, Column ${node.column}`).join('\n')}
+          `);
+      fs.writeFileSync(join(outDir, outputPath), transformedCode);
+      continue;
+    }
+
+    loggerInstance
+      .getLoggerByGroup('react-ssr-integration-processor')
+      .info(
+        `No transformations performed, preserve original code for ${markdownModuleId}.`,
+      );
+  }
 };
 
 const collectHtmlFilePaths = (directoryPath: string): string[] => {
@@ -628,15 +726,25 @@ export function registerBuildHelper(
       renderController.getTransformedPageMetafile(cleanUrls);
     const markdownModuleIdToSpaSyncRenderMap =
       renderController.getMarkdownModuleIdToSpaSyncRenderMap();
+    const pageContexts: Record<string, SiteDebugAiBuildReportsPageContext> =
+      Object.fromEntries(
+        Object.keys(transformedPageMetafileMap).map((pageId) => {
+          return [
+            pageId,
+            resolveSiteDebugBuildReportPageContext({
+              cleanUrls,
+              pageId,
+              pathResolver: inlinePathResolver,
+              srcDir,
+            }),
+          ];
+        }),
+      );
     const pageIdByNormalizedMarkdownModuleId = new Map<string, string>(
-      Object.keys(transformedPageMetafileMap).map((pageId) => {
-        const pagePath = getPagePathByPathname(pageId, cleanUrls).replace(
-          /^\/+/,
-          '',
-        );
-
-        return [normalizePath(join(srcDir, pagePath)), pageId];
-      }),
+      Object.entries(pageContexts).map(([pageId, pageContext]) => [
+        pageContext.filePath,
+        pageId,
+      ]),
     );
 
     if (markdownModuleIdToSpaSyncRenderMap.size > 0) {
@@ -665,12 +773,19 @@ export function registerBuildHelper(
       }
     }
 
+    writeSpaSyncRenderedPageClientChunks({
+      clientRuntimeFileName: fileName,
+      markdownModuleIdToSpaSyncRenderMap,
+      outDir,
+    });
+
     if (Object.keys(transformedPageMetafileMap).length > 0) {
       await generateSiteDebugAiBuildReports({
         aiConfig: siteDebug.analysis,
         assetsDir,
         cacheDir,
         outDir,
+        pageContexts,
         pageMetafiles: transformedPageMetafileMap,
         root,
         wrapBaseUrl,
@@ -713,52 +828,6 @@ export function registerBuildHelper(
         ),
         indexPublicPath: pageMetafileArtifacts.manifest.publicPath,
       };
-    }
-
-    if (markdownModuleIdToSpaSyncRenderMap.size > 0) {
-      for (const [
-        markdownModuleId,
-        spaSyncRender,
-      ] of markdownModuleIdToSpaSyncRenderMap.entries()) {
-        const { outputPath, code, renderIdToSpaSyncRenderMap } = spaSyncRender;
-        const { code: transformedCode, stats } =
-          transformReactSSRIntegrationCode(code, (props: ExtractedProps) => {
-            const renderId =
-              props[RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()];
-            if (
-              typeof renderId === 'string' &&
-              renderIdToSpaSyncRenderMap.has(renderId)
-            ) {
-              const { ssrHtml, ssrCssBundlePaths } =
-                renderIdToSpaSyncRenderMap.get(renderId)!;
-              return {
-                ssrHtml,
-                ssrCssBundlePaths,
-                clientRuntimeFileName: fileName,
-              };
-            }
-            return {
-              ssrHtml: '',
-              ssrCssBundlePaths: new Set(),
-              clientRuntimeFileName: fileName,
-            };
-          });
-        if (stats.totalTransformations > 0) {
-          loggerInstance.getLoggerByGroup('react-ssr-integration-processor')
-            .success(`
-            Complete ${stats.totalTransformations} pre-rendering injections for page ${markdownModuleId}
-
-            ${stats.transformedNodes.map((node) => `- Line ${node.line}, Column ${node.column}`).join('\n')}
-          `);
-          fs.writeFileSync(join(outDir, outputPath), transformedCode);
-        } else {
-          loggerInstance
-            .getLoggerByGroup('react-ssr-integration-processor')
-            .info(
-              `No transformations performed, preserve original code for ${markdownModuleId}.`,
-            );
-        }
-      }
     }
 
     if (pageMetafileReferences) {

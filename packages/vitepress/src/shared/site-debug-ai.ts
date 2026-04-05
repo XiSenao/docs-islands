@@ -20,7 +20,7 @@ import type {
   SiteDebugAiPromptValueItem,
 } from './site-debug-ai-prompt-snapshot';
 
-export type SiteDebugAiProvider = 'claude-code' | 'doubao';
+export type SiteDebugAiProvider = 'doubao';
 export type SiteDebugAiArtifactKind = 'bundle-chunk' | 'bundle-module';
 export type SiteDebugAiAnalysisTargetKind =
   | SiteDebugAiArtifactKind
@@ -896,9 +896,6 @@ export const getSiteDebugAiProviderLabel = (
   provider: SiteDebugAiProvider,
 ): string => {
   switch (provider) {
-    case 'claude-code': {
-      return 'Claude Code';
-    }
     case 'doubao': {
       return 'Doubao';
     }

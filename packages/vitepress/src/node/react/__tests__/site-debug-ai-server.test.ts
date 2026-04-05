@@ -55,10 +55,6 @@ describe('resolveSiteDebugAiCapabilities', () => {
   it('marks providers unavailable until they are configured', async () => {
     const capabilities = await resolveSiteDebugAiCapabilities();
 
-    expect(capabilities.providers['claude-code'].available).toBe(false);
-    expect(capabilities.providers['claude-code'].detail).toContain(
-      'analysis.providers.claudeCode',
-    );
     expect(capabilities.providers.doubao.available).toBe(false);
     expect(capabilities.providers.doubao.detail).toContain(
       'analysis.providers.doubao',
@@ -78,7 +74,6 @@ describe('resolveSiteDebugAiCapabilities', () => {
 
     expect(capabilities.providers.doubao.available).toBe(true);
     expect(capabilities.providers.doubao.model).toBe('doubao-seed-1-6');
-    expect(capabilities.providers['claude-code'].available).toBe(false);
   });
 
   it('passes Doubao thinking, temperature and max tokens to chat completions', async () => {

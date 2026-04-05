@@ -75,20 +75,29 @@ const normalizeBuildReportCache = (
 const normalizeBuildReportsConfig = (
   buildReports: SiteDebugBuildReportsInput,
   root: string,
-) =>
-  buildReports
+) => {
+  const normalizedModels = buildReports
+    ? normalizeBuildReportModels(buildReports)
+    : undefined;
+
+  return buildReports
     ? ({
         cache: normalizeBuildReportCache(buildReports.cache, root),
-        groupBy: buildReports.groupBy ?? 'page',
         includeChunks: buildReports.includeChunks ?? false,
         includeModules: buildReports.includeModules ?? false,
-        ...(normalizeBuildReportModels(buildReports)
+        ...(typeof buildReports.resolvePage === 'function'
           ? {
-              models: normalizeBuildReportModels(buildReports),
+              resolvePage: buildReports.resolvePage,
+            }
+          : {}),
+        ...(normalizedModels
+          ? {
+              models: normalizedModels,
             }
           : {}),
       } satisfies NonNullable<SiteDebugAnalysisUserConfig['buildReports']>)
     : undefined;
+};
 
 const normalizeSiteDebugAnalysisConfig = (
   siteDebug: SiteDebugUserConfig | undefined,
