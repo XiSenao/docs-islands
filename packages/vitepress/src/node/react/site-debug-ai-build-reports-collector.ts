@@ -45,6 +45,8 @@ interface CollectBuildReportReferencesOptions<
   }) => SiteDebugAiAnalysisTarget;
   createPageAnalysisTarget: (options: {
     assetsDir: string;
+    includeChunks: boolean;
+    includeModules: boolean;
     outDir: string;
     pageId: string;
     pageMetafile: PageMetafile;
@@ -119,6 +121,8 @@ const collectPageGroupedReportReferences = async <
   executions,
   getOrCreateReportReference,
   groupBy,
+  includeChunks,
+  includeModules,
   logger,
   outDir,
   pageId,
@@ -127,6 +131,8 @@ const collectPageGroupedReportReferences = async <
   assetsDir: string;
   createPageAnalysisTarget: (options: {
     assetsDir: string;
+    includeChunks: boolean;
+    includeModules: boolean;
     outDir: string;
     pageId: string;
     pageMetafile: PageMetafile;
@@ -138,6 +144,8 @@ const collectPageGroupedReportReferences = async <
     target: SiteDebugAiAnalysisTarget;
   }) => Promise<SiteDebugAiBuildReportReference | null>;
   groupBy: BuildReportGroupBy;
+  includeChunks: boolean;
+  includeModules: boolean;
   logger: {
     warn: (message: string) => void;
   };
@@ -157,6 +165,8 @@ const collectPageGroupedReportReferences = async <
           execution,
           target: createPageAnalysisTarget({
             assetsDir,
+            includeChunks,
+            includeModules,
             outDir,
             pageId,
             pageMetafile,
@@ -536,10 +546,17 @@ export const aggregatePageModules = (
 export const getPageSupportedComponentCount = (
   pageMetafile: PageMetafile,
 ): number =>
-  Math.max(
-    pageMetafile.buildMetrics?.components.length ?? 0,
-    pageMetafile.buildMetrics?.spaSyncEffects?.enabledComponentCount ?? 0,
-  );
+  new Set([
+    ...(pageMetafile.buildMetrics?.components ?? []).map(
+      (component) => component.componentName,
+    ),
+    ...(pageMetafile.buildMetrics?.renderInstances ?? []).map(
+      (renderInstance) => renderInstance.componentName,
+    ),
+    ...(pageMetafile.buildMetrics?.spaSyncEffects?.components ?? []).map(
+      (component) => component.componentName,
+    ),
+  ]).size;
 
 export const hasPageBuildAnalysisSignals = (
   pageMetafile: PageMetafile,
@@ -571,6 +588,8 @@ export const collectBuildReportReferencesForPageMetafiles = async <
         executions,
         getOrCreateReportReference,
         groupBy,
+        includeChunks,
+        includeModules,
         logger,
         outDir,
         pageId,

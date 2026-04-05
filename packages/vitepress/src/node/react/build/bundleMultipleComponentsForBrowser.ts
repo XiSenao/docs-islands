@@ -7,6 +7,7 @@ import type {
   BundleModuleMetric,
   ComponentBuildMetric,
   PageBuildMetrics,
+  PageBuildRenderInstanceMetric,
   RuntimeBundleMetric,
   SpaSyncComponentSideEffectMetric,
 } from '#dep-types/page';
@@ -812,6 +813,65 @@ function createSpaSyncBuildEffects(
   };
 }
 
+function createRenderInstanceMetrics(
+  componentEntries: {
+    componentName: string;
+    componentPath: string;
+  }[],
+  srcDir: string,
+  usedSnippetContainer: Map<string, UsedSnippetContainerType>,
+  outputMetricMap: Map<string, BuildOutputMetric>,
+): PageBuildMetrics['renderInstances'] {
+  const componentSourcePathByName = new Map(
+    componentEntries.map((entry) => [
+      entry.componentName,
+      relative(srcDir, entry.componentPath),
+    ]),
+  );
+  const renderInstances: PageBuildRenderInstanceMetric[] = [];
+
+  for (const [sequenceIndex, [renderId, usedSnippet]] of [
+    ...usedSnippetContainer.entries(),
+  ].entries()) {
+    const blockingCssFiles = sortBundleAssetMetrics(
+      [...(usedSnippet.ssrCssBundlePaths ?? [])]
+        .map((cssFile) => outputMetricMap.get(cssFile))
+        .filter((metric): metric is BuildOutputMetric =>
+          Boolean(metric && metric.type === 'css'),
+        )
+        .map(({ bytes, file, type }) => ({ bytes, file, type })),
+    );
+    const blockingCssBytes = blockingCssFiles.reduce(
+      (sum, metric) => sum + metric.bytes,
+      0,
+    );
+    const effectiveSpaSyncRender =
+      usedSnippet.useSpaSyncRender &&
+      usedSnippet.renderDirective !== 'client:only';
+
+    renderInstances.push({
+      blockingCssBytes,
+      blockingCssCount: blockingCssFiles.length,
+      blockingCssFiles,
+      componentName: usedSnippet.renderComponent,
+      embeddedHtmlBytes: usedSnippet.ssrHtml
+        ? getBundleAssetBytes(usedSnippet.ssrHtml)
+        : 0,
+      renderDirective: usedSnippet.renderDirective,
+      renderId,
+      sequence: sequenceIndex + 1,
+      sourcePath:
+        usedSnippet.sourcePath ||
+        componentSourcePathByName.get(usedSnippet.renderComponent),
+      useSpaSyncRender: effectiveSpaSyncRender,
+      usesCssLoadingRuntime:
+        effectiveSpaSyncRender && Boolean(usedSnippet.ssrCssBundlePaths?.size),
+    });
+  }
+
+  return renderInstances;
+}
+
 function createUnifiedLoaderEntryCode(
   base: string,
   cleanUrls: boolean,
@@ -1420,6 +1480,12 @@ export async function bundleMultipleComponentsForBrowser(
       usedSnippetContainer,
       outputMetricMap,
     );
+    const renderInstances = createRenderInstanceMetrics(
+      componentEntries,
+      srcDir,
+      usedSnippetContainer,
+      outputMetricMap,
+    );
 
     if (ssrInjectCodeSnippet.length > 0) {
       ssrInjectCodeSnippet.push('};');
@@ -1460,6 +1526,7 @@ export async function bundleMultipleComponentsForBrowser(
         components: componentBuildMetrics,
         framework: 'react',
         loader: loaderBuildResult.metric,
+        renderInstances,
         spaSyncEffects,
         ssrInject: ssrInjectMetric,
         totalEstimatedComponentBytes: aggregatedPageFiles.reduce(

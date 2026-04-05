@@ -12,6 +12,11 @@ import type {
   SiteDebugAiChunkResourceItem,
   SiteDebugAiLiveContextItem,
   SiteDebugAiModuleItem,
+  SiteDebugAiPageComponentItem,
+  SiteDebugAiPageGlossaryItem,
+  SiteDebugAiPageRenderOrderItem,
+  SiteDebugAiPageRenderStrategyItem,
+  SiteDebugAiPageSpaSyncComponentItem,
   SiteDebugAiPromptValueItem,
 } from './site-debug-ai-prompt-snapshot';
 
@@ -28,6 +33,12 @@ export interface SiteDebugAiArtifactContext {
   componentName?: string;
   liveContextItems?: SiteDebugAiLiveContextItem[];
   moduleItems?: SiteDebugAiModuleItem[];
+  pageComponentItems?: SiteDebugAiPageComponentItem[];
+  pageGlossaryItems?: SiteDebugAiPageGlossaryItem[];
+  pageRenderOrderItems?: SiteDebugAiPageRenderOrderItem[];
+  pageRenderStrategyItems?: SiteDebugAiPageRenderStrategyItem[];
+  pageSpaSyncComponentItems?: SiteDebugAiPageSpaSyncComponentItem[];
+  pageSpaSyncSummaryItems?: SiteDebugAiPromptValueItem[];
   pageId?: string | null;
   renderId?: string | null;
   renderStatus?: string;
@@ -443,17 +454,18 @@ const getSiteDebugAiArtifactChecklist = (
           '- Suggest module-level follow-ups such as dedupe, tree-shaking, code-splitting, or source-asset cleanup only when the visible evidence points there.',
         ]
       : [
-          '- Summarize the page-level bundle shape using the bundle summary, chunk resources, and module source sections together.',
-          '- Identify which chunks or assets dominate the page and whether the overall distribution looks balanced for this page.',
-          '- Highlight the modules or generated helpers that appear to have the biggest impact on the page build.',
-          '- Suggest page-level follow-ups such as route splitting, shared chunk cleanup, asset compression, or component-level lazy loading only when the snapshot supports them.',
-          '- Call out what cannot be concluded without drilling into a specific chunk or module report.',
+          '- Identify which React components render on the current page, which directives they use, and how those directives change runtime behavior.',
+          '- Use the page bundle summary, top page resources, and top page modules to explain the dominant build costs on this page.',
+          '- Interpret component composition according to the included detail level: component-only, component -> chunks, component -> modules, or component -> chunks -> modules.',
+          '- Explain which render instances enable `spa:sync-render`, what side effects they introduce, and which page artifact receives the embedded HTML payload.',
+          '- Use the render-order section to comment on whether critical components are paying synchronous SPA route-transition costs.',
+          '- Suggest page-level follow-ups only when the page snapshot supports them, and call out what still requires drilling into a chunk or module report.',
         ];
 
 const formatPromptValueItems = (
   items: SiteDebugAiPromptValueItem[] = [],
   options: SiteDebugAiSanitizeOptions = {},
-) =>
+): string[] =>
   items
     .map((item) => {
       const label = formatValue(item.label);
@@ -464,12 +476,12 @@ const formatPromptValueItems = (
 
       return label && displayValue ? `- ${label}: ${displayValue}` : null;
     })
-    .filter(Boolean);
+    .filter((line): line is string => Boolean(line));
 
 const formatChunkResourceItems = (
   items: SiteDebugAiChunkResourceItem[] = [],
   options: SiteDebugAiSanitizeOptions = {},
-) =>
+): string[] =>
   items.map((item, index) => {
     const detailLines = [
       `   path: ${sanitizePromptPathValue(item.file, options)}`,
@@ -489,18 +501,21 @@ const formatChunkResourceItems = (
 const formatModuleItems = (
   items: SiteDebugAiModuleItem[] = [],
   options: SiteDebugAiSanitizeOptions = {},
-) =>
+): string[] =>
   items.map((item, index) => {
-    const statusLabels = [
-      item.statusLabel,
-      item.current ? 'current selection' : null,
-    ].filter(Boolean);
+    const statusLabels = [item.current ? 'current selection' : null].filter(
+      Boolean,
+    );
     const detailLines = [
       `   module id: ${sanitizePromptPathValue(item.id, options)}`,
       `   rendered size: ${item.renderedSize}`,
-      ...(item.share ? [`   share: ${item.share}`] : []),
-      `   source: ${item.sourceInfo}`,
-      ...(item.sizeDelta ? [`   delta: ${item.sizeDelta}`] : []),
+      ...(item.isVirtual
+        ? []
+        : [
+            ...(item.share ? [`   share: ${item.share}`] : []),
+            `   source: ${item.sourceInfo}`,
+            ...(item.sizeDelta ? [`   delta: ${item.sizeDelta}`] : []),
+          ]),
       ...(statusLabels.length > 0
         ? [`   status: ${statusLabels.join(' · ')}`]
         : []),
@@ -511,6 +526,371 @@ const formatModuleItems = (
       ...detailLines,
     ].join('\n');
   });
+
+const DEFAULT_PAGE_GLOSSARY_ITEMS: SiteDebugAiPageGlossaryItem[] = [
+  {
+    label: 'Share',
+    value: 'Rendered-byte share within the current visible list.',
+  },
+  {
+    label: 'Source',
+    value:
+      'Resolved source or source-asset size when the original file is available.',
+  },
+  {
+    label: 'Delta',
+    value: 'Rendered-size change relative to the resolved source size.',
+  },
+];
+
+const DEFAULT_PAGE_RENDER_STRATEGY_ITEMS: SiteDebugAiPageRenderStrategyItem[] =
+  [
+    {
+      description:
+        'Build-time pre-render only. The component keeps SSR HTML, but the component itself does not hydrate on the client.',
+      directive: 'ssr:only',
+      impactItems: [
+        'Usually best for static content, SEO, and avoiding client JavaScript for the component itself.',
+        '`spa:sync-render` is enabled by default unless explicitly disabled.',
+        'No client-side interactivity is restored after navigation.',
+      ],
+    },
+    {
+      description:
+        'Build-time pre-render plus eager client hydration after the page runtime is ready.',
+      directive: 'client:load',
+      impactItems: [
+        'Useful for components that should become interactive immediately.',
+        'Adds early JavaScript execution and hydration cost during page load or SPA navigation.',
+        '`spa:sync-render` is opt-in and can reduce flicker during SPA route transitions at the cost of synchronous work.',
+      ],
+    },
+    {
+      description:
+        'Build-time pre-render plus deferred hydration when the component becomes visible in the viewport.',
+      directive: 'client:visible',
+      impactItems: [
+        'Reduces initial hydration pressure for below-the-fold components.',
+        'Interactivity is delayed until the component becomes visible.',
+        '`spa:sync-render` is opt-in and only affects the pre-rendered HTML insertion path, not the later visibility-triggered hydration.',
+      ],
+    },
+    {
+      description: 'Skip build-time SSR HTML and render only in the browser.',
+      directive: 'client:only',
+      impactItems: [
+        'No SSR HTML means weaker first-render content, SEO, and route-transition stability.',
+        'Useful when the component depends on browser-only APIs or should avoid server rendering.',
+        '`spa:sync-render` is not supported for `client:only` renders.',
+      ],
+    },
+  ];
+
+const indentPromptBlock = (value: string, prefix = '   ') =>
+  value.split('\n').map((line) => `${prefix}${line}`);
+
+const formatDirectiveTokens = (directives: string[]) =>
+  directives.length > 0
+    ? directives.map((directive) => `\`${directive}\``).join(', ')
+    : 'n/a';
+
+const formatPageComponentChunkItems = (
+  items: NonNullable<
+    SiteDebugAiArtifactContext['pageComponentItems']
+  >[number]['chunkItems'] = [],
+  options: SiteDebugAiSanitizeOptions = {},
+) =>
+  items.map((item, index) => {
+    const detailLines = [
+      `   path: ${sanitizePromptPathValue(item.file, options)}`,
+      `   type: ${item.type.toUpperCase()}`,
+      `   size: ${item.size}`,
+      ...(item.share ? [`   share: ${item.share}`] : []),
+      `   source modules: ${item.moduleCount}`,
+    ];
+    const moduleLines =
+      item.modules && item.modules.length > 0
+        ? [
+            '   Chunk Modules:',
+            ...formatModuleItems(item.modules, options).flatMap((line) =>
+              indentPromptBlock(line, '      '),
+            ),
+          ]
+        : [];
+
+    return [
+      `${index + 1}. ${sanitizePromptPathValue(item.label, options)}`,
+      ...detailLines,
+      ...moduleLines,
+    ].join('\n');
+  });
+
+const formatPageComponentItems = (
+  items: SiteDebugAiPageComponentItem[] = [],
+  options: SiteDebugAiSanitizeOptions = {},
+) =>
+  items.map((item, index) => {
+    const summaryLines = formatPromptValueItems(item.summaryItems, options);
+    const detailLines = [
+      ...(item.sourcePath
+        ? [
+            `   source path: ${sanitizePromptPathValue(item.sourcePath, options)}`,
+          ]
+        : []),
+      `   render directives: ${formatDirectiveTokens(item.renderDirectives)}`,
+      ...summaryLines.map((line) => `   ${line.slice(2)}`),
+    ];
+    const chunkLines =
+      item.chunkItems && item.chunkItems.length > 0
+        ? [
+            `   Build Chunks (${item.chunkItems.length} shown):`,
+            ...formatPageComponentChunkItems(item.chunkItems, options).flatMap(
+              (line) => indentPromptBlock(line, '   '),
+            ),
+          ]
+        : [];
+    const moduleLines =
+      item.moduleItems && item.moduleItems.length > 0
+        ? [
+            `   Component Modules (${item.moduleItems.length} shown):`,
+            ...formatModuleItems(item.moduleItems, options).flatMap((line) =>
+              indentPromptBlock(line, '   '),
+            ),
+          ]
+        : [];
+
+    return [
+      `${index + 1}. ${sanitizePromptPathValue(item.componentName, options)}`,
+      ...detailLines,
+      ...chunkLines,
+      ...moduleLines,
+    ].join('\n');
+  });
+
+const formatPageRenderStrategyItems = (
+  items: SiteDebugAiPageRenderStrategyItem[] = [],
+  options: SiteDebugAiSanitizeOptions = {},
+) =>
+  items.map((item, index) =>
+    [
+      `${index + 1}. \`${item.directive}\``,
+      `   description: ${sanitizePromptPathValue(item.description, options)}`,
+      ...(item.impactItems.length > 0
+        ? [
+            '   impacts:',
+            ...item.impactItems.map(
+              (impact) => `   - ${sanitizePromptPathValue(impact, options)}`,
+            ),
+          ]
+        : []),
+    ].join('\n'),
+  );
+
+const formatPageSpaSyncComponentItems = (
+  items: SiteDebugAiPageSpaSyncComponentItem[] = [],
+  options: SiteDebugAiSanitizeOptions = {},
+) =>
+  items.map((item, index) => {
+    const summaryLines = formatPromptValueItems(item.summaryItems, options);
+
+    return [
+      `${index + 1}. ${sanitizePromptPathValue(item.componentName, options)}`,
+      `   render ids: ${item.renderIds.join(', ') || 'n/a'}`,
+      `   render directives: ${formatDirectiveTokens(item.renderDirectives)}`,
+      ...summaryLines.map((line) => `   ${line.slice(2)}`),
+    ].join('\n');
+  });
+
+const formatPageRenderOrderItems = (
+  items: SiteDebugAiPageRenderOrderItem[] = [],
+  options: SiteDebugAiSanitizeOptions = {},
+) =>
+  items.map((item) => {
+    const summaryLines = formatPromptValueItems(item.summaryItems, options);
+
+    return [
+      `${item.sequence}. ${sanitizePromptPathValue(item.componentName, options)}`,
+      `   render id: ${sanitizePromptPathValue(item.renderId, options)}`,
+      ...(item.sourcePath
+        ? [
+            `   source path: ${sanitizePromptPathValue(item.sourcePath, options)}`,
+          ]
+        : []),
+      `   render directive: \`${item.renderDirective}\``,
+      `   spa:sync-render: ${item.useSpaSyncRender ? 'Enabled' : 'Disabled'}`,
+      ...summaryLines.map((line) => `   ${line.slice(2)}`),
+    ].join('\n');
+  });
+
+const buildPageBuildPrompt = (
+  target: SiteDebugAiAnalysisTarget,
+  sanitizeOptions: SiteDebugAiSanitizeOptions = {},
+): string => {
+  const context = target.context ?? {};
+  const pageOverviewLines = formatPromptValueItems(
+    [
+      {
+        label: 'Panel',
+        value: getSiteDebugAiArtifactPanelLabel(target.artifactKind),
+      },
+      {
+        label: 'Title',
+        value: target.artifactLabel,
+      },
+      ...(context.artifactHeaderItems ?? []),
+    ],
+    sanitizeOptions,
+  );
+  const bundleSummaryLines = formatPromptValueItems(
+    context.bundleSummaryItems,
+    sanitizeOptions,
+  );
+  const topResourceLines = formatChunkResourceItems(
+    context.chunkResourceItems,
+    sanitizeOptions,
+  );
+  const topModuleLines = formatModuleItems(
+    context.moduleItems,
+    sanitizeOptions,
+  );
+  const pageGlossaryLines = formatPromptValueItems(
+    context.pageGlossaryItems ?? DEFAULT_PAGE_GLOSSARY_ITEMS,
+    sanitizeOptions,
+  );
+  const pageComponentLines = formatPageComponentItems(
+    context.pageComponentItems,
+    sanitizeOptions,
+  );
+  const currentPageDirectiveSet = new Set([
+    ...(context.pageComponentItems ?? []).flatMap(
+      (item) => item.renderDirectives,
+    ),
+    ...(context.pageRenderOrderItems ?? []).map((item) => item.renderDirective),
+  ]);
+  const pageRenderStrategyLines = formatPageRenderStrategyItems(
+    (
+      context.pageRenderStrategyItems ?? DEFAULT_PAGE_RENDER_STRATEGY_ITEMS
+    ).filter(
+      (item) =>
+        currentPageDirectiveSet.size === 0 ||
+        currentPageDirectiveSet.has(item.directive),
+    ),
+    sanitizeOptions,
+  );
+  const pageSpaSyncSummaryLines = formatPromptValueItems(
+    context.pageSpaSyncSummaryItems,
+    sanitizeOptions,
+  );
+  const pageSpaSyncComponentLines = formatPageSpaSyncComponentItems(
+    context.pageSpaSyncComponentItems,
+    sanitizeOptions,
+  );
+  const pageRenderOrderLines = formatPageRenderOrderItems(
+    context.pageRenderOrderItems,
+    sanitizeOptions,
+  );
+
+  return [
+    '## Task',
+    'Analyze the current docs-islands / VitePress page-build snapshot for this page.',
+    'Prioritize build diagnosis over descriptive inventory. Focus first on dominant page cost drivers, SPA route-transition blocking paths, and the directives that materially change current-page behavior before spending time on secondary components.',
+    'Treat `includeChunks` and `includeModules` as independent switches, and do not invent details that are not shown.',
+    '',
+    'Analysis priorities:',
+    '1. Identify the dominant deduped page-level cost drivers that are visible in the page bundle summary, top page resources, and top page modules.',
+    '2. Identify the main SPA route-transition blocking path from the visible `spa:sync-render` side effects, including blocking CSS, embedded HTML, and render-order implications.',
+    '3. Distinguish which directives materially affect this page now versus which directives are only present in the page inventory.',
+    '4. Use component sections for local composition attribution and notable outliers, not for exhaustive repetition.',
+    '5. Call out what cannot be proven from this snapshot and which additional artifact view would close the gap.',
+    '',
+    'Meta-rules:',
+    '- Scope discipline: Always keep deduped page-level cost, per-component local composition, and `spa:sync-render` transition-side cost separate. Do not sum per-component totals to estimate page cost. A component with `Total: 0 B` or `Bundle Mode: No dedicated client component bundle emitted` can still contribute transition-side cost through `spa:sync-render` embedded HTML or blocking CSS. Page-level runtime or loader cost can appear in the page cost snapshot even when it does not appear in a component-local chunk list.',
+    '- Evidence discipline: Separate observed facts from inferences. Use wording such as `visible in the snapshot`, `suggests`, or `cannot be confirmed from this snapshot` when appropriate. Keep inference confidence proportional to the evidence. Identify shared/runtime overhead only when the snapshot supports it; do not classify something as shared/runtime overhead from naming alone. For render-order implications, describe only ordering effects that are explicitly visible from the listed render order, patch sizes, and blocking CSS data.',
+    '- Diagnosis discipline: Prioritize dominant drivers and blocking paths over exhaustive inventory. Do not restate the full snapshot component-by-component. Focus on the smallest set of components, chunks, modules, and directives that explains most of the page cost, transition blocking, or build interpretation.',
+    '- Directive discipline: Explain only directive effects that materially affect this page now. Prioritize visible effects on deduped page cost, hydration timing, presence or absence of SSR HTML, `spa:sync-render` participation, blocking CSS, and route-transition stability. Do not fall back to generic framework explanations when the snapshot does not show a current-page consequence.',
+    '- Optimization discipline: Order ideas by expected impact and confidence. Prefer a few high-signal opportunities over a long generic list. Tie every idea to visible evidence, name the component, directive, chunk, module, or `spa:sync-render` behavior it targets, and explain the expected tradeoff.',
+    '',
+    '## Output',
+    'Respond in Markdown using these sections:',
+    '- Summary',
+    '- Dominant Page Cost Drivers',
+    '- Rendering Strategy Breakdown',
+    '- Component Composition Highlights',
+    '- spa:sync-render Transition Impact',
+    '- Optimization Opportunities',
+    '- Evidence Gaps / Unknowns',
+    '',
+    'Section guidance:',
+    '- Summary: Lead with the most important diagnosis. State explicitly whether page cost is concentrated in a few dominant resources/modules or spread across many smaller items, and whether SPA transition overhead is concentrated in a few `spa:sync-render` renders or broadly distributed.',
+    '- Dominant Page Cost Drivers: Use the deduped page-level view first. Call out shared/runtime overhead versus component-specific payload when the snapshot supports that distinction.',
+    '- Rendering Strategy Breakdown: Explain which directives materially affect current-page runtime or SPA transition behavior, and which directives are merely present.',
+    '- Component Composition Highlights: Focus on the highest-impact or most diagnostic components. Keep lower-impact components brief instead of repeating every item evenly.',
+    '- spa:sync-render Transition Impact: Report the exact visible fields when present: enabled component count, enabled render count, HTML patch target, total embedded HTML, blocking CSS files and total size, whether the CSS loading runtime is required, the biggest contributors to patch size, the components that add blocking CSS, and any render-order implications visible in the snapshot.',
+    '- Optimization Opportunities: Order ideas by expected impact and confidence. Prefer a few high-signal opportunities over a long generic list. Tie every idea to visible evidence. For each idea, name the component, directive, chunk, module, or `spa:sync-render` behavior it targets, and explain the expected tradeoff.',
+    '- Evidence Gaps / Unknowns: Categorize gaps as `Need chunk report`, `Need module report`, `Need page comparison`, or `Need directive config evidence`, and explain why that evidence is needed.',
+    '',
+    'Keep the analysis grounded in the visible snapshot. If evidence is missing, say exactly which additional page, chunk, module, comparison, or directive-config view would help.',
+    '',
+    '## Current Page Snapshot',
+    '',
+    'Current Page:',
+    ...(pageOverviewLines.length > 0
+      ? pageOverviewLines
+      : ['- No page overview available.']),
+    '',
+    'Glossary:',
+    ...pageGlossaryLines,
+    '',
+    'Current Page Rendered React Components:',
+    ...(pageComponentLines.length > 0
+      ? pageComponentLines
+      : ['- No rendered React component details available.']),
+    '',
+    'Page Build Cost Snapshot:',
+    ...(bundleSummaryLines.length > 0
+      ? ['Bundle Summary:', ...bundleSummaryLines]
+      : ['- No bundle summary available.']),
+    ...(topResourceLines.length > 0
+      ? [
+          '',
+          `Top Page Resources (${topResourceLines.length} shown):`,
+          ...topResourceLines,
+        ]
+      : []),
+    ...(topModuleLines.length > 0
+      ? [
+          '',
+          `Top Page Modules (${topModuleLines.length} shown):`,
+          ...topModuleLines,
+        ]
+      : []),
+    '',
+    'Current Page Rendering Strategy Context:',
+    ...pageRenderStrategyLines,
+    '',
+    'spa:sync-render Artifact Context:',
+    '- `client:only` does not support `spa:sync-render`.',
+    '- `client:load` and `client:visible` only use `spa:sync-render` when explicitly enabled.',
+    '- `ssr:only` defaults to `spa:sync-render` unless it is explicitly disabled.',
+    '- When enabled, pre-rendered HTML is patched into the page client chunk used for SPA route transitions.',
+    '- Blocking CSS required by those renders can delay the page content until the CSS is loaded.',
+    ...(pageSpaSyncSummaryLines.length > 0
+      ? pageSpaSyncSummaryLines.map((line) => line)
+      : ['- No page-level `spa:sync-render` summary available.']),
+    ...(pageSpaSyncComponentLines.length > 0
+      ? [
+          '',
+          `spa:sync-render Components (${pageSpaSyncComponentLines.length} shown):`,
+          ...pageSpaSyncComponentLines,
+        ]
+      : []),
+    '',
+    'Render Order and Side Effects:',
+    ...(pageRenderOrderLines.length > 0
+      ? pageRenderOrderLines
+      : ['- No precise render-order metadata available.']),
+  ].join('\n');
+};
 
 export const getSiteDebugAiProviderLabel = (
   provider: SiteDebugAiProvider,
@@ -574,6 +954,10 @@ export const buildSiteDebugAiAnalysisPrompt = (
   target: SiteDebugAiAnalysisTarget,
   sanitizeOptions: SiteDebugAiSanitizeOptions = {},
 ): string => {
+  if (target.artifactKind === 'page-build') {
+    return buildPageBuildPrompt(target, sanitizeOptions);
+  }
+
   const context = target.context ?? {};
   const currentDebugContextLines = [
     ['Page', context.pageId],
@@ -703,6 +1087,12 @@ export type {
   SiteDebugAiLiveContextItem,
   SiteDebugAiModuleItem,
   SiteDebugAiModuleSourceState,
+  SiteDebugAiPageComponentChunkItem,
+  SiteDebugAiPageComponentItem,
+  SiteDebugAiPageGlossaryItem,
+  SiteDebugAiPageRenderOrderItem,
+  SiteDebugAiPageRenderStrategyItem,
+  SiteDebugAiPageSpaSyncComponentItem,
   SiteDebugAiPromptBuildMetricFile,
   SiteDebugAiPromptBuildMetricModule,
   SiteDebugAiPromptValueItem,
@@ -713,6 +1103,7 @@ export {
   createSiteDebugAiBundleSummaryItems,
   createSiteDebugAiChunkResourceItems,
   createSiteDebugAiModuleItems,
+  createSiteDebugAiPageComponentModuleItems,
   createSiteDebugAiResolvedSourceState,
   formatSiteDebugAiBytes,
   formatSiteDebugAiPercent,

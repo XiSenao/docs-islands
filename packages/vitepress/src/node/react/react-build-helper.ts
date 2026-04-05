@@ -5,6 +5,7 @@ import type {
 import type {
   BundleAssetMetric,
   PageBuildMetrics,
+  PageBuildRenderInstanceMetric,
   PageMetafile,
   RuntimeBundleMetric,
   SpaSyncComponentSideEffectMetric,
@@ -18,7 +19,11 @@ import {
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
 import getLoggerInstance from '#shared/logger';
-import { getHtmlOutputPathByPathname } from '#shared/path';
+import {
+  getHtmlOutputPathByPathname,
+  getPagePathByPathname,
+  getPathnameByPagePath,
+} from '#shared/path';
 import type { CheerioAPI } from 'cheerio';
 import { load } from 'cheerio';
 import { createHash } from 'node:crypto';
@@ -28,6 +33,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, relative } from 'pathe';
 import { version as reactPackageVersion } from 'react';
 import { version as reactDomPackageVersion } from 'react-dom';
+import { normalizePath } from 'vite';
 import type { DefaultTheme, UserConfig } from 'vitepress';
 import {
   type ExtractedProps,
@@ -142,9 +148,21 @@ const wrapPageBuildMetrics = (
     })),
   })),
   loader: wrapRuntimeBundleMetric(metrics.loader, wrapBaseUrl),
+  renderInstances: metrics.renderInstances?.map(
+    (renderInstance): PageBuildRenderInstanceMetric => ({
+      ...renderInstance,
+      blockingCssFiles: wrapBundleAssetMetrics(
+        renderInstance.blockingCssFiles,
+        wrapBaseUrl,
+      ),
+    }),
+  ),
   spaSyncEffects: metrics.spaSyncEffects
     ? {
         ...metrics.spaSyncEffects,
+        pageClientChunkFile: metrics.spaSyncEffects.pageClientChunkFile
+          ? wrapBaseUrl(metrics.spaSyncEffects.pageClientChunkFile)
+          : undefined,
         components: metrics.spaSyncEffects.components.map(
           (component): SpaSyncComponentSideEffectMetric => ({
             ...component,
@@ -419,6 +437,8 @@ export function registerBuildHelper(
             }
           }
           usedSnippet.props = elementProps;
+          const { srcDir } = config;
+          usedSnippet.sourcePath = relative(srcDir, importReference.identifier);
         }
       }
 
@@ -592,7 +612,8 @@ export function registerBuildHelper(
   };
 
   vitepressConfig.buildEnd = async () => {
-    const { outDir, assetsDir, cacheDir, cleanUrls, siteDebug, root } = config;
+    const { outDir, assetsDir, cacheDir, cleanUrls, siteDebug, root, srcDir } =
+      config;
     const matafileDir = join(outDir, assetsDir);
     const Logger = loggerInstance.getLoggerByGroup('build-end');
     const { fileName, content } = await getClientRuntimeMetafile();
@@ -605,6 +626,45 @@ export function registerBuildHelper(
 
     const transformedPageMetafileMap =
       renderController.getTransformedPageMetafile(cleanUrls);
+    const markdownModuleIdToSpaSyncRenderMap =
+      renderController.getMarkdownModuleIdToSpaSyncRenderMap();
+    const pageIdByNormalizedMarkdownModuleId = new Map<string, string>(
+      Object.keys(transformedPageMetafileMap).map((pageId) => {
+        const pagePath = getPagePathByPathname(pageId, cleanUrls).replace(
+          /^\/+/,
+          '',
+        );
+
+        return [normalizePath(join(srcDir, pagePath)), pageId];
+      }),
+    );
+
+    if (markdownModuleIdToSpaSyncRenderMap.size > 0) {
+      for (const [
+        markdownModuleId,
+        spaSyncRender,
+      ] of markdownModuleIdToSpaSyncRenderMap.entries()) {
+        const normalizedMarkdownModuleId = normalizePath(
+          markdownModuleId,
+        ).replace(/[#?].*$/, '');
+        const pagePath = relative(srcDir, normalizedMarkdownModuleId);
+        const derivedPageId = getPathnameByPagePath(pagePath, cleanUrls);
+        const pageId = transformedPageMetafileMap[derivedPageId]
+          ? derivedPageId
+          : (pageIdByNormalizedMarkdownModuleId.get(
+              normalizedMarkdownModuleId,
+            ) ?? derivedPageId);
+        const pageMetafile = transformedPageMetafileMap[pageId];
+
+        if (!pageMetafile?.buildMetrics?.spaSyncEffects) {
+          continue;
+        }
+
+        pageMetafile.buildMetrics.spaSyncEffects.pageClientChunkFile =
+          wrapBaseUrl(join('/', spaSyncRender.outputPath));
+      }
+    }
+
     if (Object.keys(transformedPageMetafileMap).length > 0) {
       await generateSiteDebugAiBuildReports({
         aiConfig: siteDebug.analysis,
@@ -655,8 +715,6 @@ export function registerBuildHelper(
       };
     }
 
-    const markdownModuleIdToSpaSyncRenderMap =
-      renderController.getMarkdownModuleIdToSpaSyncRenderMap();
     if (markdownModuleIdToSpaSyncRenderMap.size > 0) {
       for (const [
         markdownModuleId,
