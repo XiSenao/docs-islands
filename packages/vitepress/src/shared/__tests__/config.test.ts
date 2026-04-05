@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { resolveConfig } from '../config';
 
+const resolveBuildReportsTestPage = () => false as const;
+
 describe('resolveConfig', () => {
   it('normalizes siteDebug.analysis config in the resolved config object', () => {
     const config = resolveConfig({
@@ -20,12 +22,9 @@ describe('resolveConfig', () => {
                 thinking: true,
               },
             ],
+            resolvePage: resolveBuildReportsTestPage,
           },
           providers: {
-            claudeCode: {
-              command: 'claude',
-              timeoutMs: 180_000,
-            },
             doubao: {
               apiKey: 'test-key',
               baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
@@ -45,21 +44,17 @@ describe('resolveConfig', () => {
       dir: expect.stringMatching(/site-debug-reports$/),
       strategy: 'fallback',
     });
-    expect(config.siteDebug.analysis?.buildReports?.groupBy).toBe('page');
     expect(config.siteDebug.analysis?.buildReports?.includeChunks).toBe(false);
     expect(config.siteDebug.analysis?.buildReports?.includeModules).toBe(false);
+    expect(config.siteDebug.analysis?.buildReports?.resolvePage).toBe(
+      resolveBuildReportsTestPage,
+    );
     expect(config.siteDebug.analysis?.buildReports?.models?.[0]).toEqual({
       label: 'Doubao Pro',
       model: 'doubao-seed-1-6',
       provider: 'doubao',
       thinking: true,
     });
-    expect(config.siteDebug.analysis?.providers?.claudeCode?.command).toBe(
-      'claude',
-    );
-    expect(config.siteDebug.analysis?.providers?.claudeCode?.timeoutMs).toBe(
-      180_000,
-    );
     expect(config.siteDebug.analysis?.providers?.doubao?.maxTokens).toBe(4096);
     expect(config.siteDebug.analysis?.providers?.doubao?.model).toBe(
       'doubao-seed-1-6',
@@ -120,7 +115,6 @@ describe('resolveConfig', () => {
         dir: expect.stringMatching(/\.vitepress\/cache\/site-debug-reports$/),
         strategy: 'exact',
       },
-      groupBy: 'page',
       includeChunks: false,
       includeModules: false,
     });

@@ -6,6 +6,7 @@ import type {
   SiteDebugAnalysisBuildReportCacheStrategy,
   SiteDebugAnalysisBuildReportModelConfig,
   SiteDebugAnalysisBuildReportsConfig,
+  SiteDebugAnalysisBuildReportsPageContext,
 } from '#dep-types/utils';
 import getLoggerInstance from '#shared/logger';
 import { createHash } from 'node:crypto';
@@ -13,17 +14,13 @@ import fs from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'pathe';
 import {
   buildSiteDebugAiAnalysisPrompt,
-  createSiteDebugAiArtifactHeaderItems,
   createSiteDebugAiBundleSummaryItems,
   createSiteDebugAiChunkResourceItems,
-  createSiteDebugAiModuleItems,
-  createSiteDebugAiResolvedSourceState,
   formatSiteDebugAiBytes,
-  getSiteDebugAiModuleReportKey,
   getSiteDebugAiProviderLabel,
-  inferSiteDebugAiLanguage,
   sanitizeSiteDebugAiAnalysisTarget,
   sanitizeSiteDebugAiBuildReport,
+  sanitizeSiteDebugAiText,
   type SiteDebugAiAnalysisTarget,
   type SiteDebugAiBuildReport,
   type SiteDebugAiProvider,
@@ -34,6 +31,7 @@ import {
   aggregatePageFiles,
   aggregatePageModules,
   collectBuildReportReferencesForPageMetafiles,
+  hasPageBuildAnalysisSignals,
 } from './site-debug-ai-build-reports-collector';
 import {
   collectPageRuntimeFiles,
@@ -56,30 +54,9 @@ const loggerInstance = getLoggerInstance();
 const Logger = loggerInstance.getLoggerByGroup('site-debug-ai-build-reports');
 
 const SITE_DEBUG_AI_BUILD_REPORTS_DIR = join(PAGE_METAFILE_ASSET_DIR, 'ai');
-const TEXT_FILE_EXTENSIONS = new Set([
-  '.cjs',
-  '.css',
-  '.cts',
-  '.html',
-  '.js',
-  '.json',
-  '.jsx',
-  '.less',
-  '.md',
-  '.mjs',
-  '.mts',
-  '.pcss',
-  '.sass',
-  '.scss',
-  '.svg',
-  '.ts',
-  '.tsx',
-  '.txt',
-  '.vue',
-  '.xml',
-  '.yaml',
-  '.yml',
-]);
+const SITE_DEBUG_AI_BUILD_REPORT_HASHED_FILE_SEGMENT_RE =
+  /(?<=\b[\w%+@-]+\.)[\w-]{6,}(?=\.(?:lean\.)?(?:js|css|svg|json|mjs|cjs|woff2?|webp|png|jpe?g|gif|ico|txt|map)\b)/g;
+const SITE_DEBUG_AI_BUILD_REPORT_PROMPT_DIFF_LIMIT = 3;
 
 interface BuildReportDependencies {
   analyzeTarget?: (options: {
@@ -102,7 +79,25 @@ interface BuildReportCacheConfig {
   strategy: SiteDebugAnalysisBuildReportCacheStrategy;
 }
 
+interface BuildReportPagePlan {
+  cacheConfig: BuildReportCacheConfig | null;
+  includeChunks: boolean;
+  includeModules: boolean;
+}
+
+type BuildReportProviderConfigSnapshot = Record<
+  string,
+  boolean | number | string | null
+> | null;
+
+interface BuildReportCacheIdentity {
+  promptHash: string;
+  provider: SiteDebugAiProvider;
+  providerConfig: BuildReportProviderConfigSnapshot;
+}
+
 interface StoredBuildReportCacheEntry {
+  cacheIdentity?: BuildReportCacheIdentity | null;
   cacheKey: string | null;
   report: SiteDebugAiBuildReport;
 }
@@ -114,62 +109,12 @@ export interface GenerateSiteDebugAiBuildReportsResult {
   reusedReportCount: number;
   skippedReason?: string;
 }
-type BuildReportGroupBy = 'artifact' | 'page';
 type BuildReportCacheInput = SiteDebugAnalysisBuildReportsConfig['cache'];
 
 const sanitizeFileStem = (value: string) =>
   value.replaceAll(/[^\w.-]/g, '_') || 'artifact';
 const SITE_DEBUG_AI_BUILD_REPORTS_DEFAULT_CACHE_DIR =
   '.vitepress/cache/site-debug-reports';
-
-const isTextLikeArtifact = (filePath?: string) => {
-  if (!filePath) {
-    return false;
-  }
-
-  const normalizedPath = filePath.replace(/[#?].*$/, '');
-  const extension = /\.[^./\\]+$/.exec(normalizedPath)?.[0]?.toLowerCase();
-
-  if (!extension) {
-    return true;
-  }
-
-  return TEXT_FILE_EXTENSIONS.has(extension);
-};
-
-const readTextArtifact = (filePath: string) => {
-  if (!isTextLikeArtifact(filePath) || !fs.existsSync(filePath)) {
-    return null;
-  }
-
-  return fs.readFileSync(filePath, 'utf8');
-};
-
-const resolveOutputAssetPath = ({
-  assetsDir,
-  outDir,
-  publicPath,
-}: {
-  assetsDir: string;
-  outDir: string;
-  publicPath: string;
-}) => {
-  const normalizedPath = publicPath
-    .replace(/[#?].*$/, '')
-    .replaceAll('\\', '/');
-  const assetRoot = `/${assetsDir}/`;
-  const assetRootIndex = normalizedPath.indexOf(assetRoot);
-  const relativeAssetPath =
-    assetRootIndex === -1
-      ? normalizedPath.replace(/^\/+/, '')
-      : normalizedPath.slice(assetRootIndex + 1);
-
-  return join(outDir, relativeAssetPath);
-};
-
-const normalizeBuildReportGroupBy = (
-  value: BuildReportGroupBy | undefined,
-): BuildReportGroupBy => (value === 'artifact' ? 'artifact' : 'page');
 
 const resolveDefaultBuildReportCacheDir = ({
   cacheDir,
@@ -211,51 +156,325 @@ const resolveBuildReportCacheConfig = ({
   };
 };
 
+const getBuildReportPromptHash = (prompt: string) =>
+  createHash('sha256').update(prompt).digest('hex');
+
+const normalizeBuildReportPromptForCache = (prompt: string) =>
+  prompt.replaceAll(
+    SITE_DEBUG_AI_BUILD_REPORT_HASHED_FILE_SEGMENT_RE,
+    '[hash]',
+  );
+
+const truncateBuildReportPromptDiffValue = (value: string) =>
+  value.length > 120 ? `${value.slice(0, 117)}...` : value;
+
+const parseBuildReportPromptDiffLabel = (line: string) => {
+  let content = line.trimStart();
+
+  if (content.startsWith('- ')) {
+    content = content.slice(2);
+  } else {
+    const numberedSeparatorIndex = content.indexOf('. ');
+
+    if (numberedSeparatorIndex > 0) {
+      const numberedPrefix = content.slice(0, numberedSeparatorIndex);
+
+      if (/^\d+$/.test(numberedPrefix)) {
+        content = content.slice(numberedSeparatorIndex + 2);
+      }
+    }
+  }
+
+  const labelSeparatorIndex = content.indexOf(': ');
+
+  if (labelSeparatorIndex <= 0) {
+    return null;
+  }
+
+  return {
+    label: content.slice(0, labelSeparatorIndex).trim(),
+    value: content.slice(labelSeparatorIndex + 2),
+  };
+};
+
+const getBuildReportPromptDiffSummaries = ({
+  cachedPrompt,
+  prompt,
+}: {
+  cachedPrompt: string;
+  prompt: string;
+}) => {
+  const cachedLines = cachedPrompt.split('\n');
+  const currentLines = prompt.split('\n');
+  const summaries: string[] = [];
+  const seenLabels = new Set<string>();
+
+  for (
+    let index = 0;
+    index < Math.max(cachedLines.length, currentLines.length);
+    index += 1
+  ) {
+    const previousLine = cachedLines[index] ?? '';
+    const nextLine = currentLines[index] ?? '';
+
+    if (previousLine === nextLine) {
+      continue;
+    }
+
+    const previousMatch = parseBuildReportPromptDiffLabel(previousLine);
+    const nextMatch = parseBuildReportPromptDiffLabel(nextLine);
+
+    if (previousMatch && nextMatch && previousMatch.label === nextMatch.label) {
+      const { label, value: nextValue } = nextMatch;
+      const { value: previousValue } = previousMatch;
+
+      if (!seenLabels.has(label)) {
+        summaries.push(
+          `${label}: ${truncateBuildReportPromptDiffValue(previousValue)} -> ${truncateBuildReportPromptDiffValue(nextValue)}`,
+        );
+        seenLabels.add(label);
+      }
+    } else if (previousLine.trim() && nextLine.trim()) {
+      summaries.push(
+        `line ${index + 1}: ${truncateBuildReportPromptDiffValue(previousLine.trim())} -> ${truncateBuildReportPromptDiffValue(nextLine.trim())}`,
+      );
+    }
+
+    if (summaries.length >= SITE_DEBUG_AI_BUILD_REPORT_PROMPT_DIFF_LIMIT) {
+      break;
+    }
+  }
+
+  return summaries;
+};
+
+const normalizeBuildReportProviderConfigSnapshot = (
+  value: unknown,
+  sanitizeOptions: SiteDebugAiSanitizeOptions = {},
+): BuildReportProviderConfigSnapshot => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const normalizedEntries: [string, boolean | number | string | null][] = [];
+
+  for (const [key, entryValue] of Object.entries(value)) {
+    if (
+      entryValue !== null &&
+      typeof entryValue !== 'boolean' &&
+      typeof entryValue !== 'number' &&
+      typeof entryValue !== 'string'
+    ) {
+      return null;
+    }
+
+    normalizedEntries.push([
+      key,
+      typeof entryValue === 'string'
+        ? sanitizeSiteDebugAiText(entryValue, sanitizeOptions)
+        : entryValue,
+    ]);
+  }
+
+  return Object.fromEntries(normalizedEntries);
+};
+
+const normalizeBuildReportCacheIdentity = (
+  value: unknown,
+  sanitizeOptions: SiteDebugAiSanitizeOptions = {},
+): BuildReportCacheIdentity | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const promptHash = (value as { promptHash?: unknown }).promptHash;
+  const provider = (value as { provider?: unknown }).provider;
+  const providerConfig = normalizeBuildReportProviderConfigSnapshot(
+    (value as { providerConfig?: unknown }).providerConfig,
+    sanitizeOptions,
+  );
+
+  if (typeof promptHash !== 'string' || provider !== 'doubao') {
+    return null;
+  }
+
+  return {
+    promptHash,
+    provider,
+    providerConfig,
+  };
+};
+
+const createBuildReportCacheIdentity = ({
+  prompt,
+  provider,
+  providerConfig,
+}: {
+  prompt: string;
+  provider: SiteDebugAiProvider;
+  providerConfig: BuildReportProviderConfigSnapshot;
+}): BuildReportCacheIdentity => ({
+  promptHash: getBuildReportPromptHash(
+    normalizeBuildReportPromptForCache(prompt),
+  ),
+  provider,
+  providerConfig,
+});
+
+const sanitizeBuildReportCacheIdentity = (
+  cacheIdentity: BuildReportCacheIdentity | null,
+  sanitizeOptions: SiteDebugAiSanitizeOptions = {},
+): BuildReportCacheIdentity | null =>
+  cacheIdentity
+    ? {
+        ...cacheIdentity,
+        providerConfig: normalizeBuildReportProviderConfigSnapshot(
+          cacheIdentity.providerConfig,
+          sanitizeOptions,
+        ),
+      }
+    : null;
+
+const areBuildReportProviderConfigSnapshotsEqual = (
+  previousValue: BuildReportProviderConfigSnapshot,
+  nextValue: BuildReportProviderConfigSnapshot,
+) => {
+  if (previousValue === nextValue) {
+    return true;
+  }
+
+  if (!previousValue || !nextValue) {
+    return previousValue === nextValue;
+  }
+
+  const keys = [
+    ...new Set([...Object.keys(previousValue), ...Object.keys(nextValue)]),
+  ];
+
+  return keys.every((key) => previousValue[key] === nextValue[key]);
+};
+
+const formatBuildReportCacheDiffValue = (
+  value: boolean | number | string | null | undefined,
+) => {
+  if (value === null) {
+    return 'null';
+  }
+
+  if (value === undefined) {
+    return 'undefined';
+  }
+
+  return typeof value === 'string' ? JSON.stringify(value) : String(value);
+};
+
+const getBuildReportCacheInvalidationReason = ({
+  cacheIdentity,
+  cachedEntry,
+  prompt,
+}: {
+  cacheIdentity: BuildReportCacheIdentity;
+  cachedEntry: StoredBuildReportCacheEntry;
+  prompt: string;
+}) => {
+  const reasons: string[] = [];
+  const cachedIdentity = cachedEntry.cacheIdentity;
+
+  if (!cachedIdentity) {
+    return cachedEntry.cacheKey
+      ? 'the existing cache entry predates structured invalidation diagnostics, and the exact cache key no longer matches'
+      : 'the existing cache entry is missing exact cache-key metadata';
+  }
+
+  if (cachedIdentity.provider !== cacheIdentity.provider) {
+    reasons.push(
+      `provider changed (${cachedIdentity.provider} -> ${cacheIdentity.provider})`,
+    );
+  }
+
+  if (cachedIdentity.promptHash !== cacheIdentity.promptHash) {
+    const promptDiffSummaries = getBuildReportPromptDiffSummaries({
+      cachedPrompt: cachedEntry.report.prompt,
+      prompt,
+    });
+
+    reasons.push(
+      promptDiffSummaries.length > 0
+        ? `analysis prompt changed (${promptDiffSummaries.join('; ')})`
+        : 'analysis prompt changed',
+    );
+  }
+
+  if (
+    !areBuildReportProviderConfigSnapshotsEqual(
+      cachedIdentity.providerConfig,
+      cacheIdentity.providerConfig,
+    )
+  ) {
+    if (!cachedIdentity.providerConfig || !cacheIdentity.providerConfig) {
+      reasons.push('provider snapshot changed');
+    } else {
+      const changedFields = [
+        ...new Set([
+          ...Object.keys(cachedIdentity.providerConfig),
+          ...Object.keys(cacheIdentity.providerConfig),
+        ]),
+      ]
+        .toSorted()
+        .flatMap((field) => {
+          const previousValue = cachedIdentity.providerConfig?.[field];
+          const nextValue = cacheIdentity.providerConfig?.[field];
+
+          return previousValue === nextValue
+            ? []
+            : [
+                `${field}: ${formatBuildReportCacheDiffValue(previousValue)} -> ${formatBuildReportCacheDiffValue(nextValue)}`,
+              ];
+        });
+
+      reasons.push(
+        changedFields.length > 0
+          ? `provider snapshot changed (${changedFields.join(', ')})`
+          : 'provider snapshot changed',
+      );
+    }
+  }
+
+  return reasons.length > 0
+    ? reasons.join('; ')
+    : 'the exact cache key changed for an unknown reason';
+};
+
 const getBuildReportModelConfigs = (
   aiConfig: SiteDebugAiConfig,
-): SiteDebugAnalysisBuildReportModelConfig[] => {
-  const explicitModels = Array.isArray(aiConfig?.buildReports?.models)
-    ? aiConfig.buildReports.models
-    : undefined;
-
-  if (explicitModels) {
-    return explicitModels.filter(
-      Boolean,
-    ) as SiteDebugAnalysisBuildReportModelConfig[];
-  }
-
-  const fallbackModels: SiteDebugAnalysisBuildReportModelConfig[] = [];
-
-  if (aiConfig?.providers?.claudeCode) {
-    fallbackModels.push({
-      provider: 'claude-code',
-    });
-  }
-
-  if (aiConfig?.providers?.doubao?.model?.trim()) {
-    fallbackModels.push({
-      model: aiConfig.providers.doubao.model.trim(),
-      provider: 'doubao',
-      thinking: aiConfig.providers.doubao.thinking ?? false,
-    });
-  }
-
-  return fallbackModels;
-};
+): SiteDebugAnalysisBuildReportModelConfig[] =>
+  Array.isArray(aiConfig?.buildReports?.models)
+    ? (aiConfig.buildReports.models.filter(
+        Boolean,
+      ) as SiteDebugAnalysisBuildReportModelConfig[])
+    : [];
 
 const getBuildReportExecutionLabel = (
   modelConfig: SiteDebugAnalysisBuildReportModelConfig,
 ) =>
   modelConfig.label?.trim() ||
-  (modelConfig.provider === 'doubao'
-    ? `${getSiteDebugAiProviderLabel('doubao')} · ${modelConfig.model}`
-    : getSiteDebugAiProviderLabel(modelConfig.provider));
+  `${getSiteDebugAiProviderLabel('doubao')} · ${modelConfig.model}`;
 
 const getBuildReportExecutionId = (
   modelConfig: SiteDebugAnalysisBuildReportModelConfig,
 ) =>
   createHash('sha256')
-    .update(JSON.stringify(modelConfig))
+    .update(
+      JSON.stringify({
+        model: modelConfig.model,
+        provider: modelConfig.provider,
+        thinking: modelConfig.thinking ?? false,
+      }),
+    )
     .digest('hex')
     .slice(0, 12);
 
@@ -267,15 +486,13 @@ const createBuildReportExecutionConfig = (
     ...aiConfig?.providers,
   };
 
-  if (modelConfig.provider === 'doubao') {
-    const doubaoProviderConfig = providers.doubao || {};
+  const doubaoProviderConfig = providers.doubao || {};
 
-    providers.doubao = {
-      ...doubaoProviderConfig,
-      model: modelConfig.model,
-      thinking: modelConfig.thinking ?? false,
-    };
-  }
+  providers.doubao = {
+    ...doubaoProviderConfig,
+    model: modelConfig.model,
+    thinking: modelConfig.thinking ?? false,
+  };
 
   return {
     buildReports: aiConfig?.buildReports,
@@ -289,15 +506,13 @@ const createBuildReportExecutions = (
   executions: BuildReportExecution[];
   skippedReason?: string;
 } => {
-  const hasExplicitModels = Array.isArray(aiConfig?.buildReports?.models);
   const modelConfigs = getBuildReportModelConfigs(aiConfig);
 
   if (modelConfigs.length === 0) {
     return {
       executions: [],
-      skippedReason: hasExplicitModels
-        ? 'No build-time analysis models are configured. Add siteDebug.analysis.buildReports.models entries to execute build reports.'
-        : 'No build-time analysis providers are ready to run reports. Set siteDebug.analysis.buildReports.models or provide a default model in siteDebug.analysis.providers.',
+      skippedReason:
+        'Skipped build-time AI report analysis: no siteDebug.analysis.buildReports.models entries are configured.',
     };
   }
 
@@ -357,16 +572,8 @@ const resolveAvailableBuildReportExecutions = async ({
 const getBuildReportProviderConfigSnapshot = (
   aiConfig: SiteDebugAiConfig,
   provider: SiteDebugAiProvider,
-) => {
+): BuildReportProviderConfigSnapshot => {
   switch (provider) {
-    case 'claude-code': {
-      const providerConfig = aiConfig?.providers?.claudeCode;
-
-      return {
-        command: providerConfig?.command?.trim() || 'claude',
-        timeoutMs: providerConfig?.timeoutMs ?? null,
-      };
-    }
     case 'doubao': {
       const providerConfig = aiConfig?.providers?.doubao;
 
@@ -376,7 +583,6 @@ const getBuildReportProviderConfigSnapshot = (
         model: providerConfig?.model?.trim() || null,
         thinking: providerConfig?.thinking ?? null,
         temperature: providerConfig?.temperature ?? null,
-        timeoutMs: providerConfig?.timeoutMs ?? null,
       };
     }
     default: {
@@ -397,7 +603,7 @@ const getBuildReportCacheKey = ({
   createHash('sha256')
     .update(
       JSON.stringify({
-        prompt,
+        prompt: normalizeBuildReportPromptForCache(prompt),
         provider,
         providerConfig,
       }),
@@ -440,8 +646,7 @@ const normalizeBuildReportCachePayload = (
     typeof (payload as Partial<SiteDebugAiBuildReport>).reportLabel !==
       'string' ||
     typeof (payload as Partial<SiteDebugAiBuildReport>).prompt !== 'string' ||
-    ((payload as Partial<SiteDebugAiBuildReport>).provider !== 'claude-code' &&
-      (payload as Partial<SiteDebugAiBuildReport>).provider !== 'doubao') ||
+    (payload as Partial<SiteDebugAiBuildReport>).provider !== 'doubao' ||
     !(payload as Partial<SiteDebugAiBuildReport>).target
   ) {
     return null;
@@ -464,6 +669,7 @@ const readBuildReportCacheEntry = (
   try {
     const payload = JSON.parse(fs.readFileSync(filePath, 'utf8')) as
       | {
+          cacheIdentity?: unknown;
           cacheKey?: string | null;
           report?: unknown;
         }
@@ -476,6 +682,7 @@ const readBuildReportCacheEntry = (
       payload.report
     ) {
       const storedPayload = payload as {
+        cacheIdentity?: unknown;
         cacheKey?: string | null;
         report: unknown;
       };
@@ -489,6 +696,10 @@ const readBuildReportCacheEntry = (
       }
 
       return {
+        cacheIdentity: normalizeBuildReportCacheIdentity(
+          storedPayload.cacheIdentity,
+          sanitizeOptions,
+        ),
         cacheKey:
           typeof storedPayload.cacheKey === 'string'
             ? storedPayload.cacheKey
@@ -501,6 +712,7 @@ const readBuildReportCacheEntry = (
 
     return report
       ? {
+          cacheIdentity: null,
           cacheKey: null,
           report,
         }
@@ -511,11 +723,13 @@ const readBuildReportCacheEntry = (
 };
 
 const writeBuildReportCacheEntry = ({
+  cacheIdentity,
   filePath,
   cacheKey,
   report,
   sanitizeOptions = {},
 }: {
+  cacheIdentity: BuildReportCacheIdentity | null;
   filePath: string;
   cacheKey: string | null;
   report: SiteDebugAiBuildReport;
@@ -529,6 +743,10 @@ const writeBuildReportCacheEntry = ({
     filePath,
     `${JSON.stringify(
       {
+        cacheIdentity: sanitizeBuildReportCacheIdentity(
+          cacheIdentity,
+          sanitizeOptions,
+        ),
         cacheKey,
         report: sanitizeSiteDebugAiBuildReport(report, sanitizeOptions),
       } satisfies StoredBuildReportCacheEntry,
@@ -569,6 +787,7 @@ const sanitizeBuildReportCacheDirectory = (
 
     const sanitizedContent = `${JSON.stringify(
       {
+        cacheIdentity: cacheEntry.cacheIdentity ?? null,
         cacheKey: cacheEntry.cacheKey,
         report: cacheEntry.report,
       } satisfies StoredBuildReportCacheEntry,
@@ -637,266 +856,137 @@ const writeBuildReportAsset = ({
   return wrapBaseUrl(join('/', assetsDir, relativeReportPath));
 };
 
-const resolveModuleSourceBytes = ({
-  assetsDir,
-  cache,
-  moduleMetric,
-  outDir,
+const applyBuildReportExecutionMetadata = ({
+  execution,
+  report,
 }: {
-  assetsDir: string;
-  cache: Map<string, number | null>;
-  moduleMetric: NonNullable<
-    NonNullable<PageMetafile['buildMetrics']>['components'][number]
-  >['modules'][number];
-  outDir: string;
-}) => {
-  const cacheKey =
-    moduleMetric.sourcePath || moduleMetric.sourceAssetFile || moduleMetric.id;
+  execution: BuildReportExecution;
+  report: SiteDebugAiBuildReport;
+}): SiteDebugAiBuildReport =>
+  report.reportId === execution.reportId &&
+  report.reportLabel === execution.reportLabel
+    ? report
+    : {
+        ...report,
+        reportId: execution.reportId,
+        reportLabel: execution.reportLabel,
+      };
 
-  if (cache.has(cacheKey)) {
-    return cache.get(cacheKey) ?? null;
-  }
-
-  let sourceBytes: number | null = null;
-
-  if (moduleMetric.sourcePath) {
-    const content = readTextArtifact(moduleMetric.sourcePath);
-
-    if (content) {
-      sourceBytes = Buffer.byteLength(content);
-    }
-  }
-
-  if (sourceBytes === null && moduleMetric.sourceAssetFile) {
-    const sourceAssetPath = resolveOutputAssetPath({
-      assetsDir,
-      outDir,
-      publicPath: moduleMetric.sourceAssetFile,
-    });
-    const content = readTextArtifact(sourceAssetPath);
-
-    if (content) {
-      sourceBytes = Buffer.byteLength(content);
-    }
-  }
-
-  cache.set(cacheKey, sourceBytes);
-  return sourceBytes;
-};
-
-const createBuildMetricAiContext = ({
-  artifactHeaderItems,
-  assetsDir,
-  buildMetric,
-  currentChunkFile,
-  currentModuleKey,
-  outDir,
-  resourceType,
+const createDefaultBuildReportPagePlan = ({
+  buildReportsConfig,
+  cacheDir,
+  root,
 }: {
-  artifactHeaderItems: NonNullable<
-    SiteDebugAiAnalysisTarget['context']
-  >['artifactHeaderItems'];
-  assetsDir: string;
-  buildMetric: NonNullable<PageMetafile['buildMetrics']>['components'][number];
-  currentChunkFile: string;
-  currentModuleKey?: string;
-  outDir: string;
-  resourceType: 'asset' | 'css' | 'js';
-}): NonNullable<SiteDebugAiAnalysisTarget['context']> => {
-  const sourceSizeCache = new Map<string, number | null>();
-
-  return {
-    artifactHeaderItems,
-    bundleSummaryItems: createSiteDebugAiBundleSummaryItems({
-      estimatedAssetBytes: buildMetric.estimatedAssetBytes,
-      estimatedCssBytes: buildMetric.estimatedCssBytes,
-      estimatedJsBytes: buildMetric.estimatedJsBytes,
-      estimatedTotalBytes: buildMetric.estimatedTotalBytes,
-    }),
-    chunkResourceItems: createSiteDebugAiChunkResourceItems({
-      currentFile: currentChunkFile,
-      files: buildMetric.files,
-      modules: buildMetric.modules,
-      totalEstimatedBytes: buildMetric.estimatedTotalBytes,
-    }),
-    componentName: buildMetric.componentName,
-    moduleItems: createSiteDebugAiModuleItems({
-      currentChunkFile,
-      currentModuleKey,
-      modules: buildMetric.modules,
-      resolveSourceState: (moduleMetric) =>
-        createSiteDebugAiResolvedSourceState({
-          isGeneratedVirtualModule: moduleMetric.isGeneratedVirtualModule,
-          renderedBytes: moduleMetric.bytes,
-          sourceAvailable: Boolean(
-            moduleMetric.sourceAssetFile || moduleMetric.sourcePath,
-          ),
-          sourceBytes: resolveModuleSourceBytes({
-            assetsDir,
-            cache: sourceSizeCache,
-            moduleMetric,
-            outDir,
-          }),
-        }),
-      resourceType,
-    }),
-    pageId: null,
-    renderId: null,
-  };
-};
-
-const resolveChunkContent = (
-  assetsDir: string,
-  outDir: string,
-  chunkFile: string,
-): string | null => {
-  const chunkPath = resolveOutputAssetPath({
-    assetsDir,
-    outDir,
-    publicPath: chunkFile,
-  });
-  return readTextArtifact(chunkPath);
-};
-
-const resolveModuleContent = ({
-  assetsDir,
-  moduleMetric,
-  outDir,
-}: {
-  assetsDir: string;
-  moduleMetric: NonNullable<
-    NonNullable<PageMetafile['buildMetrics']>['components'][number]
-  >['modules'][number];
-  outDir: string;
-}): string | null => {
-  if (moduleMetric.sourcePath) {
-    const content = readTextArtifact(moduleMetric.sourcePath);
-
-    if (content) {
-      return content;
-    }
-  }
-
-  if (moduleMetric.sourceAssetFile) {
-    const sourceAssetPath = resolveOutputAssetPath({
-      assetsDir,
-      outDir,
-      publicPath: moduleMetric.sourceAssetFile,
-    });
-    return readTextArtifact(sourceAssetPath);
-  }
-
-  return null;
-};
-
-const createChunkAnalysisTarget = ({
-  assetsDir,
-  buildMetric,
-  chunkFile,
-  chunkType,
-  content,
-  bytes,
-  outDir,
-}: {
-  assetsDir: string;
-  buildMetric: NonNullable<PageMetafile['buildMetrics']>['components'][number];
-  bytes: number;
-  chunkFile: string;
-  chunkType: 'asset' | 'css' | 'js';
-  content: string;
-  outDir: string;
-}): SiteDebugAiAnalysisTarget => ({
-  artifactKind: 'bundle-chunk',
-  artifactLabel: basename(chunkFile) || chunkFile,
-  bytes,
-  content,
-  context: createBuildMetricAiContext({
-    artifactHeaderItems: createSiteDebugAiArtifactHeaderItems({
-      artifactKind: 'bundle-chunk',
-      bytes,
-      displayPath: chunkFile,
-      resourceType: chunkType,
-    }),
-    assetsDir,
-    buildMetric,
-    currentChunkFile: chunkFile,
-    outDir,
-    resourceType: chunkType,
+  buildReportsConfig: SiteDebugAnalysisBuildReportsConfig;
+  cacheDir: string;
+  root?: string;
+}): BuildReportPagePlan => ({
+  cacheConfig: resolveBuildReportCacheConfig({
+    cache: buildReportsConfig.cache,
+    cacheDir,
+    root,
   }),
-  displayPath: chunkFile,
-  language: inferSiteDebugAiLanguage(chunkFile),
+  includeChunks: buildReportsConfig.includeChunks === true,
+  includeModules: buildReportsConfig.includeModules === true,
 });
 
-const getModuleDisplayPath = (moduleMetric: {
-  file: string;
-  id: string;
-  isGeneratedVirtualModule?: boolean;
-  sourceAssetFile?: string;
-  sourcePath?: string;
-}) =>
-  moduleMetric.isGeneratedVirtualModule
-    ? moduleMetric.id.replace(/^\0+/, '').replace(/\?.*$/, '') ||
-      moduleMetric.file
-    : moduleMetric.sourcePath ||
-      moduleMetric.sourceAssetFile ||
-      moduleMetric.file ||
-      moduleMetric.id;
-
-const createModuleAnalysisTarget = ({
-  assetsDir,
-  buildMetric,
-  content,
-  moduleMetric,
-  outDir,
+const resolveBuildReportPagePlan = ({
+  buildReportsConfig,
+  cacheDir,
+  pageContext,
+  pageId,
+  pageMetafile,
+  root,
 }: {
-  assetsDir: string;
-  buildMetric: NonNullable<PageMetafile['buildMetrics']>['components'][number];
-  content: string;
-  moduleMetric: NonNullable<
-    NonNullable<PageMetafile['buildMetrics']>['components'][number]
-  >['modules'][number];
-  outDir: string;
-}): SiteDebugAiAnalysisTarget => {
-  const moduleKey = getSiteDebugAiModuleReportKey(
-    moduleMetric.file,
-    moduleMetric.id,
-  );
-  const displayPath = getModuleDisplayPath({
-    file: moduleMetric.file,
-    id: moduleMetric.id,
-    isGeneratedVirtualModule:
-      !moduleMetric.sourceAssetFile &&
-      !moduleMetric.sourcePath &&
-      moduleMetric.id.startsWith('\0'),
-    sourceAssetFile: moduleMetric.sourceAssetFile,
-    sourcePath: moduleMetric.sourcePath,
+  buildReportsConfig: SiteDebugAnalysisBuildReportsConfig;
+  cacheDir: string;
+  pageContext?: SiteDebugAnalysisBuildReportsPageContext;
+  pageId: string;
+  pageMetafile: PageMetafile;
+  root?: string;
+}): BuildReportPagePlan | null => {
+  if (!hasPageBuildAnalysisSignals(pageMetafile)) {
+    return null;
+  }
+
+  const defaultPlan = createDefaultBuildReportPagePlan({
+    buildReportsConfig,
+    cacheDir,
+    root,
   });
-  const resourceType =
-    buildMetric.files.find(
-      (fileMetric) => fileMetric.file === moduleMetric.file,
-    )?.type ?? 'js';
+
+  if (!buildReportsConfig.resolvePage) {
+    return defaultPlan;
+  }
+
+  if (!pageContext) {
+    Logger.warn(
+      `Skipped build-time AI report for ${pageId}: siteDebug.analysis.buildReports.resolvePage requires page context, but no page filePath was provided.`,
+    );
+    return null;
+  }
+
+  let resolvedPageOverride: ReturnType<
+    NonNullable<SiteDebugAnalysisBuildReportsConfig['resolvePage']>
+  >;
+
+  try {
+    resolvedPageOverride = buildReportsConfig.resolvePage(pageContext);
+  } catch (error) {
+    Logger.warn(
+      `Skipped build-time AI report for ${pageId}: siteDebug.analysis.buildReports.resolvePage threw an error: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return null;
+  }
+
+  if (resolvedPageOverride === false) {
+    return null;
+  }
 
   return {
-    artifactKind: 'bundle-module',
-    artifactLabel: basename(displayPath) || moduleMetric.id,
-    bytes: Buffer.byteLength(content),
-    content,
-    context: createBuildMetricAiContext({
-      artifactHeaderItems: createSiteDebugAiArtifactHeaderItems({
-        artifactKind: 'bundle-module',
-        displayPath,
-        language: inferSiteDebugAiLanguage(displayPath),
-      }),
-      assetsDir,
-      buildMetric,
-      currentChunkFile: moduleMetric.file,
-      currentModuleKey: moduleKey,
-      outDir,
-      resourceType,
+    cacheConfig: resolveBuildReportCacheConfig({
+      cache: resolvedPageOverride.cache ?? buildReportsConfig.cache,
+      cacheDir,
+      root,
     }),
-    displayPath,
-    language: inferSiteDebugAiLanguage(displayPath),
+    includeChunks:
+      resolvedPageOverride.includeChunks ?? defaultPlan.includeChunks,
+    includeModules:
+      resolvedPageOverride.includeModules ?? defaultPlan.includeModules,
   };
+};
+
+const createBuildReportPagePlans = ({
+  buildReportsConfig,
+  cacheDir,
+  pageContexts,
+  pageMetafiles,
+  root,
+}: {
+  buildReportsConfig: SiteDebugAnalysisBuildReportsConfig;
+  cacheDir: string;
+  pageContexts?: Record<string, SiteDebugAnalysisBuildReportsPageContext>;
+  pageMetafiles: Record<string, PageMetafile>;
+  root?: string;
+}) => {
+  const pagePlans: Record<string, BuildReportPagePlan> = {};
+
+  for (const [pageId, pageMetafile] of Object.entries(pageMetafiles)) {
+    const pagePlan = resolveBuildReportPagePlan({
+      buildReportsConfig,
+      cacheDir,
+      pageContext: pageContexts?.[pageId],
+      pageId,
+      pageMetafile,
+      root,
+    });
+
+    if (pagePlan) {
+      pagePlans[pageId] = pagePlan;
+    }
+  }
+
+  return pagePlans;
 };
 
 const createPageAnalysisTarget = ({
@@ -1068,6 +1158,7 @@ export const generateSiteDebugAiBuildReports = async ({
   assetsDir,
   cacheDir,
   outDir,
+  pageContexts,
   pageMetafiles,
   root,
   wrapBaseUrl,
@@ -1078,6 +1169,7 @@ export const generateSiteDebugAiBuildReports = async ({
   cacheDir: string;
   dependencies?: BuildReportDependencies;
   outDir: string;
+  pageContexts?: Record<string, SiteDebugAnalysisBuildReportsPageContext>;
   pageMetafiles: Record<string, PageMetafile>;
   root?: string;
   wrapBaseUrl: (value: string) => string;
@@ -1100,21 +1192,10 @@ export const generateSiteDebugAiBuildReports = async ({
     dependencies?.analyzeTarget || analyzeSiteDebugAiTarget;
   const { executions, skippedReason: executionPlanSkippedReason } =
     createBuildReportExecutions(aiConfig);
-  const buildReportCacheConfig = resolveBuildReportCacheConfig({
-    cache: buildReportsConfig.cache,
-    cacheDir,
-    root,
-  });
-  const sanitizeOptions: SiteDebugAiSanitizeOptions = {
-    anchorPaths: [
-      buildReportCacheConfig?.dir,
-      root ? join(root, '.vitepress', 'config.ts') : undefined,
-    ],
-  };
 
   if (executions.length === 0) {
     if (executionPlanSkippedReason) {
-      Logger.warn(executionPlanSkippedReason);
+      Logger.info(executionPlanSkippedReason);
     }
 
     return {
@@ -1126,29 +1207,54 @@ export const generateSiteDebugAiBuildReports = async ({
     };
   }
 
-  const groupBy = normalizeBuildReportGroupBy(buildReportsConfig.groupBy);
-  const includeChunks = buildReportsConfig.includeChunks === true;
-  const includeModules = buildReportsConfig.includeModules === true;
+  const pagePlans = createBuildReportPagePlans({
+    buildReportsConfig,
+    cacheDir,
+    pageContexts,
+    pageMetafiles,
+    root,
+  });
+  const uniqueCacheDirs = [
+    ...new Set(
+      Object.values(pagePlans)
+        .map((pagePlan) => pagePlan.cacheConfig?.dir)
+        .filter((cachePath): cachePath is string => Boolean(cachePath)),
+    ),
+  ];
+  const sanitizeOptions: SiteDebugAiSanitizeOptions = {
+    anchorPaths: [
+      ...uniqueCacheDirs,
+      root ? join(root, '.vitepress', 'config.ts') : undefined,
+    ],
+  };
   let executionAvailability: Awaited<
     ReturnType<typeof resolveAvailableBuildReportExecutions>
+  > | null = null;
+  let executionAvailabilityPromise: Promise<
+    Awaited<ReturnType<typeof resolveAvailableBuildReportExecutions>>
   > | null = null;
   const skippedReasons = new Set<string>();
   const generatedReportReferences = new Map<
     string,
     SiteDebugAiBuildReportReference
   >();
+  const pendingReportReferences = new Map<
+    string,
+    Promise<SiteDebugAiBuildReportReference | null>
+  >();
   let generatedReportCount = 0;
   let reusedReportCount = 0;
 
-  if (buildReportCacheConfig) {
-    sanitizeBuildReportCacheDirectory(
-      buildReportCacheConfig.dir,
-      sanitizeOptions,
-    );
+  for (const pageCacheDir of uniqueCacheDirs) {
+    sanitizeBuildReportCacheDirectory(pageCacheDir, sanitizeOptions);
   }
 
   if (executionPlanSkippedReason) {
     skippedReasons.add(executionPlanSkippedReason);
+  }
+
+  if (Object.keys(pagePlans).length === 0) {
+    skippedReasons.add('No eligible pages resolved for build-time AI reports.');
   }
 
   const ensureExecutionAvailability = async () => {
@@ -1156,24 +1262,37 @@ export const generateSiteDebugAiBuildReports = async ({
       return executionAvailability;
     }
 
-    executionAvailability = await resolveAvailableBuildReportExecutions({
-      executions,
-      resolveCapabilitiesImpl,
-    });
+    if (!executionAvailabilityPromise) {
+      executionAvailabilityPromise = resolveAvailableBuildReportExecutions({
+        executions,
+        resolveCapabilitiesImpl,
+      })
+        .then((resolvedExecutionAvailability) => {
+          executionAvailability = resolvedExecutionAvailability;
 
-    if (executionAvailability.skippedReason) {
-      skippedReasons.add(executionAvailability.skippedReason);
+          if (resolvedExecutionAvailability.skippedReason) {
+            skippedReasons.add(resolvedExecutionAvailability.skippedReason);
+          }
+
+          return resolvedExecutionAvailability;
+        })
+        .catch((error) => {
+          executionAvailabilityPromise = null;
+          throw error;
+        });
     }
 
-    return executionAvailability;
+    return executionAvailabilityPromise;
   };
 
   const getOrCreateReportReference = async ({
     artifactKey,
+    cacheConfig,
     execution,
     target,
   }: {
     artifactKey: string;
+    cacheConfig: BuildReportCacheConfig | null;
     execution: BuildReportExecution;
     target: SiteDebugAiAnalysisTarget;
   }) => {
@@ -1183,141 +1302,185 @@ export const generateSiteDebugAiBuildReports = async ({
       return cachedReference;
     }
 
-    const sanitizedTarget = sanitizeSiteDebugAiAnalysisTarget(
-      target,
-      sanitizeOptions,
-    );
-    const prompt = buildSiteDebugAiAnalysisPrompt(
-      sanitizedTarget,
-      sanitizeOptions,
-    );
-    const cacheKey = getBuildReportCacheKey({
-      prompt,
-      provider: execution.provider,
-      providerConfig: getBuildReportProviderConfigSnapshot(
+    const pendingReportReference = pendingReportReferences.get(artifactKey);
+
+    if (pendingReportReference) {
+      return pendingReportReference;
+    }
+
+    const pendingReportTask = (async () => {
+      const sanitizedTarget = sanitizeSiteDebugAiAnalysisTarget(
+        target,
+        sanitizeOptions,
+      );
+      const prompt = buildSiteDebugAiAnalysisPrompt(
+        sanitizedTarget,
+        sanitizeOptions,
+      );
+      const providerConfigSnapshot = getBuildReportProviderConfigSnapshot(
         execution.config,
         execution.provider,
-      ),
-    });
-    const cacheFilePath = buildReportCacheConfig
-      ? getBuildReportCacheFilePath({
-          artifactKey,
-          cacheDir: buildReportCacheConfig.dir,
-          target: sanitizedTarget,
-        })
-      : null;
-    const cachedEntry = cacheFilePath
-      ? readBuildReportCacheEntry(cacheFilePath, sanitizeOptions)
-      : null;
-    const cachedReport =
-      cachedEntry &&
-      (buildReportCacheConfig?.strategy === 'fallback' ||
-        cachedEntry.cacheKey === cacheKey)
-        ? cachedEntry.report
+      );
+      const cacheIdentity = createBuildReportCacheIdentity({
+        prompt,
+        provider: execution.provider,
+        providerConfig: providerConfigSnapshot,
+      });
+      const cacheKey = getBuildReportCacheKey({
+        prompt,
+        provider: execution.provider,
+        providerConfig: providerConfigSnapshot,
+      });
+      const cacheFilePath = cacheConfig
+        ? getBuildReportCacheFilePath({
+            artifactKey,
+            cacheDir: cacheConfig.dir,
+            target: sanitizedTarget,
+          })
         : null;
+      const cachedEntry = cacheFilePath
+        ? readBuildReportCacheEntry(cacheFilePath, sanitizeOptions)
+        : null;
+      const cacheKeyMatches = cachedEntry?.cacheKey === cacheKey;
+      const cacheInvalidationReason =
+        cachedEntry && !cacheKeyMatches
+          ? getBuildReportCacheInvalidationReason({
+              cacheIdentity,
+              cachedEntry,
+              prompt,
+            })
+          : null;
+      const cachedReport =
+        cachedEntry && (cacheConfig?.strategy === 'fallback' || cacheKeyMatches)
+          ? cachedEntry.report
+          : null;
 
-    if (cachedReport) {
+      if (cacheInvalidationReason) {
+        Logger.info(
+          cacheConfig?.strategy === 'fallback'
+            ? `Fallback build-time AI report cache reuse for ${sanitizedTarget.displayPath} (${execution.reportLabel}): ${cacheInvalidationReason}. Reusing the stale cached report because strategy=fallback.`
+            : `Exact build-time AI report cache miss for ${sanitizedTarget.displayPath} (${execution.reportLabel}): ${cacheInvalidationReason}. Regenerating the report.`,
+        );
+      }
+
+      if (cachedReport) {
+        const resolvedCachedReport = applyBuildReportExecutionMetadata({
+          execution,
+          report: cachedReport,
+        });
+
+        if (cacheFilePath) {
+          writeBuildReportCacheEntry({
+            cacheIdentity,
+            cacheKey: cachedEntry?.cacheKey ?? null,
+            filePath: cacheFilePath,
+            report: resolvedCachedReport,
+            sanitizeOptions,
+          });
+        }
+
+        const reportFile = writeBuildReportAsset({
+          assetsDir,
+          outDir,
+          provider: execution.provider,
+          report: resolvedCachedReport,
+          sanitizeOptions,
+          wrapBaseUrl,
+        });
+        const reportReference = {
+          detail: resolvedCachedReport.detail,
+          generatedAt: resolvedCachedReport.generatedAt,
+          model: resolvedCachedReport.model,
+          provider: execution.provider,
+          reportFile,
+          reportId: resolvedCachedReport.reportId,
+          reportLabel: resolvedCachedReport.reportLabel,
+        };
+
+        generatedReportReferences.set(artifactKey, reportReference);
+        reusedReportCount += 1;
+        return reportReference;
+      }
+
+      const { availableExecutionIds } = await ensureExecutionAvailability();
+
+      if (!availableExecutionIds.has(execution.reportId)) {
+        return null;
+      }
+
+      const generatedAt = new Date().toISOString();
+      const result = await analyzeTargetImpl({
+        config: execution.config,
+        provider: execution.provider,
+        target: sanitizedTarget,
+      });
+      const report: SiteDebugAiBuildReport = {
+        detail: result.detail,
+        generatedAt,
+        model: result.model,
+        prompt,
+        provider: execution.provider,
+        reportId: execution.reportId,
+        reportLabel: execution.reportLabel,
+        result: result.result,
+        target: sanitizedTarget,
+      };
       if (cacheFilePath) {
         writeBuildReportCacheEntry({
-          cacheKey: cachedEntry?.cacheKey ?? null,
+          cacheIdentity,
+          cacheKey,
           filePath: cacheFilePath,
-          report: cachedReport,
+          report,
           sanitizeOptions,
         });
       }
-
       const reportFile = writeBuildReportAsset({
         assetsDir,
         outDir,
         provider: execution.provider,
-        report: cachedReport,
+        report,
         sanitizeOptions,
         wrapBaseUrl,
       });
       const reportReference = {
-        detail: cachedReport.detail,
-        generatedAt: cachedReport.generatedAt,
-        model: cachedReport.model,
+        detail: result.detail,
+        generatedAt,
+        model: result.model,
         provider: execution.provider,
         reportFile,
-        reportId: cachedReport.reportId,
-        reportLabel: cachedReport.reportLabel,
+        reportId: execution.reportId,
+        reportLabel: execution.reportLabel,
       };
 
       generatedReportReferences.set(artifactKey, reportReference);
-      reusedReportCount += 1;
+      generatedReportCount += 1;
       return reportReference;
+    })();
+
+    pendingReportReferences.set(artifactKey, pendingReportTask);
+
+    try {
+      return await pendingReportTask;
+    } finally {
+      pendingReportReferences.delete(artifactKey);
     }
-
-    const { availableExecutionIds } = await ensureExecutionAvailability();
-
-    if (!availableExecutionIds.has(execution.reportId)) {
-      return null;
-    }
-
-    const generatedAt = new Date().toISOString();
-    const result = await analyzeTargetImpl({
-      config: execution.config,
-      provider: execution.provider,
-      target: sanitizedTarget,
-    });
-    const report: SiteDebugAiBuildReport = {
-      detail: result.detail,
-      generatedAt,
-      model: result.model,
-      prompt,
-      provider: execution.provider,
-      reportId: execution.reportId,
-      reportLabel: execution.reportLabel,
-      result: result.result,
-      target: sanitizedTarget,
-    };
-    if (cacheFilePath) {
-      writeBuildReportCacheEntry({
-        cacheKey,
-        filePath: cacheFilePath,
-        report,
-        sanitizeOptions,
-      });
-    }
-    const reportFile = writeBuildReportAsset({
-      assetsDir,
-      outDir,
-      provider: execution.provider,
-      report,
-      sanitizeOptions,
-      wrapBaseUrl,
-    });
-    const reportReference = {
-      detail: result.detail,
-      generatedAt,
-      model: result.model,
-      provider: execution.provider,
-      reportFile,
-      reportId: execution.reportId,
-      reportLabel: execution.reportLabel,
-    };
-
-    generatedReportReferences.set(artifactKey, reportReference);
-    generatedReportCount += 1;
-    return reportReference;
   };
+
+  if (Object.keys(pagePlans).length > 1) {
+    Logger.info(
+      `Dispatching build-time AI report generation in parallel for ${Object.keys(pagePlans).length} eligible pages across ${executions.length} execution${executions.length === 1 ? '' : 's'}.`,
+    );
+  }
 
   await collectBuildReportReferencesForPageMetafiles({
     assetsDir,
-    createChunkAnalysisTarget,
-    createModuleAnalysisTarget,
     createPageAnalysisTarget,
     executions,
     getOrCreateReportReference,
-    groupBy,
-    includeChunks,
-    includeModules,
     logger: Logger,
     outDir,
     pageMetafiles,
-    resolveChunkContent,
-    resolveModuleContent,
+    pagePlans,
   });
 
   if (generatedReportCount > 0 || reusedReportCount > 0) {

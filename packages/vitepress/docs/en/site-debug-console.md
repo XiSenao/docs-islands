@@ -25,6 +25,239 @@ Cross-framework rendering problems rarely live in one layer only. They usually i
 
 For setup, activation, and the first diagnostic workflow, start with [Quick Start](./quick-start.md). This page focuses on what each panel exposes and how to interpret the runtime data.
 
+## Build-time AI report configuration
+
+`Site Debug Console` can attach build-time AI analysis to page, chunk, and module views. The current design generates one canonical page-level report per eligible page and reuses that page report from related chunk and module entries. `includeChunks` and `includeModules` therefore expand the evidence embedded into the page prompt instead of creating separate chunk-only or module-only AI runs.
+
+### Minimal configuration
+
+```ts
+vitepressReactRenderingStrategies(vitepressConfig, {
+  siteDebug: {
+    analysis: {
+      providers: {
+        doubao: {
+          apiKey: 'your-doubao-api-key',
+          baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+          model: 'doubao-seed-2-0-pro-260215',
+          thinking: true,
+          maxTokens: 4096,
+          temperature: 0.2,
+          timeoutMs: 300_000,
+        },
+      },
+      buildReports: {
+        cache: true,
+        includeChunks: false,
+        includeModules: false,
+        models: [
+          {
+            label: 'Doubao Pro',
+            model: 'doubao-seed-2-0-pro-260215',
+            provider: 'doubao',
+            thinking: true,
+          },
+        ],
+      },
+    },
+  },
+});
+```
+
+### `buildReports` options
+
+| Option              | Meaning                                                                                                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cache`             | Controls whether persisted AI report cache is used. `false` always regenerates. `true` enables cache with default settings. An object lets you configure `dir` and `strategy`.              |
+| `models`            | Explicit build-time analysis models. When omitted or empty, the build skips AI report generation and logs the skip reason.                                                                  |
+| `includeChunks`     | Adds page-level chunk resource detail to the prompt. Default: `false`.                                                                                                                      |
+| `includeModules`    | Adds page-level and component-level module detail to the prompt. Default: `false`.                                                                                                          |
+| `resolvePage(page)` | Optional page-level gate and override hook. Return `false` to skip a page. Return an object to keep the page and override `cache`, `includeChunks`, or `includeModules` for that page only. |
+
+### `providers.doubao` options
+
+| Option        | Meaning                                                                                                                       |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `apiKey`      | Volcengine Ark API key. This is required to execute Doubao requests, but it is intentionally not part of the cache identity.  |
+| `baseUrl`     | Ark API base URL. Changing it affects the effective provider config snapshot and therefore invalidates `exact` cache.         |
+| `model`       | Model identifier used for Doubao requests. Build-time AI reports still require explicit `buildReports.models` entries to run. |
+| `thinking`    | Enables reasoning mode for Doubao requests.                                                                                   |
+| `maxTokens`   | Upper bound for generated output tokens.                                                                                      |
+| `temperature` | Sampling temperature for generated analysis.                                                                                  |
+| `timeoutMs`   | Local timeout for a single analysis request.                                                                                  |
+
+### `resolvePage(page)` behavior
+
+`resolvePage` is the most direct way to control analysis scope. It runs only for eligible pages that already contain docs-islands page-build analysis signals. Pages with no docs-islands rendering/build data never enter this hook.
+
+The hook receives:
+
+```ts
+interface SiteDebugAnalysisBuildReportsPageContext {
+  routePath: string;
+  filePath: string;
+}
+```
+
+The return value controls both inclusion and page-local overrides:
+
+- Return `false`: skip build report generation for this eligible page.
+- Return `{}`: keep the page and inherit the global `buildReports` defaults.
+- Return an override object: keep the page and override `cache`, `includeChunks`, and/or `includeModules` for that page only.
+
+Example:
+
+```ts
+const buildReports = {
+  cache: false,
+  includeChunks: false,
+  includeModules: false,
+  resolvePage(page) {
+    if (page.routePath === '/guide/performance') {
+      return {
+        cache: {
+          dir: '.vitepress/cache/site-debug-reports/perf',
+          strategy: 'exact',
+        },
+        includeChunks: true,
+        includeModules: true,
+      };
+    }
+
+    return false;
+  },
+};
+```
+
+This setup means:
+
+- eligible pages are skipped by default
+- `/guide/performance` is the only page that gets a build report
+- that page stores cache in its own directory
+- that page also upgrades prompt detail to include chunks and modules
+
+## Cache design and recommended strategy
+
+### Two different outputs exist
+
+There are two different report artifacts, and they solve different problems:
+
+- The persisted cache directory stores reusable AI report JSON used to avoid re-running the model. By default this lives under `.vitepress/cache/site-debug-reports`.
+- The emitted build output writes page report assets into the generated VitePress build so the debug console can open them at runtime.
+
+These are related, but they are not the same thing. The cache is an execution optimization layer. The emitted build assets are the runtime-facing output.
+
+In this repo, `cache.dir` is intentionally pointed at `.vitepress/site-debug-reports`, which is git-tracked. That makes the persisted cache files themselves the canonical reusable report source for normal docs builds and deployments.
+
+### Default cache behavior
+
+When `buildReports` is present and `cache` is omitted, cache is enabled with the default configuration:
+
+- `dir`: `.vitepress/cache/site-debug-reports`
+- `strategy`: `exact`
+
+You can also express that explicitly:
+
+```ts
+const buildReports = {
+  cache: true,
+};
+```
+
+### What `exact` means
+
+`exact` reuses cache only when the cache identity still matches. The current cache key is based on:
+
+- the fully rendered analysis prompt
+- the selected provider
+- a non-secret provider config snapshot
+
+For Doubao, that provider snapshot includes values such as:
+
+- `baseUrl`
+- `model`
+- `thinking`
+- `maxTokens`
+- `temperature`
+
+It intentionally does not include:
+
+- secret material such as `apiKey`
+- display-only metadata such as `label`
+- local execution controls such as `timeoutMs`
+
+That means:
+
+- changing `label` does not invalidate `exact` cache
+- rotating `apiKey` does not invalidate `exact` cache
+- changing prompt content or effective provider behavior does invalidate `exact` cache
+
+When `exact` cache misses and an older cache entry already exists, the build logs also explain why the previous cache stopped matching. Typical reasons include:
+
+- `analysis prompt changed`
+- `provider changed`
+- `provider snapshot changed (temperature: 0.2 -> 0.7)`
+
+Use `exact` when you want build analysis to track the current prompt and current execution semantics closely.
+
+### What `fallback` means
+
+`fallback` reuses any cached report for the same page target when one exists, even if the current cache key no longer matches. In practice this is a stale-allowed mode.
+
+Use `fallback` when:
+
+- you want deterministic builds even if the AI provider is unavailable
+- your CI environment should avoid re-running expensive analyses
+- prompt instability from asset hashes or environment-specific paths would make `exact` miss too often
+
+Do not use `fallback` when you need the analysis text to reflect the latest prompt or the latest provider settings with high confidence.
+
+If a `fallback` entry is reused even though the current exact cache key no longer matches, the build logs will say which part changed and that the stale cache is being reused because `strategy=fallback`.
+
+### Why prompt instability matters
+
+The page-build prompt includes the current page snapshot. That snapshot can contain emitted asset paths, page client chunk paths, and hashed build file names. Small build changes can therefore alter the prompt even when the high-level page diagnosis is still similar.
+
+This has two practical consequences:
+
+- `exact` is stricter and may miss more often than a content-author expects, especially after fresh builds or asset hash changes.
+- `fallback` is more tolerant and often a better fit for CI or for committed docs reports that should keep building when the prompt shape shifts slightly.
+
+### Recommended cache strategies
+
+Use these defaults unless you have a stronger reason to do something else:
+
+- Local prompt development or analysis tuning: `exact`
+- Local debugging on a narrow page set with `resolvePage`: `exact`
+- CI and docs publishing where stale-but-available reports are acceptable: `fallback`
+- One-off correctness checks where no reuse is desired: `cache: false`
+
+### A practical hybrid setup
+
+```ts
+const buildReports = {
+  cache: {
+    dir: '.vitepress/site-debug-reports',
+    strategy: isInCi ? 'fallback' : 'exact',
+  },
+  includeChunks: true,
+  includeModules: true,
+  resolvePage(page) {
+    if (page.routePath.startsWith('/guide/')) {
+      return {};
+    }
+
+    return false;
+  },
+};
+```
+
+This pattern works well because:
+
+- local runs stay strict and refresh when the prompt or provider behavior really changes
+- CI can keep using previously generated reports when strict cache identity would miss
+- `resolvePage` keeps report generation focused on the pages that actually need build diagnostics
+
 <SiteDebugConsoleOverview ssr:only locale="en" />
 
 ## Core features

@@ -106,10 +106,6 @@ vitepressReactRenderingStrategies(vitepressConfig, {
   siteDebug: {
     analysis: {
       providers: {
-        claudeCode: {
-          command: 'claude',
-          timeoutMs: 300_000,
-        },
         doubao: {
           apiKey: doubao_api_key,
           baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
@@ -126,7 +122,6 @@ vitepressReactRenderingStrategies(vitepressConfig, {
           // Environmental factors can cause prompts to be unstable, thereby destroying cacheKey.
           strategy: isInCi ? 'fallback' : 'exact',
         },
-        groupBy: 'page',
         includeChunks: true,
         includeModules: true,
         models: [
@@ -137,6 +132,22 @@ vitepressReactRenderingStrategies(vitepressConfig, {
             thinking: true,
           },
         ],
+        resolvePage: (page) => {
+          const { routePath } = page;
+
+          if (!routePath) {
+            return false;
+          }
+
+          const cacheDir = routePath.replaceAll('/', '__');
+
+          return {
+            cache: {
+              dir: `.vitepress/site-debug-reports/${cacheDir}`,
+              strategy: isInCi ? 'fallback' : 'exact',
+            },
+          };
+        },
       },
     },
   },

@@ -180,14 +180,6 @@ const mergeSiteDebugAnalysisConfig = (
       ? {
           ...base?.providers,
           ...override?.providers,
-          ...(base?.providers?.claudeCode || override?.providers?.claudeCode
-            ? {
-                claudeCode: {
-                  ...base?.providers?.claudeCode,
-                  ...override?.providers?.claudeCode,
-                },
-              }
-            : {}),
           ...(base?.providers?.doubao || override?.providers?.doubao
             ? {
                 doubao: {

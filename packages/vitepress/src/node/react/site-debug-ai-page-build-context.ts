@@ -260,14 +260,25 @@ export const resolvePageClientChunkPublicPath = ({
     return undefined;
   }
 
-  const matchingChunkFile = fs
+  const matchingChunkFiles = fs
     .readdirSync(assetsOutputDir)
-    .find(
+    .filter(
       (fileName) =>
         fileName.endsWith('.js') &&
         !fileName.endsWith('.lean.js') &&
         stemCandidates.some((stem) => fileName.startsWith(`${stem}.`)),
+    )
+    .map((fileName) => ({
+      fileName,
+      mtimeMs: fs.statSync(join(assetsOutputDir, fileName)).mtimeMs,
+    }))
+    .toSorted(
+      (left, right) =>
+        right.mtimeMs - left.mtimeMs ||
+        left.fileName.localeCompare(right.fileName),
     );
+
+  const matchingChunkFile = matchingChunkFiles[0]?.fileName;
 
   return matchingChunkFile
     ? join('/', assetsDir, matchingChunkFile)

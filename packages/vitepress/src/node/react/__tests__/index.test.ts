@@ -53,12 +53,7 @@ describe('vitepressReactRenderingStrategies', () => {
     const vitepressConfig: any = {
       siteDebug: {
         analysis: {
-          providers: {
-            claudeCode: {
-              command: 'claude',
-              timeoutMs: 240_000,
-            },
-          },
+          providers: {},
         },
       },
     };
@@ -86,9 +81,6 @@ describe('vitepressReactRenderingStrategies', () => {
       },
     });
 
-    expect(
-      vitepressConfig.siteDebug.analysis?.providers?.claudeCode?.command,
-    ).toBe('claude');
     expect(vitepressConfig.siteDebug.analysis?.providers?.doubao?.model).toBe(
       'doubao-seed-2-0-pro-260215',
     );

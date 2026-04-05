@@ -19,7 +19,6 @@ describe('site-debug-ai helpers', () => {
   });
 
   it('formats provider and artifact labels for the UI', () => {
-    expect(getSiteDebugAiProviderLabel('claude-code')).toBe('Claude Code');
     expect(getSiteDebugAiProviderLabel('doubao')).toBe('Doubao');
     expect(getSiteDebugAiArtifactKindLabel('bundle-chunk')).toBe(
       'Bundle Chunk',

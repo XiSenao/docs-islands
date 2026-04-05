@@ -25,6 +25,239 @@
 
 接入方式、开启方式和第一轮排查流程，请先看 [快速开始](./quick-start.md)。本文聚焦于各个面板能提供什么信息，以及如何解读这些运行时数据。
 
+## 构建期 AI 报告配置
+
+`Site Debug Console` 可以在 page、chunk 和 module 视图上挂载构建期 AI 分析。当前设计会为每个 eligible page 生成一份规范化的 page-level report，然后把这份 page report 复用到相关的 chunk 和 module 条目上。因此，`includeChunks` 和 `includeModules` 的作用是扩展 page prompt 里包含的证据范围，而不是额外触发独立的 chunk-only 或 module-only AI 请求。
+
+### 最小配置示例
+
+```ts
+vitepressReactRenderingStrategies(vitepressConfig, {
+  siteDebug: {
+    analysis: {
+      providers: {
+        doubao: {
+          apiKey: 'your-doubao-api-key',
+          baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+          model: 'doubao-seed-2-0-pro-260215',
+          thinking: true,
+          maxTokens: 4096,
+          temperature: 0.2,
+          timeoutMs: 300_000,
+        },
+      },
+      buildReports: {
+        cache: true,
+        includeChunks: false,
+        includeModules: false,
+        models: [
+          {
+            label: 'Doubao Pro',
+            model: 'doubao-seed-2-0-pro-260215',
+            provider: 'doubao',
+            thinking: true,
+          },
+        ],
+      },
+    },
+  },
+});
+```
+
+### `buildReports` 配置项
+
+| 配置项              | 含义                                                                                                                                                       |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cache`             | 控制是否启用持久化 AI report cache。`false` 表示每次都重新生成；`true` 表示使用默认缓存配置；对象形式则可以继续配置 `dir` 和 `strategy`。                  |
+| `models`            | 显式声明构建期分析模型列表。省略或为空时，会跳过 AI report 生成流程，并输出对应的 skip 日志。                                                              |
+| `includeChunks`     | 是否把 page-level 的 chunk resource 明细加入 prompt。默认值是 `false`。                                                                                    |
+| `includeModules`    | 是否把 page-level 与 component-level 的 module 明细加入 prompt。默认值是 `false`。                                                                         |
+| `resolvePage(page)` | 可选的 page-level 过滤与局部 override 钩子。返回 `false` 表示跳过该页；返回对象表示保留该页，并对该页局部覆盖 `cache`、`includeChunks`、`includeModules`。 |
+
+### `providers.doubao` 配置项
+
+| 配置项        | 含义                                                                                                         |
+| ------------- | ------------------------------------------------------------------------------------------------------------ |
+| `apiKey`      | Volcengine Ark API key。执行 Doubao 请求时需要它，但它不会进入 cache identity。                              |
+| `baseUrl`     | Ark API 的 base URL。修改它会改变有效 provider config snapshot，因此会让 `exact` cache 失效。                |
+| `model`       | Doubao provider 请求使用的模型标识。是否执行构建期 AI report 仍然取决于 `buildReports.models` 是否显式提供。 |
+| `thinking`    | 是否为 Doubao 请求启用 reasoning mode。                                                                      |
+| `maxTokens`   | 单次分析返回内容的最大 token 上限。                                                                          |
+| `temperature` | 生成分析文本时的采样温度。                                                                                   |
+| `timeoutMs`   | 单次分析请求在本地的超时时间。                                                                               |
+
+### `resolvePage(page)` 的行为
+
+`resolvePage` 是控制分析范围最直接的方式。它只会对 eligible page 触发，而且这些页面本身已经包含 docs-islands 的 page-build analysis signals。没有 docs-islands 渲染/构建数据的页面不会进入这个钩子。
+
+钩子接收的上下文如下：
+
+```ts
+interface SiteDebugAnalysisBuildReportsPageContext {
+  routePath: string;
+  filePath: string;
+}
+```
+
+返回值同时决定“是否分析”和“是否局部覆盖配置”：
+
+- 返回 `false`：跳过这个 eligible page，不生成 build report。
+- 返回 `{}`：保留这个页面，并继承全局 `buildReports` 默认配置。
+- 返回 override 对象：保留这个页面，并只对这个页面覆盖 `cache`、`includeChunks`、`includeModules`。
+
+示例：
+
+```ts
+const buildReports = {
+  cache: false,
+  includeChunks: false,
+  includeModules: false,
+  resolvePage(page) {
+    if (page.routePath === '/guide/performance') {
+      return {
+        cache: {
+          dir: '.vitepress/cache/site-debug-reports/perf',
+          strategy: 'exact',
+        },
+        includeChunks: true,
+        includeModules: true,
+      };
+    }
+
+    return false;
+  },
+};
+```
+
+这套配置表达的是：
+
+- 默认跳过所有 eligible page
+- 只有 `/guide/performance` 会生成 build report
+- 这个页面把缓存单独写进自己的目录
+- 这个页面同时把 prompt 细节升级到 chunks + modules
+
+## 缓存设计与推荐策略
+
+### 先区分两类产物
+
+这里有两类相关但不同的产物：
+
+- 持久化 cache 目录保存的是可复用的 AI report JSON，用来避免重复请求模型。默认目录是 `.vitepress/cache/site-debug-reports`。
+- 构建输出阶段会把 page report 作为产物写入生成后的 VitePress 站点里，供 debug console 在运行时读取。
+
+它们彼此相关，但不是同一层东西。cache 是执行优化层；构建输出里的 report asset 才是运行时实际消费的产物。
+
+在当前仓库里，`cache.dir` 被有意指向了 `.vitepress/site-debug-reports`，而这个目录会被 git 跟踪。因此这里的持久化 cache 文件本身，也被当作常规 docs build 和部署时的规范化 report 来源。
+
+### 默认缓存行为
+
+当配置里存在 `buildReports`，但没有显式写 `cache` 时，系统会启用默认缓存配置：
+
+- `dir`: `.vitepress/cache/site-debug-reports`
+- `strategy`: `exact`
+
+也可以显式写成：
+
+```ts
+const buildReports = {
+  cache: true,
+};
+```
+
+### `exact` 的含义
+
+`exact` 只有在 cache identity 仍然匹配时才会复用缓存。当前 cache key 的组成是：
+
+- 完整渲染后的分析 prompt
+- 当前 provider
+- 一份不包含 secret 的 provider config snapshot
+
+对 Doubao 来说，这份 provider snapshot 会包含：
+
+- `baseUrl`
+- `model`
+- `thinking`
+- `maxTokens`
+- `temperature`
+
+它刻意不包含：
+
+- `apiKey` 这类 secret 信息
+- `label` 这类只影响展示的元数据
+- `timeoutMs` 这类本地执行控制参数
+
+因此：
+
+- 修改 `label` 不会让 `exact` cache 失效
+- 轮换 `apiKey` 不会让 `exact` cache 失效
+- 修改 prompt 内容，或修改真正影响执行行为的 provider 配置，会让 `exact` cache 失效
+
+当 `exact` cache miss 且本地已经存在旧缓存条目时，构建日志也会说明上一次缓存为什么失效。常见原因包括：
+
+- `analysis prompt changed`
+- `provider changed`
+- `provider snapshot changed (temperature: 0.2 -> 0.7)`
+
+当你希望构建分析尽量严格跟随“当前 prompt”和“当前执行语义”时，应该优先使用 `exact`。
+
+### `fallback` 的含义
+
+`fallback` 只要发现同一 page target 已经有缓存，就会优先复用，即使当前 cache key 已经不匹配也会继续使用。可以把它理解成“允许 stale reuse”的模式。
+
+适合使用 `fallback` 的场景：
+
+- 你希望即使 AI provider 暂时不可用，构建仍然能稳定产出
+- 你希望 CI 避免重复执行昂贵的分析请求
+- 你已经知道 prompt 会因为 hash 路径或环境路径变化而频繁抖动，导致 `exact` 太容易 miss
+
+如果你需要分析文本高置信度地反映“最新 prompt”或“最新 provider 设置”，就不应该使用 `fallback`。
+
+如果 `fallback` 在当前 exact cache key 已经不匹配的情况下仍然复用了旧缓存，构建日志也会明确提示是哪一部分发生了变化，以及为什么当前仍然继续使用 stale cache。
+
+### 为什么 prompt 很容易抖动
+
+page-build prompt 会把当前页面快照直接嵌进去，而这份快照里可能带有 emitted asset path、page client chunk path，以及带 hash 的构建文件名。于是，一些看起来很小的构建变化，也可能让 prompt 本身变化，即使页面的高层诊断结论几乎没变。
+
+这会带来两个实际影响：
+
+- `exact` 会更严格，因此在重新构建或 hash 变化后更容易 miss
+- `fallback` 对这种变化更宽容，所以更适合 CI，或者更适合那些希望持续复用已提交 report 的场景
+
+### 推荐缓存策略
+
+除非你有更强的约束，否则可以优先参考下面这套默认建议：
+
+- 本地调 prompt 或调分析规则：`exact`
+- 只对少量页面做本地排查，配合 `resolvePage`：`exact`
+- CI / 文档发布，希望 stale-but-available：`fallback`
+- 一次性 correctness check，不想复用旧结果：`cache: false`
+
+### 一个实用的混合配置
+
+```ts
+const buildReports = {
+  cache: {
+    dir: '.vitepress/site-debug-reports',
+    strategy: isInCi ? 'fallback' : 'exact',
+  },
+  includeChunks: true,
+  includeModules: true,
+  resolvePage(page) {
+    if (page.routePath.startsWith('/guide/')) {
+      return {};
+    }
+
+    return false;
+  },
+};
+```
+
+这套写法比较实用，因为：
+
+- 本地构建仍然保持严格，只要 prompt 或 provider 语义真的变化就会刷新
+- CI 可以继续复用已有 report，不会因为严格 cache identity miss 而频繁重跑
+- `resolvePage` 能把报告生成范围收敛到真正需要构建诊断的页面
+
 <SiteDebugConsoleOverview ssr:only locale="zh" />
 
 ## 核心功能介绍

@@ -28,7 +28,7 @@ const modalTitle = computed(
     props.title ||
     props.analysisTarget?.artifactLabel ||
     props.analysisTarget?.displayPath ||
-    'Build Artifact Review',
+    'Artifact Analysis',
 );
 
 const modalPath = computed(

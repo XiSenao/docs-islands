@@ -51,6 +51,7 @@ export interface SiteDebugAiBuildReportReference {
   detail?: string;
   generatedAt: string;
   model?: string;
+  prompt?: string;
   provider: SiteDebugAiProvider;
   reportId: string;
   reportLabel: string;

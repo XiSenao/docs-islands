@@ -15,34 +15,23 @@ type BuildMetricModule = BuildMetric['modules'][number] & {
   isGeneratedVirtualModule?: boolean;
 };
 
-type BuildReportGroupBy = 'artifact' | 'page';
-
 interface BuildReportExecutionLike {
   provider: string;
   reportId: string;
   reportLabel: string;
 }
 
+interface BuildReportPagePlanLike<TCacheConfig = unknown> {
+  cacheConfig: TCacheConfig | null;
+  includeChunks: boolean;
+  includeModules: boolean;
+}
+
 interface CollectBuildReportReferencesOptions<
   TExecution extends BuildReportExecutionLike,
+  TCacheConfig,
 > {
   assetsDir: string;
-  createChunkAnalysisTarget: (options: {
-    assetsDir: string;
-    buildMetric: BuildMetric;
-    bytes: number;
-    chunkFile: string;
-    chunkType: BuildMetricFile['type'];
-    content: string;
-    outDir: string;
-  }) => SiteDebugAiAnalysisTarget;
-  createModuleAnalysisTarget: (options: {
-    assetsDir: string;
-    buildMetric: BuildMetric;
-    content: string;
-    moduleMetric: BuildMetricModule;
-    outDir: string;
-  }) => SiteDebugAiAnalysisTarget;
   createPageAnalysisTarget: (options: {
     assetsDir: string;
     includeChunks: boolean;
@@ -54,27 +43,23 @@ interface CollectBuildReportReferencesOptions<
   executions: readonly TExecution[];
   getOrCreateReportReference: (options: {
     artifactKey: string;
+    cacheConfig: TCacheConfig | null;
     execution: TExecution;
     target: SiteDebugAiAnalysisTarget;
   }) => Promise<SiteDebugAiBuildReportReference | null>;
-  groupBy: BuildReportGroupBy;
-  includeChunks: boolean;
-  includeModules: boolean;
   logger: {
     warn: (message: string) => void;
   };
   outDir: string;
   pageMetafiles: Record<string, PageMetafile>;
-  resolveChunkContent: (
-    assetsDir: string,
-    outDir: string,
-    chunkFile: string,
-  ) => string | null;
-  resolveModuleContent: (options: {
-    assetsDir: string;
-    moduleMetric: BuildMetricModule;
-    outDir: string;
-  }) => string | null;
+  pagePlans: Record<string, BuildReportPagePlanLike<TCacheConfig>>;
+}
+
+interface CollectPageReportReferencesResult<
+  TExecution extends BuildReportExecutionLike,
+> {
+  reportEntries: (readonly [TExecution, SiteDebugAiBuildReportReference])[];
+  warningMessages: string[];
 }
 
 const appendReportReference = (
@@ -113,20 +98,18 @@ const formatBuildReportErrorMessage = (error: unknown) => {
   return detail ? `${baseMessage} (${detail})` : baseMessage;
 };
 
-const collectPageGroupedReportReferences = async <
+const collectPageReportReferences = async <
   TExecution extends BuildReportExecutionLike,
+  TCacheConfig,
 >({
   assetsDir,
   createPageAnalysisTarget,
   executions,
   getOrCreateReportReference,
-  groupBy,
-  includeChunks,
-  includeModules,
-  logger,
   outDir,
   pageId,
   pageMetafile,
+  pagePlan,
 }: {
   assetsDir: string;
   createPageAnalysisTarget: (options: {
@@ -140,33 +123,26 @@ const collectPageGroupedReportReferences = async <
   executions: readonly TExecution[];
   getOrCreateReportReference: (options: {
     artifactKey: string;
+    cacheConfig: TCacheConfig | null;
     execution: TExecution;
     target: SiteDebugAiAnalysisTarget;
   }) => Promise<SiteDebugAiBuildReportReference | null>;
-  groupBy: BuildReportGroupBy;
-  includeChunks: boolean;
-  includeModules: boolean;
-  logger: {
-    warn: (message: string) => void;
-  };
   outDir: string;
   pageId: string;
   pageMetafile: PageMetafile;
+  pagePlan: BuildReportPagePlanLike<TCacheConfig>;
 }) => {
-  if (groupBy !== 'page' || !hasPageBuildAnalysisSignals(pageMetafile)) {
-    return [];
-  }
-
   const entries = await Promise.all(
     executions.map(async (execution) => {
       try {
         const reportReference = await getOrCreateReportReference({
           artifactKey: buildArtifactKey(execution, 'page-build', pageId),
+          cacheConfig: pagePlan.cacheConfig,
           execution,
           target: createPageAnalysisTarget({
             assetsDir,
-            includeChunks,
-            includeModules,
+            includeChunks: pagePlan.includeChunks,
+            includeModules: pagePlan.includeModules,
             outDir,
             pageId,
             pageMetafile,
@@ -175,15 +151,26 @@ const collectPageGroupedReportReferences = async <
 
         return reportReference ? ([execution, reportReference] as const) : null;
       } catch (error) {
-        logger.warn(
-          `Failed to generate page AI report for ${pageId} (${execution.reportLabel}): ${formatBuildReportErrorMessage(error)}`,
-        );
-        return null;
+        return {
+          errorMessage: `Failed to generate page AI report for ${pageId} (${execution.reportLabel}): ${formatBuildReportErrorMessage(error)}`,
+        } as const;
       }
     }),
   );
 
-  return filterResolvedExecutionReportEntries(entries);
+  const warningMessages = entries.flatMap((entry) =>
+    entry && 'errorMessage' in entry ? [entry.errorMessage] : [],
+  );
+  const reportEntries = filterResolvedExecutionReportEntries(
+    entries.flatMap((entry) =>
+      entry && 'errorMessage' in entry ? [] : [entry],
+    ),
+  );
+
+  return {
+    reportEntries,
+    warningMessages,
+  } satisfies CollectPageReportReferencesResult<TExecution>;
 };
 
 const syncPageGroupedReports = (
@@ -206,9 +193,7 @@ const syncPageGroupedReports = (
     return;
   }
 
-  if (pageMetafile.buildMetrics.aiReports) {
-    delete pageMetafile.buildMetrics.aiReports;
-  }
+  delete pageMetafile.buildMetrics.aiReports;
 };
 
 const appendPageGroupedArtifactReports = <
@@ -238,157 +223,47 @@ const appendPageGroupedArtifactReports = <
   }
 };
 
-const collectChunkReportsForBuildMetric = async <
+const collectChunkReportsForBuildMetric = <
   TExecution extends BuildReportExecutionLike,
 >({
-  assetsDir,
   buildMetric,
-  createChunkAnalysisTarget,
   executions,
-  getOrCreateReportReference,
-  groupBy,
-  logger,
-  outDir,
   pageGroupedReportReferenceMap,
-  resolveChunkContent,
 }: {
-  assetsDir: string;
   buildMetric: BuildMetric;
-  createChunkAnalysisTarget: (options: {
-    assetsDir: string;
-    buildMetric: BuildMetric;
-    bytes: number;
-    chunkFile: string;
-    chunkType: BuildMetricFile['type'];
-    content: string;
-    outDir: string;
-  }) => SiteDebugAiAnalysisTarget;
   executions: readonly TExecution[];
-  getOrCreateReportReference: (options: {
-    artifactKey: string;
-    execution: TExecution;
-    target: SiteDebugAiAnalysisTarget;
-  }) => Promise<SiteDebugAiBuildReportReference | null>;
-  groupBy: BuildReportGroupBy;
-  logger: {
-    warn: (message: string) => void;
-  };
-  outDir: string;
   pageGroupedReportReferenceMap: Map<
     TExecution,
     SiteDebugAiBuildReportReference
   >;
-  resolveChunkContent: (
-    assetsDir: string,
-    outDir: string,
-    chunkFile: string,
-  ) => string | null;
 }) => {
   const chunkReports: Record<string, SiteDebugAiBuildReportReference[]> = {};
 
   for (const fileMetric of buildMetric.files) {
-    if (groupBy === 'page') {
-      appendPageGroupedArtifactReports({
-        executions,
-        pageGroupedReportReferenceMap,
-        reportMap: chunkReports,
-        reportMapKey: fileMetric.file,
-      });
-      continue;
-    }
-
-    const chunkContent = resolveChunkContent(
-      assetsDir,
-      outDir,
-      fileMetric.file,
-    );
-
-    if (!chunkContent) {
-      continue;
-    }
-
-    const chunkTarget = createChunkAnalysisTarget({
-      assetsDir,
-      buildMetric,
-      bytes: fileMetric.bytes,
-      chunkFile: fileMetric.file,
-      chunkType: fileMetric.type,
-      content: chunkContent,
-      outDir,
+    appendPageGroupedArtifactReports({
+      executions,
+      pageGroupedReportReferenceMap,
+      reportMap: chunkReports,
+      reportMapKey: fileMetric.file,
     });
-
-    for (const execution of executions) {
-      try {
-        const reportReference = await getOrCreateReportReference({
-          artifactKey: buildArtifactKey(
-            execution,
-            'bundle-chunk',
-            buildMetric.componentName,
-            fileMetric.file,
-          ),
-          execution,
-          target: chunkTarget,
-        });
-
-        if (!reportReference) {
-          continue;
-        }
-
-        appendReportReference(chunkReports, fileMetric.file, reportReference);
-      } catch (error) {
-        logger.warn(
-          `Failed to generate build chunk AI report for ${fileMetric.file} (${execution.reportLabel}): ${formatBuildReportErrorMessage(error)}`,
-        );
-      }
-    }
   }
 
   return chunkReports;
 };
 
-const collectModuleReportsForBuildMetric = async <
+const collectModuleReportsForBuildMetric = <
   TExecution extends BuildReportExecutionLike,
 >({
-  assetsDir,
   buildMetric,
-  createModuleAnalysisTarget,
   executions,
-  getOrCreateReportReference,
-  groupBy,
-  logger,
-  outDir,
   pageGroupedReportReferenceMap,
-  resolveModuleContent,
 }: {
-  assetsDir: string;
   buildMetric: BuildMetric;
-  createModuleAnalysisTarget: (options: {
-    assetsDir: string;
-    buildMetric: BuildMetric;
-    content: string;
-    moduleMetric: BuildMetricModule;
-    outDir: string;
-  }) => SiteDebugAiAnalysisTarget;
   executions: readonly TExecution[];
-  getOrCreateReportReference: (options: {
-    artifactKey: string;
-    execution: TExecution;
-    target: SiteDebugAiAnalysisTarget;
-  }) => Promise<SiteDebugAiBuildReportReference | null>;
-  groupBy: BuildReportGroupBy;
-  logger: {
-    warn: (message: string) => void;
-  };
-  outDir: string;
   pageGroupedReportReferenceMap: Map<
     TExecution,
     SiteDebugAiBuildReportReference
   >;
-  resolveModuleContent: (options: {
-    assetsDir: string;
-    moduleMetric: BuildMetricModule;
-    outDir: string;
-  }) => string | null;
 }) => {
   const moduleReports: Record<string, SiteDebugAiBuildReportReference[]> = {};
 
@@ -398,58 +273,12 @@ const collectModuleReportsForBuildMetric = async <
       moduleMetric.id,
     );
 
-    if (groupBy === 'page') {
-      appendPageGroupedArtifactReports({
-        executions,
-        pageGroupedReportReferenceMap,
-        reportMap: moduleReports,
-        reportMapKey: moduleKey,
-      });
-      continue;
-    }
-
-    const moduleContent = resolveModuleContent({
-      assetsDir,
-      moduleMetric,
-      outDir,
+    appendPageGroupedArtifactReports({
+      executions,
+      pageGroupedReportReferenceMap,
+      reportMap: moduleReports,
+      reportMapKey: moduleKey,
     });
-
-    if (!moduleContent) {
-      continue;
-    }
-
-    const moduleTarget = createModuleAnalysisTarget({
-      assetsDir,
-      buildMetric,
-      content: moduleContent,
-      moduleMetric,
-      outDir,
-    });
-
-    for (const execution of executions) {
-      try {
-        const reportReference = await getOrCreateReportReference({
-          artifactKey: buildArtifactKey(
-            execution,
-            'bundle-module',
-            buildMetric.componentName,
-            moduleKey,
-          ),
-          execution,
-          target: moduleTarget,
-        });
-
-        if (!reportReference) {
-          continue;
-        }
-
-        appendReportReference(moduleReports, moduleKey, reportReference);
-      } catch (error) {
-        logger.warn(
-          `Failed to generate build module AI report for ${moduleMetric.id} (${execution.reportLabel}): ${formatBuildReportErrorMessage(error)}`,
-        );
-      }
-    }
   }
 
   return moduleReports;
@@ -468,6 +297,7 @@ const syncBuildMetricReports = ({
     Object.keys(chunkReports).length === 0 &&
     Object.keys(moduleReports).length === 0
   ) {
+    delete buildMetric.aiReports;
     return;
   }
 
@@ -564,68 +394,76 @@ export const hasPageBuildAnalysisSignals = (
 
 export const collectBuildReportReferencesForPageMetafiles = async <
   TExecution extends BuildReportExecutionLike,
+  TCacheConfig,
 >({
   assetsDir,
-  createChunkAnalysisTarget,
-  createModuleAnalysisTarget,
   createPageAnalysisTarget,
   executions,
   getOrCreateReportReference,
-  groupBy,
-  includeChunks,
-  includeModules,
   logger,
   outDir,
   pageMetafiles,
-  resolveChunkContent,
-  resolveModuleContent,
-}: CollectBuildReportReferencesOptions<TExecution>): Promise<void> => {
-  for (const [pageId, pageMetafile] of Object.entries(pageMetafiles)) {
-    const pageGroupedReportReferences =
-      await collectPageGroupedReportReferences({
-        assetsDir,
-        createPageAnalysisTarget,
-        executions,
-        getOrCreateReportReference,
-        groupBy,
-        includeChunks,
-        includeModules,
-        logger,
-        outDir,
-        pageId,
-        pageMetafile,
-      });
-    const pageGroupedReportReferenceMap = new Map(pageGroupedReportReferences);
-
-    syncPageGroupedReports(pageMetafile, pageGroupedReportReferences);
-
-    for (const buildMetric of pageMetafile.buildMetrics?.components ?? []) {
-      const chunkReports = includeChunks
-        ? await collectChunkReportsForBuildMetric({
+  pagePlans,
+}: CollectBuildReportReferencesOptions<
+  TExecution,
+  TCacheConfig
+>): Promise<void> => {
+  const pageResults = await Promise.all(
+    Object.entries(pageMetafiles).map(async ([pageId, pageMetafile]) => {
+      const pagePlan = pagePlans[pageId];
+      const pageGroupedResult = pagePlan
+        ? await collectPageReportReferences({
             assetsDir,
-            buildMetric,
-            createChunkAnalysisTarget,
+            createPageAnalysisTarget,
             executions,
             getOrCreateReportReference,
-            groupBy,
-            logger,
             outDir,
+            pageId,
+            pageMetafile,
+            pagePlan,
+          })
+        : {
+            reportEntries: [],
+            warningMessages: [],
+          };
+
+      return {
+        pageGroupedReportReferences: pageGroupedResult.reportEntries,
+        pageMetafile,
+        pagePlan,
+        warningMessages: pageGroupedResult.warningMessages,
+      };
+    }),
+  );
+
+  for (const pageResult of pageResults) {
+    for (const warningMessage of pageResult.warningMessages) {
+      logger.warn(warningMessage);
+    }
+
+    const pageGroupedReportReferenceMap = new Map(
+      pageResult.pageGroupedReportReferences,
+    );
+
+    syncPageGroupedReports(
+      pageResult.pageMetafile,
+      pageResult.pageGroupedReportReferences,
+    );
+
+    for (const buildMetric of pageResult.pageMetafile.buildMetrics
+      ?.components ?? []) {
+      const chunkReports = pageResult.pagePlan?.includeChunks
+        ? collectChunkReportsForBuildMetric({
+            buildMetric,
+            executions,
             pageGroupedReportReferenceMap,
-            resolveChunkContent,
           })
         : {};
-      const moduleReports = includeModules
-        ? await collectModuleReportsForBuildMetric({
-            assetsDir,
+      const moduleReports = pageResult.pagePlan?.includeModules
+        ? collectModuleReportsForBuildMetric({
             buildMetric,
-            createModuleAnalysisTarget,
             executions,
-            getOrCreateReportReference,
-            groupBy,
-            logger,
-            outDir,
             pageGroupedReportReferenceMap,
-            resolveModuleContent,
           })
         : {};
 

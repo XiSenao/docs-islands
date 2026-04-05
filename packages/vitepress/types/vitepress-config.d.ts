@@ -1,4 +1,4 @@
-export type SiteDebugAnalysisProvider = 'claude-code' | 'doubao';
+export type SiteDebugAnalysisProvider = 'doubao';
 export type SiteDebugAnalysisDoubaoThinkingType = boolean;
 export type SiteDebugAnalysisBuildReportCacheStrategy = 'exact' | 'fallback';
 
@@ -32,16 +32,10 @@ export interface SiteDebugAnalysisProviderBaseConfig {
    * Maximum time to wait for a single analysis request, in milliseconds.
    *
    * When omitted, defaults to `Infinity` and does not enforce a local timeout.
+   *
+   * @default Infinity
    */
   timeoutMs?: number;
-}
-
-export interface SiteDebugAnalysisClaudeCodeConfig
-  extends SiteDebugAnalysisProviderBaseConfig {
-  /**
-   * Claude Code CLI command name or absolute path.
-   */
-  command?: string;
 }
 
 export interface SiteDebugAnalysisDoubaoConfig
@@ -86,11 +80,6 @@ interface SiteDebugAnalysisBuildReportModelBaseConfig {
   provider: SiteDebugAnalysisProvider;
 }
 
-export interface SiteDebugAnalysisBuildReportClaudeCodeModelConfig
-  extends SiteDebugAnalysisBuildReportModelBaseConfig {
-  provider: 'claude-code';
-}
-
 export interface SiteDebugAnalysisBuildReportDoubaoModelConfig
   extends SiteDebugAnalysisBuildReportModelBaseConfig {
   /**
@@ -107,8 +96,36 @@ export interface SiteDebugAnalysisBuildReportDoubaoModelConfig
 }
 
 export type SiteDebugAnalysisBuildReportModelConfig =
-  | SiteDebugAnalysisBuildReportClaudeCodeModelConfig
-  | SiteDebugAnalysisBuildReportDoubaoModelConfig;
+  SiteDebugAnalysisBuildReportDoubaoModelConfig;
+
+export interface SiteDebugAnalysisBuildReportsPageContext {
+  /**
+   * VitePress page route, e.g. '/guide/getting-started'.
+   */
+  routePath: string;
+  /**
+   * Absolute file path of the page source.
+   */
+  filePath: string;
+}
+
+export interface SiteDebugAnalysisBuildReportsPageOverride {
+  /**
+   * Page-local cache behavior override.
+   * When omitted, the global buildReports.cache setting is reused.
+   */
+  cache?: SiteDebugAnalysisBuildReportsCacheConfig;
+  /**
+   * Page-local chunk detail override.
+   * When omitted, the global buildReports.includeChunks setting is reused.
+   */
+  includeChunks?: boolean;
+  /**
+   * Page-local module detail override.
+   * When omitted, the global buildReports.includeModules setting is reused.
+   */
+  includeModules?: boolean;
+}
 
 export interface SiteDebugAnalysisBuildReportsConfig {
   /**
@@ -119,21 +136,26 @@ export interface SiteDebugAnalysisBuildReportsConfig {
    * - false: always regenerate reports during build.
    * - true: persist and reuse cached reports with default options.
    * - object: persist and reuse cached reports with custom options.
+   *
+   * @default true
    */
   cache?: SiteDebugAnalysisBuildReportsCacheConfig;
   /**
    * Explicit analysis models to execute during build.
-   * When omitted, configured provider defaults are used.
+   * When omitted or empty, build-time AI report generation is skipped.
    */
   models?: SiteDebugAnalysisBuildReportModelConfig[];
   /**
-   * Controls whether build-time AI prompts are generated per artifact or per page.
-   * When set to `page`, one page-level report is generated and associated with
-   * every chunk/module artifact on that page.
+   * Resolves whether a specific eligible page should generate a build report.
    *
-   * @default 'page'
+   * - return `false`: skip build report generation for this page.
+   * - return an object: generate a page report using the returned local overrides.
+   *
+   * When omitted, all eligible pages generate reports with the global defaults.
    */
-  groupBy?: 'artifact' | 'page';
+  resolvePage?: (
+    page: SiteDebugAnalysisBuildReportsPageContext,
+  ) => false | SiteDebugAnalysisBuildReportsPageOverride;
   /**
    * Includes chunk resource reports in the build output.
    *
@@ -154,7 +176,6 @@ export interface SiteDebugAnalysisUserConfig {
    */
   buildReports?: SiteDebugAnalysisBuildReportsConfig;
   providers?: {
-    claudeCode?: SiteDebugAnalysisClaudeCodeConfig;
     doubao?: SiteDebugAnalysisDoubaoConfig;
   };
 }
@@ -162,10 +183,7 @@ export interface SiteDebugAnalysisUserConfig {
 export type SiteDebugAiProvider = SiteDebugAnalysisProvider;
 export type SiteDebugAiDoubaoThinkingType = SiteDebugAnalysisDoubaoThinkingType;
 export type SiteDebugAiProviderBaseConfig = SiteDebugAnalysisProviderBaseConfig;
-export type SiteDebugAiClaudeCodeConfig = SiteDebugAnalysisClaudeCodeConfig;
 export type SiteDebugAiDoubaoConfig = SiteDebugAnalysisDoubaoConfig;
-export type SiteDebugAiBuildReportClaudeCodeModelConfig =
-  SiteDebugAnalysisBuildReportClaudeCodeModelConfig;
 export type SiteDebugAiBuildReportDoubaoModelConfig =
   SiteDebugAnalysisBuildReportDoubaoModelConfig;
 export type SiteDebugAiBuildReportModelConfig =
@@ -176,6 +194,10 @@ export type SiteDebugAiBuildReportsCacheOptions =
   SiteDebugAnalysisBuildReportsCacheOptions;
 export type SiteDebugAiBuildReportsCacheConfig =
   SiteDebugAnalysisBuildReportsCacheConfig;
+export type SiteDebugAiBuildReportsPageContext =
+  SiteDebugAnalysisBuildReportsPageContext;
+export type SiteDebugAiBuildReportsPageOverride =
+  SiteDebugAnalysisBuildReportsPageOverride;
 export type SiteDebugAiBuildReportsConfig = SiteDebugAnalysisBuildReportsConfig;
 export type SiteDebugAiUserConfig = SiteDebugAnalysisUserConfig;
 
