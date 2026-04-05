@@ -82,9 +82,24 @@ export interface SpaSyncPageBuildEffects {
   components: SpaSyncComponentSideEffectMetric[];
   enabledComponentCount: number;
   enabledRenderCount: number;
+  pageClientChunkFile?: string;
   totalBlockingCssBytes: number;
   totalBlockingCssCount: number;
   totalEmbeddedHtmlBytes: number;
+  usesCssLoadingRuntime: boolean;
+}
+
+export interface PageBuildRenderInstanceMetric {
+  blockingCssBytes: number;
+  blockingCssCount: number;
+  blockingCssFiles: BundleAssetMetric[];
+  componentName: string;
+  embeddedHtmlBytes: number;
+  renderDirective: RenderDirective;
+  renderId: string;
+  sequence: number;
+  sourcePath?: string;
+  useSpaSyncRender: boolean;
   usesCssLoadingRuntime: boolean;
 }
 
@@ -93,6 +108,7 @@ export interface PageBuildMetrics {
   components: ComponentBuildMetric[];
   framework: string;
   loader: RuntimeBundleMetric | null;
+  renderInstances?: PageBuildRenderInstanceMetric[];
   spaSyncEffects: SpaSyncPageBuildEffects | null;
   ssrInject: RuntimeBundleMetric | null;
   totalEstimatedComponentBytes: number;

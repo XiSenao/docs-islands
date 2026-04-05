@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createSiteDebugAiChunkResourceItems,
   createSiteDebugAiModuleItems,
+  createSiteDebugAiPageComponentModuleItems,
   createSiteDebugAiResolvedSourceState,
 } from '../site-debug-ai';
 
@@ -95,6 +96,69 @@ describe('site-debug-ai prompt snapshot helpers', () => {
       id: '/src/components/DemoCard.tsx',
       label: 'DemoCard.tsx',
     });
+  });
+
+  it('formats component module rows without requiring chunk grouping', () => {
+    const items = createSiteDebugAiPageComponentModuleItems({
+      modules: [
+        {
+          bytes: 900,
+          file: '/assets/demo-card.js',
+          id: '/src/components/DemoCard.tsx',
+          sourcePath: '/src/components/DemoCard.tsx',
+        },
+        {
+          bytes: 600,
+          file: '/assets/demo-card.css',
+          id: '/src/components/DemoCard.css',
+          sourcePath: '/src/components/DemoCard.css',
+        },
+      ],
+    });
+
+    expect(items).toEqual([
+      expect.objectContaining({
+        file: '/assets/demo-card.js',
+        id: '/src/components/DemoCard.tsx',
+        label: 'DemoCard.tsx',
+        renderedSize: '900 B',
+        share: '60.0%',
+      }),
+      expect.objectContaining({
+        file: '/assets/demo-card.css',
+        id: '/src/components/DemoCard.css',
+        label: 'DemoCard.css',
+        renderedSize: '600 B',
+        share: '40.0%',
+      }),
+    ]);
+  });
+
+  it('marks generated virtual modules so prompt formatters can simplify them', () => {
+    const items = createSiteDebugAiModuleItems({
+      currentChunkFile: '/assets/demo-card.js',
+      modules: [
+        {
+          bytes: 31,
+          file: '/assets/demo-card.js',
+          id: '\0vite/modulepreload-polyfill',
+        },
+      ],
+      resourceType: 'js',
+    });
+
+    expect(items).toEqual([
+      expect.objectContaining({
+        file: '/assets/demo-card.js',
+        id: '\0vite/modulepreload-polyfill',
+        isVirtual: true,
+        label: 'modulepreload-polyfill',
+        renderedSize: '31 B',
+        share: '100.0%',
+        sourceInfo: 'Source n/a',
+        statusLabel: 'generated virtual module',
+      }),
+    ]);
   });
 
   it('formats generated, unavailable, and size-delta source states', () => {

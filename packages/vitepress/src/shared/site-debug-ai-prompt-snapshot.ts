@@ -32,12 +32,52 @@ export interface SiteDebugAiModuleItem {
   current?: boolean;
   file: string;
   id: string;
+  isVirtual?: boolean;
   label: string;
   renderedSize: string;
   share: string | null;
   sizeDelta?: string | null;
   sourceInfo: string;
   statusLabel?: string | null;
+}
+
+export type SiteDebugAiPageGlossaryItem = SiteDebugAiPromptValueItem;
+
+export interface SiteDebugAiPageComponentChunkItem
+  extends SiteDebugAiChunkResourceItem {
+  modules?: SiteDebugAiModuleItem[];
+}
+
+export interface SiteDebugAiPageComponentItem {
+  chunkItems?: SiteDebugAiPageComponentChunkItem[];
+  componentName: string;
+  moduleItems?: SiteDebugAiModuleItem[];
+  renderDirectives: string[];
+  sourcePath?: string | null;
+  summaryItems: SiteDebugAiPromptValueItem[];
+}
+
+export interface SiteDebugAiPageRenderStrategyItem {
+  description: string;
+  directive: string;
+  impactItems: string[];
+}
+
+export interface SiteDebugAiPageRenderOrderItem {
+  componentName: string;
+  renderDirective: string;
+  renderId: string;
+  sequence: number;
+  sourcePath?: string | null;
+  summaryItems?: SiteDebugAiPromptValueItem[];
+  useSpaSyncRender: boolean;
+}
+
+export interface SiteDebugAiPageSpaSyncComponentItem {
+  componentName: string;
+  renderDirectives: string[];
+  renderIds: string[];
+  summaryItems: SiteDebugAiPromptValueItem[];
 }
 
 export interface SiteDebugAiPromptBuildMetricFile {
@@ -413,6 +453,96 @@ export const createSiteDebugAiModuleItems = ({
           : {}),
         file: moduleMetric.file,
         id: moduleMetric.id,
+        ...(moduleMetric.isGeneratedVirtualModule ? { isVirtual: true } : {}),
+        label: moduleMetric.id.split('/').pop() || moduleMetric.id,
+        renderedSize: formatSiteDebugAiBytes(moduleMetric.bytes) || '—',
+        share: formatSiteDebugAiPercent(moduleMetric.bytes, totalRenderedBytes),
+        ...(sourceState.sizeDelta ? { sizeDelta: sourceState.sizeDelta } : {}),
+        sourceInfo: sourceState.sourceInfo,
+        ...(sourceState.statusLabel
+          ? {
+              statusLabel: sourceState.statusLabel,
+            }
+          : {}),
+      };
+    });
+};
+
+export const createSiteDebugAiPageComponentModuleItems = ({
+  currentModuleKey,
+  modules,
+  resolveSourceState,
+}: {
+  currentModuleKey?: string | null;
+  modules: SiteDebugAiPromptBuildMetricModule[];
+  resolveSourceState?: (
+    moduleMetric: SiteDebugAiPromptBuildMetricModule & {
+      isGeneratedVirtualModule: boolean;
+    },
+  ) => SiteDebugAiModuleSourceState;
+}): SiteDebugAiModuleItem[] => {
+  if (modules.length === 0) {
+    return [];
+  }
+
+  const normalizedModules = modules.map((moduleMetric) => {
+    const isGeneratedVirtualModule =
+      !moduleMetric.sourceAssetFile &&
+      !moduleMetric.sourcePath &&
+      isSiteDebugAiGeneratedVirtualModuleId(moduleMetric.id);
+
+    return {
+      ...moduleMetric,
+      isGeneratedVirtualModule,
+      moduleKey: `${moduleMetric.file}::${moduleMetric.id}`,
+    };
+  });
+  const totalRenderedBytes = normalizedModules.reduce(
+    (sum, moduleMetric) => sum + moduleMetric.bytes,
+    0,
+  );
+  const sortedModules = [...normalizedModules];
+
+  sortedModules.sort((left, right) => {
+    if (currentModuleKey) {
+      if (
+        left.moduleKey === currentModuleKey &&
+        right.moduleKey !== currentModuleKey
+      ) {
+        return -1;
+      }
+
+      if (
+        right.moduleKey === currentModuleKey &&
+        left.moduleKey !== currentModuleKey
+      ) {
+        return 1;
+      }
+    }
+
+    return right.bytes - left.bytes;
+  });
+
+  return sortedModules
+    .slice(0, SITE_DEBUG_AI_MODULE_LIMIT)
+    .map((moduleMetric) => {
+      const sourceState =
+        resolveSourceState?.(moduleMetric) ||
+        createSiteDebugAiResolvedSourceState({
+          isGeneratedVirtualModule: moduleMetric.isGeneratedVirtualModule,
+          renderedBytes: moduleMetric.bytes,
+          sourceAvailable: Boolean(
+            moduleMetric.sourceAssetFile || moduleMetric.sourcePath,
+          ),
+        });
+
+      return {
+        ...(moduleMetric.moduleKey === currentModuleKey
+          ? { current: true }
+          : {}),
+        file: moduleMetric.file,
+        id: moduleMetric.id,
+        ...(moduleMetric.isGeneratedVirtualModule ? { isVirtual: true } : {}),
         label: moduleMetric.id.split('/').pop() || moduleMetric.id,
         renderedSize: formatSiteDebugAiBytes(moduleMetric.bytes) || '—',
         share: formatSiteDebugAiPercent(moduleMetric.bytes, totalRenderedBytes),

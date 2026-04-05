@@ -50,12 +50,27 @@ const createPageMetafiles = (): Record<string, PageMetafile> => ({
               sourcePath: '/src/components/DemoCard.tsx',
             },
           ],
-          renderDirectives: [],
+          renderDirectives: ['client:load'],
           sourcePath: '/repo/src/components/DemoCard.tsx',
         },
       ],
       framework: 'react',
       loader: null,
+      renderInstances: [
+        {
+          blockingCssBytes: 0,
+          blockingCssCount: 0,
+          blockingCssFiles: [],
+          componentName: 'DemoCard',
+          embeddedHtmlBytes: 0,
+          renderDirective: 'client:load',
+          renderId: 'render-demo-card',
+          sequence: 1,
+          sourcePath: '/repo/src/components/DemoCard.tsx',
+          useSpaSyncRender: false,
+          usesCssLoadingRuntime: false,
+        },
+      ],
       spaSyncEffects: null,
       ssrInject: null,
       totalEstimatedComponentBytes: 1680,
@@ -83,6 +98,21 @@ const createSpaSyncOnlyPageMetafile = (): PageMetafile => ({
       ],
       totalBytes: 1200,
     },
+    renderInstances: [
+      {
+        blockingCssBytes: 0,
+        blockingCssCount: 0,
+        blockingCssFiles: [],
+        componentName: 'SiteDebugConsoleOverview',
+        embeddedHtmlBytes: 4200,
+        renderDirective: 'ssr:only',
+        renderId: 'render-overview',
+        sequence: 1,
+        sourcePath: '/repo/src/components/SiteDebugConsoleOverview.tsx',
+        useSpaSyncRender: true,
+        usesCssLoadingRuntime: false,
+      },
+    ],
     spaSyncEffects: {
       components: [
         {
@@ -105,6 +135,7 @@ const createSpaSyncOnlyPageMetafile = (): PageMetafile => ({
       ],
       enabledComponentCount: 1,
       enabledRenderCount: 1,
+      pageClientChunkFile: '/docs/assets/guide/site-debug-console.hash.js',
       totalBlockingCssBytes: 0,
       totalBlockingCssCount: 0,
       totalEmbeddedHtmlBytes: 4200,
@@ -525,8 +556,25 @@ describe('generateSiteDebugAiBuildReports', () => {
     expect(analyzeTarget).toHaveBeenCalledTimes(1);
     expect(pageReport.target.artifactKind).toBe('page-build');
     expect(pageReport.target.displayPath).toBe('/guide/getting-started');
-    expect(pageReport.prompt).toContain('Page Build');
+    expect(pageReport.prompt).toContain('## Current Page Snapshot');
+    expect(pageReport.prompt).toContain(
+      'Prioritize build diagnosis over descriptive inventory.',
+    );
+    expect(pageReport.prompt).toContain(
+      'Diagnosis discipline: Prioritize dominant drivers and blocking paths over exhaustive inventory.',
+    );
     expect(pageReport.prompt).toContain('- Components: 1');
+    expect(pageReport.prompt).toContain(
+      'Current Page Rendered React Components:',
+    );
+    expect(pageReport.prompt).toContain('- Dominant Page Cost Drivers');
+    expect(pageReport.prompt).toContain(
+      'Order ideas by expected impact and confidence.',
+    );
+    expect(pageReport.prompt).toContain(
+      'Current Page Rendering Strategy Context:',
+    );
+    expect(pageReport.prompt).toContain('Render Order and Side Effects:');
     expect(pageReport.result).toBe('analysis:/guide/getting-started');
     expect(chunkReference?.reportFile).toContain(
       '/docs/assets/page-metafiles/ai/pages/',
@@ -860,6 +908,134 @@ describe('generateSiteDebugAiBuildReports', () => {
     );
   });
 
+  it('treats includeChunks and includeModules as independent page prompt switches', async () => {
+    const cases = [
+      {
+        includeChunks: false,
+        includeModules: false,
+        shouldContainChunks: false,
+        shouldContainChunkModules: false,
+        shouldContainComponentModules: false,
+      },
+      {
+        includeChunks: true,
+        includeModules: false,
+        shouldContainChunks: true,
+        shouldContainChunkModules: false,
+        shouldContainComponentModules: false,
+      },
+      {
+        includeChunks: false,
+        includeModules: true,
+        shouldContainChunks: false,
+        shouldContainChunkModules: false,
+        shouldContainComponentModules: true,
+      },
+      {
+        includeChunks: true,
+        includeModules: true,
+        shouldContainChunks: true,
+        shouldContainChunkModules: true,
+        shouldContainComponentModules: false,
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const outDir = createTempDirectory();
+      const cacheDir = createTempDirectory('site-debug-ai-cache-');
+      const pageMetafiles = createPageMetafiles();
+      const reportDir = path.join(outDir, 'assets/page-metafiles/ai/pages');
+
+      writeTextFile(
+        path.join(outDir, 'assets/chunks/demo-card.js'),
+        'export const DemoCard = () => "demo";',
+      );
+      writeTextFile(
+        path.join(outDir, 'assets/sources/DemoCard.tsx'),
+        'export function DemoCard() { return <div>demo</div>; }',
+      );
+
+      await generateSiteDebugAiBuildReports({
+        aiConfig: {
+          buildReports: {
+            groupBy: 'page',
+            includeChunks: testCase.includeChunks,
+            includeModules: testCase.includeModules,
+            models: [
+              {
+                model: 'doubao-test-model',
+                provider: 'doubao',
+              },
+            ],
+          },
+          providers: {
+            doubao: {
+              apiKey: 'test-key',
+              model: 'doubao-test-model',
+            },
+          },
+        },
+        assetsDir: 'assets',
+        cacheDir,
+        dependencies: {
+          analyzeTarget: async ({ target }) => ({
+            detail: 'Generated in test',
+            model: 'doubao-test-model',
+            result: `analysis:${target.displayPath}`,
+          }),
+          resolveCapabilities: async () => ({
+            ok: true,
+            providers: {
+              'claude-code': {
+                available: false,
+                detail: 'Unavailable in test',
+                provider: 'claude-code',
+              },
+              doubao: {
+                available: true,
+                detail: 'Available in test',
+                model: 'doubao-test-model',
+                provider: 'doubao',
+              },
+            },
+          }),
+        },
+        outDir,
+        pageMetafiles,
+        wrapBaseUrl: (value) => `/docs${value}`,
+      });
+
+      const [pageReportFile] = fs.readdirSync(reportDir);
+      const pageReport = JSON.parse(
+        fs.readFileSync(path.join(reportDir, pageReportFile), 'utf8'),
+      ) as {
+        prompt: string;
+      };
+
+      expect(pageReport.prompt).toContain(
+        'Current Page Rendered React Components:',
+      );
+
+      if (testCase.shouldContainChunks) {
+        expect(pageReport.prompt).toContain('Build Chunks (');
+      } else {
+        expect(pageReport.prompt).not.toContain('Build Chunks (');
+      }
+
+      if (testCase.shouldContainChunkModules) {
+        expect(pageReport.prompt).toContain('Chunk Modules:');
+      } else {
+        expect(pageReport.prompt).not.toContain('Chunk Modules:');
+      }
+
+      if (testCase.shouldContainComponentModules) {
+        expect(pageReport.prompt).toContain('Component Modules (');
+      } else {
+        expect(pageReport.prompt).not.toContain('Component Modules (');
+      }
+    }
+  });
+
   it('only includes pages with docs-islands component build metrics in page-grouped analysis', async () => {
     const outDir = createTempDirectory();
     const cacheDir = createTempDirectory('site-debug-ai-cache-');
@@ -1048,10 +1224,25 @@ describe('generateSiteDebugAiBuildReports', () => {
                 value: '4.1 KB',
               }),
             ]),
-            liveContextItems: expect.arrayContaining([
+            pageSpaSyncSummaryItems: expect.arrayContaining([
               expect.objectContaining({
                 label: 'Enabled Renders',
                 value: '1',
+              }),
+              expect.objectContaining({
+                label: 'HTML Patch Target',
+                value: '/docs/assets/guide/site-debug-console.hash.js',
+              }),
+            ]),
+            pageRenderOrderItems: expect.arrayContaining([
+              expect.objectContaining({
+                renderId: 'render-overview',
+                useSpaSyncRender: true,
+                summaryItems: expect.arrayContaining([
+                  expect.objectContaining({
+                    label: 'spa:sync-render Side Effect',
+                  }),
+                ]),
               }),
             ]),
           }),

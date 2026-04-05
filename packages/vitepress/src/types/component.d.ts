@@ -18,6 +18,7 @@ export interface UsedSnippetContainerType {
   renderId: string;
   renderDirective: RenderDirective;
   renderComponent: string;
+  sourcePath?: string;
   useSpaSyncRender: boolean;
   props: Map<string, string>;
   ssrHtml?: string;

@@ -19,7 +19,6 @@ import {
   createSiteDebugAiModuleItems,
   createSiteDebugAiResolvedSourceState,
   formatSiteDebugAiBytes,
-  formatSiteDebugAiPercent,
   getSiteDebugAiModuleReportKey,
   getSiteDebugAiProviderLabel,
   inferSiteDebugAiLanguage,
@@ -35,8 +34,17 @@ import {
   aggregatePageFiles,
   aggregatePageModules,
   collectBuildReportReferencesForPageMetafiles,
-  getPageSupportedComponentCount,
 } from './site-debug-ai-build-reports-collector';
+import {
+  collectPageRuntimeFiles,
+  createPageComponentItems,
+  createPageModuleItems,
+  createPageRenderOrderItems,
+  createPageSpaSyncComponentItems,
+  createPageSpaSyncSummaryItems,
+  getPageCompositionDetailLabel,
+  resolvePageClientChunkPublicPath,
+} from './site-debug-ai-page-build-context';
 import {
   analyzeSiteDebugAiTarget,
   resolveSiteDebugAiCapabilities,
@@ -106,14 +114,6 @@ export interface GenerateSiteDebugAiBuildReportsResult {
   reusedReportCount: number;
   skippedReason?: string;
 }
-
-type BuildMetric = NonNullable<
-  NonNullable<PageMetafile['buildMetrics']>['components'][number]
->;
-type BuildMetricFile = BuildMetric['files'][number];
-type BuildMetricModule = BuildMetric['modules'][number] & {
-  isGeneratedVirtualModule?: boolean;
-};
 type BuildReportGroupBy = 'artifact' | 'page';
 type BuildReportCacheInput = SiteDebugAnalysisBuildReportsConfig['cache'];
 
@@ -121,7 +121,6 @@ const sanitizeFileStem = (value: string) =>
   value.replaceAll(/[^\w.-]/g, '_') || 'artifact';
 const SITE_DEBUG_AI_BUILD_REPORTS_DEFAULT_CACHE_DIR =
   '.vitepress/cache/site-debug-reports';
-const PAGE_GROUPED_MODULE_LIMIT = 18;
 
 const isTextLikeArtifact = (filePath?: string) => {
   if (!filePath) {
@@ -685,28 +684,6 @@ const resolveModuleSourceBytes = ({
   return sourceBytes;
 };
 
-const resolveOutputAssetBytes = ({
-  assetsDir,
-  outDir,
-  publicPath,
-}: {
-  assetsDir: string;
-  outDir: string;
-  publicPath: string;
-}) => {
-  const assetPath = resolveOutputAssetPath({
-    assetsDir,
-    outDir,
-    publicPath,
-  });
-
-  if (!fs.existsSync(assetPath)) {
-    return null;
-  }
-
-  return fs.statSync(assetPath).size;
-};
-
 const createBuildMetricAiContext = ({
   artifactHeaderItems,
   assetsDir,
@@ -922,142 +899,62 @@ const createModuleAnalysisTarget = ({
   };
 };
 
-const createPageModuleItems = ({
-  assetsDir,
-  modules,
-  outDir,
-}: {
-  assetsDir: string;
-  modules: BuildMetricModule[];
-  outDir: string;
-}): NonNullable<
-  NonNullable<SiteDebugAiAnalysisTarget['context']>['moduleItems']
-> => {
-  const sourceSizeCache = new Map<string, number | null>();
-  const totalRenderedBytes = modules.reduce(
-    (sum, moduleMetric) => sum + moduleMetric.bytes,
-    0,
-  );
-
-  return modules
-    .toSorted((left, right) => right.bytes - left.bytes)
-    .slice(0, PAGE_GROUPED_MODULE_LIMIT)
-    .map((moduleMetric) => {
-      const displayPath = getModuleDisplayPath(moduleMetric);
-      const sourceState = createSiteDebugAiResolvedSourceState({
-        isGeneratedVirtualModule: moduleMetric.isGeneratedVirtualModule,
-        renderedBytes: moduleMetric.bytes,
-        sourceAvailable: Boolean(
-          moduleMetric.sourceAssetFile || moduleMetric.sourcePath,
-        ),
-        sourceBytes: resolveModuleSourceBytes({
-          assetsDir,
-          cache: sourceSizeCache,
-          moduleMetric,
-          outDir,
-        }),
-      });
-
-      return {
-        file: moduleMetric.file,
-        id: moduleMetric.id,
-        label: basename(displayPath) || moduleMetric.id,
-        renderedSize: formatSiteDebugAiBytes(moduleMetric.bytes) || '—',
-        share: formatSiteDebugAiPercent(moduleMetric.bytes, totalRenderedBytes),
-        ...(sourceState.sizeDelta ? { sizeDelta: sourceState.sizeDelta } : {}),
-        sourceInfo: sourceState.sourceInfo,
-        ...(sourceState.statusLabel
-          ? {
-              statusLabel: sourceState.statusLabel,
-            }
-          : {}),
-      };
-    });
-};
-
 const createPageAnalysisTarget = ({
   assetsDir,
+  includeChunks,
+  includeModules,
   outDir,
   pageId,
   pageMetafile,
 }: {
   assetsDir: string;
+  includeChunks: boolean;
+  includeModules: boolean;
   outDir: string;
   pageId: string;
   pageMetafile: PageMetafile;
 }): SiteDebugAiAnalysisTarget => {
   const components = pageMetafile.buildMetrics?.components ?? [];
-  const supportedComponentCount = getPageSupportedComponentCount(pageMetafile);
   const aggregatedModules = aggregatePageModules(components);
-  const aggregatedFiles =
-    components.length > 0
-      ? aggregatePageFiles(components)
-      : (() => {
-          const fileMetricByPath = new Map<string, BuildMetricFile>();
-          const pushFileMetric = (
-            publicPath: string | null | undefined,
-            type: BuildMetricFile['type'],
-            explicitBytes?: number | null,
-          ) => {
-            if (!publicPath) {
-              return;
-            }
-
-            const resolvedBytes =
-              explicitBytes ??
-              resolveOutputAssetBytes({
-                assetsDir,
-                outDir,
-                publicPath,
-              });
-
-            if (
-              typeof resolvedBytes !== 'number' ||
-              !Number.isFinite(resolvedBytes) ||
-              resolvedBytes <= 0
-            ) {
-              return;
-            }
-
-            const existingMetric = fileMetricByPath.get(publicPath);
-
-            if (existingMetric) {
-              existingMetric.bytes = Math.max(
-                existingMetric.bytes,
-                resolvedBytes,
-              );
-              return;
-            }
-
-            fileMetricByPath.set(publicPath, {
-              bytes: resolvedBytes,
-              file: publicPath,
-              type,
-            });
-          };
-
-          for (const loaderFile of pageMetafile.buildMetrics?.loader?.files ??
-            []) {
-            pushFileMetric(loaderFile.file, loaderFile.type, loaderFile.bytes);
-          }
-
-          pushFileMetric(
-            pageMetafile.loaderScript,
-            'js',
-            pageMetafile.buildMetrics?.loader?.totalBytes,
-          );
-          pushFileMetric(pageMetafile.ssrInjectScript, 'js');
-
-          for (const modulePreload of pageMetafile.modulePreloads) {
-            pushFileMetric(modulePreload, 'js');
-          }
-
-          for (const cssBundlePath of pageMetafile.cssBundlePaths) {
-            pushFileMetric(cssBundlePath, 'css');
-          }
-
-          return [...fileMetricByPath.values()];
-        })();
+  const renderInstances = pageMetafile.buildMetrics?.renderInstances ?? [];
+  const pageComponentItems = createPageComponentItems({
+    assetsDir,
+    components,
+    includeChunks,
+    includeModules,
+    outDir,
+    pageMetafile,
+  });
+  const resolvedPageClientChunkFile = resolvePageClientChunkPublicPath({
+    assetsDir,
+    outDir,
+    pageId,
+    pageMetafile,
+  });
+  const pageRenderOrderItems = createPageRenderOrderItems({
+    pageClientChunkFile: resolvedPageClientChunkFile,
+    pageMetafile,
+  });
+  const pageSpaSyncComponentItems = createPageSpaSyncComponentItems({
+    pageClientChunkFile: resolvedPageClientChunkFile,
+    pageMetafile,
+  });
+  const pageSpaSyncSummaryItems = createPageSpaSyncSummaryItems({
+    pageClientChunkFile: resolvedPageClientChunkFile,
+    pageMetafile,
+  });
+  const usedRenderDirectives = [
+    ...new Set([
+      ...pageRenderOrderItems.map((item) => item.renderDirective),
+      ...pageComponentItems.flatMap((item) => item.renderDirectives),
+    ]),
+  ];
+  const aggregatedFiles = collectPageRuntimeFiles({
+    assetsDir,
+    outDir,
+    pageMetafile,
+    seedFiles: aggregatePageFiles(components),
+  });
   const estimatedAssetBytes = aggregatedFiles
     .filter((fileMetric) => fileMetric.type === 'asset')
     .reduce((sum, fileMetric) => sum + fileMetric.bytes, 0);
@@ -1083,8 +980,20 @@ const createPageAnalysisTarget = ({
         },
         {
           label: 'Components',
-          value: String(supportedComponentCount),
+          value: String(pageComponentItems.length),
         },
+        {
+          label: 'Render Instances',
+          value: String(renderInstances.length),
+        },
+        ...(usedRenderDirectives.length > 0
+          ? [
+              {
+                label: 'Used Directives',
+                value: usedRenderDirectives.join(', '),
+              },
+            ]
+          : []),
         {
           label: 'Chunk Resources',
           value: String(aggregatedFiles.length),
@@ -1092,6 +1001,13 @@ const createPageAnalysisTarget = ({
         {
           label: 'Module Sources',
           value: String(aggregatedModules.length),
+        },
+        {
+          label: 'Composition Detail',
+          value: getPageCompositionDetailLabel({
+            includeChunks,
+            includeModules,
+          }),
         },
         ...(components.length === 0
           ? [
@@ -1125,41 +1041,9 @@ const createPageAnalysisTarget = ({
         modules: aggregatedModules,
         totalEstimatedBytes: estimatedTotalBytes,
       }),
-      ...(components.length === 1
+      ...(pageComponentItems.length === 1
         ? {
-            componentName: components[0].componentName,
-          }
-        : {}),
-      ...(components.length === 0
-        ? {
-            liveContextItems: [
-              {
-                label: 'Enabled Renders',
-                value: String(
-                  pageMetafile.buildMetrics?.spaSyncEffects
-                    ?.enabledRenderCount ?? 0,
-                ),
-              },
-              {
-                label: 'Blocking CSS',
-                value: `${
-                  pageMetafile.buildMetrics?.spaSyncEffects
-                    ?.totalBlockingCssCount ?? 0
-                } file(s) · ${
-                  formatSiteDebugAiBytes(
-                    pageMetafile.buildMetrics?.spaSyncEffects
-                      ?.totalBlockingCssBytes,
-                  ) || '0 B'
-                }`,
-              },
-              {
-                label: 'CSS Loading Runtime',
-                value: pageMetafile.buildMetrics?.spaSyncEffects
-                  ?.usesCssLoadingRuntime
-                  ? 'Required'
-                  : 'Not required',
-              },
-            ],
+            componentName: pageComponentItems[0].componentName,
           }
         : {}),
       moduleItems: createPageModuleItems({
@@ -1167,6 +1051,10 @@ const createPageAnalysisTarget = ({
         modules: aggregatedModules,
         outDir,
       }),
+      pageComponentItems,
+      pageRenderOrderItems,
+      pageSpaSyncComponentItems,
+      pageSpaSyncSummaryItems,
       pageId,
       renderId: null,
     },
