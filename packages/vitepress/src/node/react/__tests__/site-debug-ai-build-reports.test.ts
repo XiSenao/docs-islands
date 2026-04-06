@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getSiteDebugAiModuleReportKey } from '../../../shared/site-debug-ai';
-import { generateSiteDebugAiBuildReports } from '../site-debug-ai-build-reports';
+import { generateSiteDebugAiBuildReports as generateSiteDebugAiBuildReportsImpl } from '../site-debug-ai-build-reports';
 
 const { mockLoggerInfo, mockLoggerWarn } = vi.hoisted(() => ({
   mockLoggerInfo: vi.fn(),
@@ -27,6 +27,7 @@ vi.mock('#shared/logger', () => ({
 }));
 
 const tempDirectories: string[] = [];
+const TEST_DOUBAO_PROVIDER_ID = 'doubao-default';
 
 const createTempDirectory = (prefix = 'site-debug-ai-build-reports-') => {
   const directoryPath = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -38,6 +39,28 @@ const writeTextFile = (filePath: string, content: string) => {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, content);
 };
+
+const createDeferred = <T = void>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+
+  return {
+    promise,
+    reject,
+    resolve,
+  };
+};
+
+const createDocsPageFilePath = (routePath: string) =>
+  `${path.join(
+    '/repo/docs',
+    routePath.replace(/^\/+/, '').replace(/\/$/, '') || 'index',
+  )}.md`;
 
 const createPageMetafiles = (): Record<string, PageMetafile> => ({
   '/guide/getting-started': {
@@ -235,14 +258,107 @@ const createPageContexts = (
     Object.keys(pageMetafiles).map((routePath) => [
       routePath,
       {
-        filePath: `${path.join(
-          '/repo/docs',
-          routePath.replace(/^\/+/, '').replace(/\/$/, '') || 'index',
-        )}.md`,
+        filePath: createDocsPageFilePath(routePath),
         routePath,
       },
     ]),
   );
+
+const normalizeLegacyAiConfig = (aiConfig: Record<string, any> | undefined) => {
+  if (!aiConfig) {
+    return aiConfig;
+  }
+
+  const buildReports = aiConfig.buildReports
+    ? {
+        ...aiConfig.buildReports,
+        ...(Array.isArray(aiConfig.buildReports.models)
+          ? {
+              models: aiConfig.buildReports.models.map(
+                (model: Record<string, any>, index: number) => ({
+                  ...model,
+                  id:
+                    typeof model.id === 'string' && model.id.trim()
+                      ? model.id
+                      : `legacy-build-report-model-${index + 1}`,
+                  ...(model.providerRef
+                    ? {}
+                    : {
+                        providerRef: {
+                          provider:
+                            typeof model.provider === 'string'
+                              ? model.provider
+                              : 'doubao',
+                        },
+                      }),
+                }),
+              ),
+            }
+          : {}),
+      }
+    : aiConfig.buildReports;
+
+  if (typeof buildReports?.resolvePage === 'function') {
+    const originalResolvePage = buildReports.resolvePage;
+
+    buildReports.resolvePage = (context: Record<string, any>) =>
+      originalResolvePage({
+        ...context,
+        ...context.page,
+      });
+  }
+
+  const providers = aiConfig.providers
+    ? {
+        ...aiConfig.providers,
+        ...(Array.isArray(aiConfig.providers.doubao)
+          ? {
+              doubao: aiConfig.providers.doubao.map(
+                (provider: Record<string, any>, index: number) => ({
+                  ...provider,
+                  ...(provider.id
+                    ? {}
+                    : {
+                        id:
+                          index === 0
+                            ? TEST_DOUBAO_PROVIDER_ID
+                            : `doubao-provider-${index + 1}`,
+                      }),
+                }),
+              ),
+            }
+          : aiConfig.providers.doubao
+            ? {
+                doubao: [
+                  {
+                    ...aiConfig.providers.doubao,
+                    id: aiConfig.providers.doubao.id || TEST_DOUBAO_PROVIDER_ID,
+                  },
+                ],
+              }
+            : {}),
+      }
+    : aiConfig.providers;
+
+  return {
+    ...aiConfig,
+    ...(buildReports ? { buildReports } : {}),
+    ...(providers ? { providers } : {}),
+  };
+};
+
+const generateSiteDebugAiBuildReports = (
+  options: Omit<
+    Parameters<typeof generateSiteDebugAiBuildReportsImpl>[0],
+    'aiConfig'
+  > & {
+    aiConfig: Record<string, any>;
+  },
+) =>
+  generateSiteDebugAiBuildReportsImpl({
+    ...options,
+    aiConfig: normalizeLegacyAiConfig(options.aiConfig),
+  });
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -483,7 +599,7 @@ describe('generateSiteDebugAiBuildReports', () => {
       '/guide/getting-started',
       '/guide/advanced',
     ]);
-    const firstPageRelease = Promise.withResolvers<void>();
+    const firstPageRelease = createDeferred<void>();
     const analyzeTarget = vi.fn(async ({ target }) => {
       if (target.displayPath === '/guide/getting-started') {
         await firstPageRelease.promise;
@@ -648,10 +764,27 @@ describe('generateSiteDebugAiBuildReports', () => {
       wrapBaseUrl: (value) => `/docs${value}`,
     });
 
+    const gettingStartedFilePath = createDocsPageFilePath(
+      '/guide/getting-started',
+    );
+
     expect(result.generatedReportCount).toBe(1);
     expect(resolvePage).toHaveBeenCalledTimes(1);
     expect(resolvePage).toHaveBeenCalledWith({
-      filePath: '/repo/docs/guide/getting-started.md',
+      filePath: gettingStartedFilePath,
+      models: [
+        expect.objectContaining({
+          id: 'legacy-build-report-model-1',
+          model: 'doubao-test-model',
+          providerRef: {
+            provider: 'doubao',
+          },
+        }),
+      ],
+      page: {
+        filePath: gettingStartedFilePath,
+        routePath: '/guide/getting-started',
+      },
       routePath: '/guide/getting-started',
     });
     expect(
@@ -825,6 +958,270 @@ describe('generateSiteDebugAiBuildReports', () => {
     expect(fs.readdirSync(path.join(advancedCacheDir, 'pages'))).toEqual(
       advancedCacheFiles,
     );
+  });
+
+  it('inherits the global cache strategy when resolvePage overrides only the cache dir', async () => {
+    const firstOutDir = createTempDirectory();
+    const secondOutDir = createTempDirectory();
+    const vitepressCacheDir = createTempDirectory('site-debug-ai-cache-');
+    const pageReportCacheDir = createTempDirectory('page-report-cache-');
+    const firstPageMetafiles = createPageMetafiles();
+    const secondPageMetafiles = createPageMetafiles();
+    const analyzeTarget = vi.fn(async ({ provider, target }) => ({
+      detail: `Generated in test for ${provider}`,
+      model: 'doubao-test-model',
+      result: `analysis:${target.displayPath}`,
+    }));
+    const resolvePage = vi.fn(({ routePath }: { routePath: string }) =>
+      routePath === '/guide/getting-started'
+        ? {
+            cache: {
+              dir: pageReportCacheDir,
+            },
+          }
+        : false,
+    );
+
+    for (const outDir of [firstOutDir, secondOutDir]) {
+      writeTextFile(
+        path.join(outDir, 'assets/chunks/demo-card.js'),
+        'export const DemoCard = () => "demo";',
+      );
+      writeTextFile(
+        path.join(outDir, 'assets/sources/DemoCard.tsx'),
+        'export function DemoCard() { return <div>demo</div>; }',
+      );
+    }
+
+    const firstResult = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: {
+            strategy: 'fallback',
+          },
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+              temperature: 0.2,
+            },
+          ],
+          resolvePage,
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies: {
+        analyzeTarget,
+        resolveCapabilities: async () => ({
+          ok: true as const,
+          providers: {
+            doubao: {
+              available: true,
+              detail: 'Available in test',
+              model: 'doubao-test-model',
+              provider: 'doubao' as const,
+            },
+          },
+        }),
+      },
+      outDir: firstOutDir,
+      pageContexts: createPageContexts(firstPageMetafiles),
+      pageMetafiles: firstPageMetafiles,
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    const secondResult = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          cache: {
+            strategy: 'fallback',
+          },
+          models: [
+            {
+              model: 'doubao-test-model',
+              provider: 'doubao',
+              temperature: 0.7,
+            },
+          ],
+          resolvePage,
+        },
+        providers: {
+          doubao: {
+            apiKey: 'test-key',
+          },
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: vitepressCacheDir,
+      dependencies: {
+        analyzeTarget: vi.fn(async () => {
+          throw new Error('page-local fallback cache should be reused');
+        }),
+        resolveCapabilities: async () => ({
+          ok: true as const,
+          providers: {
+            doubao: {
+              available: true,
+              detail: 'Available in test',
+              model: 'doubao-test-model',
+              provider: 'doubao' as const,
+            },
+          },
+        }),
+      },
+      outDir: secondOutDir,
+      pageContexts: createPageContexts(secondPageMetafiles),
+      pageMetafiles: secondPageMetafiles,
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    expect(firstResult.generatedReportCount).toBe(1);
+    expect(firstResult.reusedReportCount).toBe(0);
+    expect(secondResult.generatedReportCount).toBe(0);
+    expect(secondResult.reusedReportCount).toBe(1);
+    expect(analyzeTarget).toHaveBeenCalledTimes(1);
+    expect(resolvePage).toHaveBeenCalled();
+    expect(fs.readdirSync(path.join(pageReportCacheDir, 'pages'))).toHaveLength(
+      1,
+    );
+  });
+
+  it('uses the default model for empty resolvePage overrides, resolves providerRef.id against grouped providers, and treats undefined/null/false as equivalent skips', async () => {
+    const pageMetafiles = createMultiPageMetafiles([
+      '/guide/default-model',
+      '/guide/intl-model',
+      '/guide/skip-false',
+      '/guide/skip-null',
+      '/guide/skip-undefined',
+    ]);
+    const analyzeTarget = vi.fn(async ({ config, target }) => ({
+      model: 'doubao-test-model',
+      result: `${target.displayPath}::${config.providers?.doubao?.[0]?.id}`,
+    }));
+
+    const result = await generateSiteDebugAiBuildReports({
+      aiConfig: {
+        buildReports: {
+          models: [
+            {
+              default: true,
+              id: 'default-model',
+              model: 'doubao-test-model',
+              providerRef: {
+                provider: 'doubao',
+              },
+            },
+            {
+              id: 'intl-model',
+              model: 'doubao-test-model',
+              providerRef: {
+                id: 'intl',
+                provider: 'doubao',
+              },
+            },
+          ],
+          resolvePage: ({ page }) => {
+            let result:
+              | {
+                  modelId?: string;
+                }
+              | boolean
+              | null
+              | undefined;
+
+            switch (page.routePath) {
+              case '/guide/default-model': {
+                result = {};
+                break;
+              }
+              case '/guide/intl-model': {
+                result = {
+                  modelId: 'intl-model',
+                };
+                break;
+              }
+              case '/guide/skip-false': {
+                result = false;
+                break;
+              }
+              case '/guide/skip-null': {
+                result = null;
+                break;
+              }
+              default: {
+                break;
+              }
+            }
+
+            return result;
+          },
+        },
+        providers: {
+          doubao: [
+            {
+              apiKey: 'test-key-cn',
+              default: true,
+              id: 'cn',
+            },
+            {
+              apiKey: 'test-key-intl',
+              id: 'intl',
+            },
+          ],
+        },
+      },
+      assetsDir: 'assets',
+      cacheDir: createTempDirectory('site-debug-ai-cache-'),
+      dependencies: {
+        analyzeTarget,
+        resolveCapabilities: async () => ({
+          ok: true,
+          providers: {
+            doubao: {
+              available: true,
+              detail: 'Available in test',
+              model: 'doubao-test-model',
+              provider: 'doubao',
+            },
+          },
+        }),
+      },
+      outDir: createTempDirectory(),
+      pageContexts: createPageContexts(pageMetafiles),
+      pageMetafiles,
+      wrapBaseUrl: (value) => `/docs${value}`,
+    });
+
+    expect(result.executionCount).toBe(2);
+    expect(result.generatedReportCount).toBe(2);
+    expect(analyzeTarget).toHaveBeenCalledTimes(2);
+    expect(
+      analyzeTarget.mock.calls.map(
+        ([options]) => options.config.providers?.doubao?.[0]?.id,
+      ),
+    ).toEqual(['cn', 'intl']);
+    expect(
+      pageMetafiles['/guide/default-model'].buildMetrics?.aiReports?.[0]
+        ?.reportId,
+    ).toBe('default-model');
+    expect(
+      pageMetafiles['/guide/intl-model'].buildMetrics?.aiReports?.[0]?.reportId,
+    ).toBe('intl-model');
+    expect(
+      pageMetafiles['/guide/skip-false'].buildMetrics?.aiReports,
+    ).toBeUndefined();
+    expect(
+      pageMetafiles['/guide/skip-null'].buildMetrics?.aiReports,
+    ).toBeUndefined();
+    expect(
+      pageMetafiles['/guide/skip-undefined'].buildMetrics?.aiReports,
+    ).toBeUndefined();
   });
 
   it('reuses page reports across chunk and module references when detail expansion is enabled', async () => {
@@ -1466,10 +1863,27 @@ describe('generateSiteDebugAiBuildReports', () => {
       wrapBaseUrl: (value) => `/docs${value}`,
     });
 
+    const gettingStartedFilePath = createDocsPageFilePath(
+      '/guide/getting-started',
+    );
+
     expect(result.generatedReportCount).toBe(1);
     expect(resolvePage).toHaveBeenCalledTimes(1);
     expect(resolvePage).toHaveBeenCalledWith({
-      filePath: '/repo/docs/guide/getting-started.md',
+      filePath: gettingStartedFilePath,
+      models: [
+        expect.objectContaining({
+          id: 'legacy-build-report-model-1',
+          model: 'doubao-test-model',
+          providerRef: {
+            provider: 'doubao',
+          },
+        }),
+      ],
+      page: {
+        filePath: gettingStartedFilePath,
+        routePath: '/guide/getting-started',
+      },
       routePath: '/guide/getting-started',
     });
     expect(analyzeTarget).toHaveBeenCalledTimes(1);
@@ -2137,14 +2551,13 @@ describe('generateSiteDebugAiBuildReports', () => {
             {
               model: 'doubao-test-model',
               provider: 'doubao',
+              temperature: 0.2,
             },
           ],
         },
         providers: {
           doubao: {
             apiKey: 'test-key',
-            model: 'doubao-test-model',
-            temperature: 0.2,
           },
         },
       },
@@ -2167,14 +2580,13 @@ describe('generateSiteDebugAiBuildReports', () => {
             {
               model: 'doubao-test-model',
               provider: 'doubao',
+              temperature: 0.7,
             },
           ],
         },
         providers: {
           doubao: {
             apiKey: 'test-key',
-            model: 'doubao-test-model',
-            temperature: 0.7,
           },
         },
       },
@@ -2704,14 +3116,13 @@ describe('generateSiteDebugAiBuildReports', () => {
             {
               model: 'doubao-test-model',
               provider: 'doubao',
+              temperature: 0.2,
             },
           ],
         },
         providers: {
           doubao: {
             apiKey: 'test-key',
-            model: 'doubao-test-model',
-            temperature: 0.2,
           },
         },
       },
@@ -2736,14 +3147,13 @@ describe('generateSiteDebugAiBuildReports', () => {
             {
               model: 'doubao-test-model',
               provider: 'doubao',
+              temperature: 0.7,
             },
           ],
         },
         providers: {
           doubao: {
             apiKey: 'test-key',
-            model: 'doubao-test-model',
-            temperature: 0.7,
           },
         },
       },

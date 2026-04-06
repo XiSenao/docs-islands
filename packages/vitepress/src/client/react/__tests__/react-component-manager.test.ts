@@ -90,8 +90,8 @@ describe('ReactComponentManager page metafile loading', () => {
           json: async () => ({
             buildId: 'cafefeed',
             pages: {
-              '/core-concepts': {
-                file: '/docs/assets/page-metafiles/pages/core-concepts.22222222.json',
+              '/guide/how-it-works': {
+                file: '/docs/assets/page-metafiles/pages/guide/how-it-works.22222222.json',
                 loaderScript: '/docs/assets/unified-loader.core.js',
                 ssrInjectScript: '/docs/assets/ssr.core.js',
               },
@@ -108,7 +108,7 @@ describe('ReactComponentManager page metafile loading', () => {
 
       if (
         input ===
-        '/docs/assets/page-metafiles/pages/core-concepts.22222222.json'
+        '/docs/assets/page-metafiles/pages/guide/how-it-works.22222222.json'
       ) {
         return {
           ok: true,
@@ -125,7 +125,7 @@ describe('ReactComponentManager page metafile loading', () => {
             cssBundlePaths: ['/docs/assets/core.css'],
             loaderScript: '/docs/assets/unified-loader.core.js',
             modulePreloads: ['/docs/assets/core.module.js'],
-            pathname: '/core-concepts',
+            pathname: '/guide/how-it-works',
             schemaVersion: 1,
             ssrInjectScript: '/docs/assets/ssr.core.js',
           }),
@@ -142,13 +142,13 @@ describe('ReactComponentManager page metafile loading', () => {
     );
     document.head.innerHTML = `
       <meta name="${PAGE_METAFILE_META_NAMES.index}" content="/docs/assets/page-metafiles/manifest.11111111.json">
-      <meta name="${PAGE_METAFILE_META_NAMES.current}" content="/docs/assets/page-metafiles/pages/core-concepts.22222222.json">
+      <meta name="${PAGE_METAFILE_META_NAMES.current}" content="/docs/assets/page-metafiles/pages/guide/how-it-works.22222222.json">
     `;
 
     const manager = new ReactComponentManager();
 
     await (manager as any).loadPageMetafileIndex();
-    await (manager as any).ensurePageMetafile('/core-concepts', {
+    await (manager as any).ensurePageMetafile('/guide/how-it-works', {
       preferInjectedCurrentMeta: true,
     });
 
@@ -156,11 +156,11 @@ describe('ReactComponentManager page metafile loading', () => {
       '/docs/assets/page-metafiles/manifest.11111111.json',
     );
     expect(fetchMock).toHaveBeenCalledWith(
-      '/docs/assets/page-metafiles/pages/core-concepts.22222222.json',
+      '/docs/assets/page-metafiles/pages/guide/how-it-works.22222222.json',
     );
-    expect(manager.getPageComponentInfo('/core-concepts')).toMatchObject({
+    expect(manager.getPageComponentInfo('/guide/how-it-works')).toMatchObject({
       buildId: 'cafefeed',
-      pathname: '/core-concepts',
+      pathname: '/guide/how-it-works',
     });
     expect(manager.getAllInitialModulePreloadScripts().toSorted()).toEqual([
       '/docs/assets/ssr.core.js',
@@ -168,7 +168,7 @@ describe('ReactComponentManager page metafile loading', () => {
       '/docs/assets/unified-loader.zh.js',
     ]);
     expect(window[RENDER_STRATEGY_CONSTANTS.pageMetafile]).toMatchObject({
-      '/core-concepts': expect.objectContaining({
+      '/guide/how-it-works': expect.objectContaining({
         loaderScript: '/docs/assets/unified-loader.core.js',
       }),
     });
@@ -177,7 +177,7 @@ describe('ReactComponentManager page metafile loading', () => {
         buildId: 'cafefeed',
         kind: 'page-loaded',
         pageCount: 1,
-        pageId: '/core-concepts',
+        pageId: '/guide/how-it-works',
       }),
     );
     globalThis.removeEventListener(

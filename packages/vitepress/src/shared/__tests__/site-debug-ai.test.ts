@@ -569,7 +569,7 @@ describe('site-debug-ai helpers', () => {
     const prompt = buildSiteDebugAiAnalysisPrompt(
       {
         artifactKind: 'page-build',
-        artifactLabel: '/zh/core-concepts',
+        artifactLabel: '/zh/guide/how-it-works',
         content: 'page overview',
         context: {
           moduleItems: [
@@ -582,9 +582,9 @@ describe('site-debug-ai helpers', () => {
               sourceInfo: 'Source 1.8 KB',
             },
           ],
-          pageId: '/zh/core-concepts',
+          pageId: '/zh/guide/how-it-works',
         },
-        displayPath: '/zh/core-concepts',
+        displayPath: '/zh/guide/how-it-works',
         language: 'text',
       },
       {
@@ -605,7 +605,7 @@ describe('site-debug-ai helpers', () => {
     const prompt = buildSiteDebugAiAnalysisPrompt(
       {
         artifactKind: 'page-build',
-        artifactLabel: '/core-concepts',
+        artifactLabel: '/guide/how-it-works',
         content: 'page overview',
         context: {
           moduleItems: [
@@ -618,9 +618,9 @@ describe('site-debug-ai helpers', () => {
               sourceInfo: 'Source 1.8 KB',
             },
           ],
-          pageId: '/core-concepts',
+          pageId: '/guide/how-it-works',
         },
-        displayPath: '/core-concepts',
+        displayPath: '/guide/how-it-works',
         language: 'text',
       },
       {
@@ -648,7 +648,7 @@ describe('site-debug-ai helpers', () => {
           'Focus packages/vitepress/docs/zh/rendering-strategy-comps/react/ReactComp1.tsx first.',
         target: {
           artifactKind: 'page-build',
-          artifactLabel: '/zh/core-concepts',
+          artifactLabel: '/zh/guide/how-it-works',
           content: 'page overview',
           context: {
             moduleItems: [
@@ -661,9 +661,9 @@ describe('site-debug-ai helpers', () => {
                 sourceInfo: 'Source 1.8 KB',
               },
             ],
-            pageId: '/zh/core-concepts',
+            pageId: '/zh/guide/how-it-works',
           },
-          displayPath: '/zh/core-concepts',
+          displayPath: '/zh/guide/how-it-works',
           language: 'text',
         },
       },

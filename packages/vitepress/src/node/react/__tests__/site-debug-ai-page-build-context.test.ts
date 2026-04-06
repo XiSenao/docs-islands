@@ -32,8 +32,8 @@ describe('resolvePageClientChunkPublicPath', () => {
   it('prefers the newest matching page chunk when stale assets still exist', () => {
     const outDir = createTempDirectory();
     const assetsDir = path.join(outDir, 'assets');
-    const oldChunkFileName = 'core-concepts.md.D8mo1P2_.js';
-    const newChunkFileName = 'core-concepts.md.BKeac6Vz.js';
+    const oldChunkFileName = 'guide_how-it-works.md.D8mo1P2_.js';
+    const newChunkFileName = 'guide_how-it-works.md.BKeac6Vz.js';
 
     fs.mkdirSync(assetsDir, { recursive: true });
     fs.writeFileSync(
@@ -59,12 +59,12 @@ describe('resolvePageClientChunkPublicPath', () => {
       resolvePageClientChunkPublicPath({
         assetsDir: 'assets',
         outDir,
-        pageId: '/core-concepts',
+        pageId: '/guide/how-it-works',
         pageMetafile: {
           cssBundlePaths: [],
           loaderScript: '',
           modulePreloads: [],
-          pathname: '/core-concepts',
+          pathname: '/guide/how-it-works',
           ssrInjectScript: '',
         } satisfies PageMetafile,
       }),

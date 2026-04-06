@@ -15,16 +15,18 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
   themeConfig: {
     nav: [
       {
-        text: '核心概念',
-        link: '/zh/core-concepts',
+        text: '首页',
+        link: '/zh/',
       },
       {
-        text: '快速开始',
-        link: '/zh/quick-start',
+        text: '指南',
+        activeMatch: '/zh/guide/',
+        link: '/zh/guide/',
       },
       {
-        text: '调试控制台',
-        link: '/zh/site-debug-console',
+        text: '站点调试',
+        activeMatch: '/zh/site-debug-console/',
+        link: '/zh/site-debug-console/',
       },
       {
         text: pkg.version,
@@ -40,6 +42,62 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
         ],
       },
     ],
+    sidebar: {
+      '/zh/guide/': [
+        {
+          text: '指南',
+          base: '/zh/guide/',
+          items: [
+            {
+              text: '介绍',
+              link: 'index.md',
+            },
+            {
+              text: '快速上手',
+              link: 'getting-started',
+            },
+            {
+              text: '工作原理',
+              link: 'how-it-works',
+            },
+          ],
+        },
+      ],
+      '/zh/site-debug-console/': [
+        {
+          text: '站点调试',
+          base: '/zh/site-debug-console/',
+          items: [
+            {
+              text: '介绍',
+              link: 'index.md',
+            },
+            {
+              text: '快速上手',
+              link: 'getting-started',
+            },
+          ],
+        },
+        {
+          text: '配置项',
+          base: '/zh/site-debug-console/options/',
+          items: [
+            {
+              text: '分析',
+              link: 'analysis',
+            },
+            {
+              text: '模型接入',
+              link: 'models',
+            },
+            {
+              text: '产物分析',
+              link: 'build-reports',
+            },
+          ],
+        },
+      ],
+    },
     footer: {
       message: '根据 MIT 许可证发布。',
       copyright: `版权所有 © 2025-present Senao Xi`,

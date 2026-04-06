@@ -86,7 +86,6 @@ const vitepressConfig: UserConfig<DefaultTheme.Config> = defineConfig({
       release &&
         llmstxt({
           workDir: 'en',
-          ignoreFiles: ['index.md'],
         }),
     ],
   },
@@ -106,15 +105,16 @@ vitepressReactRenderingStrategies(vitepressConfig, {
   siteDebug: {
     analysis: {
       providers: {
-        doubao: {
-          apiKey: doubao_api_key,
-          baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-          model: 'doubao-seed-2-0-pro-260215',
-          thinking: true,
-          maxTokens: 4096,
-          temperature: 0.2,
-          timeoutMs: 300_000,
-        },
+        doubao: [
+          {
+            apiKey: doubao_api_key,
+            baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+            default: true,
+            id: 'cn',
+            label: 'Doubao CN',
+            timeoutMs: 300_000,
+          },
+        ],
       },
       buildReports: {
         cache: {
@@ -126,22 +126,29 @@ vitepressReactRenderingStrategies(vitepressConfig, {
         includeModules: true,
         models: [
           {
+            default: true,
+            id: 'doubao-pro',
             label: 'Doubao Pro',
             model: 'doubao-seed-2-0-pro-260215',
-            provider: 'doubao',
+            providerRef: {
+              provider: 'doubao',
+            },
+            temperature: 0.2,
             thinking: true,
+            maxTokens: 4096,
           },
         ],
-        resolvePage: (page) => {
+        resolvePage: ({ page }) => {
           const { routePath } = page;
 
           if (!routePath) {
-            return false;
+            return null;
           }
 
           const cacheDir = routePath.replaceAll('/', '__');
 
           return {
+            modelId: 'doubao-pro',
             cache: {
               dir: `.vitepress/site-debug-reports/${cacheDir}`,
               strategy: isInCi ? 'fallback' : 'exact',

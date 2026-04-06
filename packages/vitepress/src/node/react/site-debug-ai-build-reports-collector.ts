@@ -23,6 +23,7 @@ interface BuildReportExecutionLike {
 
 interface BuildReportPagePlanLike<TCacheConfig = unknown> {
   cacheConfig: TCacheConfig | null;
+  executions: readonly BuildReportExecutionLike[];
   includeChunks: boolean;
   includeModules: boolean;
 }
@@ -40,7 +41,6 @@ interface CollectBuildReportReferencesOptions<
     pageId: string;
     pageMetafile: PageMetafile;
   }) => SiteDebugAiAnalysisTarget;
-  executions: readonly TExecution[];
   getOrCreateReportReference: (options: {
     artifactKey: string;
     cacheConfig: TCacheConfig | null;
@@ -398,7 +398,6 @@ export const collectBuildReportReferencesForPageMetafiles = async <
 >({
   assetsDir,
   createPageAnalysisTarget,
-  executions,
   getOrCreateReportReference,
   logger,
   outDir,
@@ -415,7 +414,7 @@ export const collectBuildReportReferencesForPageMetafiles = async <
         ? await collectPageReportReferences({
             assetsDir,
             createPageAnalysisTarget,
-            executions,
+            executions: pagePlan.executions as readonly TExecution[],
             getOrCreateReportReference,
             outDir,
             pageId,
@@ -455,14 +454,14 @@ export const collectBuildReportReferencesForPageMetafiles = async <
       const chunkReports = pageResult.pagePlan?.includeChunks
         ? collectChunkReportsForBuildMetric({
             buildMetric,
-            executions,
+            executions: pageResult.pagePlan.executions as readonly TExecution[],
             pageGroupedReportReferenceMap,
           })
         : {};
       const moduleReports = pageResult.pagePlan?.includeModules
         ? collectModuleReportsForBuildMetric({
             buildMetric,
-            executions,
+            executions: pageResult.pagePlan.executions as readonly TExecution[],
             pageGroupedReportReferenceMap,
           })
         : {};

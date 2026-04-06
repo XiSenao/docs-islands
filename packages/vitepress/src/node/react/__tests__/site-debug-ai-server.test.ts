@@ -1,50 +1,23 @@
 /**
  * @vitest-environment node
  */
-import type { IncomingMessage, ServerResponse } from 'node:http';
-import { PassThrough } from 'node:stream';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { SiteDebugAiAnalysisTarget } from '../../../shared/site-debug-ai';
 import {
-  handleSiteDebugAiRequest,
+  analyzeSiteDebugAiTarget,
   resolveSiteDebugAiCapabilities,
 } from '../site-debug-ai-server';
 
-const createJsonRequest = (body: unknown): IncomingMessage => {
-  const stream = new PassThrough();
-  const req = stream as IncomingMessage;
-
-  req.method = 'POST';
-  process.nextTick(() => {
-    stream.end(JSON.stringify(body));
-  });
-
-  return req;
-};
-
-const createMockResponse = () => {
-  const headers = new Map<string, string>();
-  let body = '';
-  const res = {
-    statusCode: 200,
-    writableEnded: false,
-    end(chunk?: Buffer | string) {
-      body = chunk ? chunk.toString() : '';
-      this.writableEnded = true;
-      return this;
-    },
-    setHeader(name: string, value: string) {
-      headers.set(name, value);
-      return this;
-    },
-  } as unknown as ServerResponse;
-
-  return {
-    getBody: () => body,
-    getJson: () => JSON.parse(body) as Record<string, unknown>,
-    headers,
-    res,
-  };
-};
+const createAnalysisTarget = (
+  overrides: Partial<SiteDebugAiAnalysisTarget> = {},
+): SiteDebugAiAnalysisTarget => ({
+  artifactKind: 'bundle-chunk',
+  artifactLabel: 'app.js',
+  content: 'console.log("hello")',
+  displayPath: '/assets/app.js',
+  language: 'js',
+  ...overrides,
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -61,21 +34,37 @@ describe('resolveSiteDebugAiCapabilities', () => {
     );
   });
 
-  it('reads the configured Doubao model from siteDebug analysis config', async () => {
+  it('reads the configured Doubao model from buildReports.models', async () => {
     const capabilities = await resolveSiteDebugAiCapabilities({
+      buildReports: {
+        models: [
+          {
+            id: 'doubao-default',
+            model: 'doubao-seed-1-6',
+            providerRef: {
+              provider: 'doubao',
+            },
+          },
+        ],
+      },
       providers: {
-        doubao: {
-          apiKey: 'test-key',
-          baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-          model: 'doubao-seed-1-6',
-        },
+        doubao: [
+          {
+            apiKey: 'test-key',
+            baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+            default: true,
+            id: 'cn',
+          },
+        ],
       },
     });
 
     expect(capabilities.providers.doubao.available).toBe(true);
     expect(capabilities.providers.doubao.model).toBe('doubao-seed-1-6');
   });
+});
 
+describe('analyzeSiteDebugAiTarget', () => {
   it('passes Doubao thinking, temperature and max tokens to chat completions', async () => {
     const fetchMock = vi.fn(async (_input: string, init?: RequestInit) => {
       expect(init?.method).toBe('POST');
@@ -117,33 +106,41 @@ describe('resolveSiteDebugAiCapabilities', () => {
 
     vi.stubGlobal('fetch', fetchMock);
 
-    const request = createJsonRequest({
-      provider: 'doubao',
-      target: {
-        artifactKind: 'bundle-chunk',
-        artifactLabel: 'app.js',
-        content: 'console.log("hello")',
-        displayPath: '/assets/app.js',
-        language: 'js',
-      },
-    });
-    const response = createMockResponse();
-
-    await handleSiteDebugAiRequest(request, response.res, {
-      providers: {
-        doubao: {
-          apiKey: 'test-key',
-          maxTokens: 2048,
-          model: 'doubao-seed-2-0-pro-260215',
-          thinking: true,
-          temperature: 0.1,
+    const result = await analyzeSiteDebugAiTarget({
+      config: {
+        buildReports: {
+          models: [
+            {
+              id: 'doubao-default',
+              maxTokens: 2048,
+              model: 'doubao-seed-2-0-pro-260215',
+              providerRef: {
+                provider: 'doubao',
+              },
+              temperature: 0.1,
+              thinking: true,
+            },
+          ],
+        },
+        providers: {
+          doubao: [
+            {
+              apiKey: 'test-key',
+              default: true,
+              id: 'cn',
+            },
+          ],
         },
       },
+      provider: 'doubao',
+      target: createAnalysisTarget(),
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(response.res.statusCode).toBe(200);
-    expect(response.getJson().ok).toBe(true);
+    expect(result).toMatchObject({
+      model: 'doubao-seed-2-0-pro-260215',
+      result: 'analysis result',
+    });
   });
 
   it('uses provider timeoutMs for Doubao requests', async () => {
@@ -162,35 +159,114 @@ describe('resolveSiteDebugAiCapabilities', () => {
 
     vi.stubGlobal('fetch', fetchMock);
 
-    const request = createJsonRequest({
-      provider: 'doubao',
-      target: {
-        artifactKind: 'bundle-module',
-        artifactLabel: 'component.ts',
-        content: 'export const value = 1;',
-        displayPath: '/src/component.ts',
-        language: 'ts',
-      },
-    });
-    const response = createMockResponse();
+    try {
+      await analyzeSiteDebugAiTarget({
+        config: {
+          buildReports: {
+            models: [
+              {
+                id: 'doubao-default',
+                model: 'doubao-seed-2-0-pro-260215',
+                providerRef: {
+                  provider: 'doubao',
+                },
+              },
+            ],
+          },
+          providers: {
+            doubao: [
+              {
+                apiKey: 'test-key',
+                default: true,
+                id: 'cn',
+                timeoutMs: 5,
+              },
+            ],
+          },
+        },
+        provider: 'doubao',
+        target: createAnalysisTarget({
+          artifactKind: 'bundle-module',
+          artifactLabel: 'component.ts',
+          content: 'export const value = 1;',
+          displayPath: '/src/component.ts',
+          language: 'ts',
+        }),
+      });
+    } catch (error) {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain('Doubao analysis timed out.');
+      expect((error as Error).message).toContain('Trace ');
+      expect((error as Error).message).toContain(
+        'bundle-module /src/component.ts',
+      );
+      expect((error as Error).message).toContain('timeout 5 ms');
+      return;
+    }
 
-    await handleSiteDebugAiRequest(request, response.res, {
-      providers: {
-        doubao: {
-          apiKey: 'test-key',
-          model: 'doubao-seed-2-0-pro-260215',
-          timeoutMs: 5,
+    throw new Error('Expected timeout rejection');
+  });
+
+  it('uses the first Doubao provider entry when no default is configured', async () => {
+    const fetchMock = vi.fn(async (_input: string, init?: RequestInit) => {
+      expect(init?.headers).toEqual({
+        Authorization: 'Bearer first-key',
+        'Content-Type': 'application/json',
+      });
+
+      return Response.json(
+        {
+          choices: [
+            {
+              message: {
+                content: 'analysis result',
+              },
+            },
+          ],
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          status: 200,
+        },
+      );
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await analyzeSiteDebugAiTarget({
+      config: {
+        buildReports: {
+          models: [
+            {
+              id: 'doubao-default',
+              model: 'doubao-seed-2-0-pro-260215',
+              providerRef: {
+                provider: 'doubao',
+              },
+            },
+          ],
+        },
+        providers: {
+          doubao: [
+            {
+              apiKey: 'first-key',
+              id: 'first',
+            },
+            {
+              apiKey: 'second-key',
+              id: 'second',
+            },
+          ],
         },
       },
+      provider: 'doubao',
+      target: createAnalysisTarget(),
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(response.res.statusCode).toBe(504);
-    const payload = response.getJson();
-
-    expect(payload.error).toContain('Doubao analysis timed out.');
-    expect(payload.error).toContain('Trace ');
-    expect(payload.error).toContain('bundle-module /src/component.ts');
-    expect(payload.error).toContain('timeout 5 ms');
+    expect(result.result).toBe('analysis result');
   });
 });

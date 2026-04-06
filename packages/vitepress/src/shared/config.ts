@@ -23,7 +23,7 @@ const normalizeBuildReportModels = (
 
   return Array.isArray(buildReports.models)
     ? (buildReports.models.filter(Boolean).map((model) =>
-        model.provider === 'doubao'
+        model.providerRef.provider === 'doubao'
           ? {
               ...model,
               thinking: model.thinking ?? false,
@@ -35,20 +35,26 @@ const normalizeBuildReportModels = (
 
 const normalizeAnalysisProviders = (
   providers: SiteDebugAnalysisUserConfig['providers'],
-) =>
-  providers
-    ? {
-        ...providers,
-        ...(providers.doubao
-          ? {
-              doubao: {
-                ...providers.doubao,
-                thinking: providers.doubao.thinking ?? false,
-              },
-            }
-          : {}),
-      }
+) => {
+  const normalizedProviders = {
+    ...(Array.isArray(providers?.doubao)
+      ? {
+          doubao: providers.doubao.filter(Boolean).map((provider) => ({
+            apiKey: provider.apiKey,
+            baseUrl: provider.baseUrl,
+            default: provider.default === true,
+            id: provider.id,
+            label: provider.label,
+            timeoutMs: provider.timeoutMs,
+          })),
+        }
+      : {}),
+  };
+
+  return providers && Object.keys(normalizedProviders).length > 0
+    ? normalizedProviders
     : undefined;
+};
 
 const normalizeBuildReportCache = (
   cache: NonNullable<SiteDebugBuildReportsInput>['cache'],

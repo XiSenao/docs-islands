@@ -32,8 +32,8 @@ describe('resolveSiteDebugAiCopyPrompt', () => {
   it('prefers the prompt attached to the active build report', () => {
     const buildTarget = createAnalysisTarget({
       artifactKind: 'page-build',
-      artifactLabel: 'Core Concepts Page',
-      displayPath: '/core-concepts',
+      artifactLabel: 'How It Works Page',
+      displayPath: '/guide/how-it-works',
       language: 'md',
     });
 
@@ -44,13 +44,13 @@ describe('resolveSiteDebugAiCopyPrompt', () => {
           model: 'doubao-test-model',
           prompt: 'prompt from active build report',
           provider: 'doubao',
-          reportFile: '/docs/assets/page-metafiles/ai/pages/core-concepts.json',
+          reportFile: '/docs/assets/page-metafiles/ai/pages/how-it-works.json',
           reportId: 'report-1',
           reportLabel: 'Doubao Pro',
         },
         analysisSource: 'build-report',
         buildReportPromptByFile: {
-          '/docs/assets/page-metafiles/ai/pages/core-concepts.json':
+          '/docs/assets/page-metafiles/ai/pages/how-it-works.json':
             'prompt from cached report file',
         },
         liveAnalysisTarget: createAnalysisTarget(),
@@ -62,8 +62,8 @@ describe('resolveSiteDebugAiCopyPrompt', () => {
   it('falls back to the loaded build report prompt cache before rebuilding a prompt', () => {
     const buildTarget = createAnalysisTarget({
       artifactKind: 'page-build',
-      artifactLabel: 'Core Concepts Page',
-      displayPath: '/core-concepts',
+      artifactLabel: 'How It Works Page',
+      displayPath: '/guide/how-it-works',
       language: 'md',
     });
 
@@ -73,13 +73,13 @@ describe('resolveSiteDebugAiCopyPrompt', () => {
           generatedAt: '2026-04-05T00:00:00.000Z',
           model: 'doubao-test-model',
           provider: 'doubao',
-          reportFile: '/docs/assets/page-metafiles/ai/pages/core-concepts.json',
+          reportFile: '/docs/assets/page-metafiles/ai/pages/how-it-works.json',
           reportId: 'report-1',
           reportLabel: 'Doubao Pro',
         },
         analysisSource: 'build-report',
         buildReportPromptByFile: {
-          '/docs/assets/page-metafiles/ai/pages/core-concepts.json':
+          '/docs/assets/page-metafiles/ai/pages/how-it-works.json':
             'prompt from loaded build report payload',
         },
         liveAnalysisTarget: createAnalysisTarget(),
@@ -91,8 +91,8 @@ describe('resolveSiteDebugAiCopyPrompt', () => {
   it('rebuilds a prompt from the resolved build report target when no saved prompt exists', () => {
     const buildTarget = createAnalysisTarget({
       artifactKind: 'page-build',
-      artifactLabel: 'Core Concepts Page',
-      displayPath: '/core-concepts',
+      artifactLabel: 'How It Works Page',
+      displayPath: '/guide/how-it-works',
       language: 'md',
     });
 
@@ -102,7 +102,7 @@ describe('resolveSiteDebugAiCopyPrompt', () => {
           generatedAt: '2026-04-05T00:00:00.000Z',
           model: 'doubao-test-model',
           provider: 'doubao',
-          reportFile: '/docs/assets/page-metafiles/ai/pages/core-concepts.json',
+          reportFile: '/docs/assets/page-metafiles/ai/pages/how-it-works.json',
           reportId: 'report-1',
           reportLabel: 'Doubao Pro',
         },

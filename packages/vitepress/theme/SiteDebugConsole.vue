@@ -76,6 +76,7 @@ import {
   getRenderContainerLabel as getRuntimeRenderContainerLabel,
   getSiteBasePath,
   getThemeSnapshot,
+  isSiteDebugAiReportRuntimeAvailable,
 } from './site-debug-runtime';
 import {
   createSiteDebugLoadingProgress,
@@ -169,8 +170,15 @@ type PageAiModuleMetric = ComponentBuildMetric['modules'][number] & {
 };
 
 const debugDialogRef = ref<HTMLDialogElement | null>(null);
-const ENABLE_MPA_DEBUG_UI =
-  (import.meta as ImportMeta & { env?: { MPA?: boolean } }).env?.MPA === true;
+const siteDebugImportMetaEnv = (
+  import.meta as ImportMeta & {
+    env?: {
+      DEV?: boolean;
+      MPA?: boolean;
+    };
+  }
+).env;
+const ENABLE_MPA_DEBUG_UI = siteDebugImportMetaEnv?.MPA === true;
 const DEV_HIDDEN_GLOBAL_PRESET_PATHS = new Set([
   '__DOCS_ISLANDS_SITE_DEBUG__',
   '__PAGE_METAFILE__',
@@ -1049,8 +1057,13 @@ const activeBundleSourceBrowseHref = computed(() => {
 const activeBundleSourceTitle = computed(
   () => activeBundleSourcePreviewPath.value.split('/').pop() || '',
 );
+const aiReportRuntimeAvailable = computed(() =>
+  isSiteDebugAiReportRuntimeAvailable(siteDebugImportMetaEnv?.DEV === true),
+);
 const siteDebugAiEndpoint = computed(() =>
-  getSiteDebugAiEndpoint(getSiteBasePath(getDebugWindow())),
+  aiReportRuntimeAvailable.value
+    ? getSiteDebugAiEndpoint(getSiteBasePath(getDebugWindow()))
+    : null,
 );
 const currentRoutePageMetafile = computed<PageMetafile | null>(() => {
   if (typeof window === 'undefined') {
@@ -1434,8 +1447,16 @@ const currentPageAiAnalysisTarget = computed<SiteDebugAiAnalysisTarget | null>(
   },
 );
 
+const currentPageAiReviewKey = computed(() =>
+  [
+    currentPageAiAnalysisTarget.value?.displayPath || '',
+    ...currentPageAiBuildReports.value.map((report) => report.reportFile),
+  ].join('::'),
+);
+
 const canOpenCurrentPageAiReview = computed(
   () =>
+    aiReportRuntimeAvailable.value &&
     Boolean(currentPageAiAnalysisTarget.value) &&
     currentPageAiBuildReports.value.length > 0,
 );
@@ -3216,6 +3237,18 @@ watch(
 );
 
 watch(
+  aiReportRuntimeAvailable,
+  (value) => {
+    if (!value) {
+      currentPageAiReviewOpen.value = false;
+    }
+  },
+  {
+    immediate: true,
+  },
+);
+
+watch(
   canOpenCurrentPageAiReview,
   (value) => {
     if (!value) {
@@ -3646,7 +3679,12 @@ onBeforeUnmount(() => {
   />
 
   <SiteDebugAiAnalysisModal
-    v-if="currentPageAiReviewOpen && currentPageAiAnalysisTarget"
+    v-if="
+      aiReportRuntimeAvailable &&
+      currentPageAiReviewOpen &&
+      currentPageAiAnalysisTarget
+    "
+    :key="currentPageAiReviewKey"
     :analysis-target="currentPageAiAnalysisTarget"
     :build-reports="currentPageAiBuildReports"
     :display-path="currentPageAiAnalysisTarget.displayPath"
@@ -3669,7 +3707,7 @@ onBeforeUnmount(() => {
 
   <div v-if="debugEnabled" class="site-debug-floating-actions">
     <button
-      v-if="canOpenCurrentPageAiReview"
+      v-if="aiReportRuntimeAvailable && canOpenCurrentPageAiReview"
       class="site-debug-toggle site-debug-toggle--ai"
       style="position: static; right: auto; bottom: auto"
       type="button"
