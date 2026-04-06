@@ -559,7 +559,7 @@ function PanelPreview(props: {
       <CodeWindow
         activeLine={1}
         lines={[
-          'pageMetafile.routes["/site-debug-console"]',
+          'pageMetafile.routes["/guide/site-debug-console"]',
           'hmrMetrics.latestSession',
           'snapshotRuntime().renderMetrics',
         ]}

@@ -1,7 +1,7 @@
 # @docs-islands/vitepress
 
 <p align="center">
-  <a href="https://docs.senao.me/docs-islands/vitepress/core-concepts" target="_blank" rel="noopener noreferrer">  
+  <a href="https://docs.senao.me/docs-islands/vitepress/guide/" target="_blank" rel="noopener noreferrer">  
     <img width="180" src="https://docs.senao.me/docs-islands/vitepress/favicon.svg" alt="logo">
   </a>
 </p>
@@ -26,11 +26,11 @@ Brings cross‑framework component rendering to VitePress (currently built-in Re
 - **HMR support**: Complete hot module replacement across framework boundaries, preserving state and maintaining development velocity.
 - **MPA compatibility**: Works with VitePress MPA mode.
 
-> For comprehensive design rationale and examples, see [VitePress Cross-Framework Rendering Strategy](https://docs.senao.me/docs-islands/vitepress/core-concepts).
+> For comprehensive design rationale and examples, see [Introduction](https://docs.senao.me/docs-islands/vitepress/guide/) and [How It Works](https://docs.senao.me/docs-islands/vitepress/guide/how-it-works).
 
 ## Quick Start
 
-Read [Quick Start](https://docs.senao.me/docs-islands/vitepress/quick-start) for more information.
+Read [Getting Started](https://docs.senao.me/docs-islands/vitepress/guide/getting-started) for more information.
 
 Additional note: the user guide now explicitly documents that re-exported component imports are supported, but intermediate barrel / re-export modules must not be used as side-effect injection points.
 

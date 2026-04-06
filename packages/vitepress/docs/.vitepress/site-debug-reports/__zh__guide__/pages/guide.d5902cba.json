@@ -1,0 +1,504 @@
+{
+  "cacheIdentity": {
+    "promptHash": "7edd30c095641ea00aa6816807350b9fe64a5d5dd91f8c0b7c718a8c7acc2f8f",
+    "provider": "doubao",
+    "providerConfig": {
+      "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+      "maxTokens": 4096,
+      "model": "doubao-seed-2-0-pro-260215",
+      "providerId": "cn",
+      "thinking": true,
+      "temperature": 0.2
+    }
+  },
+  "cacheKey": "04126ff86ddb02319021634073891a7ceff295a8a38c3da0e496e1223252af2a",
+  "report": {
+    "detail": "Using https://ark.cn-beijing.volces.com/api/v3/chat/completions · provider Doubao CN",
+    "generatedAt": "2026-04-06T11:10:53.896Z",
+    "model": "doubao-seed-2-0-pro-260215",
+    "prompt": "## Task\nAnalyze the current docs-islands / VitePress page-build snapshot for this page.\nPrioritize build diagnosis over descriptive inventory. Focus first on dominant page cost drivers, SPA route-transition blocking paths, and the directives that materially change current-page behavior before spending time on secondary components.\nTreat `includeChunks` and `includeModules` as independent switches, and do not invent details that are not shown.\n\nAnalysis priorities:\n1. Identify the dominant deduped page-level cost drivers that are visible in the page bundle summary, top page resources, and top page modules.\n2. Identify the main SPA route-transition blocking path from the visible `spa:sync-render` side effects, including blocking CSS, embedded HTML, and render-order implications.\n3. Distinguish which directives materially affect this page now versus which directives are only present in the page inventory.\n4. Use component sections for local composition attribution and notable outliers, not for exhaustive repetition.\n5. Call out what cannot be proven from this snapshot and which additional artifact view would close the gap.\n\nMeta-rules:\n- Scope discipline: Always keep deduped page-level cost, per-component local composition, and `spa:sync-render` transition-side cost separate. Do not sum per-component totals to estimate page cost. A component with `Total: 0 B` or `Bundle Mode: No dedicated client component bundle emitted` can still contribute transition-side cost through `spa:sync-render` embedded HTML or blocking CSS. Page-level runtime or loader cost can appear in the page cost snapshot even when it does not appear in a component-local chunk list.\n- Evidence discipline: Separate observed facts from inferences. Use wording such as `visible in the snapshot`, `suggests`, or `cannot be confirmed from this snapshot` when appropriate. Keep inference confidence proportional to the evidence. Identify shared/runtime overhead only when the snapshot supports it; do not classify something as shared/runtime overhead from naming alone. For render-order implications, describe only ordering effects that are explicitly visible from the listed render order, patch sizes, and blocking CSS data.\n- Diagnosis discipline: Prioritize dominant drivers and blocking paths over exhaustive inventory. Do not restate the full snapshot component-by-component. Focus on the smallest set of components, chunks, modules, and directives that explains most of the page cost, transition blocking, or build interpretation.\n- Directive discipline: Explain only directive effects that materially affect this page now. Prioritize visible effects on deduped page cost, hydration timing, presence or absence of SSR HTML, `spa:sync-render` participation, blocking CSS, and route-transition stability. Do not fall back to generic framework explanations when the snapshot does not show a current-page consequence.\n- Optimization discipline: Order ideas by expected impact and confidence. Prefer a few high-signal opportunities over a long generic list. Tie every idea to visible evidence, name the component, directive, chunk, module, or `spa:sync-render` behavior it targets, and explain the expected tradeoff.\n\n## Output\nRespond in Markdown using these sections:\n- Summary\n- Dominant Page Cost Drivers\n- Rendering Strategy Breakdown\n- Component Composition Highlights\n- spa:sync-render Transition Impact\n- Optimization Opportunities\n- Evidence Gaps / Unknowns\n\nSection guidance:\n- Summary: Lead with the most important diagnosis. State explicitly whether page cost is concentrated in a few dominant resources/modules or spread across many smaller items, and whether SPA transition overhead is concentrated in a few `spa:sync-render` renders or broadly distributed.\n- Dominant Page Cost Drivers: Use the deduped page-level view first. Call out shared/runtime overhead versus component-specific payload when the snapshot supports that distinction.\n- Rendering Strategy Breakdown: Explain which directives materially affect current-page runtime or SPA transition behavior, and which directives are merely present.\n- Component Composition Highlights: Focus on the highest-impact or most diagnostic components. Keep lower-impact components brief instead of repeating every item evenly.\n- spa:sync-render Transition Impact: Report the exact visible fields when present: enabled component count, enabled render count, HTML patch target, total embedded HTML, blocking CSS files and total size, whether the CSS loading runtime is required, the biggest contributors to patch size, the components that add blocking CSS, and any render-order implications visible in the snapshot.\n- Optimization Opportunities: Order ideas by expected impact and confidence. Prefer a few high-signal opportunities over a long generic list. Tie every idea to visible evidence. For each idea, name the component, directive, chunk, module, or `spa:sync-render` behavior it targets, and explain the expected tradeoff.\n- Evidence Gaps / Unknowns: Categorize gaps as `Need chunk report`, `Need module report`, `Need page comparison`, or `Need directive config evidence`, and explain why that evidence is needed.\n\nKeep the analysis grounded in the visible snapshot. If evidence is missing, say exactly which additional page, chunk, module, comparison, or directive-config view would help.\n\n## Current Page Snapshot\n\nCurrent Page:\n- Panel: Page Build\n- Title: /zh/guide\n- Path: /zh/guide\n- Components: 1\n- Render Instances: 1\n- Used Directives: client:load\n- Chunk Resources: 5\n- Module Sources: 11\n- Composition Detail: component -> chunks -> modules\n\nGlossary:\n- Share: Rendered-byte share within the current visible list.\n- Source: Resolved source or source-asset size when the original file is available.\n- Delta: Rendered-size change relative to the resolved source size.\n\nCurrent Page Rendered React Components:\n1. Landing\n   source path: zh/rendering-strategy-comps/react/Landing/src/App.tsx\n   render directives: `client:load`\n   Total: 9.9 KB\n   JS: 4.5 KB\n   CSS: 1.4 KB\n   Asset: 4.0 KB\n   Render Instances: 1\n   spa:sync-render Renders: 1\n   Build Chunks (3 shown):\n   1. Landing.m8itUzpu.js\n      path: /docs-islands/vitepress/assets/Landing.m8itUzpu.js\n      type: JS\n      size: 4.5 KB\n      share: 45.3%\n      source modules: 8\n      Chunk Modules:\n         1. vitepress.svg\n            module id: /zh/rendering-strategy-comps/react/Landing/public/vitepress.svg\n            rendered size: 2.8 KB\n            share: 56.4%\n            source: Source 2.4 KB\n            delta: Delta +16.2%\n         2. App.tsx\n            module id: /zh/rendering-strategy-comps/react/Landing/src/App.tsx\n            rendered size: 1.0 KB\n            share: 20.9%\n            source: Source 897 B\n            delta: Delta +18.7%\n         3. react-jsx-runtime.production.min.js\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js\n            rendered size: 914 B\n            share: 17.9%\n            source: Source 859 B\n            delta: Delta +6.4%\n         4. jsx-runtime.js\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js\n            rendered size: 103 B\n            share: 2.0%\n            source: Source 214 B\n            delta: Delta -51.9%\n         5. react.svg\n            module id: /zh/rendering-strategy-comps/react/Landing/src/assets/react.svg\n            rendered size: 45 B\n            share: 0.9%\n            source: Source 4.0 KB\n            delta: Delta -98.9%\n         6. react-jsx-runtime.production.min.js?commonjs-exports\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports\n            rendered size: 40 B\n         7. jsx-runtime.js?commonjs-module\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module\n            rendered size: 31 B\n         8. react.cjs\n            module id: react.cjs\n            rendered size: 26 B\n   2. Landing.Cvl0mg3D.css\n      path: /docs-islands/vitepress/assets/Landing.Cvl0mg3D.css\n      type: CSS\n      size: 1.4 KB\n      share: 14.1%\n      source modules: 2\n      Chunk Modules:\n         1. App.css\n            module id: /zh/rendering-strategy-comps/react/Landing/src/App.css\n            rendered size: 810 B\n            share: 56.8%\n            source: Source 991 B\n            delta: Delta -18.3%\n         2. index.css\n            module id: /zh/rendering-strategy-comps/react/Landing/src/index.css\n            rendered size: 616 B\n            share: 43.2%\n            source: Source 752 B\n            delta: Delta -18.1%\n   3. react.CHdo91hT.svg\n      path: /docs-islands/vitepress/assets/react.CHdo91hT.svg\n      type: ASSET\n      size: 4.0 KB\n      share: 40.7%\n      source modules: 1\n      Chunk Modules:\n         1. react.svg\n            module id: zh/rendering-strategy-comps/react/Landing/src/assets/react.svg\n            rendered size: 4.0 KB\n            share: 100.0%\n            source: Source 4.0 KB\n            delta: Delta 0.0%\n\nPage Build Cost Snapshot:\nBundle Summary:\n- Total: 22.0 KB\n- JS: 16.6 KB\n- CSS: 1.4 KB\n- Asset: 4.0 KB\n\nTop Page Resources (5 shown):\n1. Landing.m8itUzpu.js\n   path: /docs-islands/vitepress/assets/Landing.m8itUzpu.js\n   type: JS\n   size: 4.5 KB\n   share: 20.4%\n   source modules: 8\n2. Landing.Cvl0mg3D.css\n   path: /docs-islands/vitepress/assets/Landing.Cvl0mg3D.css\n   type: CSS\n   size: 1.4 KB\n   share: 6.3%\n   source modules: 2\n3. react.CHdo91hT.svg\n   path: /docs-islands/vitepress/assets/react.CHdo91hT.svg\n   type: ASSET\n   size: 4.0 KB\n   share: 18.3%\n   source modules: 1\n4. zh_guide_index.md.kH0Lgufb.js\n   path: /docs-islands/vitepress/assets/zh_guide_index.md.kH0Lgufb.js\n   type: JS\n   size: 10.1 KB\n   share: 45.7%\n   source modules: 0\n5. unified-loader.BSJrVfLf.js\n   path: /docs-islands/vitepress/assets/unified-loader.BSJrVfLf.js\n   type: JS\n   size: 2.1 KB\n   share: 9.4%\n   source modules: 0\n\nTop Page Modules (11 shown):\n1. react.svg\n   module id: zh/rendering-strategy-comps/react/Landing/src/assets/react.svg\n   rendered size: 4.0 KB\n   share: 38.7%\n   source: Source 4.0 KB\n   delta: Delta 0.0%\n2. vitepress.svg\n   module id: /zh/rendering-strategy-comps/react/Landing/public/vitepress.svg\n   rendered size: 2.8 KB\n   share: 27.0%\n   source: Source 2.4 KB\n   delta: Delta +16.2%\n3. App.tsx\n   module id: /zh/rendering-strategy-comps/react/Landing/src/App.tsx\n   rendered size: 1.0 KB\n   share: 10.0%\n   source: Source 897 B\n   delta: Delta +18.7%\n4. react-jsx-runtime.production.min.js\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js\n   rendered size: 914 B\n   share: 8.6%\n   source: Source 859 B\n   delta: Delta +6.4%\n5. App.css\n   module id: /zh/rendering-strategy-comps/react/Landing/src/App.css\n   rendered size: 810 B\n   share: 7.6%\n   source: Source 991 B\n   delta: Delta -18.3%\n6. index.css\n   module id: /zh/rendering-strategy-comps/react/Landing/src/index.css\n   rendered size: 616 B\n   share: 5.8%\n   source: Source 752 B\n   delta: Delta -18.1%\n7. jsx-runtime.js\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js\n   rendered size: 103 B\n   share: 1.0%\n   source: Source 214 B\n   delta: Delta -51.9%\n8. react.svg\n   module id: /zh/rendering-strategy-comps/react/Landing/src/assets/react.svg\n   rendered size: 45 B\n   share: 0.4%\n   source: Source 4.0 KB\n   delta: Delta -98.9%\n9. react-jsx-runtime.production.min.js?commonjs-exports\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports\n   rendered size: 40 B\n10. jsx-runtime.js?commonjs-module\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module\n   rendered size: 31 B\n11. react.cjs\n   module id: react.cjs\n   rendered size: 26 B\n\nCurrent Page Rendering Strategy Context:\n1. `client:load`\n   description: Build-time pre-render plus eager client hydration after the page runtime is ready.\n   impacts:\n   - Useful for components that should become interactive immediately.\n   - Adds early JavaScript execution and hydration cost during page load or SPA navigation.\n   - `spa:sync-render` is opt-in and can reduce flicker during SPA route transitions at the cost of synchronous work.\n\nspa:sync-render Artifact Context:\n- `client:only` does not support `spa:sync-render`.\n- `client:load` and `client:visible` only use `spa:sync-render` when explicitly enabled.\n- `ssr:only` defaults to `spa:sync-render` unless it is explicitly disabled.\n- When enabled, pre-rendered HTML is patched into the page client chunk used for SPA route transitions.\n- Blocking CSS required by those renders can delay the page content until the CSS is loaded.\n- Enabled Components: 1\n- Enabled Renders: 1\n- HTML Patch Target: /docs-islands/vitepress/assets/zh_guide_index.md.kH0Lgufb.js\n- Embedded HTML: 3.6 KB\n- Blocking CSS: 1 file(s) · 1.4 KB\n- Blocking CSS Files: /docs-islands/vitepress/assets/Landing.Cvl0mg3D.css (1.4 KB)\n- CSS Loading Runtime: Required\n- Loader Script: /docs-islands/vitepress/assets/unified-loader.BSJrVfLf.js\n\nspa:sync-render Components (1 shown):\n1. Landing\n   render ids: 9b77b9fb\n   render directives: `client:load`\n   HTML Patch Target: /docs-islands/vitepress/assets/zh_guide_index.md.kH0Lgufb.js\n   Embedded HTML Patch: 3.6 KB\n   Blocking CSS: 1 file(s) · 1.4 KB\n   Blocking CSS Files: /docs-islands/vitepress/assets/Landing.Cvl0mg3D.css (1.4 KB)\n   CSS Loading Runtime: Required\n   spa:sync-render Side Effect: injects 3.6 KB of pre-rendered HTML into /docs-islands/vitepress/assets/zh_guide_index.md.kH0Lgufb.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/Landing.Cvl0mg3D.css (1.4 KB).\n\nRender Order and Side Effects:\n1. Landing\n   render id: 9b77b9fb\n   source path: zh/rendering-strategy-comps/react/Landing/src/App.tsx\n   render directive: `client:load`\n   spa:sync-render: Enabled\n   HTML Patch Target: /docs-islands/vitepress/assets/zh_guide_index.md.kH0Lgufb.js\n   Embedded HTML Patch: 3.6 KB\n   Blocking CSS: 1 file(s) · 1.4 KB\n   Blocking CSS Files: /docs-islands/vitepress/assets/Landing.Cvl0mg3D.css (1.4 KB)\n   CSS Loading Runtime: Required\n   spa:sync-render Side Effect: injects 3.6 KB of pre-rendered HTML into /docs-islands/vitepress/assets/zh_guide_index.md.kH0Lgufb.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/Landing.Cvl0mg3D.css (1.4 KB).",
+    "provider": "doubao",
+    "providerId": "cn",
+    "providerLabel": "Doubao CN",
+    "reportId": "doubao-pro",
+    "reportLabel": "Doubao Pro",
+    "result": "# Summary\nPage cost (total 22.0 KB) is highly concentrated in two buckets: page runtime/route chunks (~12.2 KB, 55% of total) and the single `Landing` client component (~9.9 KB, 45% of total). SPA route transition overhead is 100% concentrated in the single `spa:sync-render` enabled `Landing` component, with no other contributing renders or components.\n\n# Dominant Page Cost Drivers\nAll visible deduped cost drivers are confirmed from the snapshot:\n1. **Page route chunk (`zh_guide_index.md.kH0Lgufb.js`)**: 10.1 KB (45.7% of total page cost), 3.6 KB of which is explicitly embedded pre-rendered HTML from `spa:sync-render`\n2. **`Landing` component assets**:\n   - React SVG asset: 4.0 KB (18.3% of total)\n   - `Landing.m8itUzpu.js` component JS: 4.5 KB (20.4% of total)\n   - `Landing.Cvl0mg3D.css` component CSS: 1.4 KB (6.3% of total)\n3. **SPA transition loader runtime (`unified-loader.BSJrVfLf.js`)**: 2.1 KB (9.4% of total), required for `spa:sync-render` CSS loading\n4. The largest module-level costs are all `Landing` component assets: react.svg (4.0 KB), vitepress.svg (2.8 KB), and `App.tsx` (1.0 KB)\n\n# Rendering Strategy Breakdown\nOnly one directive is used on this page, with confirmed material effects:\n1. **`client:load` (enabled for `Landing` component)**:\n   - Observed effects: Pre-renders component HTML at build time, eager hydrates component on page load, and is explicitly configured to use `spa:sync-render` (visible in render context)\n   - No other directives are present in the page inventory, so no additional directive effects apply\n\n# Component Composition Highlights\nOnly one client component is present on the page:\n- **`Landing` (React client component)**:\n  - Total size: 9.9 KB, split 4.5 KB JS / 1.4 KB CSS / 4.0 KB asset\n  - Notable outlier: Duplicate `react.svg` entries (full 4.0 KB asset + 45 B minified inline version in component JS, delta -98.9% for the inline copy)\n  - Bundles React JSX runtime directly in its component chunk (total ~1.0 KB of runtime code, no shared chunk reuse visible in the snapshot)\n\n# spa:sync-render Transition Impact\nAll fields are directly visible in the snapshot:\n- Enabled component count: 1, Enabled render count: 1\n- HTML patch target: `/docs-islands/vitepress/assets/zh_guide_index.md.kH0Lgufb.js`\n- Total embedded HTML: 3.6 KB\n- Blocking CSS: 1 file, 1.4 KB (`Landing.Cvl0mg3D.css`)\n- CSS loading runtime: Required (uses 2.1 KB `unified-loader.BSJrVfLf.js`)\n- Largest patch contributor: `Landing` component (100% of embedded HTML and blocking CSS)\n- Render order implications: Only one render is enabled, so no cascading render order delays, but SPA route transition content rendering is blocked until both the route chunk and 1.4 KB CSS file finish loading\n\n# Optimization Opportunities\nOrdered by expected impact and confidence:\n1. **Disable `spa:sync-render` for the `Landing` component if flicker-free transitions are not required**\n   - Tied to visible evidence: Eliminates 3.6 KB of embedded HTML from the route chunk, removes 1.4 KB of blocking transition CSS requirements, and eliminates the need for the 2.1 KB `unified-loader` runtime, for a total estimated saving of ~7.1 KB (32% of total page cost)\n   - Tradeoff: Possible brief flicker during SPA navigation to this page, as the component will hydrate after load instead of being patched synchronously\n2. **Deduplicate `react.svg` handling**\n   - Tied to visible evidence: The snapshot shows both a full 4.0 KB `react.svg` asset and a 45 B inline minified version in the component JS\n   - Expected gain: ~45 B reduction in component JS size, no tradeoffs if the inline copy is redundant\n3. **Extract React JSX runtime to a shared chunk**\n   - Tied to visible evidence: ~1.0 KB of React JSX runtime code is bundled directly in the `Landing` component chunk\n   - Expected gain: Amortizes runtime cost across all pages using React components, tradeoff is one additional small request on first page load if the shared chunk is not already cached\n4. **Fix `vitepress.svg` minification**\n   - Tied to visible evidence: Rendered size of `vitepress.svg` is 16.2% larger than source file\n   - Expected gain: ~0.4 KB reduction in component JS size, no tradeoffs\n\n# Evidence Gaps / Unknowns\n1. **Need chunk report**: The 10.1 KB route chunk has 0 source modules listed, so the composition of the remaining ~6.5 KB of the chunk (excluding the 3.6 KB embedded HTML) cannot be analyzed\n2. **Need module report**: The `unified-loader.BSJrVfLf.js` runtime has 0 source modules listed, so its composition and potential for optimization cannot be confirmed\n3. **Need directive config evidence**: There is no explicit config showing if `spa:sync-render` is enabled per-component for `Landing` or site-wide for all `client:load` components, so the scope of changes to disable it cannot be confirmed\n4. **Need page comparison**: There is no cross-page data to confirm if other pages use React components, so the benefit of extracting the React JSX runtime to a shared chunk cannot be validated",
+    "target": {
+      "artifactKind": "page-build",
+      "artifactLabel": "/zh/guide/",
+      "bytes": 22562,
+      "content": "Build overview for /zh/guide/",
+      "context": {
+        "artifactHeaderItems": [
+          {
+            "label": "Path",
+            "value": "/zh/guide/"
+          },
+          {
+            "label": "Components",
+            "value": "1"
+          },
+          {
+            "label": "Render Instances",
+            "value": "1"
+          },
+          {
+            "label": "Used Directives",
+            "value": "client:load"
+          },
+          {
+            "label": "Chunk Resources",
+            "value": "5"
+          },
+          {
+            "label": "Module Sources",
+            "value": "11"
+          },
+          {
+            "label": "Composition Detail",
+            "value": "component -> chunks -> modules"
+          }
+        ],
+        "bundleSummaryItems": [
+          {
+            "label": "Total",
+            "value": "22.0 KB"
+          },
+          {
+            "label": "JS",
+            "value": "16.6 KB"
+          },
+          {
+            "label": "CSS",
+            "value": "1.4 KB"
+          },
+          {
+            "label": "Asset",
+            "value": "4.0 KB"
+          }
+        ],
+        "chunkResourceItems": [
+          {
+            "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+            "label": "Landing.m8itUzpu.js",
+            "moduleCount": 8,
+            "share": "20.4%",
+            "size": "4.5 KB",
+            "type": "js"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/Landing.Cvl0mg3D.css",
+            "label": "Landing.Cvl0mg3D.css",
+            "moduleCount": 2,
+            "share": "6.3%",
+            "size": "1.4 KB",
+            "type": "css"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/react.CHdo91hT.svg",
+            "label": "react.CHdo91hT.svg",
+            "moduleCount": 1,
+            "share": "18.3%",
+            "size": "4.0 KB",
+            "type": "asset"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/zh_guide_index.md.kH0Lgufb.js",
+            "label": "zh_guide_index.md.kH0Lgufb.js",
+            "moduleCount": 0,
+            "share": "45.7%",
+            "size": "10.1 KB",
+            "type": "js"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/unified-loader.BSJrVfLf.js",
+            "label": "unified-loader.BSJrVfLf.js",
+            "moduleCount": 0,
+            "share": "9.4%",
+            "size": "2.1 KB",
+            "type": "js"
+          }
+        ],
+        "componentName": "Landing",
+        "moduleItems": [
+          {
+            "file": "/docs-islands/vitepress/assets/react.CHdo91hT.svg",
+            "id": "zh/rendering-strategy-comps/react/Landing/src/assets/react.svg",
+            "label": "react.svg",
+            "renderedSize": "4.0 KB",
+            "share": "38.7%",
+            "sizeDelta": "Delta 0.0%",
+            "sourceInfo": "Source 4.0 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+            "id": "/zh/rendering-strategy-comps/react/Landing/public/vitepress.svg",
+            "label": "vitepress.svg",
+            "renderedSize": "2.8 KB",
+            "share": "27.0%",
+            "sizeDelta": "Delta +16.2%",
+            "sourceInfo": "Source 2.4 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+            "id": "/zh/rendering-strategy-comps/react/Landing/src/App.tsx",
+            "label": "App.tsx",
+            "renderedSize": "1.0 KB",
+            "share": "10.0%",
+            "sizeDelta": "Delta +18.7%",
+            "sourceInfo": "Source 897 B"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+            "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js",
+            "label": "react-jsx-runtime.production.min.js",
+            "renderedSize": "914 B",
+            "share": "8.6%",
+            "sizeDelta": "Delta +6.4%",
+            "sourceInfo": "Source 859 B"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/Landing.Cvl0mg3D.css",
+            "id": "/zh/rendering-strategy-comps/react/Landing/src/App.css",
+            "label": "App.css",
+            "renderedSize": "810 B",
+            "share": "7.6%",
+            "sizeDelta": "Delta -18.3%",
+            "sourceInfo": "Source 991 B"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/Landing.Cvl0mg3D.css",
+            "id": "/zh/rendering-strategy-comps/react/Landing/src/index.css",
+            "label": "index.css",
+            "renderedSize": "616 B",
+            "share": "5.8%",
+            "sizeDelta": "Delta -18.1%",
+            "sourceInfo": "Source 752 B"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+            "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js",
+            "label": "jsx-runtime.js",
+            "renderedSize": "103 B",
+            "share": "1.0%",
+            "sizeDelta": "Delta -51.9%",
+            "sourceInfo": "Source 214 B"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+            "id": "/zh/rendering-strategy-comps/react/Landing/src/assets/react.svg",
+            "label": "react.svg",
+            "renderedSize": "45 B",
+            "share": "0.4%",
+            "sizeDelta": "Delta -98.9%",
+            "sourceInfo": "Source 4.0 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+            "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports",
+            "isVirtual": true,
+            "label": "react-jsx-runtime.production.min.js?commonjs-exports",
+            "renderedSize": "40 B",
+            "share": "0.4%",
+            "sourceInfo": "Source n/a",
+            "statusLabel": "generated virtual module"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+            "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module",
+            "isVirtual": true,
+            "label": "jsx-runtime.js?commonjs-module",
+            "renderedSize": "31 B",
+            "share": "0.3%",
+            "sourceInfo": "Source n/a",
+            "statusLabel": "generated virtual module"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+            "id": "\u0000react.cjs",
+            "isVirtual": true,
+            "label": "\u0000react.cjs",
+            "renderedSize": "26 B",
+            "share": "0.2%",
+            "sourceInfo": "Source n/a",
+            "statusLabel": "generated virtual module"
+          }
+        ],
+        "pageComponentItems": [
+          {
+            "sourcePath": "zh/rendering-strategy-comps/react/Landing/src/App.tsx",
+            "chunkItems": [
+              {
+                "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+                "label": "Landing.m8itUzpu.js",
+                "moduleCount": 8,
+                "share": "45.3%",
+                "size": "4.5 KB",
+                "type": "js",
+                "modules": [
+                  {
+                    "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+                    "id": "/zh/rendering-strategy-comps/react/Landing/public/vitepress.svg",
+                    "label": "vitepress.svg",
+                    "renderedSize": "2.8 KB",
+                    "share": "56.4%",
+                    "sizeDelta": "Delta +16.2%",
+                    "sourceInfo": "Source 2.4 KB"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+                    "id": "/zh/rendering-strategy-comps/react/Landing/src/App.tsx",
+                    "label": "App.tsx",
+                    "renderedSize": "1.0 KB",
+                    "share": "20.9%",
+                    "sizeDelta": "Delta +18.7%",
+                    "sourceInfo": "Source 897 B"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+                    "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js",
+                    "label": "react-jsx-runtime.production.min.js",
+                    "renderedSize": "914 B",
+                    "share": "17.9%",
+                    "sizeDelta": "Delta +6.4%",
+                    "sourceInfo": "Source 859 B"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+                    "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js",
+                    "label": "jsx-runtime.js",
+                    "renderedSize": "103 B",
+                    "share": "2.0%",
+                    "sizeDelta": "Delta -51.9%",
+                    "sourceInfo": "Source 214 B"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+                    "id": "/zh/rendering-strategy-comps/react/Landing/src/assets/react.svg",
+                    "label": "react.svg",
+                    "renderedSize": "45 B",
+                    "share": "0.9%",
+                    "sizeDelta": "Delta -98.9%",
+                    "sourceInfo": "Source 4.0 KB"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+                    "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports",
+                    "isVirtual": true,
+                    "label": "react-jsx-runtime.production.min.js?commonjs-exports",
+                    "renderedSize": "40 B",
+                    "share": "0.8%",
+                    "sourceInfo": "Source n/a",
+                    "statusLabel": "generated virtual module"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+                    "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module",
+                    "isVirtual": true,
+                    "label": "jsx-runtime.js?commonjs-module",
+                    "renderedSize": "31 B",
+                    "share": "0.6%",
+                    "sourceInfo": "Source n/a",
+                    "statusLabel": "generated virtual module"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/Landing.m8itUzpu.js",
+                    "id": "\u0000react.cjs",
+                    "isVirtual": true,
+                    "label": "\u0000react.cjs",
+                    "renderedSize": "26 B",
+                    "share": "0.5%",
+                    "sourceInfo": "Source n/a",
+                    "statusLabel": "generated virtual module"
+                  }
+                ]
+              },
+              {
+                "file": "/docs-islands/vitepress/assets/Landing.Cvl0mg3D.css",
+                "label": "Landing.Cvl0mg3D.css",
+                "moduleCount": 2,
+                "share": "14.1%",
+                "size": "1.4 KB",
+                "type": "css",
+                "modules": [
+                  {
+                    "file": "/docs-islands/vitepress/assets/Landing.Cvl0mg3D.css",
+                    "id": "/zh/rendering-strategy-comps/react/Landing/src/App.css",
+                    "label": "App.css",
+                    "renderedSize": "810 B",
+                    "share": "56.8%",
+                    "sizeDelta": "Delta -18.3%",
+                    "sourceInfo": "Source 991 B"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/Landing.Cvl0mg3D.css",
+                    "id": "/zh/rendering-strategy-comps/react/Landing/src/index.css",
+                    "label": "index.css",
+                    "renderedSize": "616 B",
+                    "share": "43.2%",
+                    "sizeDelta": "Delta -18.1%",
+                    "sourceInfo": "Source 752 B"
+                  }
+                ]
+              },
+              {
+                "file": "/docs-islands/vitepress/assets/react.CHdo91hT.svg",
+                "label": "react.CHdo91hT.svg",
+                "moduleCount": 1,
+                "share": "40.7%",
+                "size": "4.0 KB",
+                "type": "asset",
+                "modules": [
+                  {
+                    "file": "/docs-islands/vitepress/assets/react.CHdo91hT.svg",
+                    "id": "zh/rendering-strategy-comps/react/Landing/src/assets/react.svg",
+                    "label": "react.svg",
+                    "renderedSize": "4.0 KB",
+                    "share": "100.0%",
+                    "sizeDelta": "Delta 0.0%",
+                    "sourceInfo": "Source 4.0 KB"
+                  }
+                ]
+              }
+            ],
+            "componentName": "Landing",
+            "renderDirectives": ["client:load"],
+            "summaryItems": [
+              {
+                "label": "Total",
+                "value": "9.9 KB"
+              },
+              {
+                "label": "JS",
+                "value": "4.5 KB"
+              },
+              {
+                "label": "CSS",
+                "value": "1.4 KB"
+              },
+              {
+                "label": "Asset",
+                "value": "4.0 KB"
+              },
+              {
+                "label": "Render Instances",
+                "value": "1"
+              },
+              {
+                "label": "spa:sync-render Renders",
+                "value": "1"
+              }
+            ]
+          }
+        ],
+        "pageRenderOrderItems": [
+          {
+            "componentName": "Landing",
+            "renderDirective": "client:load",
+            "renderId": "9b77b9fb",
+            "sequence": 1,
+            "sourcePath": "zh/rendering-strategy-comps/react/Landing/src/App.tsx",
+            "summaryItems": [
+              {
+                "label": "HTML Patch Target",
+                "value": "/docs-islands/vitepress/assets/zh_guide_index.md.kH0Lgufb.js"
+              },
+              {
+                "label": "Embedded HTML Patch",
+                "value": "3.6 KB"
+              },
+              {
+                "label": "Blocking CSS",
+                "value": "1 file(s) · 1.4 KB"
+              },
+              {
+                "label": "Blocking CSS Files",
+                "value": "/docs-islands/vitepress/assets/Landing.Cvl0mg3D.css (1.4 KB)"
+              },
+              {
+                "label": "CSS Loading Runtime",
+                "value": "Required"
+              },
+              {
+                "label": "spa:sync-render Side Effect",
+                "value": "injects 3.6 KB of pre-rendered HTML into /docs-islands/vitepress/assets/zh_guide_index.md.kH0Lgufb.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/Landing.Cvl0mg3D.css (1.4 KB)."
+              }
+            ],
+            "useSpaSyncRender": true
+          }
+        ],
+        "pageSpaSyncComponentItems": [
+          {
+            "componentName": "Landing",
+            "renderDirectives": ["client:load"],
+            "renderIds": ["9b77b9fb"],
+            "summaryItems": [
+              {
+                "label": "HTML Patch Target",
+                "value": "/docs-islands/vitepress/assets/zh_guide_index.md.kH0Lgufb.js"
+              },
+              {
+                "label": "Embedded HTML Patch",
+                "value": "3.6 KB"
+              },
+              {
+                "label": "Blocking CSS",
+                "value": "1 file(s) · 1.4 KB"
+              },
+              {
+                "label": "Blocking CSS Files",
+                "value": "/docs-islands/vitepress/assets/Landing.Cvl0mg3D.css (1.4 KB)"
+              },
+              {
+                "label": "CSS Loading Runtime",
+                "value": "Required"
+              },
+              {
+                "label": "spa:sync-render Side Effect",
+                "value": "injects 3.6 KB of pre-rendered HTML into /docs-islands/vitepress/assets/zh_guide_index.md.kH0Lgufb.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/Landing.Cvl0mg3D.css (1.4 KB)."
+              }
+            ]
+          }
+        ],
+        "pageSpaSyncSummaryItems": [
+          {
+            "label": "Enabled Components",
+            "value": "1"
+          },
+          {
+            "label": "Enabled Renders",
+            "value": "1"
+          },
+          {
+            "label": "HTML Patch Target",
+            "value": "/docs-islands/vitepress/assets/zh_guide_index.md.kH0Lgufb.js"
+          },
+          {
+            "label": "Embedded HTML",
+            "value": "3.6 KB"
+          },
+          {
+            "label": "Blocking CSS",
+            "value": "1 file(s) · 1.4 KB"
+          },
+          {
+            "label": "Blocking CSS Files",
+            "value": "/docs-islands/vitepress/assets/Landing.Cvl0mg3D.css (1.4 KB)"
+          },
+          {
+            "label": "CSS Loading Runtime",
+            "value": "Required"
+          },
+          {
+            "label": "Loader Script",
+            "value": "/docs-islands/vitepress/assets/unified-loader.BSJrVfLf.js"
+          }
+        ],
+        "pageId": "/zh/guide/",
+        "renderId": null
+      },
+      "displayPath": "/zh/guide/",
+      "language": "text"
+    }
+  }
+}

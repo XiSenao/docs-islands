@@ -161,7 +161,7 @@ describe('debug-inspector build metric lookup', () => {
       cssBundlePaths: ['/docs/assets/site-debug.css'],
       loaderScript: '/docs/assets/unified-loader.js',
       modulePreloads: ['/docs/assets/site-debug.js'],
-      pathname: '/core-concepts',
+      pathname: '/guide/how-it-works',
       ssrInjectScript: '',
     };
     const zhPageMetafile: PageMetafile = {
@@ -190,20 +190,20 @@ describe('debug-inspector build metric lookup', () => {
       cssBundlePaths: ['/docs/assets/site-debug.css'],
       loaderScript: '/docs/assets/unified-loader.js',
       modulePreloads: ['/docs/assets/site-debug.js'],
-      pathname: '/zh/core-concepts',
+      pathname: '/zh/guide/how-it-works',
       ssrInjectScript: '',
     };
     const debugWindow = {
       __PAGE_METAFILE__: {
-        '/core-concepts': enPageMetafile,
-        '/zh/core-concepts': zhPageMetafile,
+        '/guide/how-it-works': enPageMetafile,
+        '/zh/guide/how-it-works': zhPageMetafile,
       },
       __VP_SITE_DATA__: {
         base: '/docs-islands/vitepress/',
         cleanUrls: true,
       },
       location: {
-        pathname: '/docs-islands/vitepress/core-concepts',
+        pathname: '/docs-islands/vitepress/guide/how-it-works',
       },
     } as unknown as Window & {
       __PAGE_METAFILE__: Record<string, PageMetafile>;
@@ -216,11 +216,11 @@ describe('debug-inspector build metric lookup', () => {
       };
     };
 
-    expect(getCurrentPageCandidates(debugWindow, '/zh/core-concepts')[0]).toBe(
-      '/zh/core-concepts',
-    );
     expect(
-      resolvePageMetafileState(debugWindow, '/zh/core-concepts')
+      getCurrentPageCandidates(debugWindow, '/zh/guide/how-it-works')[0],
+    ).toBe('/zh/guide/how-it-works');
+    expect(
+      resolvePageMetafileState(debugWindow, '/zh/guide/how-it-works')
         .currentPageMetafile,
     ).toBe(zhPageMetafile);
   });

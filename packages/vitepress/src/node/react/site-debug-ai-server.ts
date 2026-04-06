@@ -1,13 +1,13 @@
-import type { SiteDebugAnalysisUserConfig } from '#dep-types/utils';
+import type {
+  SiteDebugAnalysisBuildReportModelConfig,
+  SiteDebugAnalysisUserConfig,
+} from '#dep-types/utils';
 import Logger, { formatErrorMessage } from '@docs-islands/utils/logger';
 import { createHash } from 'node:crypto';
-import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   buildSiteDebugAiAnalysisPrompt,
   getSiteDebugAiProviderLabel,
   type SiteDebugAiAnalysisTarget,
-  type SiteDebugAiAnalyzeRequest,
-  type SiteDebugAiAnalyzeResponse,
   type SiteDebugAiCapabilitiesResponse,
   type SiteDebugAiProvider,
   type SiteDebugAiProviderCapability,
@@ -15,7 +15,6 @@ import {
 } from '../../shared/site-debug-ai';
 
 const DEFAULT_DOUBAO_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
-const REQUEST_BODY_LIMIT_BYTES = 1024 * 1024;
 const DEFAULT_ANALYSIS_TIMEOUT_MS = Number.POSITIVE_INFINITY;
 const SiteDebugAiLogger = new Logger(
   '@docs-islands/vitepress',
@@ -23,7 +22,16 @@ const SiteDebugAiLogger = new Logger(
 
 export interface SiteDebugAnalysisRuntimeConfig {
   buildReports?: SiteDebugAnalysisUserConfig['buildReports'];
-  providers?: NonNullable<SiteDebugAnalysisUserConfig['providers']>;
+  providers?: {
+    doubao?: (NonNullable<
+      NonNullable<SiteDebugAnalysisUserConfig['providers']>['doubao']
+    >[number] & {
+      maxTokens?: number;
+      model?: string;
+      thinking?: boolean;
+      temperature?: number;
+    })[];
+  };
 }
 
 export type SiteDebugAnalysisConfig =
@@ -65,74 +73,58 @@ class SiteDebugAiExecutionError extends Error {
   }
 }
 
-interface JsonRequestError {
-  message: string;
-  statusCode: number;
-}
+type SiteDebugAnalysisDoubaoRuntimeProviderConfig = NonNullable<
+  NonNullable<SiteDebugAnalysisRuntimeConfig['providers']>['doubao']
+>[number];
 
-const createJsonError = (
-  statusCode: number,
-  message: string,
-): JsonRequestError => ({
-  message,
-  statusCode,
-});
+const getDoubaoProviderConfigs = (
+  config: SiteDebugAiConfig,
+): SiteDebugAnalysisDoubaoRuntimeProviderConfig[] =>
+  Array.isArray(config?.providers?.doubao)
+    ? config.providers.doubao.filter(
+        (provider): provider is SiteDebugAnalysisDoubaoRuntimeProviderConfig =>
+          Boolean(provider),
+      )
+    : [];
 
-const isJsonRequestError = (value: unknown): value is JsonRequestError =>
-  Boolean(
-    value &&
-      typeof value === 'object' &&
-      'message' in value &&
-      'statusCode' in value,
+const getDoubaoProviderConfig = (
+  config: SiteDebugAiConfig,
+): SiteDebugAnalysisDoubaoRuntimeProviderConfig | undefined => {
+  const providerConfigs = getDoubaoProviderConfigs(config);
+
+  if (providerConfigs.length === 0) {
+    return undefined;
+  }
+
+  return (
+    providerConfigs.find((providerConfig) => providerConfig.default === true) ??
+    providerConfigs[0]
   );
-
-const sendJson = (
-  res: ServerResponse,
-  statusCode: number,
-  payload: unknown,
-) => {
-  res.statusCode = statusCode;
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.end(JSON.stringify(payload));
 };
 
-const readJsonBody = async <T>(
-  req: IncomingMessage,
-  limitBytes = REQUEST_BODY_LIMIT_BYTES,
-) =>
-  new Promise<T>((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let totalBytes = 0;
+const getDoubaoProviderDefaultCount = (config: SiteDebugAiConfig) =>
+  getDoubaoProviderConfigs(config).filter(
+    (providerConfig) => providerConfig.default === true,
+  ).length;
 
-    req.on('data', (chunk: Buffer | string) => {
-      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+const getDoubaoBuildReportModelConfigs = (
+  config: SiteDebugAiConfig,
+): SiteDebugAnalysisBuildReportModelConfig[] =>
+  Array.isArray(config?.buildReports?.models)
+    ? config.buildReports.models.filter(
+        (model): model is SiteDebugAnalysisBuildReportModelConfig =>
+          Boolean(model) && model.providerRef.provider === 'doubao',
+      )
+    : [];
 
-      totalBytes += buffer.byteLength;
-      if (totalBytes > limitBytes) {
-        reject(createJsonError(413, 'AI analysis payload is too large.'));
-        req.destroy();
-        return;
-      }
+const getPrimaryDoubaoBuildReportModel = (config: SiteDebugAiConfig) => {
+  const modelConfigs = getDoubaoBuildReportModelConfigs(config);
 
-      chunks.push(buffer);
-    });
-
-    req.on('error', (error) => {
-      reject(error);
-    });
-
-    req.on('end', () => {
-      try {
-        const bodyText = Buffer.concat(chunks).toString('utf8');
-        resolve(JSON.parse(bodyText || '{}') as T);
-      } catch {
-        reject(createJsonError(400, 'AI analysis request must be valid JSON.'));
-      }
-    });
-  });
-
-const getDoubaoProviderConfig = (config: SiteDebugAiConfig) =>
-  config?.providers?.doubao;
+  return (
+    modelConfigs.find((modelConfig) => modelConfig.default === true) ??
+    modelConfigs[0]
+  );
+};
 
 const normalizePositiveInteger = (value: number | undefined) => {
   let normalizedValue: number | undefined;
@@ -174,15 +166,37 @@ const getDoubaoTimeoutMs = (config: SiteDebugAiConfig) =>
   DEFAULT_ANALYSIS_TIMEOUT_MS;
 
 const getDoubaoTemperature = (config: SiteDebugAiConfig) =>
-  normalizeTemperature(getDoubaoProviderConfig(config)?.temperature);
+  normalizeTemperature(
+    getDoubaoProviderConfig(config)?.temperature ??
+      getPrimaryDoubaoBuildReportModel(config)?.temperature,
+  );
 
 const getDoubaoMaxTokens = (config: SiteDebugAiConfig) =>
-  normalizePositiveInteger(getDoubaoProviderConfig(config)?.maxTokens);
+  normalizePositiveInteger(
+    getDoubaoProviderConfig(config)?.maxTokens ??
+      getPrimaryDoubaoBuildReportModel(config)?.maxTokens,
+  );
+
+const getDoubaoModel = (config: SiteDebugAiConfig) => {
+  const providerModel = getDoubaoProviderConfig(config)?.model?.trim();
+
+  if (providerModel) {
+    return providerModel;
+  }
+
+  const buildReportModel = getPrimaryDoubaoBuildReportModel(config)?.model;
+
+  return typeof buildReportModel === 'string' && buildReportModel.trim()
+    ? buildReportModel.trim()
+    : undefined;
+};
 
 const getDoubaoThinkingType = (
   config: SiteDebugAiConfig,
 ): 'enabled' | 'disabled' | undefined => {
-  const thinking = getDoubaoProviderConfig(config)?.thinking;
+  const thinking =
+    getDoubaoProviderConfig(config)?.thinking ??
+    getPrimaryDoubaoBuildReportModel(config)?.thinking;
 
   return thinking === true
     ? 'enabled'
@@ -397,12 +411,14 @@ const getDoubaoCapability = (
   config: SiteDebugAiConfig,
 ): SiteDebugAiProviderCapability => {
   const providerConfig = getDoubaoProviderConfig(config);
+  const providerConfigs = getDoubaoProviderConfigs(config);
+  const model = getDoubaoModel(config);
 
-  if (!providerConfig) {
+  if (providerConfigs.length === 0) {
     return {
       available: false,
       detail:
-        'Configure siteDebug.analysis.providers.doubao to use Doubao analysis.',
+        'Configure siteDebug.analysis.providers.doubao with at least one provider entry to use Doubao analysis.',
       provider: 'doubao',
     };
   }
@@ -411,24 +427,40 @@ const getDoubaoCapability = (
     return {
       available: false,
       detail:
-        'Missing siteDebug.analysis.providers.doubao.apiKey in the VitePress config.',
+        'Missing siteDebug.analysis.providers.doubao[].apiKey for the active Doubao provider entry in the VitePress config.',
       provider: 'doubao',
     };
   }
 
-  if (!providerConfig.model?.trim()) {
+  if (!model) {
     return {
       available: false,
       detail:
-        'Missing siteDebug.analysis.providers.doubao.model in the VitePress config.',
+        'Missing a Doubao model configuration. Add a siteDebug.analysis.buildReports.models entry with { providerRef: { provider: "doubao" }, model: "..." }.',
       provider: 'doubao',
     };
+  }
+
+  const detailParts = [
+    `Using ${resolveDoubaoBaseUrl(config)}/chat/completions`,
+  ];
+
+  if (providerConfig.label?.trim()) {
+    detailParts.push(`provider ${providerConfig.label.trim()}`);
+  } else if (providerConfig.id?.trim()) {
+    detailParts.push(`provider id ${providerConfig.id.trim()}`);
+  }
+
+  if (getDoubaoProviderDefaultCount(config) > 1) {
+    detailParts.push(
+      'multiple defaults declared; using the first default entry',
+    );
   }
 
   return {
     available: true,
-    detail: `Using ${resolveDoubaoBaseUrl(config)}/chat/completions`,
-    model: providerConfig.model.trim(),
+    detail: detailParts.join(' · '),
+    model,
     provider: 'doubao',
   };
 };
@@ -455,8 +487,9 @@ const runDoubaoAnalysis = async (
   const thinking = getDoubaoThinkingType(config);
   const temperature = getDoubaoTemperature(config);
   const timeoutMs = getDoubaoTimeoutMs(config);
+  const providerModel = getDoubaoModel(config);
   const trace = createRequestTrace({
-    model: providerConfig?.model,
+    model: providerModel,
     prompt,
     provider: 'doubao',
     target,
@@ -464,11 +497,7 @@ const runDoubaoAnalysis = async (
   });
   const startedAt = Date.now();
 
-  if (
-    !capability.available ||
-    !providerConfig?.apiKey ||
-    !providerConfig.model
-  ) {
+  if (!capability.available || !providerConfig?.apiKey || !providerModel) {
     throw createExecutionFailure({
       detail: formatRequestTraceDetail(trace),
       message: capability.detail,
@@ -479,7 +508,6 @@ const runDoubaoAnalysis = async (
   logAiRequestStarted(trace);
 
   const providerApiKey = providerConfig.apiKey;
-  const providerModel = providerConfig.model;
 
   const controller = new AbortController();
   const timeout = Number.isFinite(timeoutMs)
@@ -620,101 +648,4 @@ export const analyzeSiteDebugAiTarget = async ({
     config,
     target,
   );
-};
-
-export const handleSiteDebugAiRequest = async (
-  req: IncomingMessage,
-  res: ServerResponse,
-  config: SiteDebugAiConfig,
-): Promise<void> => {
-  let provider: SiteDebugAiProvider | undefined;
-  let prompt: string | undefined;
-
-  if (req.method === 'GET') {
-    sendJson(res, 200, await resolveSiteDebugAiCapabilities(config));
-    return;
-  }
-
-  if (req.method !== 'POST') {
-    sendJson(res, 405, {
-      error: 'Method not allowed.',
-      ok: false,
-    });
-    return;
-  }
-
-  try {
-    const body = await readJsonBody<SiteDebugAiAnalyzeRequest>(req);
-    provider = body.provider;
-    prompt = buildSiteDebugAiAnalysisPrompt(body.target);
-    const capabilityResponse = await resolveSiteDebugAiCapabilities(config);
-    const capability = capabilityResponse.providers[provider];
-
-    if (!capability) {
-      sendJson(res, 400, {
-        error: `Unsupported provider: ${provider}`,
-        ok: false,
-        prompt,
-        provider,
-      } satisfies SiteDebugAiAnalyzeResponse);
-      return;
-    }
-
-    if (!capability.available) {
-      sendJson(res, 400, {
-        detail: capability.detail,
-        error: `${getSiteDebugAiProviderLabel(provider)} is not available in the current siteDebug.analysis configuration.`,
-        ok: false,
-        prompt,
-        provider,
-      } satisfies SiteDebugAiAnalyzeResponse);
-      return;
-    }
-
-    const result = await analyzeSiteDebugAiTarget({
-      config,
-      provider,
-      target: body.target,
-    });
-
-    sendJson(res, 200, {
-      ...result,
-      ok: true,
-      prompt,
-      provider,
-    } satisfies SiteDebugAiAnalyzeResponse);
-  } catch (error) {
-    if (isJsonRequestError(error)) {
-      sendJson(res, error.statusCode, {
-        error: error.message,
-        ok: false,
-      });
-      return;
-    }
-
-    if (error instanceof SiteDebugAiExecutionError) {
-      if (provider && prompt) {
-        sendJson(res, error.statusCode, {
-          detail: error.detail,
-          error: error.message,
-          ok: false,
-          prompt,
-          provider,
-        } satisfies SiteDebugAiAnalyzeResponse);
-        return;
-      }
-
-      sendJson(res, error.statusCode, {
-        detail: error.detail,
-        error: error.message,
-        ok: false,
-      });
-      return;
-    }
-
-    sendJson(res, 500, {
-      error: error instanceof Error ? error.message : 'AI analysis failed.',
-      ok: false,
-    });
-  }
 };

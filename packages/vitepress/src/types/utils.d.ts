@@ -57,8 +57,24 @@ export interface SiteDebugAnalysisProviderBaseConfig {
   timeoutMs?: number;
 }
 
-export interface SiteDebugAnalysisDoubaoConfig
+export interface SiteDebugAnalysisProviderInstanceBaseConfig
   extends SiteDebugAnalysisProviderBaseConfig {
+  /**
+   * Stable identifier used to reference this provider instance.
+   */
+  id: string;
+  /**
+   * Optional label shown in the debug console.
+   */
+  label?: string;
+  /**
+   * Marks this provider instance as the default for its provider group.
+   */
+  default?: boolean;
+}
+
+export interface SiteDebugAnalysisDoubaoConfig
+  extends SiteDebugAnalysisProviderInstanceBaseConfig {
   /**
    * Volcengine Ark API key used for ChatCompletions requests.
    */
@@ -67,16 +83,52 @@ export interface SiteDebugAnalysisDoubaoConfig
    * Base URL for the Ark API endpoint.
    */
   baseUrl?: string;
+}
+
+export interface SiteDebugAnalysisProviderRef {
+  /**
+   * Provider group used by this build-time AI report model.
+   */
+  provider: SiteDebugAnalysisProvider;
+  /**
+   * Optional provider instance id inside the provider group.
+   *
+   * When omitted, the provider group's default instance is used.
+   */
+  id?: string;
+}
+
+interface SiteDebugAnalysisBuildReportModelBaseConfig {
+  /**
+   * Stable identifier used to reference this build-time AI report model.
+   */
+  id: string;
+  /**
+   * Marks this model as the default build-time AI report model.
+   */
+  default?: boolean;
+  /**
+   * Optional label shown in the debug console for the generated report.
+   */
+  label?: string;
+  /**
+   * Provider instance used for this build-time AI report model.
+   */
+  providerRef: SiteDebugAnalysisProviderRef;
+}
+
+export interface SiteDebugAnalysisBuildReportDoubaoModelConfig
+  extends SiteDebugAnalysisBuildReportModelBaseConfig {
   /**
    * Upper bound for generated output tokens in a single response.
    */
   maxTokens?: number;
   /**
-   * Model identifier passed to the ChatCompletions API.
+   * Doubao model used for this build-time analysis model.
    */
-  model?: string;
+  model: string;
   /**
-   * Whether reasoning mode is enabled for the ChatCompletions request.
+   * Whether reasoning mode is enabled for this build-time analysis model.
    *
    * @default false
    */
@@ -86,32 +138,6 @@ export interface SiteDebugAnalysisDoubaoConfig
    * Lower values are more deterministic; higher values are more creative.
    */
   temperature?: number;
-}
-
-interface SiteDebugAnalysisBuildReportModelBaseConfig {
-  /**
-   * Optional label shown in the debug console for the generated report.
-   */
-  label?: string;
-  /**
-   * Provider used for this build-time AI report.
-   */
-  provider: SiteDebugAnalysisProvider;
-}
-
-export interface SiteDebugAnalysisBuildReportDoubaoModelConfig
-  extends SiteDebugAnalysisBuildReportModelBaseConfig {
-  /**
-   * Doubao model used for this build-time analysis model.
-   */
-  model: string;
-  provider: 'doubao';
-  /**
-   * Whether reasoning mode is enabled for this build-time analysis model.
-   *
-   * @default false
-   */
-  thinking?: SiteDebugAnalysisDoubaoThinkingType;
 }
 
 export type SiteDebugAnalysisBuildReportModelConfig =
@@ -128,10 +154,23 @@ export interface SiteDebugAnalysisBuildReportsPageContext {
   filePath: string;
 }
 
+export interface SiteDebugAnalysisBuildReportsResolvePageContext {
+  /**
+   * Current eligible VitePress page being evaluated.
+   */
+  page: SiteDebugAnalysisBuildReportsPageContext;
+  /**
+   * All configured build-time AI report models.
+   */
+  models: readonly SiteDebugAnalysisBuildReportModelConfig[];
+}
+
 export interface SiteDebugAnalysisBuildReportsPageOverride {
   /**
    * Page-local cache behavior override.
    * When omitted, the global buildReports.cache setting is reused.
+   * When an object is returned, unspecified fields inherit from the global
+   * buildReports.cache object.
    */
   cache?: SiteDebugAnalysisBuildReportsCacheConfig;
   /**
@@ -144,6 +183,12 @@ export interface SiteDebugAnalysisBuildReportsPageOverride {
    * When omitted, the global buildReports.includeModules setting is reused.
    */
   includeModules?: boolean;
+  /**
+   * Build report model used for this page.
+   *
+   * When omitted, the global default build report model is used.
+   */
+  modelId?: string;
 }
 
 export interface SiteDebugAnalysisBuildReportsConfig {
@@ -167,14 +212,15 @@ export interface SiteDebugAnalysisBuildReportsConfig {
   /**
    * Resolves whether a specific eligible page should generate a build report.
    *
-   * - return `false`: skip build report generation for this page.
+   * - return `undefined`, `null`, or `false`: skip build report generation
+   *   for this page.
    * - return an object: generate a page report using the returned local overrides.
    *
    * When omitted, all eligible pages generate reports with the global defaults.
    */
   resolvePage?: (
-    page: SiteDebugAnalysisBuildReportsPageContext,
-  ) => false | SiteDebugAnalysisBuildReportsPageOverride;
+    context: SiteDebugAnalysisBuildReportsResolvePageContext,
+  ) => false | null | undefined | SiteDebugAnalysisBuildReportsPageOverride;
   /**
    * Includes chunk resource reports in the build output.
    *
@@ -195,14 +241,17 @@ export interface SiteDebugAnalysisUserConfig {
    */
   buildReports?: SiteDebugAnalysisBuildReportsConfig;
   providers?: {
-    doubao?: SiteDebugAnalysisDoubaoConfig;
+    doubao?: SiteDebugAnalysisDoubaoConfig[];
   };
 }
 
 export type SiteDebugAiProvider = SiteDebugAnalysisProvider;
 export type SiteDebugAiDoubaoThinkingType = SiteDebugAnalysisDoubaoThinkingType;
 export type SiteDebugAiProviderBaseConfig = SiteDebugAnalysisProviderBaseConfig;
+export type SiteDebugAiProviderInstanceBaseConfig =
+  SiteDebugAnalysisProviderInstanceBaseConfig;
 export type SiteDebugAiDoubaoConfig = SiteDebugAnalysisDoubaoConfig;
+export type SiteDebugAiProviderRef = SiteDebugAnalysisProviderRef;
 export type SiteDebugAiBuildReportDoubaoModelConfig =
   SiteDebugAnalysisBuildReportDoubaoModelConfig;
 export type SiteDebugAiBuildReportModelConfig =
@@ -215,6 +264,8 @@ export type SiteDebugAiBuildReportsCacheConfig =
   SiteDebugAnalysisBuildReportsCacheConfig;
 export type SiteDebugAiBuildReportsPageContext =
   SiteDebugAnalysisBuildReportsPageContext;
+export type SiteDebugAiBuildReportsResolvePageContext =
+  SiteDebugAnalysisBuildReportsResolvePageContext;
 export type SiteDebugAiBuildReportsPageOverride =
   SiteDebugAnalysisBuildReportsPageOverride;
 export type SiteDebugAiBuildReportsConfig = SiteDebugAnalysisBuildReportsConfig;

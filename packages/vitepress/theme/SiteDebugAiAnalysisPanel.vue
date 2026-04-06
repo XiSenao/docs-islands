@@ -461,7 +461,7 @@ const capabilities = ref<SiteDebugAiCapabilitiesResponse['providers'] | null>(
 );
 const capabilitiesState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle');
 const capabilitiesError = ref('');
-const selectedBuildReportId = ref('');
+const selectedBuildReportKey = ref('');
 const analysisState = ref<PreviewState>('idle');
 const analysisResult = ref('');
 const analysisError = ref('');
@@ -720,11 +720,14 @@ const analyzeLabel = computed(() =>
     ? `Analyzing with ${selectedProviderLabel.value}...`
     : `Analyze with ${selectedProviderLabel.value}`,
 );
+const getBuildReportSelectionKey = (report: SiteDebugAiBuildReportReference) =>
+  `${report.reportId}::${report.reportFile}`;
 const availableBuildReports = computed(() => props.buildReports || []);
 const activeBuildReport = computed(
   () =>
     availableBuildReports.value.find(
-      (report) => report.reportId === selectedBuildReportId.value,
+      (report) =>
+        getBuildReportSelectionKey(report) === selectedBuildReportKey.value,
     ) ??
     availableBuildReports.value[0] ??
     null,
@@ -1046,9 +1049,9 @@ const copyResult = async () => {
   }
 };
 
-const showBuildReport = async (reportId?: string) => {
-  if (reportId) {
-    selectedBuildReportId.value = reportId;
+const showBuildReport = async (reportKey?: string) => {
+  if (reportKey) {
+    selectedBuildReportKey.value = reportKey;
   }
 
   await loadBuildReport();
@@ -1169,15 +1172,17 @@ watch(
     }
 
     if (
-      selectedBuildReportId.value &&
+      selectedBuildReportKey.value &&
       availableBuildReports.value.some(
-        (report) => report.reportId === selectedBuildReportId.value,
+        (report) =>
+          getBuildReportSelectionKey(report) === selectedBuildReportKey.value,
       )
     ) {
       // Keep the user-selected build report when it is still present.
     } else {
-      selectedBuildReportId.value =
-        availableBuildReports.value[0]?.reportId || '';
+      selectedBuildReportKey.value = availableBuildReports.value[0]
+        ? getBuildReportSelectionKey(availableBuildReports.value[0])
+        : '';
     }
 
     if (activeBuildReport.value?.reportFile) {
@@ -1246,14 +1251,15 @@ watch(
     >
       <button
         v-for="report in availableBuildReports"
-        :key="report.reportId"
+        :key="getBuildReportSelectionKey(report)"
         type="button"
         class="site-debug-ai-panel__provider"
         :class="{
-          'is-selected': report.reportId === selectedBuildReportId,
+          'is-selected':
+            getBuildReportSelectionKey(report) === selectedBuildReportKey,
         }"
         :disabled="!canViewBuildReport"
-        @click="showBuildReport(report.reportId)"
+        @click="showBuildReport(getBuildReportSelectionKey(report))"
       >
         <strong>{{ report.model || report.reportLabel }}</strong>
         <span v-if="!report.model">{{ report.reportLabel }}</span>

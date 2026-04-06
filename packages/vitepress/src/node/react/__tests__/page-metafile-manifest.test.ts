@@ -8,7 +8,9 @@ import {
 describe('page metafile manifest helpers', () => {
   it('creates route stems that align with route output semantics', () => {
     expect(getPageMetafileRouteStem('/')).toBe('index');
-    expect(getPageMetafileRouteStem('/core-concepts')).toBe('core-concepts');
+    expect(getPageMetafileRouteStem('/guide/how-it-works')).toBe(
+      'guide/how-it-works',
+    );
     expect(getPageMetafileRouteStem('/zh/')).toBe('zh/index');
     expect(getPageMetafileRouteStem('/guide/getting-started.html')).toBe(
       'guide/getting-started',
@@ -28,7 +30,7 @@ describe('page metafile manifest helpers', () => {
           modulePreloads: ['/docs/assets/root.module.js'],
           ssrInjectScript: '',
         },
-        '/core-concepts': {
+        '/guide/how-it-works': {
           buildMetrics: {
             components: [],
             framework: 'react',
@@ -56,19 +58,19 @@ describe('page metafile manifest helpers', () => {
     expect(artifacts.pages).toHaveLength(2);
     expect(artifacts.pages.map((page) => page.pathname)).toEqual([
       '/',
-      '/core-concepts',
+      '/guide/how-it-works',
     ]);
     expect(artifacts.pages[0]?.filePath).toMatch(
       /^page-metafiles\/pages\/index\.[\da-f]{8}\.json$/,
     );
     expect(artifacts.pages[1]?.filePath).toMatch(
-      /^page-metafiles\/pages\/core-concepts\.[\da-f]{8}\.json$/,
+      /^page-metafiles\/pages\/guide\/how-it-works\.[\da-f]{8}\.json$/,
     );
 
     const indexPayload = artifacts.manifest.payload;
     expect(indexPayload.schemaVersion).toBe(PAGE_METAFILE_SCHEMA_VERSION);
     expect(indexPayload.buildId).toBe(artifacts.buildId);
-    expect(indexPayload.pages['/core-concepts']).toMatchObject({
+    expect(indexPayload.pages['/guide/how-it-works']).toMatchObject({
       file: artifacts.pages[1]?.publicPath,
       loaderScript: '/docs/assets/unified-loader.core.js',
       ssrInjectScript: '/docs/assets/ssr.core.js',
@@ -77,7 +79,7 @@ describe('page metafile manifest helpers', () => {
     const pagePayload = JSON.parse(artifacts.pages[1]?.content || '{}');
     expect(pagePayload).toMatchObject({
       buildId: artifacts.buildId,
-      pathname: '/core-concepts',
+      pathname: '/guide/how-it-works',
       schemaVersion: PAGE_METAFILE_SCHEMA_VERSION,
     });
   });

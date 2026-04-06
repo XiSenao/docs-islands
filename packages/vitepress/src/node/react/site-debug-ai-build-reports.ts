@@ -69,6 +69,8 @@ interface BuildReportDependencies {
 
 interface BuildReportExecution {
   config: SiteDebugAiConfig;
+  providerId?: string;
+  providerLabel?: string;
   provider: SiteDebugAiProvider;
   reportId: string;
   reportLabel: string;
@@ -81,8 +83,17 @@ interface BuildReportCacheConfig {
 
 interface BuildReportPagePlan {
   cacheConfig: BuildReportCacheConfig | null;
+  executions: BuildReportExecution[];
   includeChunks: boolean;
   includeModules: boolean;
+}
+
+interface BuildReportExecutionPlan {
+  defaultExecutionId?: string;
+  executionById: Map<string, BuildReportExecution>;
+  executions: BuildReportExecution[];
+  skippedReason?: string;
+  warningMessages: string[];
 }
 
 type BuildReportProviderConfigSnapshot = Record<
@@ -153,6 +164,35 @@ const resolveBuildReportCacheConfig = ({
         : resolve(root ?? process.cwd(), configuredDir)
       : defaultCacheDir,
     strategy: cacheOptions?.strategy === 'fallback' ? 'fallback' : 'exact',
+  };
+};
+
+const mergeBuildReportCacheInput = ({
+  baseCache,
+  overrideCache,
+}: {
+  baseCache: BuildReportCacheInput | undefined;
+  overrideCache: BuildReportCacheInput | undefined;
+}): BuildReportCacheInput | undefined => {
+  if (overrideCache === undefined) {
+    return baseCache;
+  }
+
+  if (
+    overrideCache === false ||
+    overrideCache === true ||
+    typeof overrideCache !== 'object' ||
+    overrideCache === null
+  ) {
+    return overrideCache;
+  }
+
+  const baseCacheOptions =
+    typeof baseCache === 'object' && baseCache !== null ? baseCache : undefined;
+
+  return {
+    ...baseCacheOptions,
+    ...overrideCache,
   };
 };
 
@@ -458,80 +498,248 @@ const getBuildReportModelConfigs = (
       ) as SiteDebugAnalysisBuildReportModelConfig[])
     : [];
 
+type SiteDebugAnalysisDoubaoRuntimeProviderConfig = NonNullable<
+  NonNullable<NonNullable<SiteDebugAiConfig>['providers']>['doubao']
+>[number];
+
+const getDoubaoProviderConfigs = (
+  aiConfig: SiteDebugAiConfig,
+): SiteDebugAnalysisDoubaoRuntimeProviderConfig[] =>
+  Array.isArray(aiConfig?.providers?.doubao)
+    ? aiConfig.providers.doubao.filter(
+        (
+          providerConfig,
+        ): providerConfig is SiteDebugAnalysisDoubaoRuntimeProviderConfig =>
+          Boolean(providerConfig),
+      )
+    : [];
+
+const getDefaultDoubaoProviderConfig = (
+  providerConfigs: SiteDebugAnalysisDoubaoRuntimeProviderConfig[],
+) =>
+  providerConfigs.find((providerConfig) => providerConfig.default === true) ??
+  providerConfigs[0];
+
+const getDefaultBuildReportModelConfig = (
+  modelConfigs: SiteDebugAnalysisBuildReportModelConfig[],
+) =>
+  modelConfigs.find((modelConfig) => modelConfig.default === true) ??
+  modelConfigs[0];
+
 const getBuildReportExecutionLabel = (
   modelConfig: SiteDebugAnalysisBuildReportModelConfig,
+  providerConfig?: SiteDebugAnalysisDoubaoRuntimeProviderConfig,
 ) =>
   modelConfig.label?.trim() ||
-  `${getSiteDebugAiProviderLabel('doubao')} · ${modelConfig.model}`;
+  [
+    getSiteDebugAiProviderLabel(modelConfig.providerRef.provider),
+    providerConfig?.label?.trim() || providerConfig?.id?.trim() || null,
+    modelConfig.model,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(' · ');
 
 const getBuildReportExecutionId = (
   modelConfig: SiteDebugAnalysisBuildReportModelConfig,
-) =>
-  createHash('sha256')
-    .update(
-      JSON.stringify({
-        model: modelConfig.model,
-        provider: modelConfig.provider,
-        thinking: modelConfig.thinking ?? false,
-      }),
-    )
-    .digest('hex')
-    .slice(0, 12);
+) => modelConfig.id;
 
 const createBuildReportExecutionConfig = (
   aiConfig: SiteDebugAiConfig,
   modelConfig: SiteDebugAnalysisBuildReportModelConfig,
+  providerConfig: SiteDebugAnalysisDoubaoRuntimeProviderConfig,
 ): SiteDebugAiConfig => {
-  const providers = {
-    ...aiConfig?.providers,
-  };
-
-  const doubaoProviderConfig = providers.doubao || {};
-
-  providers.doubao = {
-    ...doubaoProviderConfig,
-    model: modelConfig.model,
-    thinking: modelConfig.thinking ?? false,
-  };
-
   return {
     buildReports: aiConfig?.buildReports,
-    providers,
+    providers: {
+      ...aiConfig?.providers,
+      doubao: [
+        {
+          ...providerConfig,
+          default: true,
+          maxTokens: modelConfig.maxTokens,
+          model: modelConfig.model,
+          temperature: modelConfig.temperature,
+          thinking: modelConfig.thinking ?? false,
+        },
+      ],
+    },
   };
+};
+
+const resolveBuildReportExecutionProvider = ({
+  aiConfig,
+  modelConfig,
+}: {
+  aiConfig: SiteDebugAiConfig;
+  modelConfig: SiteDebugAnalysisBuildReportModelConfig;
+}):
+  | {
+      provider: SiteDebugAiProvider;
+      providerConfig: SiteDebugAnalysisDoubaoRuntimeProviderConfig;
+      warningMessages: string[];
+    }
+  | {
+      provider?: undefined;
+      providerConfig?: undefined;
+      warningMessages: string[];
+    } => {
+  const warningMessages: string[] = [];
+
+  switch (modelConfig.providerRef.provider) {
+    case 'doubao': {
+      const providerConfigs = getDoubaoProviderConfigs(aiConfig);
+
+      if (providerConfigs.length === 0) {
+        warningMessages.push(
+          `Skipped build-time AI report model ${modelConfig.id}: siteDebug.analysis.providers.doubao must contain at least one provider entry.`,
+        );
+        return { warningMessages };
+      }
+
+      const flaggedDefaults = providerConfigs.filter(
+        (providerConfig) => providerConfig.default === true,
+      );
+
+      if (flaggedDefaults.length > 1) {
+        warningMessages.push(
+          `Multiple default Doubao provider entries are configured. Using the first default entry for build-time AI report model ${modelConfig.id}.`,
+        );
+      }
+
+      if (modelConfig.providerRef.id) {
+        const matchingProviders = providerConfigs.filter(
+          (providerConfig) => providerConfig.id === modelConfig.providerRef.id,
+        );
+
+        if (matchingProviders.length === 0) {
+          warningMessages.push(
+            `Skipped build-time AI report model ${modelConfig.id}: providerRef.id "${modelConfig.providerRef.id}" was not found in siteDebug.analysis.providers.doubao.`,
+          );
+          return { warningMessages };
+        }
+
+        if (matchingProviders.length > 1) {
+          warningMessages.push(
+            `Multiple Doubao provider entries use id "${modelConfig.providerRef.id}". Using the first matching entry for build-time AI report model ${modelConfig.id}.`,
+          );
+        }
+
+        return {
+          provider: 'doubao',
+          providerConfig: matchingProviders[0],
+          warningMessages,
+        };
+      }
+
+      return {
+        provider: 'doubao',
+        providerConfig: getDefaultDoubaoProviderConfig(providerConfigs),
+        warningMessages,
+      };
+    }
+    default: {
+      warningMessages.push(
+        `Skipped build-time AI report model ${modelConfig.id}: provider "${modelConfig.providerRef.provider}" is not supported.`,
+      );
+      return { warningMessages };
+    }
+  }
 };
 
 const createBuildReportExecutions = (
   aiConfig: SiteDebugAiConfig,
-): {
-  executions: BuildReportExecution[];
-  skippedReason?: string;
-} => {
+): BuildReportExecutionPlan => {
   const modelConfigs = getBuildReportModelConfigs(aiConfig);
 
   if (modelConfigs.length === 0) {
     return {
+      defaultExecutionId: undefined,
+      executionById: new Map(),
       executions: [],
       skippedReason:
         'Skipped build-time AI report analysis: no siteDebug.analysis.buildReports.models entries are configured.',
+      warningMessages: [],
     };
   }
 
+  const warningMessages = new Set<string>();
   const executions: BuildReportExecution[] = [];
+  const executionById = new Map<string, BuildReportExecution>();
+  const defaultModelConfig = getDefaultBuildReportModelConfig(modelConfigs);
+  const defaultModelConfigs = modelConfigs.filter(
+    (modelConfig) => modelConfig.default === true,
+  );
+
+  if (defaultModelConfigs.length > 1) {
+    warningMessages.add(
+      `Multiple build-time AI report models are marked as default. Using the first default model (${defaultModelConfig?.id}).`,
+    );
+  }
+
+  const seenModelIds = new Set<string>();
 
   for (const modelConfig of modelConfigs) {
+    if (!modelConfig.id?.trim()) {
+      warningMessages.add(
+        'Skipped a build-time AI report model because it is missing a non-empty id.',
+      );
+      continue;
+    }
+
+    if (seenModelIds.has(modelConfig.id)) {
+      warningMessages.add(
+        `Skipped build-time AI report model ${modelConfig.id}: duplicate model id.`,
+      );
+      continue;
+    }
+
+    seenModelIds.add(modelConfig.id);
+    const resolvedProvider = resolveBuildReportExecutionProvider({
+      aiConfig,
+      modelConfig,
+    });
+
+    for (const warningMessage of resolvedProvider.warningMessages) {
+      warningMessages.add(warningMessage);
+    }
+
+    if (!resolvedProvider.provider || !resolvedProvider.providerConfig) {
+      continue;
+    }
+
     const executionConfig = createBuildReportExecutionConfig(
       aiConfig,
       modelConfig,
+      resolvedProvider.providerConfig,
     );
-    executions.push({
+    const execution = {
       config: executionConfig,
-      provider: modelConfig.provider,
+      provider: resolvedProvider.provider,
+      providerId: resolvedProvider.providerConfig.id,
+      providerLabel: resolvedProvider.providerConfig.label,
       reportId: getBuildReportExecutionId(modelConfig),
-      reportLabel: getBuildReportExecutionLabel(modelConfig),
-    });
+      reportLabel: getBuildReportExecutionLabel(
+        modelConfig,
+        resolvedProvider.providerConfig,
+      ),
+    } satisfies BuildReportExecution;
+
+    executions.push(execution);
+    executionById.set(execution.reportId, execution);
   }
 
-  return { executions };
+  return {
+    defaultExecutionId: defaultModelConfig?.id,
+    executionById,
+    executions,
+    ...(executions.length === 0
+      ? {
+          skippedReason:
+            'Skipped build-time AI report analysis: no valid siteDebug.analysis.buildReports.models entries could be resolved.',
+        }
+      : {}),
+    warningMessages: [...warningMessages],
+  };
 };
 
 const resolveAvailableBuildReportExecutions = async ({
@@ -575,12 +783,15 @@ const getBuildReportProviderConfigSnapshot = (
 ): BuildReportProviderConfigSnapshot => {
   switch (provider) {
     case 'doubao': {
-      const providerConfig = aiConfig?.providers?.doubao;
+      const providerConfig = getDefaultDoubaoProviderConfig(
+        getDoubaoProviderConfigs(aiConfig),
+      );
 
       return {
         baseUrl: providerConfig?.baseUrl?.trim() || null,
         maxTokens: providerConfig?.maxTokens ?? null,
         model: providerConfig?.model?.trim() || null,
+        providerId: providerConfig?.id?.trim() || null,
         thinking: providerConfig?.thinking ?? null,
         temperature: providerConfig?.temperature ?? null,
       };
@@ -864,10 +1075,14 @@ const applyBuildReportExecutionMetadata = ({
   report: SiteDebugAiBuildReport;
 }): SiteDebugAiBuildReport =>
   report.reportId === execution.reportId &&
-  report.reportLabel === execution.reportLabel
+  report.reportLabel === execution.reportLabel &&
+  report.providerId === execution.providerId &&
+  report.providerLabel === execution.providerLabel
     ? report
     : {
         ...report,
+        providerId: execution.providerId,
+        providerLabel: execution.providerLabel,
         reportId: execution.reportId,
         reportLabel: execution.reportLabel,
       };
@@ -875,10 +1090,12 @@ const applyBuildReportExecutionMetadata = ({
 const createDefaultBuildReportPagePlan = ({
   buildReportsConfig,
   cacheDir,
+  defaultExecution,
   root,
 }: {
   buildReportsConfig: SiteDebugAnalysisBuildReportsConfig;
   cacheDir: string;
+  defaultExecution?: BuildReportExecution;
   root?: string;
 }): BuildReportPagePlan => ({
   cacheConfig: resolveBuildReportCacheConfig({
@@ -886,6 +1103,7 @@ const createDefaultBuildReportPagePlan = ({
     cacheDir,
     root,
   }),
+  executions: defaultExecution ? [defaultExecution] : [],
   includeChunks: buildReportsConfig.includeChunks === true,
   includeModules: buildReportsConfig.includeModules === true,
 });
@@ -893,6 +1111,7 @@ const createDefaultBuildReportPagePlan = ({
 const resolveBuildReportPagePlan = ({
   buildReportsConfig,
   cacheDir,
+  executionPlan,
   pageContext,
   pageId,
   pageMetafile,
@@ -900,6 +1119,7 @@ const resolveBuildReportPagePlan = ({
 }: {
   buildReportsConfig: SiteDebugAnalysisBuildReportsConfig;
   cacheDir: string;
+  executionPlan: BuildReportExecutionPlan;
   pageContext?: SiteDebugAnalysisBuildReportsPageContext;
   pageId: string;
   pageMetafile: PageMetafile;
@@ -912,11 +1132,14 @@ const resolveBuildReportPagePlan = ({
   const defaultPlan = createDefaultBuildReportPagePlan({
     buildReportsConfig,
     cacheDir,
+    defaultExecution: executionPlan.defaultExecutionId
+      ? executionPlan.executionById.get(executionPlan.defaultExecutionId)
+      : undefined,
     root,
   });
 
   if (!buildReportsConfig.resolvePage) {
-    return defaultPlan;
+    return defaultPlan.executions.length > 0 ? defaultPlan : null;
   }
 
   if (!pageContext) {
@@ -931,7 +1154,10 @@ const resolveBuildReportPagePlan = ({
   >;
 
   try {
-    resolvedPageOverride = buildReportsConfig.resolvePage(pageContext);
+    resolvedPageOverride = buildReportsConfig.resolvePage({
+      models: buildReportsConfig.models ?? [],
+      page: pageContext,
+    });
   } catch (error) {
     Logger.warn(
       `Skipped build-time AI report for ${pageId}: siteDebug.analysis.buildReports.resolvePage threw an error: ${error instanceof Error ? error.message : String(error)}`,
@@ -939,16 +1165,46 @@ const resolveBuildReportPagePlan = ({
     return null;
   }
 
-  if (resolvedPageOverride === false) {
+  if (
+    resolvedPageOverride === false ||
+    resolvedPageOverride === null ||
+    resolvedPageOverride === undefined
+  ) {
+    return null;
+  }
+
+  const selectedExecutionId =
+    resolvedPageOverride.modelId ?? executionPlan.defaultExecutionId;
+
+  if (!selectedExecutionId) {
+    Logger.warn(
+      `Skipped build-time AI report for ${pageId}: no default build report model is available, and resolvePage did not return modelId.`,
+    );
+    return null;
+  }
+
+  const selectedExecution =
+    executionPlan.executionById.get(selectedExecutionId);
+
+  if (!selectedExecution) {
+    Logger.warn(
+      resolvedPageOverride.modelId
+        ? `Skipped build-time AI report for ${pageId}: resolvePage selected modelId "${resolvedPageOverride.modelId}", but no matching buildReports.models entry could be resolved.`
+        : `Skipped build-time AI report for ${pageId}: the default build report model "${selectedExecutionId}" could not be resolved.`,
+    );
     return null;
   }
 
   return {
     cacheConfig: resolveBuildReportCacheConfig({
-      cache: resolvedPageOverride.cache ?? buildReportsConfig.cache,
+      cache: mergeBuildReportCacheInput({
+        baseCache: buildReportsConfig.cache,
+        overrideCache: resolvedPageOverride.cache,
+      }),
       cacheDir,
       root,
     }),
+    executions: [selectedExecution],
     includeChunks:
       resolvedPageOverride.includeChunks ?? defaultPlan.includeChunks,
     includeModules:
@@ -959,12 +1215,14 @@ const resolveBuildReportPagePlan = ({
 const createBuildReportPagePlans = ({
   buildReportsConfig,
   cacheDir,
+  executionPlan,
   pageContexts,
   pageMetafiles,
   root,
 }: {
   buildReportsConfig: SiteDebugAnalysisBuildReportsConfig;
   cacheDir: string;
+  executionPlan: BuildReportExecutionPlan;
   pageContexts?: Record<string, SiteDebugAnalysisBuildReportsPageContext>;
   pageMetafiles: Record<string, PageMetafile>;
   root?: string;
@@ -975,6 +1233,7 @@ const createBuildReportPagePlans = ({
     const pagePlan = resolveBuildReportPagePlan({
       buildReportsConfig,
       cacheDir,
+      executionPlan,
       pageContext: pageContexts?.[pageId],
       pageId,
       pageMetafile,
@@ -1190,10 +1449,18 @@ export const generateSiteDebugAiBuildReports = async ({
     dependencies?.resolveCapabilities || resolveSiteDebugAiCapabilities;
   const analyzeTargetImpl =
     dependencies?.analyzeTarget || analyzeSiteDebugAiTarget;
-  const { executions, skippedReason: executionPlanSkippedReason } =
-    createBuildReportExecutions(aiConfig);
+  const {
+    executions,
+    skippedReason: executionPlanSkippedReason,
+    warningMessages: executionPlanWarningMessages,
+    ...executionPlan
+  } = createBuildReportExecutions(aiConfig);
 
   if (executions.length === 0) {
+    for (const warningMessage of executionPlanWarningMessages) {
+      Logger.warn(warningMessage);
+    }
+
     if (executionPlanSkippedReason) {
       Logger.info(executionPlanSkippedReason);
     }
@@ -1207,9 +1474,18 @@ export const generateSiteDebugAiBuildReports = async ({
     };
   }
 
+  for (const warningMessage of executionPlanWarningMessages) {
+    Logger.warn(warningMessage);
+  }
+
   const pagePlans = createBuildReportPagePlans({
     buildReportsConfig,
     cacheDir,
+    executionPlan: {
+      ...executionPlan,
+      executions,
+      warningMessages: executionPlanWarningMessages,
+    },
     pageContexts,
     pageMetafiles,
     root,
@@ -1392,6 +1668,8 @@ export const generateSiteDebugAiBuildReports = async ({
           generatedAt: resolvedCachedReport.generatedAt,
           model: resolvedCachedReport.model,
           provider: execution.provider,
+          providerId: execution.providerId,
+          providerLabel: execution.providerLabel,
           reportFile,
           reportId: resolvedCachedReport.reportId,
           reportLabel: resolvedCachedReport.reportLabel,
@@ -1420,6 +1698,8 @@ export const generateSiteDebugAiBuildReports = async ({
         model: result.model,
         prompt,
         provider: execution.provider,
+        providerId: execution.providerId,
+        providerLabel: execution.providerLabel,
         reportId: execution.reportId,
         reportLabel: execution.reportLabel,
         result: result.result,
@@ -1447,6 +1727,8 @@ export const generateSiteDebugAiBuildReports = async ({
         generatedAt,
         model: result.model,
         provider: execution.provider,
+        providerId: execution.providerId,
+        providerLabel: execution.providerLabel,
         reportFile,
         reportId: execution.reportId,
         reportLabel: execution.reportLabel,
@@ -1475,7 +1757,6 @@ export const generateSiteDebugAiBuildReports = async ({
   await collectBuildReportReferencesForPageMetafiles({
     assetsDir,
     createPageAnalysisTarget,
-    executions,
     getOrCreateReportReference,
     logger: Logger,
     outDir,

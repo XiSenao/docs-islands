@@ -15,7 +15,6 @@ import { type ImportSpecifier, init, parse } from 'es-module-lexer';
 import MagicString, { type SourceMap } from 'magic-string';
 import MarkdownIt from 'markdown-it';
 import fs from 'node:fs';
-import type { ServerResponse } from 'node:http';
 import { createRequire } from 'node:module';
 import { join } from 'pathe';
 import React, { version as reactPackageVersion } from 'react';
@@ -34,10 +33,6 @@ import createVitePressPathResolverPlugin, {
 import { createImportReferenceResolver } from './export-resolver';
 import { registerBuildHelper } from './react-build-helper';
 import { ReactRenderController } from './react-render-controller';
-import {
-  handleSiteDebugAiRequest,
-  type SiteDebugAnalysisRuntimeConfig,
-} from './site-debug-ai-server';
 
 /**
  * Shared MarkdownIt instance for extracting html_block tokens from Markdown.
@@ -95,21 +90,6 @@ const resolveSiteDebugPath = (base: string, suffix: string) => {
   const normalizedBase = base.endsWith('/') ? base : `${base}/`;
 
   return `${normalizedBase}${suffix}`;
-};
-
-const sendSiteDebugAiErrorResponse = (res: ServerResponse, error: unknown) => {
-  if (res.writableEnded) {
-    return;
-  }
-
-  res.statusCode = 500;
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.end(
-    JSON.stringify({
-      error: error instanceof Error ? error.message : 'AI analysis failed.',
-      ok: false,
-    }),
-  );
 };
 
 const collectCssModulesInSSR = (
@@ -182,10 +162,7 @@ const mergeSiteDebugAnalysisConfig = (
           ...override?.providers,
           ...(base?.providers?.doubao || override?.providers?.doubao
             ? {
-                doubao: {
-                  ...base?.providers?.doubao,
-                  ...override?.providers?.doubao,
-                },
+                doubao: override?.providers?.doubao ?? base?.providers?.doubao,
               }
             : {}),
         }
@@ -310,9 +287,6 @@ export default function vitepressReactRenderingStrategies(
 
   let ssr = false;
   const siteConfig: ConfigType = resolveConfig(vitepressConfig);
-  const siteDebugAnalysis = siteConfig.siteDebug.analysis as
-    | SiteDebugAnalysisRuntimeConfig
-    | undefined;
   const renderController = new ReactRenderController();
 
   registerBuildHelper(vitepressConfig, siteConfig, renderController);
@@ -890,21 +864,10 @@ export default function vitepressReactRenderingStrategies(
           }
 
           const requestUrl = new URL(req.url, 'http://docs-islands.local');
-          const debugAiPath = resolveSiteDebugPath(
-            siteConfig.base,
-            '__docs-islands/debug-ai',
-          );
           const debugSourcePath = resolveSiteDebugPath(
             siteConfig.base,
             '__docs-islands/debug-source',
           );
-
-          if (requestUrl.pathname === debugAiPath) {
-            handleSiteDebugAiRequest(req, res, siteDebugAnalysis).catch(
-              (error) => sendSiteDebugAiErrorResponse(res, error),
-            );
-            return;
-          }
 
           if (requestUrl.pathname !== debugSourcePath) {
             next();

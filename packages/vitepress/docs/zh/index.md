@@ -10,8 +10,8 @@ hero:
     alt: Docs Islands for VitePress
   actions:
     - theme: brand
-      text: 核心概念
-      link: /zh/core-concepts
+      text: 指南
+      link: /zh/guide/
     - theme: alt
       text: GitHub 仓库
       link: https://github.com/XiSenao/docs-islands/tree/main/packages/vitepress
@@ -38,6 +38,6 @@ features:
     icon: '🛠️'
 
   - title: 内建站点调试控制台
-    details: 提供可视化的运行时调试面板，可直接检查 Render Metrics、HMR Metrics、Bundle Composition、Injected Globals 与 spa:sync-render 副作用，帮助快速定位闪烁、包体积和热更新问题。
+    details: 提供可视化调试面板与 AI 报告，帮助分析渲染行为、HMR、包组成与 spa:sync-render 副作用，更快发现性能与构建问题。
     icon: '🔎'
 ---

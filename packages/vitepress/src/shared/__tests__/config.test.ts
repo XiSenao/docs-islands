@@ -16,24 +16,31 @@ describe('resolveConfig', () => {
             },
             models: [
               {
+                default: true,
+                id: 'doubao-pro',
                 label: 'Doubao Pro',
+                maxTokens: 4096,
                 model: 'doubao-seed-1-6',
-                provider: 'doubao',
+                providerRef: {
+                  provider: 'doubao',
+                },
+                temperature: 0.1,
                 thinking: true,
               },
             ],
             resolvePage: resolveBuildReportsTestPage,
           },
           providers: {
-            doubao: {
-              apiKey: 'test-key',
-              baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-              maxTokens: 4096,
-              model: 'doubao-seed-1-6',
-              thinking: true,
-              temperature: 0.1,
-              timeoutMs: 90_000,
-            },
+            doubao: [
+              {
+                apiKey: 'test-key',
+                baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+                default: true,
+                id: 'cn',
+                label: 'Doubao CN',
+                timeoutMs: 90_000,
+              },
+            ],
           },
         },
       },
@@ -50,18 +57,31 @@ describe('resolveConfig', () => {
       resolveBuildReportsTestPage,
     );
     expect(config.siteDebug.analysis?.buildReports?.models?.[0]).toEqual({
+      default: true,
+      id: 'doubao-pro',
       label: 'Doubao Pro',
+      maxTokens: 4096,
       model: 'doubao-seed-1-6',
-      provider: 'doubao',
+      providerRef: {
+        provider: 'doubao',
+      },
+      temperature: 0.1,
       thinking: true,
     });
-    expect(config.siteDebug.analysis?.providers?.doubao?.maxTokens).toBe(4096);
-    expect(config.siteDebug.analysis?.providers?.doubao?.model).toBe(
-      'doubao-seed-1-6',
+    expect(config.siteDebug.analysis?.providers?.doubao?.[0]?.apiKey).toBe(
+      'test-key',
     );
-    expect(config.siteDebug.analysis?.providers?.doubao?.thinking).toBe(true);
-    expect(config.siteDebug.analysis?.providers?.doubao?.temperature).toBe(0.1);
-    expect(config.siteDebug.analysis?.providers?.doubao?.timeoutMs).toBe(
+    expect(config.siteDebug.analysis?.providers?.doubao?.[0]?.baseUrl).toBe(
+      'https://ark.cn-beijing.volces.com/api/v3',
+    );
+    expect(config.siteDebug.analysis?.providers?.doubao?.[0]?.default).toBe(
+      true,
+    );
+    expect(config.siteDebug.analysis?.providers?.doubao?.[0]?.id).toBe('cn');
+    expect(config.siteDebug.analysis?.providers?.doubao?.[0]?.label).toBe(
+      'Doubao CN',
+    );
+    expect(config.siteDebug.analysis?.providers?.doubao?.[0]?.timeoutMs).toBe(
       90_000,
     );
     expect(config.siteDebug).not.toHaveProperty('ai');

@@ -10,8 +10,8 @@ hero:
     alt: Docs Islands for VitePress
   actions:
     - theme: brand
-      text: Core Concepts
-      link: /core-concepts
+      text: Guide
+      link: /guide/
     - theme: alt
       text: View on GitHub
       link: https://github.com/XiSenao/docs-islands/tree/main/packages/vitepress
@@ -38,6 +38,6 @@ features:
     icon: '🛠️'
 
   - title: Built-in Site Debug Console
-    details: Includes a visual runtime debugging panel for Render Metrics, HMR Metrics, Bundle Composition, Injected Globals, and spa:sync-render side effects, making flicker, bundle cost, and hot-update issues easier to diagnose.
+    details: Provides a visual debugging panel and AI Reports to analyze rendering behavior, HMR, bundle composition, and spa:sync-render side effects, enabling faster identification of performance and build issues.
     icon: '🔎'
 ---

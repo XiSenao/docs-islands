@@ -88,6 +88,8 @@ export const getSiteBasePath = (debugWindow: SiteDebugWindow) => {
   return typeof base === 'string' && base.length > 0 ? base : '/';
 };
 
+export const isSiteDebugAiReportRuntimeAvailable = (isDev: boolean) => !isDev;
+
 export const getDevSourceEndpoint = (
   debugWindow: SiteDebugWindow,
   sourcePath?: string,

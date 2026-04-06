@@ -16,16 +16,18 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
   themeConfig: {
     nav: [
       {
-        text: 'Core Concepts',
-        link: '/core-concepts',
+        text: 'Home',
+        link: '/',
       },
       {
-        text: 'Quick Start',
-        link: '/quick-start',
+        text: 'Guide',
+        activeMatch: '/guide/',
+        link: '/guide/',
       },
       {
         text: 'Site Debug',
-        link: '/site-debug-console',
+        activeMatch: '/site-debug-console/',
+        link: '/site-debug-console/',
       },
       {
         text: pkg.version,
@@ -41,6 +43,62 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
         ],
       },
     ],
+    sidebar: {
+      '/guide/': [
+        {
+          text: 'Guide',
+          base: '/guide/',
+          items: [
+            {
+              text: 'Introduction',
+              link: 'index.md',
+            },
+            {
+              text: 'Getting Started',
+              link: 'getting-started',
+            },
+            {
+              text: 'How It Works',
+              link: 'how-it-works',
+            },
+          ],
+        },
+      ],
+      '/site-debug-console/': [
+        {
+          text: 'Site Debug',
+          base: '/site-debug-console/',
+          items: [
+            {
+              text: 'Introduction',
+              link: 'index.md',
+            },
+            {
+              text: 'Getting Started',
+              link: 'getting-started',
+            },
+          ],
+        },
+        {
+          text: 'Options',
+          base: '/site-debug-console/options/',
+          items: [
+            {
+              text: 'Analysis',
+              link: 'analysis',
+            },
+            {
+              text: 'Models',
+              link: 'models',
+            },
+            {
+              text: 'Build Reports',
+              link: 'build-reports',
+            },
+          ],
+        },
+      ],
+    },
     footer: {
       message: 'Released under the MIT License.',
       copyright: `Copyright © 2025-present Senao Xi`,
