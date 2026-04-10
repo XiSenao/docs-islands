@@ -1,196 +1,85 @@
 # How It Works
 
-`@docs-islands/vitepress` does not replace `VitePress`. It extends the Markdown compile step, build-time prerendering, and runtime takeover path so non-`Vue` components can participate in the existing `VitePress` page model.
+<script setup>
+  import VueComp1 from '../rendering-strategy-comps/vue/VueComp1.vue';
 
-## Rendering Pipeline
+  const page = {
+    title: 'Rendering Strategy',
+  };
+</script>
 
-A typical render goes through four steps:
+<script lang="react">
+  import ReactComp1 from '../rendering-strategy-comps/react/ReactComp1';
+  import { ReactComp2 } from '../rendering-strategy-comps/react/ReactComp2';
+  import ReactComp3 from '../rendering-strategy-comps/react/ReactComp3';
+  import { ReactComp4 } from '../rendering-strategy-comps/react/ReactComp4';
+  import { ReactComp5 } from '../rendering-strategy-comps/react/ReactComp5';
+  import ReactVueSharedComp from '../rendering-strategy-comps/react/ReactVueSharedComp';
+  import { Landing } from '../rendering-strategy-comps/react/Landing';
+</script>
 
-1. Imports from `<script lang="react">` are discovered during Markdown processing.
-2. Matching component tags are transformed into render containers with strategy metadata.
-3. Build-time logic decides whether to prerender HTML and whether client takeover code should be emitted.
-4. The runtime applies the declared strategy and either hydrates, client-renders, or leaves the output static.
+<Landing client:load spa:sync-render />
 
-That means the page is still a normal `VitePress` page. The difference is that non-`Vue` components now have a controlled lifecycle.
+This page explains the runtime model: how Markdown tags become render containers, what each directive changes, and why `spa:sync-render` exists.
 
-## Who Owns Which Stage
+If you need setup steps, read [Getting Started](./getting-started.md). If you need authoring rules, strategy heuristics, or caveats, read [Best Practices](./best-practices.md).
 
-Breaking the system into stages makes it easier to understand where to debug:
+## Injection Model
 
-| Stage          | Main owner              | What you should watch for                                                |
-| -------------- | ----------------------- | ------------------------------------------------------------------------ |
-| Markdown       | `VitePress` + transform | whether imports are discovered and component tags follow the conventions |
-| Build time     | `docs-islands`          | whether HTML is prerendered and whether takeover code is emitted         |
-| First load     | browser runtime         | whether containers are discovered, hydrated, or mismatched               |
-| SPA navigation | `VitePress` + runtime   | whether flicker appears and whether `spa:sr` is worth the trade-off      |
-| Dev-time HMR   | `vite` + `docs-islands` | whether updates hit the right container and preserve the right state     |
-
-## Strategy Matrix
-
-| Directive        | Pre-render HTML | Client behavior    | Typical usage              | `spa:sr` default |
-| ---------------- | --------------- | ------------------ | -------------------------- | ---------------- |
-| `ssr:only`       | Yes             | No takeover        | Static content, SEO blocks | Enabled          |
-| `client:load`    | Yes             | Immediate hydrate  | Above-the-fold interaction | Disabled         |
-| `client:visible` | Yes             | Hydrate on visible | Offscreen interaction      | Disabled         |
-| `client:only`    | No              | Client render only | Host-dependent widgets     | Unsupported      |
-| No directive     | Yes             | Same as `ssr:only` | Default static rendering   | Enabled          |
-
-## What Each Strategy Means
-
-### `ssr:only`
-
-- Fully prerendered at build time.
-- No hydration cost on the client.
-- Best for static copy, SEO-critical regions, and stable first paint.
-- Components rendered only as `ssr:only` on the page may safely rely on Node APIs.
-
-### `client:load`
-
-- HTML is prerendered, then hydrated as soon as the client is ready.
-- Good for interactive elements that matter immediately after first paint.
-- Hydration starts early, so it can put more pressure on the critical path.
-
-### `client:visible`
-
-- HTML is prerendered first, then hydrated after the component enters the viewport.
-- Good for comments, charts, or lower-page interactions.
-- Scripts are still preloaded by default, so it is not a “do nothing until visible” mode.
-
-### `client:only`
-
-- No prerendered HTML, client render only.
-- Good for components that require `window`, `document`, or browser-only APIs.
-- Easiest mental model, but worst for SEO and static first paint.
-
-## How to Choose a Strategy
-
-If you do not want to overthink the decision for every component, these rules usually work well:
-
-- Static content, branding, callouts, and code examples: start with `ssr:only`.
-- Above-the-fold components that must be usable immediately: prefer `client:load`.
-- Below-the-fold comments, charts, and secondary interaction blocks: prefer `client:visible`.
-- Strong browser-host dependencies or tiny utility widgets: consider `client:only`.
-
-In practice, it is usually safer to optimize for “stable page output first” and only then optimize “when should interactivity start?”
-
-## Why `spa:sync-render` Exists
-
-During `SPA` navigation, `VitePress` updates `Vue` content synchronously, while prerendered HTML, CSS, and scripts for non-`Vue` components usually arrive asynchronously. That gap is what causes visible flicker.
-
-`spa:sync-render` (or `spa:sr`) moves marked components earlier into the page transition flow so critical non-`Vue` content can appear closer to the main body content.
-
-**The following demo environment runs with `CPU: 20x slowdown` and `0.75x` playback speed:**
-
-![spa:sync-render:disable](/spa-sync-render-disable-screenshot.webp)
-
-<video controls>
-  <source src="/spa-sync-render-disable-video.mp4" type="video/mp4">
-</video>
-
-Without `spa:sr`, two things usually happen:
-
-1. The main `Vue` content updates first.
-2. Non-`Vue` markup and styles catch up later, producing visible layout instability.
-
-With `spa:sr`, that split is reduced:
-
-![spa:sync-render](/spa-sync-render-screenshot.webp)
-
-<video controls>
-  <source src="/spa-sync-render-video.mp4" type="video/mp4">
-</video>
-
-## Default Rules and Trade-offs of `spa:sr`
-
-- `client:only` does not support `spa:sr`.
-- `client:*` strategies do not enable `spa:sr` unless you opt in explicitly.
-- `ssr:only` and no-directive components enable `spa:sr` by default unless you opt out.
-
-The trade-off is straightforward:
-
-- Benefit: smoother navigation and less visual separation between `Vue` and non-`Vue` content.
-- Cost: larger client script cost during navigation, and sometimes render-blocking critical styles.
-
-## When `spa:sr` Is Worth It
-
-It is usually worth enabling when:
-
-- the component is part of the main reading or product story on the page
-- a short empty state during navigation would feel visibly broken
-- debugging already showed that the issue is mostly asynchronous injection timing, not slow component logic
-
-It is usually better to keep it off when:
-
-- the component is supportive rather than critical content
-- the page already contains many `spa:sr` components and navigation cost is growing
-- you care more about smaller navigation bundles than perfectly synchronized component appearance
-
-::: warning Critical style blocking
-
-If a page contains `spa:sr` components, the runtime may wait for those components' critical CSS before rendering the main content. That reduces flicker, but it also adds blocking work during navigation.
-
-<video controls>
-  <source src="/spa-sync-render-side-effects-video.mp4" type="video/mp4">
-</video>
-
-:::
-
-::: warning Development mode limitation
-
-`spa:sr` does not fully behave like production during local development. Dev-mode `VitePress` evaluates `spa` modules dynamically, so the runtime does not receive the same fully resolved initial props context that production builds do. The production benefit is therefore best judged from built output.
-
-:::
-
-## Markdown Rules
-
-### Component Tags and Imports
-
-- Tags must start with an uppercase letter.
-- The tag name must exactly match a local import from the same `<script lang="react">` block.
-- Only self-closing tags are supported, such as `<Comp ... />`.
-- The component must be imported in the current page, or it will be ignored.
-
-### Props Passing
-
-- Non-strategy attributes are forwarded to the `React` component as string props.
-- `Vue` bindings are evaluated first, then copied into the container snapshot.
-- This is one-shot initialization, not reactive cross-framework state.
-- Do not pass functions or event handlers as attributes.
-
-That also means later `Vue` state changes do not automatically flow into the `React` island the way they would in a normal Vue child component. When you need state to keep evolving, it is usually better to keep that interaction inside one framework boundary.
-
-### Re-exports and Slots
-
-- Re-export chains such as `export * from '...'` and `export { Foo } from '...'` are supported.
-- Components can appear inside `Vue` slots and templates and still be discovered.
-- If a barrel module contains side effects, do not rely on it as the side-effect injection point; runtime imports target the final export owner.
-
-### Node API Constraints
-
-If the same component is rendered both as `ssr:only` and as any `client:*` strategy on the same page, it must not depend on `node:fs`-style APIs. Node APIs are only safe when the component is rendered exclusively as `ssr:only` on that page.
-
-## Common Mistakes
-
-- Treating this as a way to let React own the whole page: it is designed for component islands.
-- Defaulting to `client:only` too early: that makes adoption simpler, but gives up static output and first-paint quality.
-- Hiding side effects inside barrel modules: runtime imports resolve to the final export owner, not the intermediate re-export module.
-- Enabling `spa:sr` everywhere as soon as you see flicker: that often trades one problem for a heavier navigation path.
-
-## Representative Snippets
-
-### Minimal usage
+When you write this in Markdown:
 
 ```md
+<script setup>
+  const page = { title: 'Home' };
+</script>
+
 <script lang="react">
   import { Landing } from '../rendering-strategy-comps/react/Landing';
 </script>
 
-<Landing client:load spa:sr title="Home" />
+<Landing client:load spa:sr :title="page.title" />
 ```
 
-### One-shot props from Vue into React
+the page does not become a full client app rooted in another framework. The compiler first turns the component tag into a render container with strategy metadata:
 
-```md
+```html
+<div
+  __render_id__="1194afdb"
+  __render_directive__="client:load"
+  __render_component__="Landing"
+  __spa_sync_render__="true"
+  title="Home"
+></div>
+```
+
+From there, the pipeline is:
+
+1. Markdown processing discovers imports from the page's `<script lang="react">` block.
+2. Matching component tags are rewritten into render containers.
+3. Build-time bundling decides whether the component should emit prerendered HTML, client takeover code, or both.
+4. Runtime code finds the container and either leaves the HTML static, hydrates it, waits for visibility, or renders it entirely on the client.
+
+That is the core design: `VitePress` still owns the page, while the island-component runtime only owns the container that needs it.
+
+## Who Owns Each Stage
+
+| Stage              | Main owner                   | What happens                                                   |
+| ------------------ | ---------------------------- | -------------------------------------------------------------- |
+| Markdown transform | `VitePress` + `docs-islands` | component imports and tags are discovered and rewritten        |
+| Build time         | `docs-islands`               | prerendered HTML and client entries are emitted                |
+| First load         | browser runtime              | containers are found and taken over according to the directive |
+| SPA navigation     | `VitePress` + runtime        | page content updates and island-component output is re-applied |
+| Dev-time HMR       | `vite` + `docs-islands`      | the changed container is refreshed or reused                   |
+
+## Vue to Island-Component Props Snapshot
+
+`Vue` can initialize an island component by writing resolved values into the render container snapshot. That flow is one-way and one-shot.
+
+This example is easiest to understand when you look at the Markdown usage, the `Vue` parent, and the island component together:
+
+::: code-group
+
+```md [playground.md]
 <script setup>
   import VueComp1 from '../rendering-strategy-comps/vue/VueComp1.vue';
   const page = { title: 'Rendering Strategy' };
@@ -200,29 +89,696 @@ If the same component is rendered both as `ssr:only` and as any `client:*` strat
   import ReactVueSharedComp from '../rendering-strategy-comps/react/ReactVueSharedComp';
 </script>
 
-<VueComp1 :page-title="page.title">
-  <template #default="{ vueInfo }">
-    <ReactVueSharedComp client:only :vue-info="vueInfo" />
+<VueComp1
+render-strategy="vue-parent"
+component-name="VueComp1"
+:page-title="page.title"
+:render-count="6"
+
+> <template #default="{ vueInfo }">
+
+    <ReactVueSharedComp
+      client:only
+      render-strategy="client:only"
+      component-name="ReactVueSharedComp"
+      :page-title="page.title"
+      render-count="3-7"
+      :vue-info="vueInfo"
+    />
+
   </template>
 </VueComp1>
 ```
 
-### Reading local files in pure `ssr:only`
+```vue [VueComp1.vue]
+<script setup lang="ts">
+export interface CompProps {
+  componentName: string;
+  renderStrategy: string;
+  pageTitle: string;
+  renderCount: number;
+}
 
-```ts
+const props = defineProps<CompProps>();
+const vueInfo = 'VueComp1';
+</script>
+
+<template>
+  <div class="vue-comp1-demo">
+    <strong>
+      {{ props.renderCount }}: Rendering Strategy:
+      {{ props.renderStrategy }}
+    </strong>
+    <ol>
+      <li>
+        <strong>Component Name:</strong>
+        <span>{{ props.componentName }}</span>
+      </li>
+      <li>
+        <strong>Page Title:</strong>
+        <span>{{ props.pageTitle }}</span>
+      </li>
+      <li>
+        <strong>Child Component Rendering:</strong>
+        <slot :vue-info="vueInfo" />
+      </li>
+    </ol>
+  </div>
+</template>
+```
+
+```tsx [ReactVueSharedComp.tsx]
+import { type JSX, useState } from 'react';
+import type { CompProps } from '../type';
+
+interface ReactVueSharedCompProps extends CompProps {
+  'vue-info': string;
+}
+
+export default function ReactVueSharedComp(props: ReactVueSharedCompProps): JSX.Element {
+  const [count, setCount] = useState(0);
+  return (
+    <div className="react-vue-shared-comp">
+      <strong>
+        {props['render-count']}: Rendering Strategy: {props['render-strategy']}
+      </strong>
+      <ol>
+        <li>
+          <strong>Component Name:</strong> <span>{props['component-name']}</span>
+        </li>
+        <li>
+          <strong>Page Title:</strong> <span>{props['page-title']}</span>
+        </li>
+        <li>
+          <strong>Vue Component Info:</strong> <span>{props['vue-info']}</span>
+        </li>
+        <li>
+          <button
+            style={{
+              padding: '5px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              marginRight: '8px',
+              backgroundColor: '#56a8ab',
+              color: '#9ee2d3',
+              border: 'none',
+            }}
+            onClick={() => setCount(count + 1)}
+            type="button"
+          >
+            Click Me!
+          </button>
+          <strong>Client Only Render Mode, React Instance Count:</strong> <span>{count}</span>
+        </li>
+      </ol>
+    </div>
+  );
+}
+```
+
+:::
+
+The container snapshot looks like this before the island component takes over:
+
+```html
+<div
+  __render_id__="354a7a63"
+  __render_directive__="client:only"
+  __render_component__="ReactVueSharedComp"
+  __spa_sync_render__="false"
+  vue-info="VueComp1"
+></div>
+```
+
+Rendering result:
+
+<VueComp1
+render-strategy="vue-parent"
+component-name="VueComp1"
+:page-title="page.title"
+:render-count="6">
+<template #default="{ vueInfo }">
+<ReactVueSharedComp
+  client:only
+  render-strategy="client:only"
+  component-name="ReactVueSharedComp"
+  :page-title="page.title"
+  render-count="3-7"
+  :vue-info="vueInfo"
+/>
+</template>
+</VueComp1>
+
+## Strategy Matrix
+
+| Directive        | Pre-render HTML | Client behavior       | Resolved mode      |
+| ---------------- | --------------- | --------------------- | ------------------ |
+| `ssr:only`       | Yes             | No takeover           | static             |
+| `client:load`    | Yes             | Hydrate immediately   | hydrate            |
+| `client:visible` | Yes             | Hydrate when visible  | hydrate-on-visible |
+| `client:only`    | No              | Render on client only | render             |
+| No directive     | Yes             | Same as `ssr:only`    | static             |
+
+## What Each Strategy Changes
+
+### `ssr:only`
+
+- HTML is prerendered at build time.
+- No client takeover happens for that container.
+- This is the closest mode to VitePress's static-first behavior.
+
+::: code-group
+
+```md [playground.md]
+<script setup>
+  const page = { title: 'Rendering Strategy' };
+</script>
+
+<script lang="react">
+  import { ReactComp2 } from '../rendering-strategy-comps/react/ReactComp2';
+</script>
+
+<ReactComp2
+  ssr:only
+  spa:sr
+  render-strategy="ssr:only"
+  component-name="ReactComp2"
+  :page-title="page.title"
+  :render-count="2"
+/>
+```
+
+```tsx [ReactComp2.tsx]
 import { readFileSync } from 'node:fs';
 import { join } from 'pathe';
+import { type JSX, useState } from 'react';
+import type { CompProps } from '../type';
+import './css/rc2.css';
+import { renderSharedLicense } from './shared/renderSharedLicense';
+
+interface LocalData {
+  data: {
+    id: number;
+    name: string;
+    email: string;
+  }[];
+}
 
 const targetPath = join(import.meta.dirname, 'local-data.json');
-const data = JSON.parse(readFileSync(targetPath, 'utf8')) as {
-  data: unknown;
+export function ReactComp2(props: CompProps): JSX.Element {
+  const [count, setCount] = useState(0);
+  const data = JSON.parse(readFileSync(targetPath, 'utf8')) as LocalData;
+  const displayLocalData = () => {
+    const showLocalList = data.data.map((item) => (
+      <li key={item.id}>
+        <span>
+          <strong>ID:</strong> {item.id}
+        </span>
+        <br />
+        <span>
+          <strong>Name:</strong> {item.name}
+        </span>
+        <br />
+        <span>
+          <strong>Email:</strong> {item.email}
+        </span>
+      </li>
+    ));
+    return <ul>{showLocalList}</ul>;
+  };
+  return (
+    <div className="react-comp2-demo">
+      <strong>
+        {props['render-count']}: Rendering Strategy: {props['render-strategy']}
+      </strong>
+      <ol>
+        <li>
+          <strong>Component Name:</strong> <span>{props['component-name']}</span>
+        </li>
+        <li>
+          <strong>Page Title:</strong> <span>{props['page-title']}</span>
+        </li>
+        <li>
+          <button className="rc2-button" onClick={() => setCount(count + 1)} type="button">
+            Click Me!
+          </button>
+          <strong>Pre-rendering Mode Only, React Instance Count:</strong> <span>{count}</span>
+        </li>
+      </ol>
+      <div>{displayLocalData()}</div>
+      <div>
+        <span>
+          <strong>License:</strong> {renderSharedLicense()}
+        </span>
+      </div>
+    </div>
+  );
+}
+```
+
+```ts [shared/renderSharedLicense.ts]
+export const renderSharedLicense = () => {
+  // This is a shared license for rendering strategy, It is used to test the hmr support.
+  return 'Released under the MIT License. [SHARED MODULE FOR HMR TEST]';
 };
 ```
 
-If you also want local file changes to participate in HMR, you need to bridge that yourself with `vite`'s `handleHotUpdate`.
+```json [local-data.json]
+{
+  "data": [
+    {
+      "id": 1,
+      "name": "Senao Xi",
+      "email": "senaoxi@gmail.com"
+    },
+    {
+      "id": 2,
+      "name": "Doe",
+      "email": "doe@gmail.com"
+    },
+    {
+      "id": 3,
+      "name": "Jane Doe",
+      "email": "jane.doe@gmail.com"
+    }
+  ]
+}
+```
+
+```css [css/rc2.css]
+.rc2-button {
+  padding: 5px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-right: 8px;
+  background-color: pink;
+  color: orange;
+  border: none;
+}
+```
+
+:::
+
+Rendering result:
+
+<ReactComp2
+  ssr:only
+  spa:sr
+  render-strategy="ssr:only"
+  component-name="ReactComp2"
+  :page-title="page.title"
+  :render-count="2"
+/>
+
+### `client:load`
+
+- HTML is prerendered first.
+- The client hydrates the container as soon as the runtime is ready.
+- The container becomes interactive early, but adds more work to the critical path.
+
+::: code-group
+
+```md [playground.md]
+<script setup>
+  const page = { title: 'Rendering Strategy' };
+</script>
+
+<script lang="react">
+  import ReactComp3 from '../rendering-strategy-comps/react/ReactComp3';
+</script>
+
+<ReactComp3
+  client:load
+  spa:sync-render
+  render-strategy="client:load"
+  component-name="ReactComp3"
+  :page-title="page.title"
+  :render-count="3"
+/>
+```
+
+```tsx [ReactComp3.tsx]
+import { type JSX, useState } from 'react';
+import type { CompProps } from '../type';
+import './css/rc3.css';
+
+export default function ReactComp3(props: CompProps): JSX.Element {
+  const [count, setCount] = useState(0);
+  return (
+    <div className="react-comp3-demo">
+      <strong>
+        {props['render-count']}: Rendering Strategy: {props['render-strategy']}
+      </strong>
+      <ol>
+        <li>
+          <strong>Component Name:</strong> <span>{props['component-name']}</span>
+        </li>
+        <li>
+          <strong>Page Title:</strong> <span>{props['page-title']}</span>
+        </li>
+        <li>
+          <button className="rc3-button" onClick={() => setCount(count + 1)} type="button">
+            Click Me!
+          </button>
+          <strong>Pre-rendering Client Hydration Mode, React Instance Count:</strong>{' '}
+          <span>{count}</span>
+        </li>
+      </ol>
+    </div>
+  );
+}
+```
+
+```css [css/rc3.css]
+.rc3-button {
+  padding: 5px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-right: 8px;
+  background-color: #9ceaca63;
+  color: #1dd270;
+  border: none;
+}
+```
+
+:::
+
+Rendering result:
+
+<ReactComp3
+  client:load
+  spa:sync-render
+  render-strategy="client:load"
+  component-name="ReactComp3"
+  :page-title="page.title"
+  :render-count="3"
+/>
+
+### `client:visible`
+
+- HTML is prerendered first.
+- Hydration is delayed until the component enters the viewport.
+- Scripts are still preloaded by default; only takeover timing changes.
+
+::: code-group
+
+```md [playground.md]
+<script setup>
+  const page = { title: 'Rendering Strategy' };
+</script>
+
+<script lang="react">
+  import { ReactComp4 } from '../rendering-strategy-comps/react/ReactComp4';
+</script>
+
+<ReactComp4
+  client:visible
+  render-strategy="client:visible"
+  component-name="ReactComp4"
+  :page-title="page.title"
+  :render-count="4"
+/>
+```
+
+```tsx [ReactComp4.tsx]
+import { type JSX, useState } from 'react';
+import type { CompProps } from '../type';
+
+export function ReactComp4(props: CompProps): JSX.Element {
+  const [count, setCount] = useState(0);
+  return (
+    <div className="react-comp4-demo">
+      <strong>
+        {props['render-count']}: Rendering Strategy: {props['render-strategy']}
+      </strong>
+      <ol>
+        <li>
+          <strong>Component Name:</strong> <span>{props['component-name']}</span>
+        </li>
+        <li>
+          <strong>Page Title:</strong> <span>{props['page-title']}</span>
+        </li>
+        <li>
+          <button
+            style={{
+              padding: '5px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              marginRight: '8px',
+              backgroundColor: '#56a8ab',
+              color: '#9ee2d3',
+              border: 'none',
+            }}
+            onClick={() => setCount(count + 1)}
+            type="button"
+          >
+            Click Me!
+          </button>
+          <strong>Pre-rendering Client Visible Hydration Mode, React Instance Count:</strong>{' '}
+          <span>{count}</span>
+        </li>
+      </ol>
+    </div>
+  );
+}
+```
+
+:::
+
+Rendering result:
+
+<ReactComp4
+  client:visible
+  render-strategy="client:visible"
+  component-name="ReactComp4"
+  :page-title="page.title"
+  :render-count="4"
+/>
+
+### `client:only`
+
+- No prerendered HTML is emitted for the container.
+- The component is rendered entirely on the client.
+- This is the most browser-dependent mode and the farthest from static output.
+
+::: code-group
+
+```md [playground.md]
+<script setup>
+  const page = { title: 'Rendering Strategy' };
+</script>
+
+<script lang="react">
+  import ReactComp1 from '../rendering-strategy-comps/react/ReactComp1';
+</script>
+
+<ReactComp1
+  client:only
+  render-strategy="client:only"
+  component-name="ReactComp1"
+  :page-title="page.title"
+  :render-count="1"
+/>
+```
+
+```tsx [ReactComp1.tsx]
+import { type JSX, useState } from 'react';
+import type { CompProps } from '../type';
+import './css/rc1.css';
+import { renderSharedLicense } from './shared/renderSharedLicense';
+
+export default function ReactComp1(props: CompProps): JSX.Element {
+  const [count, setCount] = useState(0);
+  return (
+    <div className="react-comp1-demo">
+      <strong>
+        {props['render-count']}: Rendering Strategy: {props['render-strategy']}
+      </strong>
+      <ol>
+        <li>
+          <strong>Component Name:</strong> <span>{props['component-name']}</span>
+        </li>
+        <li>
+          <strong>Page Title:</strong> <span>{props['page-title']}</span>
+        </li>
+        <li>
+          <strong>License:</strong> <span>{renderSharedLicense()}</span>
+        </li>
+        <li>
+          <button className="rc1-button" onClick={() => setCount(count + 1)} type="button">
+            Click Me!
+          </button>
+          <strong>Client-Only Rendering Mode, React Instance Count:</strong> <span>{count}</span>
+        </li>
+      </ol>
+    </div>
+  );
+}
+```
+
+```ts [shared/renderSharedLicense.ts]
+export const renderSharedLicense = () => {
+  // This is a shared license for rendering strategy, It is used to test the hmr support.
+  return 'Released under the MIT License. [SHARED MODULE FOR HMR TEST]';
+};
+```
+
+```css [css/rc1.css]
+.rc1-button {
+  padding: 5px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-right: 8px;
+  background-color: #56a8ab;
+  color: #9ee2d3;
+  border: none;
+}
+```
+
+:::
+
+Rendering result:
+
+<ReactComp1
+  client:only
+  render-strategy="client:only"
+  component-name="ReactComp1"
+  :page-title="page.title"
+  :render-count="1"
+/>
+
+### No Directive
+
+- No directive resolves to `ssr:only`.
+- The container stays prerendered and static by default.
+
+::: code-group
+
+```md [playground.md]
+<script setup>
+  const page = { title: 'Rendering Strategy' };
+</script>
+
+<script lang="react">
+  import { ReactComp5 } from '../rendering-strategy-comps/react/ReactComp5';
+</script>
+
+<ReactComp5
+  render-strategy="default"
+  component-name="ReactComp5"
+  :page-title="page.title"
+  :render-count="5"
+/>
+```
+
+```tsx [ReactComp5.tsx]
+import { useState } from 'react';
+import type { CompProps } from '../type';
+
+export function ReactComp5(props: CompProps): JSX.Element {
+  const [count, setCount] = useState(0);
+  return (
+    <div className="react-comp5-demo">
+      <strong>
+        {props['render-count']}: Rendering Strategy: {props['render-strategy']}
+      </strong>
+      <ol>
+        <li>
+          <strong>Component Name:</strong> <span>{props['component-name']}</span>
+        </li>
+        <li>
+          <strong>Page Title:</strong> <span>{props['page-title']}</span>
+        </li>
+        <li>
+          <button
+            style={{
+              padding: '5px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              marginRight: '8px',
+              backgroundColor: '#56a8ab',
+              color: '#9ee2d3',
+              border: 'none',
+            }}
+            onClick={() => setCount(count + 1)}
+            type="button"
+          >
+            Click Me!
+          </button>
+          <strong>Default Rendering Mode (Pre-rendering Mode Only), React Instance Count:</strong>{' '}
+          <span>{count}</span>
+        </li>
+      </ol>
+    </div>
+  );
+}
+```
+
+:::
+
+Rendering result:
+
+<ReactComp5
+  render-strategy="default"
+  component-name="ReactComp5"
+  :page-title="page.title"
+  :render-count="5"
+/>
+
+## Why `spa:sync-render` Exists
+
+During `SPA` navigation, `VitePress` updates `Vue` content synchronously, but island components normally receive prerendered HTML, CSS, and client takeover work asynchronously. That timing gap is what causes visible flicker.
+
+`spa:sync-render` (or `spa:sr`) moves selected prerendered island components earlier into the route-transition flow so critical island-component content can appear closer to the main page content.
+
+**The following demo environment runs with `CPU: 20x slowdown` and `0.75x` playback speed:**
+
+![spa:sync-render:disable](/spa-sync-render-disable-screenshot.webp)
+
+<video controls>
+  <source src="/spa-sync-render-disable-video.mp4" type="video/mp4">
+</video>
+
+Without `spa:sr`, the common pattern is:
+
+1. `Vue` content updates first.
+2. Island HTML and styles catch up later.
+3. The user sees visual separation or layout shift.
+
+With `spa:sr`, that split is reduced:
+
+![spa:sync-render](/spa-sync-render-screenshot.webp)
+
+<video controls>
+  <source src="/spa-sync-render-video.mp4" type="video/mp4">
+</video>
+
+## Default `spa:sr` Rules
+
+- `client:only` does not support `spa:sr`.
+- `client:load` and `client:visible` only use `spa:sr` when you opt in explicitly.
+- `ssr:only` and no-directive components use `spa:sr` by default unless you disable it with `spa:sr:disable` or `spa:sync-render:disable`.
+
+::: warning Critical style blocking
+
+If a page contains `spa:sr` components, the runtime may wait for those components' critical CSS before rendering the main content. This reduces flicker, but it can also add render-blocking work during route transitions.
+
+<video controls>
+  <source src="/spa-sync-render-side-effects-video.mp4" type="video/mp4">
+</video>
+
+:::
+
+::: warning Development mode limitation
+
+`spa:sr` does not fully behave like production during local development. Dev-mode `VitePress` evaluates `spa` modules dynamically, so the runtime does not receive the exact same fully resolved initial props context that a production build does.
+
+In practice, development still follows the same declared strategies as closely as possible, but the real `spa:sr` benefit should be judged from built output.
+
+:::
 
 ## Continue Reading
 
-- [Getting Started](./getting-started.md): integrate the feature set with the shortest path.
-- [Site Debug](../site-debug-console/): inspect runtime behavior visually.
-- [Build Reports](../site-debug-console/options/build-reports.md): configure cache, `resolvePage`, and model selection.
+- [Getting Started](./getting-started.md): install the integration and render your first island component.
+- [Best Practices](./best-practices.md): authoring rules, strategy heuristics, caveats, and common mistakes.
+- [Site Debug](../site-debug-console/): inspect runtime behavior, bundles, and HMR visually.

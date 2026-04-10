@@ -1,14 +1,18 @@
 import type { DevComponentInfo } from '#dep-types/react';
-import type { RenderDirective } from '#dep-types/render';
 import type { SSRUpdateData, SSRUpdateRenderData } from '#dep-types/ssr';
 import {
   NEED_PRE_RENDER_DIRECTIVES,
-  RENDER_STRATEGY_ATTRS,
+  REACT_HMR_EVENT_NAMES,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
 import { createSiteDebugLogger, getSiteDebugNow } from '#shared/debug';
 import getLoggerInstance from '#shared/logger';
 import { validateLegalRenderElements } from '#shared/utils';
+import {
+  collectComponentProps,
+  replaceSsrCssResources,
+  requiresPreRenderDirective,
+} from '@docs-islands/core/client';
 import type React from 'react';
 import type ReactDOM from 'react-dom/client';
 import { reactComponentManager } from './react-component-manager';
@@ -125,14 +129,6 @@ export const createMemoizedReactUpdateState = (): MemoizedReactUpdateState => ({
   pendingMissingImports: null,
 });
 
-// Hoisted predicate to satisfy unicorn/consistent-function-scoping.
-const requiresSsrDirective = (
-  directive: string,
-): directive is Exclude<RenderDirective, 'client:only'> =>
-  NEED_PRE_RENDER_DIRECTIVES.includes(
-    directive as Exclude<RenderDirective, 'client:only'>,
-  );
-
 const hasEquivalentRenderContainerAttrs = (
   element: Element,
   memorizedProps: Map<string, string>,
@@ -178,33 +174,6 @@ const syncRenderContainerAttrs = (
 
   for (const [attrName, attrValue] of nextAttrs.entries()) {
     targetElement.setAttribute(attrName, attrValue);
-  }
-};
-
-const collectComponentProps = (element: Element): Record<string, string> => {
-  const props: Record<string, string> = {};
-
-  for (const attr of element.getAttributeNames()) {
-    if (!RENDER_STRATEGY_ATTRS.includes(attr)) {
-      props[attr] = element.getAttribute(attr) || '';
-    }
-  }
-
-  return props;
-};
-
-const replaceSsrCssResources = (ssrOnlyCss: string[]): void => {
-  for (const css of ssrOnlyCss) {
-    const isExistCssElement = document.querySelector(`link[href="${css}"]`);
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = css;
-    link.dataset.vriteCssInDev = css;
-    document.head.append(link);
-    // TODO: OPTIMIZE
-    if (isExistCssElement) {
-      isExistCssElement.remove();
-    }
   }
 };
 
@@ -484,7 +453,7 @@ export const applyReactMarkdownAfterUpdate = async (
       // Component props exclude attributes in RENDER_STRATEGY_ATTRS.
       const props = collectComponentProps(element);
 
-      if (requiresSsrDirective(renderDirective)) {
+      if (requiresPreRenderDirective(renderDirective)) {
         // A pre-rendered module is required for all SSR components.
         ssrComponentsRenderData.push({
           renderId,
@@ -726,7 +695,7 @@ export const applyReactMarkdownAfterUpdate = async (
   }: SSRUpdateRenderData) => {
     if (import.meta.hot) {
       import.meta.hot.off(
-        'vrite-ssr-markdown-update-render',
+        REACT_HMR_EVENT_NAMES.markdownRender,
         handleMarkdownUpdateRender,
       );
     }
@@ -794,10 +763,13 @@ export const applyReactMarkdownAfterUpdate = async (
 
     if (import.meta.hot) {
       import.meta.hot.on(
-        'vrite-ssr-markdown-update-render',
+        REACT_HMR_EVENT_NAMES.markdownRender,
         handleMarkdownUpdateRender,
       );
-      import.meta.hot.send('vrite-ssr-update', ssrUpdateData);
+      import.meta.hot.send(
+        REACT_HMR_EVENT_NAMES.ssrRenderRequest,
+        ssrUpdateData,
+      );
     }
     return;
   }

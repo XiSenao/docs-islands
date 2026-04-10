@@ -1,40 +1,29 @@
-import type { ConfigType } from '#dep-types/utils';
-import {
-  ALLOWED_RENDER_DIRECTIVES,
-  DIRNAME_VAR_NAME,
-  NEED_PRE_RENDER_DIRECTIVES,
-  RENDER_STRATEGY_CONSTANTS,
-} from '#shared/constants';
-import { LightGeneralLogger } from '#shared/logger';
+import { DIRNAME_VAR_NAME } from '#shared/constants';
 import reactPlugin from '@vitejs/plugin-react-swc';
-import { dirname, join } from 'pathe';
-import React from 'react';
+import { join } from 'pathe';
+import React, { version as reactPackageVersion } from 'react';
+import { version as reactDomPackageVersion } from 'react-dom';
 import ReactDOMServer from 'react-dom/server';
 import type { Plugin, PluginOption } from 'vite';
-import type {
-  FrameworkAdapter,
-  FrameworkAdapterConstants,
-} from '../core/framework-adapter';
-import type { RenderController } from '../core/render-controller';
+import { DIRNAME_VARIABLE_INJECTION_PLUGIN_NAME } from '../plugins/plugin-names';
+import { createDirnameVarInjectionPlugin } from '../plugins/vite-plugin-dirname-var-injection';
+import type { UIFrameworkBundlerAdapter } from '../ui-bundler/adapter';
+import { createReactClientLoaderModuleSource } from './client-loader-module-source';
+import { REACT_FRAMEWORK } from './framework';
+import { REACT_RUNTIME_EXTERNALIZATION_PLUGIN_NAME } from './plugin-names';
 
-export class ReactAdapter implements FrameworkAdapter {
-  public readonly name = 'react';
+/**
+ * The generic UI bundler already covers browser, SSR, and MPA build hooks.
+ * React only needs one extra hook so browser bundles can externalize the
+ * shared runtime to `window.React` / `window.ReactDOM`.
+ */
+export interface ReactBuildAdapter extends UIFrameworkBundlerAdapter {
+  // externalize runtime (map framework runtime to window in browser build)
+  externalizeRuntimePlugin: () => Plugin;
+}
 
-  public readonly constants: FrameworkAdapterConstants = {
-    attr: {
-      renderId: RENDER_STRATEGY_CONSTANTS.renderId,
-      renderDirective: RENDER_STRATEGY_CONSTANTS.renderDirective,
-      renderComponent: RENDER_STRATEGY_CONSTANTS.renderComponent,
-      renderWithSpaSync: RENDER_STRATEGY_CONSTANTS.renderWithSpaSync,
-    },
-    windowKeys: {
-      injectComponent: RENDER_STRATEGY_CONSTANTS.injectComponent,
-      componentManager: RENDER_STRATEGY_CONSTANTS.componentManager,
-      pageMetafile: RENDER_STRATEGY_CONSTANTS.pageMetafile,
-    },
-    allowedDirectives: ALLOWED_RENDER_DIRECTIVES,
-    needPreRenderDirectives: NEED_PRE_RENDER_DIRECTIVES,
-  };
+export class ReactAdapter implements ReactBuildAdapter {
+  public readonly framework: typeof REACT_FRAMEWORK = REACT_FRAMEWORK;
 
   browserBundlerPlugins(): Plugin[] {
     const plugins: PluginOption[] = [
@@ -47,19 +36,10 @@ export class ReactAdapter implements FrameworkAdapter {
   ssrBundlerPlugins(): Plugin[] {
     const plugins: PluginOption[] = [
       reactPlugin(),
-      {
-        name: 'vite-plugin-dirname-var-injection',
-        enforce: 'post',
-        transform: {
-          order: 'post',
-          handler(code: string, id: string) {
-            if (code.includes(DIRNAME_VAR_NAME)) {
-              return code.replaceAll(DIRNAME_VAR_NAME, `"${dirname(id)}"`);
-            }
-            return code;
-          },
-        },
-      },
+      createDirnameVarInjectionPlugin({
+        name: DIRNAME_VARIABLE_INJECTION_PLUGIN_NAME,
+        variableName: DIRNAME_VAR_NAME,
+      }),
     ];
     return plugins.filter((plugin): plugin is Plugin => Boolean(plugin));
   }
@@ -68,69 +48,29 @@ export class ReactAdapter implements FrameworkAdapter {
     return '@docs-islands/vitepress/react/client';
   }
 
-  async generateDevRuntime(
-    pathname: string,
-    cfg: ConfigType,
-    rc: RenderController,
-  ): Promise<string> {
-    const resolveId = join(cfg.base, cfg.srcDir, `${pathname}.md`).replaceAll(
-      '\\',
-      '/',
-    );
-    const compilationContainer =
-      await rc.getCompilationContainerByMarkdownModuleId(resolveId);
-    if (compilationContainer.importsByLocalName.size === 0) {
-      return '';
-    }
-    const code = `
-      ${compilationContainer.code}
-
-      ${compilationContainer.helperCode}
-    `;
-    return `
-import { createRoot as __react_client_render__, hydrateRoot as __react_hydrate__ } from 'react-dom/client';
-import { startTransition as __react_start_transition__ } from 'react';
-
-${code}
-
-const targetDoms = document.querySelectorAll('[${RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()}]');
-if (targetDoms.length > 0) {
-  targetDoms.forEach(dom => {
-    const attributes = dom.getAttributeNames();
-    const props: Record<string, string> = {} as Record<string, string>;
-    attributes.forEach((key) => {
-      props[key] = dom.getAttribute(key) as string;
-    });
-    const __REACT_COMPONENT__ = ${RENDER_STRATEGY_CONSTANTS.reactInlineComponentReference}[props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()}"]]["component"];
-    if (__REACT_COMPONENT__) {
-      if (props["${RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase()}"] === 'client:only') {
-        __react_start_transition__(() => {
-          __react_client_render__(dom).render(window.React.createElement(__REACT_COMPONENT__, props));
-        });
-      } else if (props["${RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase()}"] !== 'ssr:only') {
-        __react_start_transition__(() => {
-          __react_hydrate__(dom, window.React.createElement(__REACT_COMPONENT__, props));
-        });
-      }
-    } else {
-      ${LightGeneralLogger('error', `'Component '+ props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase()}"] + ' not found'`, 'generate-dev-runtime').formatText}
-    }
-  });
-}
-    `;
+  buildModulePreloadPaths({ assetsDir }: { assetsDir: string }): string[] {
+    return [
+      join('/', assetsDir, `chunks/react@${reactPackageVersion}.js`),
+      join('/', assetsDir, `chunks/client@${reactDomPackageVersion}.js`),
+    ];
   }
 
-  renderToString(
-    component: React.ComponentType<Record<string, string>>,
-    props: Record<string, string>,
+  createClientLoaderModuleSource(
+    ...args: Parameters<
+      UIFrameworkBundlerAdapter['createClientLoaderModuleSource']
+    >
   ): string {
-    const Component = component;
+    return createReactClientLoaderModuleSource(...args);
+  }
+
+  renderToString(component: unknown, props: Record<string, string>): string {
+    const Component = component as React.ComponentType<Record<string, string>>;
     return ReactDOMServer.renderToString(React.createElement(Component, props));
   }
 
   externalizeRuntimePlugin(): Plugin {
     return {
-      name: 'vite-plugin-react-external-runtime',
+      name: REACT_RUNTIME_EXTERNALIZATION_PLUGIN_NAME,
       enforce: 'pre',
       resolveId(id) {
         if (['react', 'react-dom'].includes(id)) {

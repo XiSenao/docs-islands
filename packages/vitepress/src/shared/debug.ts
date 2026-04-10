@@ -105,7 +105,7 @@ export interface SiteDebugModeChangeDetail {
 
 export interface SiteDebugPageMetafileEventDetail {
   buildId?: string | null;
-  kind: 'legacy-global-loaded' | 'page-loaded' | 'state-reset';
+  kind: 'page-loaded' | 'state-reset';
   pageCount: number;
   pageId?: string;
   pageMetafile?: PageMetafile | null;

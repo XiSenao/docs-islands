@@ -1,18 +1,36 @@
+import getLoggerInstance from '#shared/logger';
 import type { DefaultTheme, UserConfig } from 'vitepress';
-import reactIntegration from '../react';
+import { createReactRenderingIntegrationPlugin } from '../react/plugin';
+import { applyRenderingIntegrationPlugin } from './integration-plugin';
 
 export interface CreateRenderingStrategiesOptions {
   frameworks?: ('react' | string)[];
 }
 
+const loggerInstance = getLoggerInstance();
+const renderingIntegrationFactories = new Map([
+  ['react', createReactRenderingIntegrationPlugin],
+]);
+
 export default function createRenderingStrategies(
   vitepressConfig: UserConfig<DefaultTheme.Config>,
   options?: CreateRenderingStrategiesOptions,
 ): void {
-  const frameworks = options?.frameworks ?? ['react'];
+  const frameworks = [...new Set(options?.frameworks ?? ['react'])];
 
-  if (frameworks.includes('react')) {
-    // In the future we can register adapter(s) here and route by <script lang>
-    reactIntegration(vitepressConfig);
+  for (const framework of frameworks) {
+    const createIntegrationPlugin =
+      renderingIntegrationFactories.get(framework);
+
+    if (!createIntegrationPlugin) {
+      loggerInstance
+        .getLoggerByGroup('create-rendering-strategies')
+        .warn(
+          `Unknown rendering integration "${framework}" was ignored. Supported integrations: react.`,
+        );
+      continue;
+    }
+
+    applyRenderingIntegrationPlugin(vitepressConfig, createIntegrationPlugin());
   }
 }

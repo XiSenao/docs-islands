@@ -1,10 +1,100 @@
 {
   "name": "@docs-islands/core",
   "private": true,
+  "version": "0.2.5",
   "type": "module",
-  "scripts": {},
-  "keywords": [],
-  "author": "Senao Xi",
   "license": "MIT",
+  "author": "Senao Xi",
+  "description": "Framework-agnostic core parsing, routing, and runtime primitives for docs-islands integrations",
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "docs-islands",
+    "islands-architecture",
+    "documentation",
+    "cross-framework",
+    "runtime",
+    "parsing"
+  ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/XiSenao/docs-islands.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/XiSenao/docs-islands/issues"
+  },
+  "homepage": "https://docs.senao.me/docs-islands",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "lint": "eslint . --config ./eslint.config.mjs --fix --cache --cache-location ./node_modules/.cache/eslint/",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm test:unit",
+    "test:unit": "vitest run",
+    "clean": "del-cli .eslintcache dist coverage node_modules"
+  },
+  "dependencies": {
+    "@babel/generator": "catalog:dev",
+    "@babel/parser": "catalog:dev",
+    "@babel/traverse": "catalog:dev",
+    "@babel/types": "catalog:dev",
+    "htmlparser2": "catalog:dev",
+    "magic-string": "catalog:dev",
+    "markdown-it": "catalog:dev",
+    "pathe": "catalog:dev"
+  },
+  "devDependencies": {
+    "@types/babel__generator": "catalog:dev",
+    "@types/babel__traverse": "catalog:dev",
+    "@docs-islands/eslint-config": "workspace:*",
+    "@docs-islands/plugin-license": "workspace:*",
+    "@docs-islands/utils": "workspace:*",
+    "@types/node": "catalog:dev",
+    "@types/markdown-it": "catalog:dev",
+    "@types/react": "catalog:dev",
+    "del-cli": "catalog:dev",
+    "eslint": "catalog:lint",
+    "jsdom": "catalog:test",
+    "rolldown": "catalog:dev",
+    "rolldown-plugin-dts": "catalog:dev",
+    "tinyglobby": "catalog:prod",
+    "typescript": "catalog:dev",
+    "vitest": "catalog:test"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client/index.ts",
+    "./client/component-manager": "./src/client/component-manager.ts",
+    "./client/docs-client-integration": "./src/client/docs-client-integration.ts",
+    "./client/docs-component-manager": "./src/client/docs-component-manager.ts",
+    "./client/docs-render-strategy": "./src/client/docs-render-strategy.ts",
+    "./client/dom": "./src/client/dom.ts",
+    "./client/render-strategy": "./src/client/render-strategy.ts",
+    "./node": "./src/node/index.ts",
+    "./node/import-reference-resolver": "./src/node/import-reference-resolver.ts",
+    "./node/module-resolution": "./src/node/module-resolution.ts",
+    "./node/render-controller": "./src/node/render-controller.ts",
+    "./node/ssr-container-integration-processor": "./src/node/ssr-container-integration-processor.ts",
+    "./node/transform": "./src/node/transform.ts",
+    "./shared/constants": "./src/shared/constants.ts",
+    "./shared/logger": "./src/shared/logger.ts",
+    "./shared/path": "./src/shared/path.ts",
+    "./shared/runtime": "./src/shared/runtime.ts",
+    "./shared/utils": "./src/shared/utils.ts",
+    "./types": "./src/types/index.ts",
+    "./types/client": "./src/types/client.ts",
+    "./types/component": "./src/types/component.ts",
+    "./types/page": "./src/types/page.ts",
+    "./types/render": "./src/types/render.ts",
+    "./package.json": "./package.json"
+  },
+  "types": "./src/index.ts",
+  "sideEffects": false,
   "packageManager": "pnpm@10.26.0"
 }

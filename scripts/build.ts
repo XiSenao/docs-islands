@@ -10,6 +10,7 @@ const { build } = loadEnv();
 
 const BUILD_PIPELINE: BuildPhase[] = [
   '@docs-islands/plugin-license',
+  '@docs-islands/core',
   '@docs-islands/vitepress',
   AUTO_DISCOVER_PLACEHOLDER,
 ];
@@ -93,6 +94,7 @@ function getAllMonorepoPackages(): string[] {
     return [
       '@docs-islands/plugin-license',
       '@docs-islands/utils',
+      '@docs-islands/core',
       '@docs-islands/vitepress',
       '@docs-islands/eslint-config',
     ];

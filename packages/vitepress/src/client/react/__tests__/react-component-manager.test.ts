@@ -44,10 +44,16 @@ vi.mock('#shared/debug', async (importOriginal) => {
   };
 });
 
-vi.mock('@docs-islands/utils/logger', () => ({
-  formatErrorMessage: (error: unknown) =>
-    error instanceof Error ? error.message : String(error),
-}));
+vi.mock('@docs-islands/utils/logger', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@docs-islands/utils/logger')>();
+
+  return {
+    ...actual,
+    formatErrorMessage: (error: unknown) =>
+      error instanceof Error ? error.message : String(error),
+  };
+});
 
 describe('ReactComponentManager page metafile loading', () => {
   beforeEach(() => {

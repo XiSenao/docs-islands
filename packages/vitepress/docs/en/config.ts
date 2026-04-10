@@ -61,6 +61,10 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
               text: 'How It Works',
               link: 'how-it-works',
             },
+            {
+              text: 'Best Practices',
+              link: 'best-practices',
+            },
           ],
         },
       ],
