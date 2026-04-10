@@ -602,10 +602,6 @@ async function main() {
         options.skipChangelogCheck = true;
         break;
       }
-      case '--tag': {
-        options.gitTag = args[++i];
-        break;
-      }
       case '--git-tag': {
         options.gitTag = args[++i];
         break;
@@ -630,7 +626,6 @@ Options:
   --skip-tests          Skip running tests
   --skip-build          Skip building project
   --skip-changelog-check Skip changelog update verification
-  --tag <tag>           Custom git tag (deprecated, use --git-tag)
   --git-tag <tag>       Custom git tag
   --npm-tag <tag>       NPM dist-tag (default: preId for prerelease, otherwise 'latest')
   --registry <url>      Custom npm registry

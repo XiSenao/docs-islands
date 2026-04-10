@@ -1,12 +1,17 @@
+import type {
+  DocsComponentRecord,
+  DocsInjectComponent,
+  DocsRuntimeManagerLike,
+} from '@docs-islands/core/types/client';
 import type React from 'react';
 import type { PageMetafile } from './page';
 
 /**
  * Base component information
  */
-interface BaseComponentInfo {
-  component: React.ComponentType<Record<string, string>> | null;
-}
+type BaseComponentInfo = DocsComponentRecord<
+  React.ComponentType<Record<string, string>>
+>;
 
 /**
  * Development mode component information
@@ -24,9 +29,8 @@ export type ProdComponentInfo = BaseComponentInfo;
 /**
  * React component injection type
  */
-export type ReactInjectComponent = Record<
-  string,
-  Record<string, DevComponentInfo | ProdComponentInfo>
+export type ReactInjectComponent = DocsInjectComponent<
+  React.ComponentType<Record<string, string>>
 >;
 
 /**
@@ -39,7 +43,7 @@ export type ReactInjectComponent = Record<
  * - Component subscription and notification patterns
  * - CSS and script injection for component dependencies
  */
-export interface ReactComponentManager {
+export interface ReactComponentManager extends DocsRuntimeManagerLike {
   /**
    * Initialize the component manager in development mode
    * - Sets up component manager and global components
@@ -55,6 +59,8 @@ export interface ReactComponentManager {
    * - Enables preloading optimizations
    */
   initializeInProd(): Promise<void>;
+
+  ensureFrameworkRuntime(): Promise<boolean>;
 
   /**
    * Lazy-load React and ReactDOM libraries

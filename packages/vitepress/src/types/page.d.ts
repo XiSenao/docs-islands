@@ -1,3 +1,10 @@
+import type {
+  BuildReportReferenceBase,
+  ComponentBuildMetricAiReportsBase,
+  ComponentBuildMetricBase,
+  PageMetafile as CorePageMetafile,
+  PageBuildMetricsBase,
+} from '@docs-islands/core/types/page';
 import type React from 'react';
 import type { RenderDirective } from './render';
 import type { SiteDebugAiProvider } from './utils';
@@ -12,133 +19,31 @@ export interface ComponentInfo {
   loadTime: number;
 }
 
-export interface BundleAssetMetric {
-  bytes: number;
-  file: string;
-  type: 'asset' | 'css' | 'js';
-}
+export type {
+  BundleAssetMetric,
+  BundleModuleMetric,
+  PageBuildRenderInstanceMetric,
+  PageMetafileManifest,
+  PageMetafileManifestEntry,
+  RuntimeBundleMetric,
+  SpaSyncComponentSideEffectMetric,
+  SpaSyncPageBuildEffects,
+} from '@docs-islands/core/types/page';
 
-export interface BundleModuleMetric {
-  bytes: number;
-  file: string;
-  id: string;
-  sourceAssetFile?: string;
-  sourcePath?: string;
-}
-
-export interface RuntimeBundleMetric {
-  entryFile: string;
-  files: BundleAssetMetric[];
-  totalBytes: number;
-}
-
-export interface ComponentBuildMetric {
-  aiReports?: ComponentBuildMetricAiReports;
-  componentName: string;
-  entryFile: string;
-  estimatedAssetBytes: number;
-  estimatedCssBytes: number;
-  estimatedJsBytes: number;
-  estimatedTotalBytes: number;
-  files: BundleAssetMetric[];
-  framework: string;
-  modules: BundleModuleMetric[];
-  renderDirectives: RenderDirective[];
-  sourcePath: string;
-}
-
-export interface SiteDebugAiBuildReportReference {
-  detail?: string;
-  generatedAt: string;
-  model?: string;
-  prompt?: string;
+export interface SiteDebugAiBuildReportReference
+  extends BuildReportReferenceBase {
   provider: SiteDebugAiProvider;
-  providerId?: string;
-  providerLabel?: string;
-  reportId: string;
-  reportLabel: string;
-  reportFile: string;
 }
 
-export interface ComponentBuildMetricAiReports {
-  chunkReports?: Record<string, SiteDebugAiBuildReportReference[]>;
-  moduleReports?: Record<string, SiteDebugAiBuildReportReference[]>;
-}
+export type ComponentBuildMetricAiReports =
+  ComponentBuildMetricAiReportsBase<SiteDebugAiBuildReportReference>;
 
-export interface SpaSyncComponentSideEffectMetric {
-  blockingCssBytes: number;
-  blockingCssCount: number;
-  blockingCssFiles: BundleAssetMetric[];
-  componentName: string;
-  embeddedHtmlPatches: {
-    bytes: number;
-    html: string;
-    renderId: string;
-  }[];
-  embeddedHtmlBytes: number;
-  renderDirectives: RenderDirective[];
-  renderIds: string[];
-  requiresCssLoadingRuntime: boolean;
-}
+export type ComponentBuildMetric =
+  ComponentBuildMetricBase<ComponentBuildMetricAiReports>;
 
-export interface SpaSyncPageBuildEffects {
-  components: SpaSyncComponentSideEffectMetric[];
-  enabledComponentCount: number;
-  enabledRenderCount: number;
-  pageClientChunkFile?: string;
-  totalBlockingCssBytes: number;
-  totalBlockingCssCount: number;
-  totalEmbeddedHtmlBytes: number;
-  usesCssLoadingRuntime: boolean;
-}
+export type PageBuildMetrics = PageBuildMetricsBase<
+  ComponentBuildMetric,
+  SiteDebugAiBuildReportReference[]
+>;
 
-export interface PageBuildRenderInstanceMetric {
-  blockingCssBytes: number;
-  blockingCssCount: number;
-  blockingCssFiles: BundleAssetMetric[];
-  componentName: string;
-  embeddedHtmlBytes: number;
-  renderDirective: RenderDirective;
-  renderId: string;
-  sequence: number;
-  sourcePath?: string;
-  useSpaSyncRender: boolean;
-  usesCssLoadingRuntime: boolean;
-}
-
-export interface PageBuildMetrics {
-  aiReports?: SiteDebugAiBuildReportReference[];
-  components: ComponentBuildMetric[];
-  framework: string;
-  loader: RuntimeBundleMetric | null;
-  renderInstances?: PageBuildRenderInstanceMetric[];
-  spaSyncEffects: SpaSyncPageBuildEffects | null;
-  ssrInject: RuntimeBundleMetric | null;
-  totalEstimatedComponentBytes: number;
-}
-
-/**
- * Page metafile containing bundle information
- */
-export interface PageMetafile {
-  buildId?: string;
-  buildMetrics?: PageBuildMetrics;
-  loaderScript: string;
-  modulePreloads: string[];
-  pathname?: string;
-  cssBundlePaths: string[];
-  schemaVersion?: number;
-  ssrInjectScript: string;
-}
-
-export interface PageMetafileManifestEntry {
-  file: string;
-  loaderScript: string;
-  ssrInjectScript: string;
-}
-
-export interface PageMetafileManifest {
-  buildId: string;
-  pages: Record<string, PageMetafileManifestEntry>;
-  schemaVersion: number;
-}
+export type PageMetafile = CorePageMetafile<PageBuildMetrics>;

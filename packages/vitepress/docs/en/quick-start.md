@@ -10,3 +10,4 @@ Read these pages instead:
 
 - [Getting Started](./guide/getting-started.md)
 - [How It Works](./guide/how-it-works.md)
+- [Best Practices](./guide/best-practices.md)

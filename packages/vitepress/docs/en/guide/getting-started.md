@@ -60,7 +60,7 @@ pnpm add react react-dom
 
    :::
 
-## Render Your First React Component in Markdown
+## Render Your First Island Component in Markdown
 
 Create a component:
 
@@ -88,19 +88,7 @@ Then import and render it inside Markdown:
 
 :::
 
-If you omit a render directive, the default behavior is `ssr:only`. For the strategy matrix, default rules, and `spa:sr` trade-offs, continue with [How It Works](./how-it-works.md).
-
-## Recommended First Adoption Path
-
-If this is your first integration, the safest sequence is:
-
-1. Start with `ssr:only` so Markdown imports, build output, and static rendering all work first.
-2. Then decide whether the component actually needs interaction.
-3. If it must be interactive immediately above the fold, upgrade it to `client:load`.
-4. If it only matters once the user scrolls to it, prefer `client:visible`.
-5. Only use `client:only` when the component truly depends on browser-only APIs and cannot be prerendered safely.
-
-This keeps the first milestone focused on “is the integration chain correct?” before you add hydration cost and runtime complexity.
+If you omit a render directive, the default behavior is `ssr:only`.
 
 ## First Verification Checklist
 
@@ -109,60 +97,22 @@ After the first integration, verify at least these points:
 - The page builds successfully and the Markdown component tag is not ignored.
 - The component renders correctly as `ssr:only` before you introduce interaction.
 - Upgrading to an interactive strategy does not immediately cause hydration mismatch.
-- Editing the React component still produces the HMR behavior you expect in development.
-- If the component depends on local files or Node APIs, confirm it is rendered exclusively as `ssr:only` on that page.
+- Editing the island-component source still produces the HMR behavior you expect in development.
+- If the component has special runtime constraints, review [Best Practices](./best-practices.md) before broadening its usage.
 
-## Optional: Enable Site Debug Console
+## What This Page Covers
 
-If you want a built-in visual debugging surface early, mount `Site Debug Console` in your theme layout:
+This page is intentionally narrow:
 
-```vue
-<!-- .vitepress/theme/components/EnhanceLayout.vue -->
-<script setup lang="ts">
-import SiteDebugConsole from '@docs-islands/vitepress/debug-console/client';
-import '@docs-islands/vitepress/debug-console/client/style.css';
-import DefaultTheme from 'vitepress/theme';
-</script>
+- install dependencies
+- connect the runtime to VitePress
+- render one island successfully
+- verify the integration chain works
 
-<template>
-  <DefaultTheme.Layout />
-  <SiteDebugConsole />
-</template>
-```
-
-Ways to enable it:
-
-- Use `?site-debug=1` to force it on, or `?site-debug=0` to force it off.
-- The choice is persisted and reused on later visits.
-- On this docs site, a triple-click on the top-left `logo` also toggles it.
-
-A good first-pass debugging flow is:
-
-1. Click the overlay badge on the component that looks wrong.
-2. Open `Bundle Composition` if the issue looks related to `JS`, `CSS`, or emitted assets.
-3. Open `Debug Logs` for a page-level snapshot, or call the helper object directly.
-
-The browser console exposes:
-
-```js
-globalThis.__DOCS_ISLANDS_SITE_DEBUG__.getRenderMetrics();
-globalThis.__DOCS_ISLANDS_SITE_DEBUG__.getHmrMetrics();
-globalThis.__DOCS_ISLANDS_SITE_DEBUG__.snapshotRuntime();
-```
-
-If you want to learn the console itself next, continue with [Site Debug Getting Started](../site-debug-console/getting-started.md). If you also want build-time AI reports, continue with [Analysis](../site-debug-console/options/analysis.md).
+Strategy trade-offs, authoring rules, and caveats are covered elsewhere so setup stays short.
 
 ## Suggested Next Reads
 
-- [How It Works](./how-it-works.md): rendering strategies, `spa:sync-render`, and Markdown rules.
-- [Site Debug Getting Started](../site-debug-console/getting-started.md): console setup, activation, and first diagnosis workflow.
-- [Build Reports](../site-debug-console/options/build-reports.md): cache, `resolvePage`, and model configuration.
-
-## Troubleshooting (FAQ)
-
-- Tags are ignored: ensure the tag starts with an uppercase letter and exactly matches the local import name from the same `<script lang="react">` block.
-- Nothing renders: the component must be imported in the same `.md` file and used outside fenced code blocks.
-- Flicker on navigation: check whether the component should opt into `spa:sr`.
-- Hydration errors: the runtime falls back to client rendering; make sure server output matches client output and avoid passing functions as attributes.
-- Node API errors: only components rendered exclusively as `ssr:only` on that page may depend on `node:fs`-style APIs.
-- Unsure which strategy to choose: get the component working statically first, then upgrade it according to “above-the-fold interaction” and “browser-only dependency” needs.
+- [How It Works](./how-it-works.md): injection flow, runtime stages, strategy behavior, and `spa:sync-render`.
+- [Best Practices](./best-practices.md): Markdown authoring rules, strategy heuristics, caveats, and quick troubleshooting.
+- [Site Debug Getting Started](../site-debug-console/getting-started.md): console setup and first diagnosis workflow.

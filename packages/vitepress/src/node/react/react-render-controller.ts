@@ -1,16 +1,49 @@
+import type { PageBuildMetrics } from '#dep-types/page';
 import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
 import { LightGeneralLogger } from '#shared/logger';
-import { RenderController } from '../core/render-controller';
+import { RenderController } from '@docs-islands/core/node/render-controller';
+import { REACT_FRAMEWORK } from './framework';
 
-export class ReactRenderController extends RenderController {
+export interface ReactRenderControllerOptions {
+  enableSiteDebugRuntime?: boolean;
+}
+
+export class ReactRenderController extends RenderController<PageBuildMetrics> {
+  readonly #enableSiteDebugRuntime: boolean;
+
+  constructor(options: ReactRenderControllerOptions = {}) {
+    super();
+    this.#enableSiteDebugRuntime = options.enableSiteDebugRuntime ?? false;
+  }
+
+  private getSiteDebugRuntimePrelude(): string {
+    if (this.#enableSiteDebugRuntime) {
+      return `
+import { getSiteDebugNow as __site_debug_now__, logSiteDebug as __site_debug_log__, updateSiteDebugRenderMetric as __site_debug_metric__ } from '@docs-islands/vitepress/internal/debug';
+      `;
+    }
+
+    return `
+const __site_debug_now__ = () =>
+  typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now();
+const __site_debug_log__ = () => {};
+const __site_debug_metric__ = () => {};
+    `;
+  }
+
   public async generateClientRuntimeInDEV(
     markdownModuleId: string,
   ): Promise<string> {
     const compilationContainer =
-      await this.getCompilationContainerByMarkdownModuleId(markdownModuleId);
+      await this.getCompilationContainerByMarkdownModuleId(
+        REACT_FRAMEWORK,
+        markdownModuleId,
+      );
 
     const needCompile = compilationContainer.importsByLocalName.size > 0;
 
@@ -26,8 +59,9 @@ export class ReactRenderController extends RenderController {
     return `
 import { createRoot as __react_client_render__, hydrateRoot as __react_hydrate__ } from 'react-dom/client';
 import { startTransition as __start_transition__ } from 'react';
-import { getSiteDebugNow as __site_debug_now__, logSiteDebug as __site_debug_log__, updateSiteDebugRenderMetric as __site_debug_metric__ } from '@docs-islands/vitepress/internal/debug';
 import getLoggerInstance from '@docs-islands/vitepress/internal/logger';
+
+${this.getSiteDebugRuntimePrelude()}
 
 const Logger = getLoggerInstance().getLoggerByGroup('ReactRenderController');
 

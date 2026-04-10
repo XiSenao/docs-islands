@@ -10,3 +10,4 @@ Continue here instead:
 
 - [Introduction](./guide/index.md)
 - [How It Works](./guide/how-it-works.md)
+- [Best Practices](./guide/best-practices.md)

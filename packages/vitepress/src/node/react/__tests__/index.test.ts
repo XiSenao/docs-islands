@@ -6,8 +6,14 @@ import os from 'node:os';
 import path from 'node:path';
 import type { PluginOption } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  FRAMEWORK_MARKDOWN_TRANSFORM_PLUGIN_NAME,
+  INLINE_PAGE_RESOLUTION_PLUGIN_NAME,
+} from '../../core/plugin-names';
+import { REACT_SITE_DEBUG_SOURCE_PLUGIN_NAME } from '../plugin-names';
 
 const mockError = vi.fn();
+const mockWarn = vi.fn();
 
 vi.mock('@vitejs/plugin-react-swc', () => ({
   default: vi.fn(() => ({
@@ -19,7 +25,7 @@ vi.mock('#shared/logger', () => ({
   default: () => ({
     getLoggerByGroup: () => ({
       error: mockError,
-      warn: vi.fn(),
+      warn: mockWarn,
       info: vi.fn(),
       success: vi.fn(),
       debug: vi.fn(),
@@ -112,6 +118,36 @@ describe('vitepressReactRenderingStrategies', () => {
       },
     ]);
     expect(vitepressConfig.vite?.worker?.format).toBe('es');
+    expect(
+      findPluginByName(
+        vitepressConfig.vite?.plugins,
+        INLINE_PAGE_RESOLUTION_PLUGIN_NAME,
+      ),
+    ).toBeTruthy();
+    expect(
+      findPluginByName(
+        vitepressConfig.vite?.plugins,
+        FRAMEWORK_MARKDOWN_TRANSFORM_PLUGIN_NAME,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('does not install the siteDebug sub-plugin when siteDebug config is absent', async () => {
+    const { default: vitepressReactRenderingStrategies } = await import(
+      '../index'
+    );
+
+    const vitepressConfig: any = {};
+
+    vitepressReactRenderingStrategies(vitepressConfig);
+
+    expect(vitepressConfig.vite?.worker?.format).toBeUndefined();
+    expect(
+      findPluginByName(
+        vitepressConfig.vite?.plugins,
+        REACT_SITE_DEBUG_SOURCE_PLUGIN_NAME,
+      ),
+    ).toBeNull();
   });
 
   it('logs error and strips scripts when multiple <script lang="react"> blocks exist in one html_block', async () => {
@@ -124,7 +160,7 @@ describe('vitepressReactRenderingStrategies', () => {
 
     const plugin = findPluginByName(
       vitepressConfig.vite?.plugins,
-      'vite-plugin-support-react-render-for-vitepress',
+      FRAMEWORK_MARKDOWN_TRANSFORM_PLUGIN_NAME,
     );
     expect(plugin).toBeTruthy();
     expect(plugin.transform?.handler).toBeTypeOf('function');
@@ -157,11 +193,13 @@ describe('vitepressReactRenderingStrategies', () => {
       base: '/docs/',
     };
 
-    vitepressReactRenderingStrategies(vitepressConfig);
+    vitepressReactRenderingStrategies(vitepressConfig, {
+      siteDebug: {},
+    });
 
     const plugin = findPluginByName(
       vitepressConfig.vite?.plugins,
-      'vite-plugin-support-react-render-for-vitepress-in-dev',
+      REACT_SITE_DEBUG_SOURCE_PLUGIN_NAME,
     );
     expect(plugin).toBeTruthy();
     expect(plugin.configureServer).toBeTypeOf('function');

@@ -355,7 +355,7 @@ importers:
         version: link:../utils
       '@nolebase/vitepress-plugin-enhanced-mark':
         specifier: catalog:docs-dev
-        version: 2.18.2(vitepress@1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.13.5)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))
+        version: 2.18.2(vitepress@1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.15.0)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))
       '@types/http-proxy':
         specifier: catalog:docs-dev
         version: 1.17.17
@@ -376,7 +376,7 @@ importers:
         version: 5.9.3
       vitepress:
         specifier: catalog:frameworks
-        version: 1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.13.5)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
+        version: 1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.15.0)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
       vitepress-plugin-group-icons:
         specifier: catalog:docs-dev
         version: 1.7.1(vite@5.4.21(patch_hash=81ba500186ae82f86c658c8d9dc564b4a0f0445774e36538ee197ea92b9ee78a)(@types/node@20.19.0)(less@4.4.2))
@@ -399,7 +399,81 @@ importers:
         specifier: catalog:dev
         version: 7.0.0
 
-  packages/core: {}
+  packages/core:
+    dependencies:
+      '@babel/generator':
+        specifier: catalog:dev
+        version: 7.29.1
+      '@babel/parser':
+        specifier: catalog:dev
+        version: 7.29.0
+      '@babel/traverse':
+        specifier: catalog:dev
+        version: 7.29.0
+      '@babel/types':
+        specifier: catalog:dev
+        version: 7.29.0
+      htmlparser2:
+        specifier: catalog:dev
+        version: 10.1.0
+      magic-string:
+        specifier: catalog:dev
+        version: 0.30.21
+      markdown-it:
+        specifier: catalog:dev
+        version: 14.1.1
+      pathe:
+        specifier: catalog:dev
+        version: 2.0.3
+    devDependencies:
+      '@docs-islands/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@docs-islands/plugin-license':
+        specifier: workspace:*
+        version: link:../plugins/license
+      '@docs-islands/utils':
+        specifier: workspace:*
+        version: link:../../utils
+      '@types/babel__generator':
+        specifier: catalog:dev
+        version: 7.27.0
+      '@types/babel__traverse':
+        specifier: catalog:dev
+        version: 7.28.0
+      '@types/markdown-it':
+        specifier: catalog:dev
+        version: 14.1.2
+      '@types/node':
+        specifier: 20.19.0
+        version: 20.19.0
+      '@types/react':
+        specifier: catalog:dev
+        version: 18.3.26
+      del-cli:
+        specifier: catalog:dev
+        version: 7.0.0
+      eslint:
+        specifier: catalog:lint
+        version: 9.39.2
+      jsdom:
+        specifier: catalog:test
+        version: 28.0.0
+      rolldown:
+        specifier: catalog:dev
+        version: 1.0.0-rc.4
+      rolldown-plugin-dts:
+        specifier: catalog:dev
+        version: 0.23.1(rolldown@1.0.0-rc.4)(typescript@5.9.3)(vue-tsc@3.2.4(typescript@5.9.3))
+      tinyglobby:
+        specifier: catalog:prod
+        version: 0.2.15
+      typescript:
+        specifier: catalog:dev
+        version: 5.9.3
+      vitest:
+        specifier: catalog:test
+        version: 3.2.4(@types/debug@4.1.12)(@types/node@20.19.0)(jsdom@28.0.0)(less@4.4.2)
 
   packages/eslint-config:
     dependencies:
@@ -524,6 +598,9 @@ importers:
 
   packages/vitepress:
     dependencies:
+      '@docs-islands/core':
+        specifier: workspace:*
+        version: link:../core
       cheerio:
         specifier: catalog:prod
         version: 1.2.0
@@ -647,7 +724,7 @@ importers:
         version: 5.9.3
       vitepress:
         specifier: catalog:frameworks
-        version: 1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.13.5)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
+        version: 1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.15.0)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
       vitest:
         specifier: catalog:test
         version: 3.2.4(@types/debug@4.1.12)(@types/node@20.19.0)(jsdom@28.0.0)(less@4.4.2)
@@ -684,7 +761,7 @@ importers:
         version: link:../dist
       '@nolebase/vitepress-plugin-enhanced-mark':
         specifier: catalog:docs-dev
-        version: 2.18.2(vitepress@1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.13.5)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))
+        version: 2.18.2(vitepress@1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.15.0)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))
       '@vercel/analytics':
         specifier: catalog:docs-dev
         version: 1.6.1(react@18.3.1)(vue-router@4.6.4(vue@3.5.28(typescript@5.9.3)))(vue@3.5.28(typescript@5.9.3))
@@ -711,7 +788,7 @@ importers:
         version: 5.9.3
       vitepress:
         specifier: catalog:frameworks
-        version: 1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.13.5)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
+        version: 1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.15.0)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
       vitepress-plugin-group-icons:
         specifier: catalog:docs-dev
         version: 1.7.1(vite@5.4.21(patch_hash=81ba500186ae82f86c658c8d9dc564b4a0f0445774e36538ee197ea92b9ee78a)(@types/node@20.19.0)(less@4.4.2))
@@ -778,7 +855,7 @@ importers:
         version: 5.4.21(patch_hash=81ba500186ae82f86c658c8d9dc564b4a0f0445774e36538ee197ea92b9ee78a)(@types/node@20.19.0)(less@4.4.2)
       vitepress:
         specifier: catalog:frameworks
-        version: 1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.13.5)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
+        version: 1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.15.0)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
       vitest:
         specifier: catalog:test
         version: 3.2.4(@types/debug@4.1.12)(@types/node@20.19.0)(jsdom@28.0.0)(less@4.4.2)
@@ -1025,13 +1102,6 @@ packages:
       }
     engines: { node: '>=6.9.0' }
 
-  '@babel/generator@7.28.5':
-    resolution:
-      {
-        integrity: sha512-3EwLFhZ38J4VyIP6WNtt2kUdW9dokXA9Cr4IVIFHuCpZ3H8/YFOl5JjZHisrn1fATPBmKKqXzDFvh9fUwHz6CQ==,
-      }
-    engines: { node: '>=6.9.0' }
-
   '@babel/generator@7.29.1':
     resolution:
       {
@@ -1156,24 +1226,10 @@ packages:
       }
     engines: { node: '>=6.9.0' }
 
-  '@babel/traverse@7.28.5':
-    resolution:
-      {
-        integrity: sha512-TCCj4t55U90khlYkVV/0TfkJkAkUg3jZFA3Neb7unZT8CPok7iiRfaX0F+WnqWqt7OxhOn0uBKXCw4lbL8W0aQ==,
-      }
-    engines: { node: '>=6.9.0' }
-
   '@babel/traverse@7.29.0':
     resolution:
       {
         integrity: sha512-4HPiQr0X7+waHfyXPZpWPfWL/J7dcN1mx9gL6WdQVMbPnF3+ZhSMs8tCxN7oHddJE9fhNE7+lxdnlyemKfJRuA==,
-      }
-    engines: { node: '>=6.9.0' }
-
-  '@babel/types@7.28.5':
-    resolution:
-      {
-        integrity: sha512-qQ5m48eI/MFLQ5PxQj4PFaprjyCTLI37ElWMmNs0K8Lk3dVeOdNpB3ks8jc7yM5CDmVC73eMVk/trk3fgmrUpA==,
       }
     engines: { node: '>=6.9.0' }
 
@@ -3379,10 +3435,10 @@ packages:
       }
     engines: { node: '>=4' }
 
-  axios@1.13.5:
+  axios@1.15.0:
     resolution:
       {
-        integrity: sha512-cz4ur7Vb0xS4/KUN0tPWe44eqxrIu31me+fbang3ijiNscE129POzipJJA6zniq2C/Z6sJCjMimjS8Lc/GAs8Q==,
+        integrity: sha512-wWyJDlAatxk30ZJer+GeCWS209sA42X+N5jU2jy6oHTp7ufw8uzUTVFBX9+wTfAlhiJXGS0Bq7X6efruWjuK9Q==,
       }
 
   axobject-query@4.1.0:
@@ -3743,12 +3799,6 @@ packages:
         integrity: sha512-7D2EPVltRrsTkhpQmksIu+LxeWAIEk6wRDMJ1qljlv+CKHJM+cJLlfhWIzNA44eAsHXSNe3+vO6DW1yCYx8SuQ==,
       }
     engines: { node: '>=20' }
-
-  csstype@3.1.3:
-    resolution:
-      {
-        integrity: sha512-M1uQkMl8rQK/szD0LNhtqxIPLpimGm8sOBwU7lLnCpSbTyY3yeU1Vc7l4KT5zT4s/yOxHH5O7tIuuLOCnLADRw==,
-      }
 
   csstype@3.2.3:
     resolution:
@@ -6268,11 +6318,12 @@ packages:
         integrity: sha512-TwEZ+X+yCJmYfL7TPUOcvBZ4QfoT5YenQiJuX//0th53DE6w0xxLEtfK3iyryQFddXuvkIk51EEgrJQ0WJkOmQ==,
       }
 
-  proxy-from-env@1.1.0:
+  proxy-from-env@2.1.0:
     resolution:
       {
-        integrity: sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==,
+        integrity: sha512-cJ+oHTW1VAEa8cJslgmUZrc+sjRKgAKl3Zyse6+PV38hZe/V6Z14TbCuXcan9F9ghlz4QrFr2c92TNF82UkYHA==,
       }
+    engines: { node: '>=10' }
 
   prr@1.0.1:
     resolution:
@@ -7859,14 +7910,14 @@ snapshots:
   '@babel/core@7.28.5':
     dependencies:
       '@babel/code-frame': 7.27.1
-      '@babel/generator': 7.28.5
+      '@babel/generator': 7.29.1
       '@babel/helper-compilation-targets': 7.27.2
       '@babel/helper-module-transforms': 7.28.3(@babel/core@7.28.5)
       '@babel/helpers': 7.28.4
-      '@babel/parser': 7.28.5
+      '@babel/parser': 7.29.0
       '@babel/template': 7.27.2
-      '@babel/traverse': 7.28.5
-      '@babel/types': 7.28.5
+      '@babel/traverse': 7.29.0
+      '@babel/types': 7.29.0
       '@jridgewell/remapping': 2.3.5
       convert-source-map: 2.0.0
       debug: 4.4.3
@@ -7875,14 +7926,6 @@ snapshots:
       semver: 6.3.1
     transitivePeerDependencies:
       - supports-color
-
-  '@babel/generator@7.28.5':
-    dependencies:
-      '@babel/parser': 7.28.5
-      '@babel/types': 7.28.5
-      '@jridgewell/gen-mapping': 0.3.13
-      '@jridgewell/trace-mapping': 0.3.31
-      jsesc: 3.1.0
 
   '@babel/generator@7.29.1':
     dependencies:
@@ -7913,8 +7956,8 @@ snapshots:
 
   '@babel/helper-module-imports@7.27.1':
     dependencies:
-      '@babel/traverse': 7.28.5
-      '@babel/types': 7.28.5
+      '@babel/traverse': 7.29.0
+      '@babel/types': 7.29.0
     transitivePeerDependencies:
       - supports-color
 
@@ -7923,7 +7966,7 @@ snapshots:
       '@babel/core': 7.28.5
       '@babel/helper-module-imports': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
-      '@babel/traverse': 7.28.5
+      '@babel/traverse': 7.29.0
     transitivePeerDependencies:
       - supports-color
 
@@ -7940,11 +7983,11 @@ snapshots:
   '@babel/helpers@7.28.4':
     dependencies:
       '@babel/template': 7.27.2
-      '@babel/types': 7.28.5
+      '@babel/types': 7.29.0
 
   '@babel/parser@7.28.5':
     dependencies:
-      '@babel/types': 7.28.5
+      '@babel/types': 7.29.0
 
   '@babel/parser@7.29.0':
     dependencies:
@@ -7957,26 +8000,14 @@ snapshots:
   '@babel/template@7.27.2':
     dependencies:
       '@babel/code-frame': 7.27.1
-      '@babel/parser': 7.28.5
-      '@babel/types': 7.28.5
+      '@babel/parser': 7.29.0
+      '@babel/types': 7.29.0
 
   '@babel/template@7.28.6':
     dependencies:
       '@babel/code-frame': 7.29.0
       '@babel/parser': 7.29.0
       '@babel/types': 7.29.0
-
-  '@babel/traverse@7.28.5':
-    dependencies:
-      '@babel/code-frame': 7.27.1
-      '@babel/generator': 7.28.5
-      '@babel/helper-globals': 7.28.0
-      '@babel/parser': 7.28.5
-      '@babel/template': 7.27.2
-      '@babel/types': 7.28.5
-      debug: 4.4.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@babel/traverse@7.29.0':
     dependencies:
@@ -7989,11 +8020,6 @@ snapshots:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
-
-  '@babel/types@7.28.5':
-    dependencies:
-      '@babel/helper-string-parser': 7.27.1
-      '@babel/helper-validator-identifier': 7.28.5
 
   '@babel/types@7.29.0':
     dependencies:
@@ -8434,10 +8460,10 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.19.1
 
-  '@nolebase/vitepress-plugin-enhanced-mark@2.18.2(vitepress@1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.13.5)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))':
+  '@nolebase/vitepress-plugin-enhanced-mark@2.18.2(vitepress@1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.15.0)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))':
     dependencies:
       less: 4.4.2
-      vitepress: 1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.13.5)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
+      vitepress: 1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.15.0)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
 
   '@oxc-project/types@0.113.0': {}
 
@@ -8738,7 +8764,7 @@ snapshots:
   '@types/react@18.3.26':
     dependencies:
       '@types/prop-types': 15.7.15
-      csstype: 3.1.3
+      csstype: 3.2.3
 
   '@types/unist@3.0.3': {}
 
@@ -9067,13 +9093,13 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  '@vueuse/integrations@12.8.2(axios@1.13.5)(change-case@5.4.4)(focus-trap@7.6.6)(typescript@5.9.3)':
+  '@vueuse/integrations@12.8.2(axios@1.15.0)(change-case@5.4.4)(focus-trap@7.6.6)(typescript@5.9.3)':
     dependencies:
       '@vueuse/core': 12.8.2(patch_hash=6a05c078ab39e3f1210f336540cd3230be320b26307f9fdbea16a3a453a6b4c2)(typescript@5.9.3)
       '@vueuse/shared': 12.8.2(typescript@5.9.3)
       vue: 3.5.28(typescript@5.9.3)
     optionalDependencies:
-      axios: 1.13.5
+      axios: 1.15.0
       change-case: 5.4.4
       focus-trap: 7.6.6
     transitivePeerDependencies:
@@ -9222,11 +9248,11 @@ snapshots:
 
   axe-core@4.11.0: {}
 
-  axios@1.13.5:
+  axios@1.15.0:
     dependencies:
       follow-redirects: 1.15.11
       form-data: 4.0.5
-      proxy-from-env: 1.1.0
+      proxy-from-env: 2.1.0
     transitivePeerDependencies:
       - debug
 
@@ -9434,8 +9460,6 @@ snapshots:
       '@csstools/css-syntax-patches-for-csstree': 1.0.27
       css-tree: 3.1.0
       lru-cache: 11.2.6
-
-  csstype@3.1.3: {}
 
   csstype@3.2.3: {}
 
@@ -11225,7 +11249,7 @@ snapshots:
 
   property-information@7.1.0: {}
 
-  proxy-from-env@1.1.0: {}
+  proxy-from-env@2.1.0: {}
 
   prr@1.0.1:
     optional: true
@@ -12001,7 +12025,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  vitepress@1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.13.5)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3):
+  vitepress@1.6.4(patch_hash=ae56336e3fa10baaab04ac208146b4a00b0385bde11b766fc0d9bbfdc35184e3)(@algolia/client-search@5.42.0)(@types/node@20.19.0)(@types/react@18.3.26)(axios@1.15.0)(change-case@5.4.4)(less@4.4.2)(postcss@8.5.6)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3):
     dependencies:
       '@docsearch/css': 3.8.2
       '@docsearch/js': 3.8.2(@algolia/client-search@5.42.0)(@types/react@18.3.26)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(search-insights@2.17.3)
@@ -12014,7 +12038,7 @@ snapshots:
       '@vue/devtools-api': 7.7.7
       '@vue/shared': 3.5.23
       '@vueuse/core': 12.8.2(patch_hash=6a05c078ab39e3f1210f336540cd3230be320b26307f9fdbea16a3a453a6b4c2)(typescript@5.9.3)
-      '@vueuse/integrations': 12.8.2(axios@1.13.5)(change-case@5.4.4)(focus-trap@7.6.6)(typescript@5.9.3)
+      '@vueuse/integrations': 12.8.2(axios@1.15.0)(change-case@5.4.4)(focus-trap@7.6.6)(typescript@5.9.3)
       focus-trap: 7.6.6
       mark.js: 8.11.1
       minisearch: 7.2.0
@@ -12137,7 +12161,7 @@ snapshots:
 
   wait-on@9.0.3:
     dependencies:
-      axios: 1.13.5
+      axios: 1.15.0
       joi: 18.0.1
       lodash: 4.18.0
       minimist: 1.2.8

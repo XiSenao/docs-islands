@@ -3,7 +3,7 @@ import {
   createPageMetafileArtifacts,
   getPageMetafileRouteStem,
   PAGE_METAFILE_SCHEMA_VERSION,
-} from '../page-metafile-manifest';
+} from '../../ui-bundler/page-metafile';
 
 describe('page metafile manifest helpers', () => {
   it('creates route stems that align with route output semantics', () => {

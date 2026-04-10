@@ -62,6 +62,7 @@
     "#shared/*": "./src/shared/*.ts"
   },
   "dependencies": {
+    "@docs-islands/core": "workspace:*",
     "cheerio": "catalog:prod",
     "vite": "catalog:prod"
   },

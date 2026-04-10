@@ -1,12 +1,12 @@
 /// <reference types="vite/client" />
 
 import type { PageMetafile } from '#dep-types/page';
-import type {
-  ReactComponentManager,
-  ReactInjectComponent,
-} from '#dep-types/react';
 import type { SiteDebugUserConfig } from '#dep-types/utils';
 import type { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
+import type {
+  DocsInjectComponent,
+  DocsRuntimeManagerLike,
+} from '@docs-islands/core/types/client';
 import type * as ReactDOMClient from 'react-dom/client';
 import type { DefaultTheme, SiteConfig } from 'vitepress';
 
@@ -46,7 +46,7 @@ declare global {
     ReactDOM?: typeof ReactDOMClient;
 
     [RENDER_STRATEGY_CONSTANTS.pageMetafile]: Record<string, PageMetafile>;
-    [RENDER_STRATEGY_CONSTANTS.componentManager]?: ReactComponentManager;
-    [RENDER_STRATEGY_CONSTANTS.injectComponent]: ReactInjectComponent;
+    [RENDER_STRATEGY_CONSTANTS.componentManager]?: DocsRuntimeManagerLike;
+    [RENDER_STRATEGY_CONSTANTS.injectComponent]: DocsInjectComponent<unknown>;
   }
 }

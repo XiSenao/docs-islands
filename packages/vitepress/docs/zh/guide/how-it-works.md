@@ -1,197 +1,85 @@
 # 工作原理
 
-`@docs-islands/vitepress` 并不是把 `React` 硬塞进 `VitePress`，而是在 Markdown 编译、构建期预渲染和运行时接管之间增加了一条跨框架渲染链路。
+<script setup>
+  import VueComp1 from '../rendering-strategy-comps/vue/VueComp1.vue';
 
-## 渲染流水线
+  const page = {
+    title: '渲染策略',
+  };
+</script>
 
-一次典型渲染大致会经历下面几步：
+<script lang="react">
+  import ReactComp1 from '../rendering-strategy-comps/react/ReactComp1';
+  import { ReactComp2 } from '../rendering-strategy-comps/react/ReactComp2';
+  import ReactComp3 from '../rendering-strategy-comps/react/ReactComp3';
+  import { ReactComp4 } from '../rendering-strategy-comps/react/ReactComp4';
+  import { ReactComp5 } from '../rendering-strategy-comps/react/ReactComp5';
+  import ReactVueSharedComp from '../rendering-strategy-comps/react/ReactVueSharedComp';
+  import { Landing } from '../rendering-strategy-comps/react/Landing';
+</script>
 
-1. Markdown 中的 `<script lang="react">` 导入会被识别出来。
-2. 符合约定的组件标签会被转换成带渲染元信息的容器节点。
-3. 构建阶段根据声明的渲染策略决定是否预渲染 HTML、是否产出客户端接管代码。
-4. 运行时再按指令接管对应容器，完成 hydration、纯客户端渲染，或保持纯静态输出。
+<Landing client:load spa:sync-render />
 
-这意味着你仍然在使用 `VitePress` 的页面模型，只是非 `Vue` 组件有了可控的渲染生命周期。
+这一页只解释运行原理：Markdown 组件如何变成渲染容器、不同指令到底改变了什么、以及为什么会有 `spa:sync-render`。
 
-## 谁在什么阶段负责什么
+如果你需要接入步骤，请看 [快速上手](./getting-started.md)。如果你需要写法规范、策略选择建议和注意事项，请看 [最佳实践](./best-practices.md)。
 
-把整条链路拆开看，会更容易理解问题该去哪一层排查：
+## 注入模型
 
-| 阶段       | 主要负责方              | 你需要关心什么                                                |
-| ---------- | ----------------------- | ------------------------------------------------------------- |
-| Markdown   | `VitePress` + 插件转换  | 导入是否被识别、组件标签是否符合约定。                        |
-| 构建期     | `docs-islands`          | 是否预渲染 HTML、是否产出 hydration/runtime 代码。            |
-| 首次访问   | 浏览器运行时            | 容器是否被发现、是否按策略接管、是否发生 hydration mismatch。 |
-| SPA 切页   | `VitePress` + 运行时    | 是否有闪烁、是否要用 `spa:sr`、切页成本是否过高。             |
-| 开发态 HMR | `vite` + `docs-islands` | 组件更新是否及时、状态是否保留、是否命中正确的更新链路。      |
-
-## 渲染策略速查
-
-| 指令             | 是否预渲染 HTML | 客户端行为        | 典型场景               | `spa:sr` 默认 |
-| ---------------- | --------------- | ----------------- | ---------------------- | ------------- |
-| `ssr:only`       | 是              | 不接管            | 静态内容、SEO 关键区域 | 开启          |
-| `client:load`    | 是              | 立即 hydration    | 首屏关键交互           | 关闭          |
-| `client:visible` | 是              | 可见时 hydration  | 非首屏交互组件         | 关闭          |
-| `client:only`    | 否              | 纯客户端渲染      | 强宿主依赖、轻量挂件   | 不支持        |
-| 无指令           | 是              | 等价于 `ssr:only` | 默认静态输出           | 开启          |
-
-## 每种策略分别意味着什么
-
-### `ssr:only`
-
-- 构建期完成预渲染，只输出静态 HTML。
-- 没有客户端 hydration 成本，适合静态说明块、SEO 关键内容、品牌展示区。
-- 如果某个组件在当前页面里只以 `ssr:only` 形式出现，它还可以安全依赖 Node API。
-
-### `client:load`
-
-- 先预渲染 HTML，再在客户端加载完成后立即接管交互。
-- 适合首屏内必须立即可操作的组件。
-- 交互启动更快，但也更容易把 hydration 成本带到首屏。
-
-### `client:visible`
-
-- 先有预渲染 HTML，等进入视口后再 hydration。
-- 适合评论、图表、埋点面板等非首屏交互区。
-- 默认会预加载脚本，它不是“什么都不做的纯懒加载”。
-
-### `client:only`
-
-- 不做 SSR/SSG 预渲染，只在客户端渲染。
-- 适合依赖 `window`、`document` 或浏览器宿主 API 的组件。
-- 对 SEO 和首屏静态可见内容最不友好，但心智负担最低。
-
-## 如何选择策略
-
-如果你不想一开始就陷入“每个组件该选哪种策略”的复杂判断，可以用这套简单规则：
-
-- 内容展示型、品牌展示型、代码示例型：先用 `ssr:only`。
-- 首屏内必须立刻点击、输入或展开的组件：优先 `client:load`。
-- 首屏之外的评论区、图表、统计卡片：优先 `client:visible`。
-- 明确依赖浏览器环境，或根本不值得预渲染的轻量挂件：再考虑 `client:only`。
-
-先把“页面能稳定输出”作为第一目标，再把“交互什么时候接管”作为第二层优化，通常会更稳。
-
-## 为什么有 `spa:sync-render`
-
-`VitePress` 在 `SPA` 切页时，`Vue` 侧内容会同步更新，但非 `Vue` 组件的预渲染 HTML 与样式、脚本注入通常是异步完成的。这个时间差会让用户在切页时看到短暂空白或闪烁。
-
-`spa:sync-render`（简写 `spa:sr`）的目标，就是把被标记组件的预渲染结果更早地并入页面切换流程，让关键组件尽量与主体内容同步出现。
-
-**下述演示环境在 `CPU: 20x slowdown`、`0.75` 倍速播放：**
-
-![spa:sync-render:disable](/spa-sync-render-disable-screenshot.webp)
-
-<video controls>
-  <source src="/spa-sync-render-disable-video.mp4" type="video/mp4">
-</video>
-
-在未启用 `spa:sr` 的情况下，主要问题通常来自两部分：
-
-1. 主体文本已经更新，但非 `Vue` 组件内容还没补上。
-2. 组件样式和依赖资源仍在异步加载，产生额外位移。
-
-启用 `spa:sr` 后，可以明显减轻切页阶段的视觉割裂：
-
-![spa:sync-render](/spa-sync-render-screenshot.webp)
-
-<video controls>
-  <source src="/spa-sync-render-video.mp4" type="video/mp4">
-</video>
-
-## `spa:sr` 的默认规则与取舍
-
-- `client:only` 不支持 `spa:sr`。
-- `client:*` 默认不开启 `spa:sr`，除非你显式写上 `spa:sr` / `spa:sync-render`。
-- `ssr:only` 和无指令组件默认开启 `spa:sr`，除非显式关闭。
-
-这背后的取舍是：
-
-- 好处：切页更平滑，关键组件更像原生 `Vue` 内容一样同步出现。
-- 成本：切页时的客户端脚本体积会增加，关键样式还可能变成阻塞渲染的前置条件。
-
-## 什么时候值得启用 `spa:sr`
-
-更适合启用的场景：
-
-- 组件是页面主体的一部分，切页时短暂空白会明显破坏阅读连续性。
-- 组件本身不是高交互应用壳，但视觉上必须尽量和正文同步出现。
-- 你已经通过调试确认问题主要来自异步注入时差，而不是组件本身渲染过慢。
-
-更适合关闭的场景：
-
-- 组件本身不是关键内容，只是补充说明或辅助信息。
-- 页面已经有很多 `spa:sr` 组件，再继续开启会抬高切页成本。
-- 你更在意切页阶段的脚本体积，而不是局部组件的同步出现体验。
-
-::: warning 关键样式阻塞渲染说明
-
-如果页面里存在启用了 `spa:sr` 的组件，运行时需要先确保这些组件依赖的关键样式加载完成，再去渲染主要内容。这样做能减少闪烁，但也会带来额外的阻塞成本。
-
-<video controls>
-  <source src="/spa-sync-render-side-effects-video.mp4" type="video/mp4">
-</video>
-
-:::
-
-::: warning 开发阶段不生效
-
-`spa:sr` 在开发阶段不会真正按生产模式生效。原因是开发态 `VitePress` 的 `spa` 模块采用动态求值执行，运行时拿不到和生产构建完全一致的完整初始 `props` 上下文，因此不能安全地提前同步注入所有预渲染结果。
-
-换句话说，开发态会尽量模拟生产策略，但 `spa:sr` 的真实收益需要在构建产物里观察。
-
-:::
-
-## Markdown 编写约束
-
-### 组件标签与导入
-
-- 组件标签必须以大写字母开头。
-- 标签名必须和同一页面 `<script lang="react">` 中的本地导入名完全一致。
-- 只支持自闭合标签，例如 `<Comp ... />`。
-- 组件必须在当前页面内导入；未导入的标签会被忽略。
-
-### Props 传递
-
-- 所有非策略属性都会作为字符串 props 传给 `React` 组件。
-- `Vue` 绑定会先由 `Vue` 求值，再作为初始化快照写入容器属性。
-- 这是一次性数据传递，不是跨框架响应式双向绑定。
-- 不要通过属性传递函数或事件处理器。
-
-这意味着，如果 `Vue` 父级状态后续发生变化，`React` 组件不会自动像 Vue 子组件那样同步收到响应式更新。需要时，应当把状态收敛在同一框架内处理，或通过重新渲染页面片段来更新初始快照。
-
-### 重导出与插槽
-
-- 支持通过 `export * from '...'`、`export { Foo } from '...'` 这类重导出链导入组件。
-- 组件可以写在 `Vue` 插槽里，仍然会被识别。
-- 如果 barrel 模块本身包含副作用，请不要把它当成副作用注入点；运行时会直接指向最终导出模块。
-
-### Node API 约束
-
-当某个组件在同一页面上既以 `ssr:only` 使用、又以任意 `client:*` 使用时，它就不能依赖 `node:fs` 这类 Node API。只有“当前页面内纯 `ssr:only` 使用”的组件，才能安全读取本地文件等服务端能力。
-
-## 常见误区
-
-- 把它当成“让 React 接管整页”的方案：它更适合组件级岛屿，而不是整页 SPA。
-- 一开始就大量使用 `client:only`：这样虽然简单，但会损失静态输出和首屏质量。
-- 在 barrel 模块里塞副作用逻辑：最终运行时会指向真正的导出源，而不是中间重导出模块。
-- 看到切页闪烁就默认打开所有组件的 `spa:sr`：这通常会把问题从“闪烁”换成“切页更重”。
-
-## 代表性代码片段
-
-### 最小使用示例
+当你在 Markdown 中写下：
 
 ```md
+<script setup>
+  const page = { title: 'Home' };
+</script>
+
 <script lang="react">
   import { Landing } from '../rendering-strategy-comps/react/Landing';
 </script>
 
-<Landing client:load spa:sr title="Home" />
+<Landing client:load spa:sr :title="page.title" />
 ```
 
-### Vue 向 React 传一次性 props
+页面并不会变成一个由其他框架完整接管的客户端应用。编译器会先把组件标签转换成带渲染元信息的容器节点：
 
-```md
+```html
+<div
+  __render_id__="1194afdb"
+  __render_directive__="client:load"
+  __render_component__="Landing"
+  __spa_sync_render__="true"
+  title="Home"
+></div>
+```
+
+之后整条链路大致会经历：
+
+1. Markdown 处理阶段识别当前页面 `<script lang="react">` 中的导入。
+2. 匹配到的组件标签被改写成渲染容器。
+3. 构建阶段决定该组件是否要产出预渲染 HTML、客户端接管代码，或两者都要。
+4. 运行时找到容器后，再根据指令决定保持静态、立即 hydration、等待可见后 hydration，或纯客户端渲染。
+
+这就是它的核心设计：页面仍然由 `VitePress` 管理，而孤岛组件运行时只管理真正需要接管的那一小块容器。
+
+## 谁在什么阶段负责什么
+
+| 阶段          | 主要负责方                   | 实际发生什么                         |
+| ------------- | ---------------------------- | ------------------------------------ |
+| Markdown 转换 | `VitePress` + `docs-islands` | 识别组件导入和标签，并改写成容器     |
+| 构建期        | `docs-islands`               | 产出预渲染 HTML 和客户端入口         |
+| 首次访问      | 浏览器运行时                 | 找到容器并按照指令接管               |
+| SPA 切页      | `VitePress` + 运行时         | 页面内容更新，并重新应用孤岛组件输出 |
+| 开发态 HMR    | `vite` + `docs-islands`      | 刷新或复用对应容器                   |
+
+## Vue 到孤岛组件的 Props 快照
+
+`Vue` 可以通过把已求值的结果写入渲染容器快照，来初始化一个孤岛组件。这条链路是单向、一次性的。
+
+把 Markdown 用法、`Vue` 父组件和孤岛组件源码放在一起看，会更容易理解这条注入链路：
+
+::: code-group
+
+```md [playground.md]
 <script setup>
   import VueComp1 from '../rendering-strategy-comps/vue/VueComp1.vue';
   const page = { title: '渲染策略' };
@@ -201,29 +89,692 @@
   import ReactVueSharedComp from '../rendering-strategy-comps/react/ReactVueSharedComp';
 </script>
 
-<VueComp1 :page-title="page.title">
-  <template #default="{ vueInfo }">
-    <ReactVueSharedComp client:only :vue-info="vueInfo" />
+<VueComp1
+render-strategy="vue-parent"
+component-name="VueComp1"
+:page-title="page.title"
+:render-count="6"
+
+> <template #default="{ vueInfo }">
+
+    <ReactVueSharedComp
+      client:only
+      render-strategy="client:only"
+      component-name="ReactVueSharedComp"
+      :page-title="page.title"
+      render-count="3-7"
+      :vue-info="vueInfo"
+    />
+
   </template>
 </VueComp1>
 ```
 
-### 纯 `ssr:only` 场景读取本地文件
+```vue [VueComp1.vue]
+<script setup lang="ts">
+export interface CompProps {
+  componentName: string;
+  renderStrategy: string;
+  pageTitle: string;
+  renderCount: number;
+}
 
-```ts
+const props = defineProps<CompProps>();
+const vueInfo = 'VueComp1';
+</script>
+
+<template>
+  <div class="vue-comp1-demo">
+    <strong>{{ props.renderCount }}: 渲染策略: {{ props.renderStrategy }}</strong>
+    <ol>
+      <li>
+        <strong>组件名称:</strong>
+        <span>{{ props.componentName }}</span>
+      </li>
+      <li>
+        <strong>页面标题:</strong>
+        <span>{{ props.pageTitle }}</span>
+      </li>
+      <li>
+        <strong>子组件渲染:</strong>
+        <slot :vue-info="vueInfo" />
+      </li>
+    </ol>
+  </div>
+</template>
+```
+
+```tsx [ReactVueSharedComp.tsx]
+import { type JSX, useState } from 'react';
+import type { CompProps } from '../type';
+
+interface ReactVueSharedCompProps extends CompProps {
+  'vue-info': string;
+}
+
+export default function ReactVueSharedComp(props: ReactVueSharedCompProps): JSX.Element {
+  const [count, setCount] = useState(0);
+  return (
+    <div className="react-vue-shared-comp">
+      <strong>
+        {props['render-count']}: 渲染策略: {props['render-strategy']}
+      </strong>
+      <ol>
+        <li>
+          <strong>组件名称:</strong> <span>{props['component-name']}</span>
+        </li>
+        <li>
+          <strong>页面标题:</strong> <span>{props['page-title']}</span>
+        </li>
+        <li>
+          <strong>Vue 组件信息:</strong> <span>{props['vue-info']}</span>
+        </li>
+        <li>
+          <button
+            style={{
+              padding: '5px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              marginRight: '8px',
+              backgroundColor: '#56a8ab',
+              color: '#9ee2d3',
+              border: 'none',
+            }}
+            onClick={() => setCount(count + 1)}
+            type="button"
+          >
+            点击我!
+          </button>
+          <strong>仅客户端渲染模式, React 实例数量:</strong> <span>{count}</span>
+        </li>
+      </ol>
+    </div>
+  );
+}
+```
+
+:::
+
+在孤岛组件接管前，容器快照大致如下：
+
+```html
+<div
+  __render_id__="354a7a63"
+  __render_directive__="client:only"
+  __render_component__="ReactVueSharedComp"
+  __spa_sync_render__="false"
+  vue-info="VueComp1"
+></div>
+```
+
+渲染效果：
+
+<VueComp1
+render-strategy="vue-parent"
+component-name="VueComp1"
+:page-title="page.title"
+:render-count="6">
+<template #default="{ vueInfo }">
+<ReactVueSharedComp
+  client:only
+  render-strategy="client:only"
+  component-name="ReactVueSharedComp"
+  :page-title="page.title"
+  render-count="3-7"
+  :vue-info="vueInfo"
+/>
+</template>
+</VueComp1>
+
+## 渲染策略速查
+
+| 指令             | 是否预渲染 HTML | 客户端行为        | 最终模式           |
+| ---------------- | --------------- | ----------------- | ------------------ |
+| `ssr:only`       | 是              | 不接管            | static             |
+| `client:load`    | 是              | 立即 hydration    | hydrate            |
+| `client:visible` | 是              | 可见时 hydration  | hydrate-on-visible |
+| `client:only`    | 否              | 纯客户端渲染      | render             |
+| 无指令           | 是              | 等价于 `ssr:only` | static             |
+
+## 每种策略到底改变了什么
+
+### `ssr:only`
+
+- HTML 在构建期预渲染完成。
+- 客户端不会接管这个容器。
+- 这是最接近 VitePress 静态优先模型的模式。
+
+::: code-group
+
+```md [playground.md]
+<script setup>
+  const page = { title: '渲染策略' };
+</script>
+
+<script lang="react">
+  import { ReactComp2 } from '../rendering-strategy-comps/react/ReactComp2';
+</script>
+
+<ReactComp2
+  ssr:only
+  spa:sr
+  render-strategy="ssr:only"
+  component-name="ReactComp2"
+  :page-title="page.title"
+  :render-count="2"
+/>
+```
+
+```tsx [ReactComp2.tsx]
 import { readFileSync } from 'node:fs';
 import { join } from 'pathe';
+import { type JSX, useState } from 'react';
+import type { CompProps } from '../type';
+import './css/rc2.css';
+import { renderSharedLicense } from './shared/renderSharedLicense';
+
+interface LocalData {
+  data: {
+    id: number;
+    name: string;
+    email: string;
+  }[];
+}
 
 const targetPath = join(import.meta.dirname, 'local-data.json');
-const data = JSON.parse(readFileSync(targetPath, 'utf8')) as {
-  data: unknown;
+
+export function ReactComp2(props: CompProps): JSX.Element {
+  const [count, setCount] = useState(0);
+  const data = JSON.parse(readFileSync(targetPath, 'utf8')) as LocalData;
+
+  const displayLocalData = () => {
+    const showLocalList = data.data.map((item) => (
+      <li key={item.id}>
+        <span>
+          <strong>标识位:</strong> {item.id}
+        </span>
+        <br />
+        <span>
+          <strong>名称:</strong> {item.name}
+        </span>
+        <br />
+        <span>
+          <strong>邮箱:</strong> {item.email}
+        </span>
+      </li>
+    ));
+    return <ul>{showLocalList}</ul>;
+  };
+  return (
+    <div className="react-comp2-demo">
+      <strong>
+        {props['render-count']}: 渲染策略: {props['render-strategy']}
+      </strong>
+      <ol>
+        <li>
+          <strong>组件名称:</strong> <span>{props['component-name']}</span>
+        </li>
+        <li>
+          <strong>页面标题:</strong> <span>{props['page-title']}</span>
+        </li>
+        <li>
+          <button className="rc2-button" onClick={() => setCount(count + 1)} type="button">
+            点击我!
+          </button>
+          <strong>仅预渲染模式, React 实例数量:</strong> <span>{count}</span>
+        </li>
+      </ol>
+      <div>{displayLocalData()}</div>
+      <div>
+        <span>
+          <strong>协议:</strong> {renderSharedLicense()}
+        </span>
+      </div>
+    </div>
+  );
+}
+```
+
+```ts [shared/renderSharedLicense.ts]
+export const renderSharedLicense = () => {
+  // This is a shared license for rendering strategy, It is used to test the hmr support.
+  return '根据 MIT 许可证发布。[共享模块用于 HMR 测试]';
 };
 ```
 
-如果你希望这类本地文件改动也参与热更新，需要自行通过 `vite` 的 `handleHotUpdate` 做桥接。
+```json [local-data.json]
+{
+  "data": [
+    {
+      "id": 1,
+      "name": "Senao Xi",
+      "email": "senaoxi@gmail.com"
+    },
+    {
+      "id": 2,
+      "name": "Doe",
+      "email": "doe@gmail.com"
+    },
+    {
+      "id": 3,
+      "name": "Jane Doe",
+      "email": "jane.doe@gmail.com"
+    }
+  ]
+}
+```
+
+```css [css/rc2.css]
+.rc2-button {
+  padding: 5px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-right: 8px;
+  background-color: pink;
+  color: orange;
+  border: none;
+}
+```
+
+:::
+
+渲染效果：
+
+<ReactComp2
+  ssr:only
+  spa:sr
+  render-strategy="ssr:only"
+  component-name="ReactComp2"
+  :page-title="page.title"
+  :render-count="2"
+/>
+
+### `client:load`
+
+- 先产出预渲染 HTML。
+- 运行时准备好后立即对容器做 hydration。
+- 容器会更早变成可交互状态，但也会更早占用关键路径。
+
+::: code-group
+
+```md [playground.md]
+<script setup>
+  const page = { title: '渲染策略' };
+</script>
+
+<script lang="react">
+  import ReactComp3 from '../rendering-strategy-comps/react/ReactComp3';
+</script>
+
+<ReactComp3
+  client:load
+  spa:sync-render
+  render-strategy="client:load"
+  component-name="ReactComp3"
+  :page-title="page.title"
+  :render-count="3"
+/>
+```
+
+```tsx [ReactComp3.tsx]
+import { useState } from 'react';
+import type { CompProps } from '../type';
+import './css/rc3.css';
+
+export default function ReactComp3(props: CompProps): JSX.Element {
+  const [count, setCount] = useState(0);
+  return (
+    <div className="react-comp3-demo">
+      <strong>
+        {props['render-count']}: 渲染策略: {props['render-strategy']}
+      </strong>
+      <ol>
+        <li>
+          <strong>组件名称:</strong> <span>{props['component-name']}</span>
+        </li>
+        <li>
+          <strong>页面标题:</strong> <span>{props['page-title']}</span>
+        </li>
+        <li>
+          <button className="rc3-button" onClick={() => setCount(count + 1)} type="button">
+            点击我!
+          </button>
+          <strong>预渲染客户端 hydration 模式, React 实例数量:</strong> <span>{count}</span>
+        </li>
+      </ol>
+    </div>
+  );
+}
+```
+
+```css [css/rc3.css]
+.rc3-button {
+  padding: 5px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-right: 8px;
+  background-color: #9ceaca63;
+  color: #1dd270;
+  border: none;
+}
+```
+
+:::
+
+渲染效果：
+
+<ReactComp3
+  client:load
+  spa:sync-render
+  render-strategy="client:load"
+  component-name="ReactComp3"
+  :page-title="page.title"
+  :render-count="3"
+/>
+
+### `client:visible`
+
+- 先产出预渲染 HTML。
+- 等组件进入视口后再做 hydration。
+- 默认仍会预加载脚本，变化的是接管时机，而不是“完全不加载”。
+
+::: code-group
+
+```md [playground.md]
+<script setup>
+  const page = { title: '渲染策略' };
+</script>
+
+<script lang="react">
+  import { ReactComp4 } from '../rendering-strategy-comps/react/ReactComp4';
+</script>
+
+<ReactComp4
+  client:visible
+  render-strategy="client:visible"
+  component-name="ReactComp4"
+  :page-title="page.title"
+  :render-count="4"
+/>
+```
+
+```tsx [ReactComp4.tsx]
+import { type JSX, useState } from 'react';
+import type { CompProps } from '../type';
+
+export function ReactComp4(props: CompProps): JSX.Element {
+  const [count, setCount] = useState(0);
+  return (
+    <div className="react-comp4-demo">
+      <strong>
+        {props['render-count']}: 渲染策略: {props['render-strategy']}
+      </strong>
+      <ol>
+        <li>
+          <strong>组件名称:</strong> <span>{props['component-name']}</span>
+        </li>
+        <li>
+          <strong>页面标题:</strong> <span>{props['page-title']}</span>
+        </li>
+        <li>
+          <button
+            style={{
+              padding: '5px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              marginRight: '8px',
+              backgroundColor: '#56a8ab',
+              color: '#9ee2d3',
+              border: 'none',
+            }}
+            onClick={() => setCount(count + 1)}
+            type="button"
+          >
+            点击我!
+          </button>
+          <strong>预渲染客户端可见 hydration 模式, React 实例数量:</strong> <span>{count}</span>
+        </li>
+      </ol>
+    </div>
+  );
+}
+```
+
+:::
+
+渲染效果：
+
+<ReactComp4
+  client:visible
+  render-strategy="client:visible"
+  component-name="ReactComp4"
+  :page-title="page.title"
+  :render-count="4"
+/>
+
+### `client:only`
+
+- 不会为这个容器产出预渲染 HTML。
+- 组件完全在客户端渲染。
+- 这是最依赖浏览器环境、也最远离静态输出的一种模式。
+
+::: code-group
+
+```md [playground.md]
+<script setup>
+  const page = { title: '渲染策略' };
+</script>
+
+<script lang="react">
+  import ReactComp1 from '../rendering-strategy-comps/react/ReactComp1';
+</script>
+
+<ReactComp1
+  client:only
+  render-strategy="client:only"
+  component-name="ReactComp1"
+  :page-title="page.title"
+  :render-count="1"
+/>
+```
+
+```tsx [ReactComp1.tsx]
+import { type JSX, useState } from 'react';
+import type { CompProps } from '../type';
+import './css/rc1.css';
+import { renderSharedLicense } from './shared/renderSharedLicense';
+
+export default function ReactComp1(props: CompProps): JSX.Element {
+  const [count, setCount] = useState(0);
+  return (
+    <div className="react-comp1-demo">
+      <strong>
+        {props['render-count']}: 渲染策略: {props['render-strategy']}
+      </strong>
+      <ol>
+        <li>
+          <strong>组件名称:</strong> <span>{props['component-name']}</span>
+        </li>
+        <li>
+          <strong>页面标题:</strong> <span>{props['page-title']}</span>
+        </li>
+        <li>
+          <strong>协议:</strong> <span>{renderSharedLicense()}</span>
+        </li>
+        <li>
+          <button className="rc1-button" onClick={() => setCount(count + 1)} type="button">
+            点击我!
+          </button>
+          <strong>仅客户端渲染模式, React 实例数量:</strong> <span>{count}</span>
+        </li>
+      </ol>
+    </div>
+  );
+}
+```
+
+```ts [shared/renderSharedLicense.ts]
+export const renderSharedLicense = () => {
+  // This is a shared license for rendering strategy, It is used to test the hmr support.
+  return '根据 MIT 许可证发布。[共享模块用于 HMR 测试]';
+};
+```
+
+```css [css/rc1.css]
+.rc1-button {
+  padding: 5px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-right: 8px;
+  background-color: #56a8ab;
+  color: #9ee2d3;
+  border: none;
+}
+```
+
+:::
+
+渲染效果：
+
+<ReactComp1
+  client:only
+  render-strategy="client:only"
+  component-name="ReactComp1"
+  :page-title="page.title"
+  :render-count="1"
+/>
+
+### 无指令
+
+- 不写指令时，行为等价于 `ssr:only`。
+- 默认保持预渲染且静态输出。
+
+::: code-group
+
+```md [playground.md]
+<script setup>
+  const page = { title: '渲染策略' };
+</script>
+
+<script lang="react">
+  import { ReactComp5 } from '../rendering-strategy-comps/react/ReactComp5';
+</script>
+
+<ReactComp5
+  render-strategy="default"
+  component-name="ReactComp5"
+  :page-title="page.title"
+  :render-count="5"
+/>
+```
+
+```tsx [ReactComp5.tsx]
+import { type JSX, useState } from 'react';
+import type { CompProps } from '../type';
+
+export function ReactComp5(props: CompProps): JSX.Element {
+  const [count, setCount] = useState(0);
+  return (
+    <div className="react-comp5-demo">
+      <strong>
+        {props['render-count']}: 渲染策略: {props['render-strategy']}
+      </strong>
+      <ol>
+        <li>
+          <strong>组件名称:</strong> <span>{props['component-name']}</span>
+        </li>
+        <li>
+          <strong>页面标题:</strong> <span>{props['page-title']}</span>
+        </li>
+        <li>
+          <button
+            style={{
+              padding: '5px',
+              borderRadius: '8px',
+              fontSize: '14px',
+              marginRight: '8px',
+              backgroundColor: '#56a8ab',
+              color: '#9ee2d3',
+              border: 'none',
+            }}
+            onClick={() => setCount(count + 1)}
+            type="button"
+          >
+            点击我!
+          </button>
+          <strong>默认渲染模式(仅预渲染模式), React 实例数量:</strong> <span>{count}</span>
+        </li>
+      </ol>
+    </div>
+  );
+}
+```
+
+:::
+
+渲染效果：
+
+<ReactComp5
+  render-strategy="default"
+  component-name="ReactComp5"
+  :page-title="page.title"
+  :render-count="5"
+/>
+
+## 为什么有 `spa:sync-render`
+
+`VitePress` 在 `SPA` 切页时，`Vue` 主体内容会同步更新，但孤岛组件的预渲染 HTML、CSS 和客户端接管逻辑通常是异步到达的，这个时间差就是闪烁的来源。
+
+`spa:sync-render`（简写 `spa:sr`）的作用，就是把被标记的预渲染孤岛组件更早地并入路由切换流程，让关键的孤岛组件内容尽可能和主内容同步出现。
+
+**下述演示环境在 `CPU: 20x slowdown`、`0.75` 倍速播放：**
+
+![spa:sync-render:disable](/spa-sync-render-disable-screenshot.webp)
+
+<video controls>
+  <source src="/spa-sync-render-disable-video.mp4" type="video/mp4">
+</video>
+
+未启用 `spa:sr` 时，常见过程是：
+
+1. `Vue` 主体内容先更新。
+2. 孤岛组件的 HTML 和样式稍后补上。
+3. 用户会看到明显的视觉割裂或布局位移。
+
+启用 `spa:sr` 后，这种割裂会明显减轻：
+
+![spa:sync-render](/spa-sync-render-screenshot.webp)
+
+<video controls>
+  <source src="/spa-sync-render-video.mp4" type="video/mp4">
+</video>
+
+## `spa:sr` 默认规则
+
+- `client:only` 不支持 `spa:sr`。
+- `client:load` 和 `client:visible` 只有在你显式开启时才会使用 `spa:sr`。
+- `ssr:only` 和无指令组件默认启用 `spa:sr`，除非你显式写上 `spa:sr:disable` 或 `spa:sync-render:disable`。
+
+::: warning 关键样式阻塞渲染
+
+如果页面里包含 `spa:sr` 组件，运行时可能会先等待这些组件的关键 CSS 完成加载，再渲染主要内容。这样能减少闪烁，但也会在切页阶段引入更多阻塞工作。
+
+<video controls>
+  <source src="/spa-sync-render-side-effects-video.mp4" type="video/mp4">
+</video>
+
+:::
+
+::: warning 开发阶段限制
+
+`spa:sr` 在本地开发环境下不会完全表现得和生产环境一致。开发态 `VitePress` 会动态求值 `spa` 模块，运行时拿不到和生产构建完全一致的初始 props 上下文。
+
+实际效果上，开发态会尽量贴近你声明的策略，但 `spa:sr` 的真实收益最好还是以构建产物为准。
+
+:::
 
 ## 继续阅读
 
-- [快速上手](./getting-started.md)：按最短路径接入项目。
-- [站点调试](../site-debug-console/)：查看运行时排障能力。
-- [产物分析](../site-debug-console/options/build-reports.md)：查看 `cache`、`resolvePage` 和模型配置。
+- [快速上手](./getting-started.md)：安装集成并跑通第一个孤岛组件。
+- [最佳实践](./best-practices.md)：查看写法规则、策略选择建议、注意事项和常见误区。
+- [站点调试](../site-debug-console/)：查看运行时、bundle 和 HMR 的可视化调试信息。

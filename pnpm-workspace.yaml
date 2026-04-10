@@ -15,6 +15,7 @@ allowBuilds:
 auditConfig:
   ignoreGhsas:
     - GHSA-67mh-4wv8-2f99
+    - GHSA-4w7w-66w2-5vf9
 
 autoInstallPeers: false
 

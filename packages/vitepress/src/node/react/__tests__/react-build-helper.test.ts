@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { PAGE_METAFILE_META_NAMES } from '../../../shared/constants';
-import { createPathResolver } from '../../plugins/vite-plugin-vitepress-path-resolver';
+import { createRenderingModuleResolution } from '../../core/module-resolution';
 import {
   createPageMetafileReferenceTags,
   resolveSiteDebugBuildReportPageContext,
-} from '../react-build-helper';
+} from '../../ui-bundler/page-metafile';
 
-describe('react-build-helper page metafile references', () => {
+describe('ui-bundler page metafile references', () => {
   it('creates a preload tag plus page metafile meta tags', () => {
     expect(
       createPageMetafileReferenceTags({
@@ -33,28 +33,30 @@ describe('react-build-helper page metafile references', () => {
   });
 
   it('resolves rewritten root routes back to their source markdown files', () => {
-    const pathResolver = createPathResolver({
-      srcDir: 'packages/vitepress/docs',
-      site: {
-        base: '/docs-islands/vitepress/',
-        cleanUrls: true,
-      },
-      pages: ['en/core-concepts.md', 'zh/core-concepts.md'],
-      rewrites: {
-        inv: {
-          'core-concepts.md': 'en/core-concepts.md',
+    const pageResolver = createRenderingModuleResolution().createStaticResolver(
+      {
+        srcDir: 'packages/vitepress/docs',
+        site: {
+          base: '/docs-islands/vitepress/',
+          cleanUrls: true,
         },
-        map: {
-          'en/core-concepts.md': 'core-concepts.md',
+        pages: ['en/core-concepts.md', 'zh/core-concepts.md'],
+        rewrites: {
+          inv: {
+            'core-concepts.md': 'en/core-concepts.md',
+          },
+          map: {
+            'en/core-concepts.md': 'core-concepts.md',
+          },
         },
-      },
-    } as any);
+      } as any,
+    );
 
     expect(
       resolveSiteDebugBuildReportPageContext({
         cleanUrls: true,
         pageId: '/core-concepts',
-        pathResolver,
+        pageResolver,
         srcDir: 'packages/vitepress/docs',
       }),
     ).toEqual({
