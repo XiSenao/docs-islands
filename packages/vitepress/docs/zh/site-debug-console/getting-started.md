@@ -4,13 +4,27 @@
 
 ## 1. 在主题里挂载控制台
 
-最小接入方式是在主题布局中挂载客户端控制台组件：
+推荐把控制台组件挂在主题布局里，并在 `.vitepress/theme/index.ts` 里显式引入样式：
+
+```ts
+// .vitepress/theme/index.ts
+import type { Theme } from 'vitepress';
+import DefaultTheme from 'vitepress/theme';
+import SiteDebugLayout from './components/SiteDebugLayout.vue';
+import '@docs-islands/vitepress/debug-console/client/style.css';
+// 可选：仅在安装了 vue-json-pretty 时引入。
+import 'vue-json-pretty/lib/styles.css';
+
+export default {
+  extends: DefaultTheme,
+  Layout: SiteDebugLayout,
+} satisfies Theme;
+```
 
 ```vue
-<!-- .vitepress/theme/components/EnhanceLayout.vue -->
+<!-- .vitepress/theme/components/SiteDebugLayout.vue -->
 <script setup lang="ts">
 import SiteDebugConsole from '@docs-islands/vitepress/debug-console/client';
-import '@docs-islands/vitepress/debug-console/client/style.css';
 import DefaultTheme from 'vitepress/theme';
 </script>
 
@@ -19,6 +33,8 @@ import DefaultTheme from 'vitepress/theme';
   <SiteDebugConsole />
 </template>
 ```
+
+`vue-json-pretty/lib/styles.css` 只需要在你安装了可选增强依赖 `vue-json-pretty` 时再引入。`Site Debug Console` 不再自动注入这份样式，因此把它放在主题入口里手动声明会更直观，也更符合宿主项目对样式依赖的管理方式。
 
 接入后，运行时就具备了页面浮层与 `Debug Logs` 面板能力。即使你还没有配置 AI 分析，这部分运行时调试也已经可用。
 

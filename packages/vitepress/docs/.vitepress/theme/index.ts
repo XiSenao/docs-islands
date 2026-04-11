@@ -5,6 +5,7 @@ import 'virtual:group-icons.css';
 import type { Theme } from 'vitepress';
 import DefaultTheme from 'vitepress/theme';
 import { h } from 'vue';
+import 'vue-json-pretty/lib/styles.css';
 import EnhanceLayout from './components/EnhanceLayout.vue';
 import './styles/index.css';
 

@@ -33,6 +33,20 @@ If you also want build-time AI reports to appear in the console, continue with:
 - [Models](./options/models.md)
 - [Build Reports](./options/build-reports.md)
 
+## UI Enhancement Dependencies and Fallbacks
+
+`Site Debug Console` ships with a few optional UI enhancement dependencies:
+
+| Dependency        | Enhancement                                                       | Fallback when unavailable                      |
+| ----------------- | ----------------------------------------------------------------- | ---------------------------------------------- |
+| `vue-json-pretty` | Tree view for `Injected Globals` and runtime snapshots            | A readable plain JSON block stays available.   |
+| `prettier`        | Source formatting before preview                                  | The original source text is shown as-is.       |
+| `shiki`           | Rich syntax highlighting and windowed highlighted source previews | The console keeps a plain-text source preview. |
+
+These packages improve the presentation layer only. They are not required for the core debugging workflow. If the host project does not install them, the console still opens, the panels still work, and the debug data remains inspectable.
+
+When you do install `vue-json-pretty`, also import `vue-json-pretty/lib/styles.css` manually from `.vitepress/theme/index.ts`. The console keeps the dependency optional, but the host theme is responsible for injecting that stylesheet.
+
 <SiteDebugConsoleOverview ssr:only locale="en" />
 
 ## Core Features

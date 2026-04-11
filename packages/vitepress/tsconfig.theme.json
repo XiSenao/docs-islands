@@ -1,7 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "declaration": true
-  },
-  "include": ["theme/**/*.ts", "theme/**/*.vue", "types/**/*.d.ts"]
-}

@@ -5,6 +5,7 @@ import type { PageMetafile } from '#dep-types/page';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { PassThrough, Writable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createPageMetafileArtifacts } from '../../ui-bundler/page-metafile';
 import {
@@ -31,6 +32,35 @@ const writeTextFile = (filePath: string, content: string) => {
 
 const writeJsonFile = (filePath: string, value: unknown) => {
   writeTextFile(filePath, JSON.stringify(value, null, 2));
+};
+
+const waitForTransportFlush = async () => {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+};
+
+const parseFramedResponses = (output: string) => {
+  let buffer = Buffer.from(output, 'utf8');
+  const messages: unknown[] = [];
+
+  while (buffer.byteLength > 0) {
+    const headerEnd = buffer.indexOf('\r\n\r\n');
+    expect(headerEnd).toBeGreaterThanOrEqual(0);
+
+    const headerText = buffer.slice(0, headerEnd).toString('utf8');
+    const contentLengthMatch = headerText.match(/content-length:\s*(\d+)/i);
+
+    expect(contentLengthMatch).toBeTruthy();
+    const contentLength = Number.parseInt(contentLengthMatch![1], 10);
+    const messageStart = headerEnd + 4;
+    const messageEnd = messageStart + contentLength;
+
+    messages.push(
+      JSON.parse(buffer.slice(messageStart, messageEnd).toString('utf8')),
+    );
+    buffer = buffer.slice(messageEnd);
+  }
+
+  return messages;
 };
 
 const createFixtureBuild = () => {
@@ -603,5 +633,199 @@ describe('createSiteDebugBuildMcpServer', () => {
         isError: true,
       }),
     });
+  });
+
+  it('returns JSON-RPC request errors for invalid envelopes and method params', async () => {
+    const fixture = createFixtureBuild();
+    const server = createSiteDebugBuildMcpServer({
+      outDir: fixture.outDir,
+    });
+
+    expect(
+      await server.handleMessage({
+        id: 1,
+        method: 'initialize',
+      }),
+    ).toMatchObject({
+      error: {
+        code: -32_600,
+        message: '"jsonrpc" must be "2.0".',
+      },
+      id: 1,
+    });
+
+    expect(
+      await server.handleMessage({
+        id: 2,
+        jsonrpc: '1.0',
+        method: 'initialize',
+      }),
+    ).toMatchObject({
+      error: {
+        code: -32_600,
+        message: '"jsonrpc" must be "2.0".',
+      },
+      id: 2,
+    });
+
+    expect(
+      await server.handleMessage({
+        id: 3,
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: {
+          arguments: {},
+        },
+      }),
+    ).toMatchObject({
+      error: {
+        code: -32_602,
+        message: '"name" must be a non-empty string.',
+      },
+      id: 3,
+    });
+
+    expect(
+      await server.handleMessage({
+        id: 4,
+        jsonrpc: '2.0',
+        method: 'resources/read',
+        params: {},
+      }),
+    ).toMatchObject({
+      error: {
+        code: -32_602,
+        message: '"uri" must be a non-empty string.',
+      },
+      id: 4,
+    });
+  });
+
+  it('enforces tool schemas at runtime instead of treating them as documentation only', async () => {
+    const fixture = createFixtureBuild();
+    const server = createSiteDebugBuildMcpServer({
+      outDir: fixture.outDir,
+    });
+
+    expect(
+      await server.handleMessage({
+        id: 1,
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: {
+          arguments: {
+            unexpected: true,
+          },
+          name: 'get_build_overview',
+        },
+      }),
+    ).toMatchObject({
+      id: 1,
+      result: expect.objectContaining({
+        isError: true,
+        structuredContent: {
+          error: 'Unknown argument: "unexpected".',
+        },
+      }),
+    });
+
+    expect(
+      await server.handleMessage({
+        id: 2,
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: {
+          arguments: {
+            artifactKind: 'bundle-module',
+          },
+          name: 'get_artifact',
+        },
+      }),
+    ).toMatchObject({
+      id: 2,
+      result: expect.objectContaining({
+        isError: true,
+        structuredContent: {
+          error:
+            'Provide "displayPath" or both "file" and "moduleId" for "bundle-module" artifact lookups.',
+        },
+      }),
+    });
+  });
+
+  it('recovers from malformed transport input and keeps listen lifecycle idempotent', async () => {
+    const fixture = createFixtureBuild();
+    const stdin = new PassThrough();
+    const stdoutChunks: string[] = [];
+    const stderrChunks: string[] = [];
+    const stdout = new Writable({
+      write(chunk, _encoding, callback) {
+        stdoutChunks.push(chunk.toString());
+        callback();
+      },
+    });
+    const stderr = new Writable({
+      write(chunk, _encoding, callback) {
+        stderrChunks.push(chunk.toString());
+        callback();
+      },
+    });
+
+    const server = createSiteDebugBuildMcpServer({
+      outDir: fixture.outDir,
+      stderr,
+      stdin,
+      stdout,
+    });
+
+    server.listen();
+    server.listen();
+
+    stdin.write('Content-Length: nope\r\n\r\n{}');
+
+    const pingPayload = JSON.stringify({
+      id: 1,
+      jsonrpc: '2.0',
+      method: 'ping',
+    });
+    stdin.write(
+      `Content-Length: ${Buffer.byteLength(pingPayload)}\r\nContent-Type: application/json\r\n\r\n${pingPayload}`,
+    );
+
+    await waitForTransportFlush();
+
+    const responses = parseFramedResponses(stdoutChunks.join(''));
+
+    expect(responses).toHaveLength(2);
+    expect(responses[0]).toMatchObject({
+      error: {
+        code: -32_700,
+        message: 'Parse error.',
+      },
+      id: null,
+    });
+    expect(responses[1]).toMatchObject({
+      id: 1,
+      jsonrpc: '2.0',
+      result: {},
+    });
+    expect(stderrChunks.join('')).toContain(
+      'Missing or invalid Content-Length header.',
+    );
+
+    server.close();
+    stdoutChunks.length = 0;
+
+    const secondPingPayload = JSON.stringify({
+      id: 2,
+      jsonrpc: '2.0',
+      method: 'ping',
+    });
+    stdin.write(
+      `Content-Length: ${Buffer.byteLength(secondPingPayload)}\r\n\r\n${secondPingPayload}`,
+    );
+
+    await waitForTransportFlush();
+    expect(stdoutChunks).toEqual([]);
   });
 });

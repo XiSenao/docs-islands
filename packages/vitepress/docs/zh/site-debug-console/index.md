@@ -33,6 +33,20 @@
 - [模型接入](./options/models.md)
 - [产物分析](./options/build-reports.md)
 
+## UI 增强依赖与回退机制
+
+`Site Debug Console` 内部有几项可选的 UI 增强依赖：
+
+| 依赖包            | 提供的增强能力                                  | 不可用时的回退行为                 |
+| ----------------- | ----------------------------------------------- | ---------------------------------- |
+| `vue-json-pretty` | `Injected Globals` 和运行时快照的树状 JSON 浏览 | 自动退回为可读的纯文本 JSON 视图。 |
+| `prettier`        | 源码预览前的格式化整理                          | 直接显示原始源码文本。             |
+| `shiki`           | 富语法高亮与大文件窗口化高亮预览                | 保留纯文本源码预览能力。           |
+
+这些依赖只负责“展示增强”，并不是核心调试流程的必需项。即使宿主项目没有安装它们，调试控制台仍然可以打开，主要面板仍然可以使用，调试数据也仍然可以继续查看。
+
+如果你安装了 `vue-json-pretty`，还需要在 `.vitepress/theme/index.ts` 里手动引入 `vue-json-pretty/lib/styles.css`。控制台会继续把这个依赖保持为可选项，但样式注入职责交给宿主主题更清晰。
+
 <SiteDebugConsoleOverview ssr:only locale="zh" />
 
 ## 核心功能介绍

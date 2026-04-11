@@ -1,4 +1,4 @@
-import type { Plugin } from 'vite';
+import type { PluginOption } from 'vite';
 
 /**
  * Framework-specific loader runtimes only need a stable view of the emitted
@@ -26,8 +26,8 @@ export interface CreateUIFrameworkClientLoaderModuleSourceOptions {
  */
 export interface UIFrameworkBundlerAdapter {
   readonly framework: string;
-  browserBundlerPlugins: () => Plugin[];
-  ssrBundlerPlugins: () => Plugin[];
+  browserBundlerPlugins: () => PluginOption[];
+  ssrBundlerPlugins: () => PluginOption[];
   clientEntryModule: () => string;
   /**
    * Return stable public chunk paths that should be preloaded before any page-specific

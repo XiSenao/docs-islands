@@ -1,5 +1,7 @@
 export const REACT_RUNTIME_BUNDLING_PLUGIN_NAME =
   'docs-islands:vitepress:react-runtime-bundling';
+export const REACT_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME =
+  'docs-islands:vitepress:react-dependency-bootstrap';
 export const REACT_DEV_RUNTIME_PLUGIN_NAME =
   'docs-islands:vitepress:react-dev-runtime';
 export const REACT_MARKDOWN_HMR_PLUGIN_NAME =

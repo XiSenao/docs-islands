@@ -38,7 +38,7 @@
     "lint:package:publint": "tsx scripts/lint-package.ts --tool publint",
     "lint:package:attw": "tsx scripts/lint-package.ts --tool attw",
     "typecheck": "tsc --noEmit && tsc -p src/node --noEmit && tsc -p src/client --noEmit && tsc -p src/shared --noEmit && pnpm typecheck:theme",
-    "typecheck:theme": "vue-tsc -p tsconfig.theme.json --noEmit",
+    "typecheck:theme": "vue-tsc -p theme/tsconfig.json --noEmit",
     "build": "rolldown --config rolldown.config.ts && pnpm build:theme && pnpm build-types-check",
     "build:theme": "rolldown --config rolldown.theme.config.ts",
     "build-types-check": "tsc -p tsconfig.check.json",
@@ -62,7 +62,6 @@
     "#shared/*": "./src/shared/*.ts"
   },
   "dependencies": {
-    "@docs-islands/core": "workspace:*",
     "cheerio": "catalog:prod",
     "vite": "catalog:prod"
   },
@@ -72,6 +71,7 @@
     "@babel/parser": "catalog:dev",
     "@babel/traverse": "catalog:dev",
     "@babel/types": "catalog:dev",
+    "@docs-islands/core": "workspace:*",
     "@docs-islands/eslint-config": "workspace:*",
     "@docs-islands/plugin-license": "workspace:*",
     "@docs-islands/utils": "workspace:*",
@@ -163,10 +163,7 @@
       "default": "./theme/debug-console.css"
     },
     "./react": "./src/node/react/index.ts",
-    "./react/mcp": {
-      "types": "./src/node/react-mcp.ts",
-      "default": "./src/node/react-mcp.ts"
-    },
+    "./react/mcp": "./src/node/react-mcp.ts",
     "./react/client": "./src/client/react/index.ts",
     "./package.json": "./package.json",
     "./internal/debug": "./src/shared/debug.ts",
@@ -181,9 +178,6 @@
     }
   },
   "types": "./node/index.d.ts",
-  "bin": {
-    "docs-islands-vitepress-site-debug-mcp": "./node/react-mcp.js"
-  },
   "typesVersions": {
     "*": {
       "client": [
