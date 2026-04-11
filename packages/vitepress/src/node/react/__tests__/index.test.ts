@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { PluginOption } from 'vite';
+import { normalizePath, type PluginOption } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   FRAMEWORK_MARKDOWN_TRANSFORM_PLUGIN_NAME,
@@ -104,6 +104,15 @@ function writeReactSwcPluginStub(root: string): void {
   );
 }
 
+function normalizeAliasReplacements(
+  aliasEntries: { find: string; replacement: string }[] | undefined,
+): { find: string; replacement: string }[] {
+  return (aliasEntries ?? []).map((aliasEntry) => ({
+    ...aliasEntry,
+    replacement: normalizePath(aliasEntry.replacement),
+  }));
+}
+
 describe('vitepressReactRenderingStrategies', () => {
   it('throws a clear error when React peer dependencies are missing', async () => {
     vi.doMock('@docs-islands/utils', async (importOriginal) => {
@@ -180,34 +189,64 @@ describe('vitepressReactRenderingStrategies', () => {
         | { find: string; replacement: string }[]
         | undefined;
 
-      expect(aliasEntries).toEqual(
+      expect(normalizeAliasReplacements(aliasEntries)).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({
+          {
             find: 'vue-json-pretty',
             replacement: expect.stringMatching(
               /optional-deps\/vue-json-pretty\.ts$/,
             ),
-          }),
-          expect.objectContaining({
+          },
+          {
             find: 'vue-json-pretty/lib/styles.css',
             replacement: expect.stringMatching(/optional-deps\/empty\.css$/),
-          }),
-          expect.objectContaining({
+          },
+          {
             find: 'prettier/standalone',
             replacement: expect.stringMatching(
               /optional-deps\/prettier-standalone\.ts$/,
             ),
-          }),
-          expect.objectContaining({
+          },
+          {
             find: 'prettier/plugins/babel',
             replacement: expect.stringMatching(
               /optional-deps\/prettier-plugin\.ts$/,
             ),
-          }),
-          expect.objectContaining({
+          },
+          {
+            find: 'prettier/plugins/estree',
+            replacement: expect.stringMatching(
+              /optional-deps\/prettier-plugin\.ts$/,
+            ),
+          },
+          {
+            find: 'prettier/plugins/html',
+            replacement: expect.stringMatching(
+              /optional-deps\/prettier-plugin\.ts$/,
+            ),
+          },
+          {
+            find: 'prettier/plugins/markdown',
+            replacement: expect.stringMatching(
+              /optional-deps\/prettier-plugin\.ts$/,
+            ),
+          },
+          {
+            find: 'prettier/plugins/postcss',
+            replacement: expect.stringMatching(
+              /optional-deps\/prettier-plugin\.ts$/,
+            ),
+          },
+          {
+            find: 'prettier/plugins/yaml',
+            replacement: expect.stringMatching(
+              /optional-deps\/prettier-plugin\.ts$/,
+            ),
+          },
+          {
             find: 'shiki',
             replacement: expect.stringMatching(/optional-deps\/shiki\.ts$/),
-          }),
+          },
         ]),
       );
     } finally {
@@ -256,14 +295,17 @@ describe('vitepressReactRenderingStrategies', () => {
       await runDependencyBootstrapPlugin(vitepressConfig, srcDir);
       const resolvedVitepressRoot = fs.realpathSync(vitepressRoot);
       const resolvedSrcDir = fs.realpathSync(srcDir);
-
-      expect(pkgExists).toHaveBeenCalledWith(
-        'react',
+      const expectedResolutionBase = normalizePath(
         path.join(resolvedVitepressRoot, 'package.json'),
       );
+      const unexpectedResolutionBase = normalizePath(
+        path.join(resolvedSrcDir, 'package.json'),
+      );
+
+      expect(pkgExists).toHaveBeenCalledWith('react', expectedResolutionBase);
       expect(pkgExists).not.toHaveBeenCalledWith(
         'react',
-        path.join(resolvedSrcDir, 'package.json'),
+        unexpectedResolutionBase,
       );
     } finally {
       fs.rmSync(workspaceRoot, {
