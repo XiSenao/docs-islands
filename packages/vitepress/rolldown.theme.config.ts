@@ -1,9 +1,9 @@
 import { loadEnv } from '@docs-islands/utils';
 import vue from '@vitejs/plugin-vue';
-import { rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { RolldownOptions } from 'rolldown';
+import type { Plugin, RolldownOptions } from 'rolldown';
 import pkg from './package.json' with { type: 'json' };
 
 const { config } = loadEnv();
@@ -22,6 +22,22 @@ const sourceTextWorkerEntry = path.resolve(
 const sourceHighlightWorkerEntry = path.resolve(
   __dirname,
   'theme/site-debug-source-highlight.worker.ts',
+);
+const vueJsonPrettyFallbackEntry = path.resolve(
+  __dirname,
+  'theme/optional-deps/vue-json-pretty.ts',
+);
+const prettierStandaloneFallbackEntry = path.resolve(
+  __dirname,
+  'theme/optional-deps/prettier-standalone.ts',
+);
+const prettierPluginFallbackEntry = path.resolve(
+  __dirname,
+  'theme/optional-deps/prettier-plugin.ts',
+);
+const shikiFallbackEntry = path.resolve(
+  __dirname,
+  'theme/optional-deps/shiki.ts',
 );
 const themeDistDir = path.resolve(__dirname, 'dist/theme');
 
@@ -49,7 +65,7 @@ const shouldExternalizeThemeRuntimeDependency = (source: string) => {
 
 let hasCleanedThemeDist = false;
 
-const createThemeDistCleanPlugin = () => ({
+const createThemeDistCleanPlugin = (): Plugin => ({
   name: 'rolldown-plugin-clean-theme-dist',
   async buildStart() {
     if (hasCleanedThemeDist) {
@@ -64,7 +80,7 @@ const createThemeDistCleanPlugin = () => ({
   },
 });
 
-const createSiteDebugWorkerUrlRewritePlugin = () => ({
+const createSiteDebugWorkerUrlRewritePlugin = (): Plugin => ({
   name: 'rolldown-plugin-rewrite-site-debug-worker-urls',
   renderChunk(code: string, chunk: { fileName: string }) {
     const chunkDirectory = path.posix.dirname(chunk.fileName);
@@ -95,6 +111,50 @@ const createSiteDebugWorkerUrlRewritePlugin = () => ({
     };
   },
 });
+
+const createOptionalDependencyAssetCopyPlugin = (): Plugin => ({
+  name: 'rolldown-plugin-copy-theme-optional-dependency-assets',
+  async generateBundle() {
+    this.emitFile({
+      type: 'asset',
+      fileName: 'optional-deps/empty.css',
+      source: await readFile(
+        path.resolve(__dirname, 'theme/optional-deps/empty.css'),
+        'utf8',
+      ),
+    });
+  },
+});
+
+const createOptionalDependencyFallbackConfig = ({
+  entry,
+  name,
+  plugins = [],
+}: {
+  entry: string;
+  name: string;
+  plugins?: RolldownOptions['plugins'];
+}): RolldownOptions => {
+  const normalizedPlugins = Array.isArray(plugins)
+    ? plugins
+    : plugins
+      ? [plugins]
+      : [];
+
+  return {
+    input: {
+      [`optional-deps/${name}`]: entry,
+    },
+    external: shouldExternalizeThemeRuntimeDependency,
+    plugins: [createThemeDistCleanPlugin(), ...normalizedPlugins],
+    transform: {
+      target: 'es2020',
+    },
+    output: createThemeOutput({
+      codeSplitting: false,
+    }),
+  };
+};
 
 const createThemeOutput = (
   overrides: Partial<NonNullable<RolldownOptions['output']>> = {},
@@ -188,6 +248,29 @@ const highlightWorkerConfig: RolldownOptions = {
   }),
 };
 
+const vueJsonPrettyFallbackConfig = createOptionalDependencyFallbackConfig({
+  entry: vueJsonPrettyFallbackEntry,
+  name: 'vue-json-pretty',
+  plugins: [vue(), createOptionalDependencyAssetCopyPlugin()],
+});
+
+const prettierStandaloneFallbackConfig = createOptionalDependencyFallbackConfig(
+  {
+    entry: prettierStandaloneFallbackEntry,
+    name: 'prettier-standalone',
+  },
+);
+
+const prettierPluginFallbackConfig = createOptionalDependencyFallbackConfig({
+  entry: prettierPluginFallbackEntry,
+  name: 'prettier-plugin',
+});
+
+const shikiFallbackConfig = createOptionalDependencyFallbackConfig({
+  entry: shikiFallbackEntry,
+  name: 'shiki',
+});
+
 // const vueClientDtsConfig: RolldownOptions = {
 //   input: {
 //     'debug-console': entry,
@@ -214,6 +297,10 @@ const configs: RolldownOptions[] = [
   previewWorkerConfig,
   textWorkerConfig,
   highlightWorkerConfig,
+  vueJsonPrettyFallbackConfig,
+  prettierStandaloneFallbackConfig,
+  prettierPluginFallbackConfig,
+  shikiFallbackConfig,
 ];
 
 export default configs;

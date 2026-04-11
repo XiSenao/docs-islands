@@ -1,4 +1,6 @@
 import { pkgExists } from '@docs-islands/utils';
+import fs from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DefaultTheme, UserConfig } from 'vitepress';
 import { ensureVitepressViteConfig } from '../core/integration-plugin';
@@ -8,24 +10,72 @@ interface ViteAliasEntry {
   replacement: string;
 }
 
+interface ResolveOptionalDependencyFallbackPathOptions {
+  builtRelativePath?: string;
+  searchStartDir?: string;
+  sourceRelativePath: string;
+}
+
+const optionalDependencySearchStartDir = path.dirname(
+  fileURLToPath(import.meta.url),
+);
+
+function findNearestPackageRoot(searchStartDir: string): string | undefined {
+  let currentDir = searchStartDir;
+
+  while (true) {
+    if (fs.existsSync(path.join(currentDir, 'package.json'))) {
+      return currentDir;
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      return undefined;
+    }
+
+    currentDir = parentDir;
+  }
+}
+
+export function resolveSiteDebugOptionalDependencyFallbackPath({
+  builtRelativePath,
+  searchStartDir = optionalDependencySearchStartDir,
+  sourceRelativePath,
+}: ResolveOptionalDependencyFallbackPathOptions): string {
+  const packageRoot = findNearestPackageRoot(searchStartDir);
+
+  if (!packageRoot) {
+    return fileURLToPath(new URL(sourceRelativePath, import.meta.url));
+  }
+
+  if (builtRelativePath) {
+    const builtPath = path.join(packageRoot, builtRelativePath);
+
+    if (fs.existsSync(builtPath)) {
+      return builtPath;
+    }
+  }
+
+  return path.join(packageRoot, sourceRelativePath);
+}
+
 const siteDebugOptionalDependencyFallbacks = [
   {
     dependency: 'vue-json-pretty',
     specifiers: [
       {
         find: 'vue-json-pretty',
-        replacement: fileURLToPath(
-          new URL(
-            '../../../theme/optional-deps/vue-json-pretty.ts',
-            import.meta.url,
-          ),
-        ),
+        replacement: resolveSiteDebugOptionalDependencyFallbackPath({
+          builtRelativePath: 'theme/optional-deps/vue-json-pretty.mjs',
+          sourceRelativePath: 'theme/optional-deps/vue-json-pretty.ts',
+        }),
       },
       {
         find: 'vue-json-pretty/lib/styles.css',
-        replacement: fileURLToPath(
-          new URL('../../../theme/optional-deps/empty.css', import.meta.url),
-        ),
+        replacement: resolveSiteDebugOptionalDependencyFallbackPath({
+          builtRelativePath: 'theme/optional-deps/empty.css',
+          sourceRelativePath: 'theme/optional-deps/empty.css',
+        }),
       },
     ],
   },
@@ -34,12 +84,10 @@ const siteDebugOptionalDependencyFallbacks = [
     specifiers: [
       {
         find: 'prettier/standalone',
-        replacement: fileURLToPath(
-          new URL(
-            '../../../theme/optional-deps/prettier-standalone.ts',
-            import.meta.url,
-          ),
-        ),
+        replacement: resolveSiteDebugOptionalDependencyFallbackPath({
+          builtRelativePath: 'theme/optional-deps/prettier-standalone.mjs',
+          sourceRelativePath: 'theme/optional-deps/prettier-standalone.ts',
+        }),
       },
       ...[
         'prettier/plugins/babel',
@@ -51,12 +99,10 @@ const siteDebugOptionalDependencyFallbacks = [
       ].map(
         (specifier): ViteAliasEntry => ({
           find: specifier,
-          replacement: fileURLToPath(
-            new URL(
-              '../../../theme/optional-deps/prettier-plugin.ts',
-              import.meta.url,
-            ),
-          ),
+          replacement: resolveSiteDebugOptionalDependencyFallbackPath({
+            builtRelativePath: 'theme/optional-deps/prettier-plugin.mjs',
+            sourceRelativePath: 'theme/optional-deps/prettier-plugin.ts',
+          }),
         }),
       ),
     ],
@@ -66,9 +112,10 @@ const siteDebugOptionalDependencyFallbacks = [
     specifiers: [
       {
         find: 'shiki',
-        replacement: fileURLToPath(
-          new URL('../../../theme/optional-deps/shiki.ts', import.meta.url),
-        ),
+        replacement: resolveSiteDebugOptionalDependencyFallbackPath({
+          builtRelativePath: 'theme/optional-deps/shiki.mjs',
+          sourceRelativePath: 'theme/optional-deps/shiki.ts',
+        }),
       },
     ],
   },
