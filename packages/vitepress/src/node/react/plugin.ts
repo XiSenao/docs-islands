@@ -1,11 +1,11 @@
 import { REACT_HMR_EVENT_NAMES } from '#shared/constants';
-import reactPlugin from '@vitejs/plugin-react-swc';
 import type { Rollup } from 'vite';
 import type { RenderingIntegrationPlugin } from '../core/integration-plugin';
 import { isMarkdownPageChunk } from '../plugins/shared';
 import { createFrameworkComponentHmrPlugin } from '../plugins/vite-plugin-framework-component-hmr';
 import { createFrameworkMarkdownHmrPlugin } from '../plugins/vite-plugin-framework-markdown-hmr';
 import { createFrameworkSpaSyncPlugin } from '../plugins/vite-plugin-framework-spa-sync';
+import { applySiteDebugOptionalDependencyFallbacks } from '../site-debug/optional-dependencies';
 import { getSiteDebugVitePlugins } from '../site-debug/vite-plugin-site-debug';
 import { registerReactBuildHooks } from './build-hooks';
 import {
@@ -17,6 +17,10 @@ import {
   createReactIntegrationContext,
   type ReactIntegrationPluginContext,
 } from './context';
+import {
+  createReactDependencyBootstrapPlugin,
+  createReactVitePluginDelegates,
+} from './dependencies';
 import { REACT_FRAMEWORK } from './framework';
 import { createReactFrameworkParser } from './parser';
 import {
@@ -54,11 +58,20 @@ export function createReactRenderingIntegrationPlugin(
         renderController,
         resolution,
         siteConfig,
+        vitepressConfig,
         siteDebug: { enabled: siteDebugEnabled },
       } = context;
 
       return [
-        reactPlugin(),
+        createReactDependencyBootstrapPlugin({
+          onResolutionBaseResolved(resolutionBase) {
+            applySiteDebugOptionalDependencyFallbacks(
+              vitepressConfig,
+              resolutionBase,
+            );
+          },
+        }),
+        ...createReactVitePluginDelegates(),
         ...createReactRenderPlugins(context),
         createReactDevPlugin(context),
         createFrameworkMarkdownHmrPlugin({

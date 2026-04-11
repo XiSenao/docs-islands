@@ -13,15 +13,19 @@ vi.mock('@vitejs/plugin-react-swc', () => ({
 describe('reactAdapter', () => {
   it('keeps build adapter responsibilities focused on bundling and SSR helpers', async () => {
     const { reactAdapter } = await import('../adapter');
+    const browserPlugins = reactAdapter.browserBundlerPlugins();
 
     expect('generateDevRuntime' in reactAdapter).toBe(false);
     expect('constants' in reactAdapter).toBe(false);
     expect(
-      reactAdapter
-        .browserBundlerPlugins()
-        .some(
-          (plugin) => plugin.name === REACT_RUNTIME_EXTERNALIZATION_PLUGIN_NAME,
-        ),
+      browserPlugins.some(
+        (plugin) =>
+          Boolean(plugin) &&
+          !Array.isArray(plugin) &&
+          typeof plugin === 'object' &&
+          'name' in plugin &&
+          plugin.name === REACT_RUNTIME_EXTERNALIZATION_PLUGIN_NAME,
+      ),
     ).toBe(true);
   });
 });

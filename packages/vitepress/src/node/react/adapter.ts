@@ -1,14 +1,15 @@
 import { DIRNAME_VAR_NAME } from '#shared/constants';
-import reactPlugin from '@vitejs/plugin-react-swc';
 import { join } from 'pathe';
-import React, { version as reactPackageVersion } from 'react';
-import { version as reactDomPackageVersion } from 'react-dom';
-import ReactDOMServer from 'react-dom/server';
 import type { Plugin, PluginOption } from 'vite';
 import { DIRNAME_VARIABLE_INJECTION_PLUGIN_NAME } from '../plugins/plugin-names';
 import { createDirnameVarInjectionPlugin } from '../plugins/vite-plugin-dirname-var-injection';
 import type { UIFrameworkBundlerAdapter } from '../ui-bundler/adapter';
 import { createReactClientLoaderModuleSource } from './client-loader-module-source';
+import {
+  loadReactRuntimeDependencies,
+  loadReactVitePluginFactory,
+  resolveCurrentDependencyResolutionBase,
+} from './dependencies';
 import { REACT_FRAMEWORK } from './framework';
 import { REACT_RUNTIME_EXTERNALIZATION_PLUGIN_NAME } from './plugin-names';
 
@@ -25,30 +26,44 @@ export interface ReactBuildAdapter extends UIFrameworkBundlerAdapter {
 export class ReactAdapter implements ReactBuildAdapter {
   public readonly framework: typeof REACT_FRAMEWORK = REACT_FRAMEWORK;
 
-  browserBundlerPlugins(): Plugin[] {
+  browserBundlerPlugins(): PluginOption[] {
+    const resolutionBase = resolveCurrentDependencyResolutionBase();
     const plugins: PluginOption[] = [
-      reactPlugin(),
+      loadReactVitePluginFactory(resolutionBase).then((reactPlugin) =>
+        reactPlugin(),
+      ),
       this.externalizeRuntimePlugin(),
     ];
-    return plugins.filter((plugin): plugin is Plugin => Boolean(plugin));
+    return plugins.filter(Boolean);
   }
 
-  ssrBundlerPlugins(): Plugin[] {
+  ssrBundlerPlugins(): PluginOption[] {
+    const resolutionBase = resolveCurrentDependencyResolutionBase();
     const plugins: PluginOption[] = [
-      reactPlugin(),
+      loadReactVitePluginFactory(resolutionBase).then((reactPlugin) =>
+        reactPlugin(),
+      ),
       createDirnameVarInjectionPlugin({
         name: DIRNAME_VARIABLE_INJECTION_PLUGIN_NAME,
         variableName: DIRNAME_VAR_NAME,
       }),
     ];
-    return plugins.filter((plugin): plugin is Plugin => Boolean(plugin));
+    return plugins.filter(Boolean);
   }
 
   clientEntryModule(): string {
     return '@docs-islands/vitepress/react/client';
   }
 
-  buildModulePreloadPaths({ assetsDir }: { assetsDir: string }): string[] {
+  async buildModulePreloadPaths({
+    assetsDir,
+  }: {
+    assetsDir: string;
+  }): Promise<string[]> {
+    const resolutionBase = resolveCurrentDependencyResolutionBase();
+    const { reactDomPackageVersion, reactPackageVersion } =
+      await loadReactRuntimeDependencies(resolutionBase);
+
     return [
       join('/', assetsDir, `chunks/react@${reactPackageVersion}.js`),
       join('/', assetsDir, `chunks/client@${reactDomPackageVersion}.js`),
@@ -63,9 +78,15 @@ export class ReactAdapter implements ReactBuildAdapter {
     return createReactClientLoaderModuleSource(...args);
   }
 
-  renderToString(component: unknown, props: Record<string, string>): string {
-    const Component = component as React.ComponentType<Record<string, string>>;
-    return ReactDOMServer.renderToString(React.createElement(Component, props));
+  async renderToString(
+    component: unknown,
+    props: Record<string, string>,
+  ): Promise<string> {
+    const resolutionBase = resolveCurrentDependencyResolutionBase();
+    const { React, ReactDOMServer } =
+      await loadReactRuntimeDependencies(resolutionBase);
+
+    return ReactDOMServer.renderToString(React.createElement(component, props));
   }
 
   externalizeRuntimePlugin(): Plugin {

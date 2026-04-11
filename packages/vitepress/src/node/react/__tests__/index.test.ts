@@ -10,7 +10,10 @@ import {
   FRAMEWORK_MARKDOWN_TRANSFORM_PLUGIN_NAME,
   INLINE_PAGE_RESOLUTION_PLUGIN_NAME,
 } from '../../core/plugin-names';
-import { REACT_SITE_DEBUG_SOURCE_PLUGIN_NAME } from '../plugin-names';
+import {
+  REACT_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME,
+  REACT_SITE_DEBUG_SOURCE_PLUGIN_NAME,
+} from '../plugin-names';
 
 const mockError = vi.fn();
 const mockWarn = vi.fn();
@@ -35,6 +38,9 @@ vi.mock('#shared/logger', () => ({
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.doUnmock('@docs-islands/utils');
+  delete (globalThis as { VITEPRESS_CONFIG?: unknown }).VITEPRESS_CONFIG;
+  vi.resetModules();
 });
 
 function findPluginByName(
@@ -57,7 +63,216 @@ function findPluginByName(
   return null;
 }
 
+async function runDependencyBootstrapPlugin(
+  vitepressConfig: { vite?: { plugins?: PluginOption[] } },
+  root: string,
+): Promise<void> {
+  const plugin = findPluginByName(
+    vitepressConfig.vite?.plugins,
+    REACT_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME,
+  );
+
+  expect(plugin).toBeTruthy();
+  expect(plugin.config).toBeTypeOf('function');
+
+  await plugin.config({
+    root,
+  });
+}
+
+function writeReactSwcPluginStub(root: string): void {
+  const packageDir = path.join(
+    root,
+    'node_modules',
+    '@vitejs',
+    'plugin-react-swc',
+  );
+  fs.mkdirSync(packageDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(packageDir, 'package.json'),
+    JSON.stringify({
+      exports: './index.js',
+      name: '@vitejs/plugin-react-swc',
+      type: 'module',
+    }),
+    'utf8',
+  );
+  fs.writeFileSync(
+    path.join(packageDir, 'index.js'),
+    'export default function reactPlugin() { return { name: "mock-react-swc" }; }\n',
+    'utf8',
+  );
+}
+
 describe('vitepressReactRenderingStrategies', () => {
+  it('throws a clear error when React peer dependencies are missing', async () => {
+    vi.doMock('@docs-islands/utils', async (importOriginal) => {
+      const actual =
+        await importOriginal<typeof import('@docs-islands/utils')>();
+
+      return {
+        ...actual,
+        pkgExists: vi.fn((moduleName: string) => moduleName !== 'react-dom'),
+      };
+    });
+
+    const { default: vitepressReactRenderingStrategies } = await import(
+      '../index'
+    );
+
+    const vitepressRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'vitepress-react-missing-peer-'),
+    );
+
+    try {
+      fs.writeFileSync(path.join(vitepressRoot, 'package.json'), '{}', 'utf8');
+
+      const vitepressConfig: any = {};
+      vitepressReactRenderingStrategies(vitepressConfig);
+
+      await expect(
+        runDependencyBootstrapPlugin(vitepressConfig, vitepressRoot),
+      ).rejects.toThrowError(
+        'React rendering integration requires the following peer dependencies to be installed in the consumer project: react, react-dom, @vitejs/plugin-react-swc. Missing: react-dom.',
+      );
+    } finally {
+      fs.rmSync(vitepressRoot, {
+        force: true,
+        recursive: true,
+      });
+    }
+  });
+
+  it('installs site-debug fallback aliases when optional enhancement dependencies are missing', async () => {
+    vi.doMock('@docs-islands/utils', async (importOriginal) => {
+      const actual =
+        await importOriginal<typeof import('@docs-islands/utils')>();
+
+      return {
+        ...actual,
+        pkgExists: vi.fn((moduleName: string) => {
+          if (['prettier', 'vue-json-pretty', 'shiki'].includes(moduleName)) {
+            return false;
+          }
+
+          return true;
+        }),
+      };
+    });
+
+    const { default: vitepressReactRenderingStrategies } = await import(
+      '../index'
+    );
+
+    const vitepressConfig: any = {};
+
+    vitepressReactRenderingStrategies(vitepressConfig);
+    const vitepressRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'vitepress-react-site-debug-'),
+    );
+
+    try {
+      fs.writeFileSync(path.join(vitepressRoot, 'package.json'), '{}', 'utf8');
+      writeReactSwcPluginStub(vitepressRoot);
+      await runDependencyBootstrapPlugin(vitepressConfig, vitepressRoot);
+
+      const aliasEntries = vitepressConfig.vite?.resolve?.alias as
+        | { find: string; replacement: string }[]
+        | undefined;
+
+      expect(aliasEntries).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            find: 'vue-json-pretty',
+            replacement: expect.stringMatching(
+              /optional-deps\/vue-json-pretty\.ts$/,
+            ),
+          }),
+          expect.objectContaining({
+            find: 'vue-json-pretty/lib/styles.css',
+            replacement: expect.stringMatching(/optional-deps\/empty\.css$/),
+          }),
+          expect.objectContaining({
+            find: 'prettier/standalone',
+            replacement: expect.stringMatching(
+              /optional-deps\/prettier-standalone\.ts$/,
+            ),
+          }),
+          expect.objectContaining({
+            find: 'prettier/plugins/babel',
+            replacement: expect.stringMatching(
+              /optional-deps\/prettier-plugin\.ts$/,
+            ),
+          }),
+          expect.objectContaining({
+            find: 'shiki',
+            replacement: expect.stringMatching(/optional-deps\/shiki\.ts$/),
+          }),
+        ]),
+      );
+    } finally {
+      fs.rmSync(vitepressRoot, {
+        force: true,
+        recursive: true,
+      });
+    }
+  });
+
+  it('uses the VitePress root as the dependency search base when it is available', async () => {
+    vi.doMock('@docs-islands/utils', async (importOriginal) => {
+      const actual =
+        await importOriginal<typeof import('@docs-islands/utils')>();
+
+      return {
+        ...actual,
+        pkgExists: vi.fn(() => true),
+      };
+    });
+
+    const { default: vitepressReactRenderingStrategies } = await import(
+      '../index'
+    );
+    const { pkgExists } = await import('@docs-islands/utils');
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'vitepress-react-root-search-'),
+    );
+    const vitepressRoot = path.join(workspaceRoot, 'docs');
+    const srcDir = path.join(vitepressRoot, 'src');
+
+    try {
+      fs.mkdirSync(srcDir, { recursive: true });
+      fs.writeFileSync(path.join(vitepressRoot, 'package.json'), '{}', 'utf8');
+      fs.writeFileSync(path.join(srcDir, 'package.json'), '{}', 'utf8');
+      writeReactSwcPluginStub(vitepressRoot);
+
+      (
+        globalThis as { VITEPRESS_CONFIG?: { root?: string } }
+      ).VITEPRESS_CONFIG = {
+        root: vitepressRoot,
+      };
+
+      const vitepressConfig: any = {};
+      vitepressReactRenderingStrategies(vitepressConfig);
+      await runDependencyBootstrapPlugin(vitepressConfig, srcDir);
+      const resolvedVitepressRoot = fs.realpathSync(vitepressRoot);
+      const resolvedSrcDir = fs.realpathSync(srcDir);
+
+      expect(pkgExists).toHaveBeenCalledWith(
+        'react',
+        path.join(resolvedVitepressRoot, 'package.json'),
+      );
+      expect(pkgExists).not.toHaveBeenCalledWith(
+        'react',
+        path.join(resolvedSrcDir, 'package.json'),
+      );
+    } finally {
+      fs.rmSync(workspaceRoot, {
+        force: true,
+        recursive: true,
+      });
+    }
+  });
+
   it('merges siteDebug from the second options argument into the VitePress config', async () => {
     const { default: vitepressReactRenderingStrategies } = await import(
       '../index'

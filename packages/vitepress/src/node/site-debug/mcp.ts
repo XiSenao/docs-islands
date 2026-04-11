@@ -14,7 +14,7 @@ type JsonRpcId = number | string | null;
 
 interface JsonRpcRequest {
   id?: JsonRpcId;
-  jsonrpc?: string;
+  jsonrpc: '2.0';
   method: string;
   params?: unknown;
 }
@@ -27,6 +27,59 @@ interface JsonRpcResponse {
   id: JsonRpcId;
   jsonrpc: '2.0';
   result?: unknown;
+}
+
+interface SiteDebugBuildMcpResource {
+  description: string;
+  mimeType: 'text/markdown';
+  name: string;
+  text: string;
+  uri: string;
+}
+
+interface SiteDebugBuildMcpToolStringSchema {
+  enum?: readonly string[];
+  type: 'string';
+}
+
+interface SiteDebugBuildMcpToolInputSchema {
+  additionalProperties: false;
+  properties: Record<string, SiteDebugBuildMcpToolStringSchema>;
+  required?: readonly string[];
+  type: 'object';
+}
+
+type SiteDebugBuildToolArguments = Record<string, string | undefined>;
+
+interface SiteDebugBuildMcpToolDefinition {
+  description: string;
+  execute: (
+    dataStore: SiteDebugBuildDataStore,
+    args: SiteDebugBuildToolArguments,
+  ) => Promise<SiteDebugBuildMcpToolResult> | SiteDebugBuildMcpToolResult;
+  inputSchema: SiteDebugBuildMcpToolInputSchema;
+  name: SiteDebugBuildMcpToolName;
+  validate?: (args: SiteDebugBuildToolArguments) => void;
+}
+
+class JsonRpcRequestError extends Error {
+  declare readonly code: number;
+  declare readonly id: JsonRpcId;
+
+  constructor(code: number, message: string, id: JsonRpcId = null) {
+    super(message);
+    this.name = 'JsonRpcRequestError';
+    Object.defineProperty(this, 'code', {
+      configurable: true,
+      value: code,
+      writable: true,
+    });
+    Object.defineProperty(this, 'id', {
+      configurable: true,
+      value: id,
+      writable: true,
+    });
+  }
 }
 
 export type SiteDebugBuildMcpToolName =
@@ -58,13 +111,14 @@ type SiteDebugBuildMcpToolResult =
       summary: SiteDebugBuildPageSummary;
     };
 
-interface SiteDebugBuildMcpResource {
-  description: string;
-  mimeType: 'text/markdown';
-  name: string;
-  text: string;
-  uri: string;
-}
+const JSON_RPC_VERSION = '2.0' as const;
+const JSON_RPC_PARSE_ERROR = -32_700;
+const JSON_RPC_INVALID_REQUEST = -32_600;
+const JSON_RPC_METHOD_NOT_FOUND = -32_601;
+const JSON_RPC_INVALID_PARAMS = -32_602;
+const JSON_RPC_INTERNAL_ERROR = -32_603;
+const CONTENT_LENGTH_HEADER_NAME = 'content-length';
+const CONTENT_LENGTH_HEADER_TOKEN = `${CONTENT_LENGTH_HEADER_NAME}:`;
 
 const SERVER_NAME = 'docs-islands-site-debug-build-mcp';
 const SERVER_VERSION = '1.0.0';
@@ -78,6 +132,19 @@ Options:
   --assetsDir  Assets directory name inside outDir. Defaults to "assets".
   --help       Show this message.
 `.trim();
+
+const createToolInputSchema = ({
+  properties,
+  required,
+}: {
+  properties: SiteDebugBuildMcpToolInputSchema['properties'];
+  required?: readonly string[];
+}): SiteDebugBuildMcpToolInputSchema => ({
+  additionalProperties: false,
+  ...(required && required.length > 0 ? { required } : {}),
+  properties,
+  type: 'object',
+});
 
 const MCP_RESOURCES: SiteDebugBuildMcpResource[] = [
   {
@@ -128,47 +195,51 @@ const MCP_RESOURCES: SiteDebugBuildMcpResource[] = [
   },
 ];
 
-const MCP_TOOLS = [
+const MCP_TOOL_DEFINITIONS = [
   {
     description:
       'Return build ID, page count, component count, total bundle bytes, and whether AI reports exist.',
-    inputSchema: {
-      additionalProperties: false,
+    execute: (dataStore: SiteDebugBuildDataStore) =>
+      dataStore.getBuildOverview(),
+    inputSchema: createToolInputSchema({
       properties: {},
-      type: 'object',
-    },
+    }),
     name: 'get_build_overview',
   },
   {
     description:
       'List all page IDs with their page metafile references and summary metadata.',
-    inputSchema: {
-      additionalProperties: false,
+    execute: (dataStore: SiteDebugBuildDataStore) => dataStore.listPages(),
+    inputSchema: createToolInputSchema({
       properties: {},
-      type: 'object',
-    },
+    }),
     name: 'list_pages',
   },
   {
     description:
       'Return the page metafile payload and summary for a single page ID.',
-    inputSchema: {
-      additionalProperties: false,
+    execute: (
+      dataStore: SiteDebugBuildDataStore,
+      args: SiteDebugBuildToolArguments,
+    ) => dataStore.getPage(args.pageId!),
+    inputSchema: createToolInputSchema({
       properties: {
         pageId: {
           type: 'string',
         },
       },
       required: ['pageId'],
-      type: 'object',
-    },
+    }),
     name: 'get_page',
   },
   {
     description:
       'Return a component build metric by page ID and component name.',
-    inputSchema: {
-      additionalProperties: false,
+    execute: (
+      dataStore: SiteDebugBuildDataStore,
+      args: SiteDebugBuildToolArguments,
+    ) => dataStore.getComponent(args.pageId!, args.componentName!),
+    inputSchema: createToolInputSchema({
       properties: {
         componentName: {
           type: 'string',
@@ -178,15 +249,24 @@ const MCP_TOOLS = [
         },
       },
       required: ['pageId', 'componentName'],
-      type: 'object',
-    },
+    }),
     name: 'get_component',
   },
   {
     description:
       'Return a shared prompt snapshot for a chunk or module artifact.',
-    inputSchema: {
-      additionalProperties: false,
+    execute: (
+      dataStore: SiteDebugBuildDataStore,
+      args: SiteDebugBuildToolArguments,
+    ) =>
+      dataStore.getArtifact({
+        artifactKind:
+          args.artifactKind as SiteDebugBuildArtifactSnapshot['artifactKind'],
+        displayPath: args.displayPath,
+        file: args.file,
+        moduleId: args.moduleId,
+      }),
+    inputSchema: createToolInputSchema({
       properties: {
         artifactKind: {
           enum: ['bundle-chunk', 'bundle-module'],
@@ -203,15 +283,50 @@ const MCP_TOOLS = [
         },
       },
       required: ['artifactKind'],
-      type: 'object',
-    },
+    }),
     name: 'get_artifact',
+    validate: (args: SiteDebugBuildToolArguments) => {
+      if (args.artifactKind === 'bundle-chunk') {
+        if (!args.displayPath) {
+          throw new Error(
+            'Provide "displayPath" for "bundle-chunk" artifact lookups.',
+          );
+        }
+
+        if (args.file || args.moduleId) {
+          throw new Error(
+            '"bundle-chunk" artifact lookups only support "displayPath".',
+          );
+        }
+
+        return;
+      }
+
+      if ((args.file && !args.moduleId) || (!args.file && args.moduleId)) {
+        throw new Error(
+          'Provide both "file" and "moduleId" together for "bundle-module" lookups.',
+        );
+      }
+
+      if (!args.displayPath && !args.file && !args.moduleId) {
+        throw new Error(
+          'Provide "displayPath" or both "file" and "moduleId" for "bundle-module" artifact lookups.',
+        );
+      }
+    },
   },
   {
     description:
       'Return a saved build-time AI report payload by report ID or artifact key.',
-    inputSchema: {
-      additionalProperties: false,
+    execute: (
+      dataStore: SiteDebugBuildDataStore,
+      args: SiteDebugBuildToolArguments,
+    ) =>
+      dataStore.getBuildReport({
+        artifactKey: args.artifactKey,
+        reportId: args.reportId,
+      }),
+    inputSchema: createToolInputSchema({
       properties: {
         artifactKey: {
           type: 'string',
@@ -220,18 +335,38 @@ const MCP_TOOLS = [
           type: 'string',
         },
       },
-      type: 'object',
-    },
+    }),
     name: 'get_build_report',
+    validate: (args: SiteDebugBuildToolArguments) => {
+      if (!args.artifactKey && !args.reportId) {
+        throw new Error('Provide at least one of "reportId" or "artifactKey".');
+      }
+    },
   },
-] as const satisfies {
-  description: string;
-  inputSchema: Record<string, unknown>;
-  name: SiteDebugBuildMcpToolName;
-}[];
+] as const satisfies readonly SiteDebugBuildMcpToolDefinition[];
+
+const MCP_TOOLS = MCP_TOOL_DEFINITIONS.map(
+  ({ description, inputSchema, name }) => ({
+    description,
+    inputSchema,
+    name,
+  }),
+);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === 'object' && !Array.isArray(value));
+
+const isJsonRpcId = (value: unknown): value is JsonRpcId =>
+  value === null || typeof value === 'number' || typeof value === 'string';
+
+const getMessageId = (value: unknown): JsonRpcId =>
+  isRecord(value) && isJsonRpcId(value.id) ? value.id : null;
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
+
+const formatQuotedValues = (values: readonly string[]) =>
+  values.map((value) => `"${value}"`).join(', ');
 
 const createJsonRpcErrorResponse = (
   id: JsonRpcId,
@@ -243,7 +378,7 @@ const createJsonRpcErrorResponse = (
     message,
   },
   id,
-  jsonrpc: '2.0',
+  jsonrpc: JSON_RPC_VERSION,
 });
 
 const createJsonRpcSuccessResponse = (
@@ -251,9 +386,24 @@ const createJsonRpcSuccessResponse = (
   result: unknown,
 ): JsonRpcResponse => ({
   id,
-  jsonrpc: '2.0',
+  jsonrpc: JSON_RPC_VERSION,
   result,
 });
+
+const createJsonRpcErrorFromUnknown = (
+  error: unknown,
+  fallbackId: JsonRpcId = null,
+): JsonRpcResponse => {
+  if (error instanceof JsonRpcRequestError) {
+    return createJsonRpcErrorResponse(error.id, error.code, error.message);
+  }
+
+  return createJsonRpcErrorResponse(
+    fallbackId,
+    JSON_RPC_INTERNAL_ERROR,
+    getErrorMessage(error, 'Internal error.'),
+  );
+};
 
 const serializeToolResult = (
   result: SiteDebugBuildMcpToolResult,
@@ -269,31 +419,139 @@ const serializeToolResult = (
   structuredContent: result,
 });
 
-const getRequiredString = (
+const validateToolArguments = ({
+  args,
+  schema,
+  toolName,
+}: {
+  args: unknown;
+  schema: SiteDebugBuildMcpToolInputSchema;
+  toolName: SiteDebugBuildMcpToolName;
+}): SiteDebugBuildToolArguments => {
+  const source = args === undefined ? {} : args;
+
+  if (!isRecord(source)) {
+    throw new Error(`Tool "${toolName}" arguments must be an object.`);
+  }
+
+  const allowedKeys = new Set(Object.keys(schema.properties));
+  const unknownKeys = Object.keys(source).filter(
+    (key) => !allowedKeys.has(key),
+  );
+
+  if (schema.additionalProperties === false && unknownKeys.length > 0) {
+    throw new Error(
+      `Unknown argument${unknownKeys.length === 1 ? '' : 's'}: ${formatQuotedValues(unknownKeys)}.`,
+    );
+  }
+
+  const requiredKeys = new Set(schema.required);
+  const normalizedArgs: SiteDebugBuildToolArguments = {};
+
+  for (const [key, propertySchema] of Object.entries(schema.properties)) {
+    const nextValue = source[key];
+
+    if (nextValue === undefined) {
+      if (requiredKeys.has(key)) {
+        throw new Error(`"${key}" must be a non-empty string.`);
+      }
+
+      normalizedArgs[key] = undefined;
+      continue;
+    }
+
+    if (typeof nextValue !== 'string' || nextValue.length === 0) {
+      throw new Error(
+        requiredKeys.has(key)
+          ? `"${key}" must be a non-empty string.`
+          : `"${key}" must be a non-empty string when provided.`,
+      );
+    }
+
+    if (propertySchema.enum && !propertySchema.enum.includes(nextValue)) {
+      throw new Error(
+        `"${key}" must be one of ${formatQuotedValues(propertySchema.enum)}.`,
+      );
+    }
+
+    normalizedArgs[key] = nextValue;
+  }
+
+  return normalizedArgs;
+};
+
+const validateJsonRpcRequest = (message: unknown): JsonRpcRequest => {
+  const fallbackId = getMessageId(message);
+
+  if (!isRecord(message)) {
+    throw new JsonRpcRequestError(
+      JSON_RPC_INVALID_REQUEST,
+      'Request must be an object.',
+    );
+  }
+
+  if ('id' in message && !isJsonRpcId(message.id)) {
+    throw new JsonRpcRequestError(
+      JSON_RPC_INVALID_REQUEST,
+      '"id" must be a string, number, or null when provided.',
+    );
+  }
+
+  if (message.jsonrpc !== JSON_RPC_VERSION) {
+    throw new JsonRpcRequestError(
+      JSON_RPC_INVALID_REQUEST,
+      `"jsonrpc" must be "${JSON_RPC_VERSION}".`,
+      fallbackId,
+    );
+  }
+
+  if (typeof message.method !== 'string' || message.method.length === 0) {
+    throw new JsonRpcRequestError(
+      JSON_RPC_INVALID_REQUEST,
+      '"method" must be a non-empty string.',
+      fallbackId,
+    );
+  }
+
+  const normalizedId = isJsonRpcId(message.id) ? message.id : undefined;
+
+  return {
+    id: normalizedId,
+    jsonrpc: JSON_RPC_VERSION,
+    method: message.method,
+    params: message.params,
+  };
+};
+
+const getRequiredRequestRecord = (
+  params: unknown,
+  method: string,
+  id: JsonRpcId,
+): Record<string, unknown> => {
+  if (!isRecord(params)) {
+    throw new JsonRpcRequestError(
+      JSON_RPC_INVALID_PARAMS,
+      `Method "${method}" requires object params.`,
+      id,
+    );
+  }
+
+  return params;
+};
+
+const getRequiredRequestString = (
   value: Record<string, unknown>,
   key: string,
+  id: JsonRpcId,
 ): string => {
   const nextValue = value[key];
 
   if (typeof nextValue !== 'string' || nextValue.length === 0) {
-    throw new Error(`"${key}" must be a non-empty string.`);
-  }
-
-  return nextValue;
-};
-
-const getOptionalString = (
-  value: Record<string, unknown>,
-  key: string,
-): string | undefined => {
-  const nextValue = value[key];
-
-  if (nextValue === undefined) {
-    return undefined;
-  }
-
-  if (typeof nextValue !== 'string' || nextValue.length === 0) {
-    throw new Error(`"${key}" must be a non-empty string when provided.`);
+    throw new JsonRpcRequestError(
+      JSON_RPC_INVALID_PARAMS,
+      `"${key}" must be a non-empty string.`,
+      id,
+    );
   }
 
   return nextValue;
@@ -303,9 +561,23 @@ const createToolArgumentErrorResult = (message: string) =>
   serializeToolResult(
     {
       error: message,
-    } as { error: string },
+    },
     true,
   );
+
+const getRequiredCliOptionValue = (
+  argv: string[],
+  index: number,
+  flag: string,
+) => {
+  const value = argv[index + 1];
+
+  if (!value) {
+    throw new Error(`Missing value for ${flag}`);
+  }
+
+  return value;
+};
 
 const parseCliArgs = (argv: string[]): SiteDebugBuildDataOptions | null => {
   const nextOptions: SiteDebugBuildDataOptions = {
@@ -320,13 +592,17 @@ const parseCliArgs = (argv: string[]): SiteDebugBuildDataOptions | null => {
     }
 
     if (argument === '--outDir') {
-      nextOptions.outDir = argv[index + 1] || '';
+      nextOptions.outDir = getRequiredCliOptionValue(argv, index, '--outDir');
       index += 1;
       continue;
     }
 
     if (argument === '--assetsDir') {
-      nextOptions.assetsDir = argv[index + 1] || '';
+      nextOptions.assetsDir = getRequiredCliOptionValue(
+        argv,
+        index,
+        '--assetsDir',
+      );
       index += 1;
       continue;
     }
@@ -356,6 +632,8 @@ export const createSiteDebugBuildMcpServer = (
   const stderr = options.stderr || process.stderr;
   let buffer = Buffer.alloc(0);
   let closed = false;
+  let listening = false;
+  let onData: ((chunk: Buffer | string) => void) | null = null;
 
   const writeMessage = (message: JsonRpcResponse) => {
     if (closed) {
@@ -369,81 +647,50 @@ export const createSiteDebugBuildMcpServer = (
     stdout.write(payload);
   };
 
+  const writeTransportError = (message: string) => {
+    stderr.write(`${message}\n`);
+  };
+
+  const detachListener = () => {
+    if (!listening || !onData) {
+      return;
+    }
+
+    stdin.off('data', onData);
+    listening = false;
+  };
+
+  const closeServer = () => {
+    closed = true;
+    buffer = Buffer.alloc(0);
+    detachListener();
+  };
+
+  const resyncBuffer = (searchFrom: number) => {
+    const nextHeaderIndex = buffer
+      .toString('utf8')
+      .toLowerCase()
+      .indexOf(CONTENT_LENGTH_HEADER_TOKEN, searchFrom);
+
+    buffer =
+      nextHeaderIndex === -1 ? Buffer.alloc(0) : buffer.slice(nextHeaderIndex);
+  };
+
   const handleToolCall = async (
-    name: SiteDebugBuildMcpToolName,
+    tool: SiteDebugBuildMcpToolDefinition,
     args: unknown,
   ) => {
-    const normalizedArgs = isRecord(args) ? args : {};
-
     try {
-      switch (name) {
-        case 'get_build_overview': {
-          return serializeToolResult(dataStore.getBuildOverview());
-        }
-        case 'list_pages': {
-          return serializeToolResult(dataStore.listPages());
-        }
-        case 'get_page': {
-          return serializeToolResult(
-            dataStore.getPage(getRequiredString(normalizedArgs, 'pageId')),
-          );
-        }
-        case 'get_component': {
-          return serializeToolResult(
-            dataStore.getComponent(
-              getRequiredString(normalizedArgs, 'pageId'),
-              getRequiredString(normalizedArgs, 'componentName'),
-            ),
-          );
-        }
-        case 'get_artifact': {
-          const artifactKind = getRequiredString(
-            normalizedArgs,
-            'artifactKind',
-          );
-
-          if (
-            artifactKind !== 'bundle-chunk' &&
-            artifactKind !== 'bundle-module'
-          ) {
-            throw new Error(
-              '"artifactKind" must be "bundle-chunk" or "bundle-module".',
-            );
-          }
-
-          return serializeToolResult(
-            dataStore.getArtifact({
-              artifactKind,
-              displayPath: getOptionalString(normalizedArgs, 'displayPath'),
-              file: getOptionalString(normalizedArgs, 'file'),
-              moduleId: getOptionalString(normalizedArgs, 'moduleId'),
-            }),
-          );
-        }
-        case 'get_build_report': {
-          const artifactKey = getOptionalString(normalizedArgs, 'artifactKey');
-          const reportId = getOptionalString(normalizedArgs, 'reportId');
-
-          if (!artifactKey && !reportId) {
-            throw new Error(
-              'Provide at least one of "reportId" or "artifactKey".',
-            );
-          }
-
-          return serializeToolResult(
-            dataStore.getBuildReport({
-              artifactKey,
-              reportId,
-            }),
-          );
-        }
-        default: {
-          return createToolArgumentErrorResult(`Unsupported tool: ${name}`);
-        }
-      }
+      const normalizedArgs = validateToolArguments({
+        args,
+        schema: tool.inputSchema,
+        toolName: tool.name,
+      });
+      tool.validate?.(normalizedArgs);
+      return serializeToolResult(await tool.execute(dataStore, normalizedArgs));
     } catch (error) {
       return createToolArgumentErrorResult(
-        error instanceof Error ? error.message : 'Tool execution failed.',
+        getErrorMessage(error, 'Tool execution failed.'),
       );
     }
   };
@@ -484,9 +731,15 @@ export const createSiteDebugBuildMcpServer = (
         });
       }
       case 'tools/call': {
-        const params = isRecord(request.params) ? request.params : {};
-        const toolName = getRequiredString(params, 'name');
-        const tool = MCP_TOOLS.find((item) => item.name === toolName);
+        const params = getRequiredRequestRecord(
+          request.params,
+          'tools/call',
+          id,
+        );
+        const toolName = getRequiredRequestString(params, 'name', id);
+        const tool = MCP_TOOL_DEFINITIONS.find(
+          (item) => item.name === toolName,
+        );
 
         if (!tool) {
           return createJsonRpcSuccessResponse(
@@ -497,7 +750,7 @@ export const createSiteDebugBuildMcpServer = (
 
         return createJsonRpcSuccessResponse(
           id,
-          await handleToolCall(tool.name, params.arguments),
+          await handleToolCall(tool, params.arguments),
         );
       }
       case 'resources/list': {
@@ -511,15 +764,19 @@ export const createSiteDebugBuildMcpServer = (
         });
       }
       case 'resources/read': {
-        const params = isRecord(request.params) ? request.params : {};
-        const resourceUri = getRequiredString(params, 'uri');
+        const params = getRequiredRequestRecord(
+          request.params,
+          'resources/read',
+          id,
+        );
+        const resourceUri = getRequiredRequestString(params, 'uri', id);
         const resource = MCP_RESOURCES.find((item) => item.uri === resourceUri);
 
         if (!resource) {
-          return createJsonRpcErrorResponse(
-            id,
-            -32_602,
+          throw new JsonRpcRequestError(
+            JSON_RPC_INVALID_PARAMS,
             `Unknown resource URI: ${resourceUri}`,
+            id,
           );
         }
 
@@ -537,7 +794,7 @@ export const createSiteDebugBuildMcpServer = (
         return createJsonRpcSuccessResponse(id, null);
       }
       case 'exit': {
-        closed = true;
+        closeServer();
         return null;
       }
       default: {
@@ -547,10 +804,22 @@ export const createSiteDebugBuildMcpServer = (
 
         return createJsonRpcErrorResponse(
           id,
-          -32_601,
+          JSON_RPC_METHOD_NOT_FOUND,
           `Method not found: ${request.method}`,
         );
       }
+    }
+  };
+
+  const handleIncomingMessage = async (
+    message: unknown,
+  ): Promise<JsonRpcResponse | null> => {
+    const fallbackId = getMessageId(message);
+
+    try {
+      return await handleRequest(validateJsonRpcRequest(message));
+    } catch (error) {
+      return createJsonRpcErrorFromUnknown(error, fallbackId);
     }
   };
 
@@ -575,10 +844,22 @@ export const createSiteDebugBuildMcpServer = (
           )
           .map(([key, value]) => [key.toLowerCase(), value]),
       );
-      const contentLength = Number.parseInt(headers['content-length'], 10);
+      const contentLength = Number.parseInt(
+        headers[CONTENT_LENGTH_HEADER_NAME],
+        10,
+      );
 
       if (!Number.isFinite(contentLength) || contentLength < 0) {
-        throw new Error('Missing or invalid Content-Length header.');
+        writeTransportError('Missing or invalid Content-Length header.');
+        writeMessage(
+          createJsonRpcErrorResponse(
+            null,
+            JSON_RPC_PARSE_ERROR,
+            'Parse error.',
+          ),
+        );
+        resyncBuffer(headerEnd + 4);
+        continue;
       }
 
       const messageStart = headerEnd + 4;
@@ -591,8 +872,23 @@ export const createSiteDebugBuildMcpServer = (
       const payload = buffer.slice(messageStart, messageEnd).toString('utf8');
       buffer = buffer.slice(messageEnd);
 
-      const message = JSON.parse(payload) as JsonRpcRequest;
-      const response = await handleRequest(message);
+      let message: unknown;
+
+      try {
+        message = JSON.parse(payload) as JsonRpcRequest;
+      } catch {
+        writeTransportError('Invalid JSON payload.');
+        writeMessage(
+          createJsonRpcErrorResponse(
+            null,
+            JSON_RPC_PARSE_ERROR,
+            'Parse error.',
+          ),
+        );
+        continue;
+      }
+
+      const response = await handleIncomingMessage(message);
 
       if (response) {
         writeMessage(response);
@@ -602,41 +898,37 @@ export const createSiteDebugBuildMcpServer = (
 
   let pendingFlush = Promise.resolve();
 
+  onData = (chunk: Buffer | string) => {
+    if (closed) {
+      return;
+    }
+
+    buffer = Buffer.concat([
+      buffer,
+      Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk),
+    ]);
+    pendingFlush = pendingFlush
+      .then(() => flushBuffer())
+      .catch((error) => {
+        writeTransportError(getErrorMessage(error, 'MCP transport error.'));
+        buffer = Buffer.alloc(0);
+      });
+  };
+
   return {
     close() {
-      closed = true;
+      closeServer();
     },
     async handleMessage(message: unknown) {
-      if (!isRecord(message) || typeof message.method !== 'string') {
-        return createJsonRpcErrorResponse(null, -32_600, 'Invalid request.');
-      }
-
-      const normalizedMessage = message as unknown as JsonRpcRequest;
-
-      try {
-        return await handleRequest(normalizedMessage);
-      } catch (error) {
-        return createJsonRpcErrorResponse(
-          normalizedMessage.id ?? null,
-          -32_603,
-          error instanceof Error ? error.message : 'Internal error.',
-        );
-      }
+      return handleIncomingMessage(message);
     },
     listen() {
-      stdin.on('data', (chunk: Buffer | string) => {
-        buffer = Buffer.concat([
-          buffer,
-          Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk),
-        ]);
-        pendingFlush = pendingFlush
-          .then(() => flushBuffer())
-          .catch((error) => {
-            stderr.write(
-              `${error instanceof Error ? error.message : 'MCP transport error.'}\n`,
-            );
-          });
-      });
+      if (closed || listening || !onData) {
+        return;
+      }
+
+      stdin.on('data', onData);
+      listening = true;
     },
   };
 };

@@ -1,7 +1,6 @@
-import { version as reactPackageVersion } from 'react';
-import { version as reactDomPackageVersion } from 'react-dom';
 import type { PluginOption, Rollup } from 'vite';
 import type { ReactIntegrationPluginContext } from '../context';
+import { loadReactRuntimeDependencies } from '../dependencies';
 import { REACT_RUNTIME_BUNDLING_PLUGIN_NAME } from '../plugin-names';
 import { isReactChunk, isReactClientChunk } from '../shared';
 
@@ -13,7 +12,10 @@ export function createReactRenderPlugins(
   return [
     {
       name: REACT_RUNTIME_BUNDLING_PLUGIN_NAME,
-      config(config) {
+      async config(config) {
+        const { reactDomPackageVersion, reactPackageVersion } =
+          await loadReactRuntimeDependencies();
+
         if (!config.define) config.define = {};
         if (!config.build) config.build = {};
         if (!config.build.rollupOptions) config.build.rollupOptions = {};

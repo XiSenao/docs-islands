@@ -41,22 +41,26 @@ export function findMonorepoRoot(startDir: string): string | undefined {
   }
 }
 
-const findPackageJson = (dir: string): string | null => {
-  const packageJsonPath = join(dir, 'package.json');
-  if (fs.existsSync(packageJsonPath)) {
-    return dir;
-  }
+export const findNearestPackageRoot = (startDir: string): string | null => {
+  let dir = realpathSync(startDir);
 
-  const parentDir = dirname(dir);
-  if (parentDir === dir) {
-    return null;
-  }
+  while (true) {
+    const packageJsonPath = join(dir, 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      return dir;
+    }
 
-  return findPackageJson(parentDir);
+    const parentDir = dirname(dir);
+    if (parentDir === dir) {
+      return null;
+    }
+
+    dir = parentDir;
+  }
 };
 
 export function getProjectRoot(): string {
-  const rootFromPackageJson = findPackageJson(process.cwd());
+  const rootFromPackageJson = findNearestPackageRoot(process.cwd());
   if (rootFromPackageJson) {
     return rootFromPackageJson;
   }

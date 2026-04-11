@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import * as React from 'react';
+
+const { useState } = React;
 
 export default function Hello(props: { uniqueid?: string }): JSX.Element {
   const { uniqueid = 'default-hello-id' } = props;

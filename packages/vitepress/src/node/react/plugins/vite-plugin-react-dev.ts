@@ -6,12 +6,11 @@ import {
 } from '#shared/constants';
 import { createRequire } from 'node:module';
 import { join } from 'pathe';
-import React from 'react';
-import ReactDOMServer from 'react-dom/server';
 import type { ModuleNode, PluginOption } from 'vite';
 import { normalizePath } from 'vite';
 import { collectCssModulesInSSR } from '../../plugins/shared';
 import type { ReactIntegrationPluginContext } from '../context';
+import { loadReactRuntimeDependencies } from '../dependencies';
 import { REACT_FRAMEWORK } from '../framework';
 import { REACT_DEV_RUNTIME_PLUGIN_NAME } from '../plugin-names';
 
@@ -49,6 +48,9 @@ export function createReactDevPlugin(
           if (!needCompile || !Array.isArray(data)) {
             return;
           }
+
+          const { React, ReactDOMServer } =
+            await loadReactRuntimeDependencies();
 
           const importsByLocalName = compilationContainer.importsByLocalName;
           const ssrOnlyComponentNames =
@@ -96,13 +98,13 @@ export function createReactDevPlugin(
             }
 
             const importedName = importedNameList[i] as string;
-            const renderComponent = (importedName === 'default'
-              ? ssrComponent.default
-              : importedName === '*'
-                ? ssrComponent
-                : ssrComponent[importedName]) as unknown as
-              | React.FunctionComponent
-              | React.ComponentClass;
+            const renderComponent = (
+              importedName === 'default'
+                ? ssrComponent.default
+                : importedName === '*'
+                  ? ssrComponent
+                  : ssrComponent[importedName]
+            ) as unknown;
 
             const { renderId, props } = data[i / 2];
             const wrapSSROnlyCss = ssrOnlyCss.map((css) =>

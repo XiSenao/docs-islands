@@ -47,4 +47,10 @@ export {
   type LogKind,
   type LogLevel,
 } from './logger';
-export { findMonorepoRoot, getProjectRoot, isSubpath, slash } from './path';
+export {
+  findMonorepoRoot,
+  findNearestPackageRoot,
+  getProjectRoot,
+  isSubpath,
+  slash,
+} from './path';

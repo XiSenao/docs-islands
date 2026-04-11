@@ -4,13 +4,27 @@ This page helps you connect `Site Debug Console` with the shortest path possible
 
 ## 1. Mount the Console in Your Theme
 
-The smallest integration is to mount the client console component inside your theme layout:
+Mount the client console component inside your theme layout, and import the console styles from `.vitepress/theme/index.ts`:
+
+```ts
+// .vitepress/theme/index.ts
+import type { Theme } from 'vitepress';
+import DefaultTheme from 'vitepress/theme';
+import SiteDebugLayout from './components/SiteDebugLayout.vue';
+import '@docs-islands/vitepress/debug-console/client/style.css';
+// Optional: import this only when vue-json-pretty is installed.
+import 'vue-json-pretty/lib/styles.css';
+
+export default {
+  extends: DefaultTheme,
+  Layout: SiteDebugLayout,
+} satisfies Theme;
+```
 
 ```vue
-<!-- .vitepress/theme/components/EnhanceLayout.vue -->
+<!-- .vitepress/theme/components/SiteDebugLayout.vue -->
 <script setup lang="ts">
 import SiteDebugConsole from '@docs-islands/vitepress/debug-console/client';
-import '@docs-islands/vitepress/debug-console/client/style.css';
 import DefaultTheme from 'vitepress/theme';
 </script>
 
@@ -19,6 +33,8 @@ import DefaultTheme from 'vitepress/theme';
   <SiteDebugConsole />
 </template>
 ```
+
+Import `vue-json-pretty/lib/styles.css` only when you install the optional `vue-json-pretty` enhancement. `Site Debug Console` no longer injects that stylesheet automatically, so the theme entry is the right place to make the style dependency explicit.
 
 Once mounted, the page overlay and `Debug Logs` surface are available at runtime even if you have not configured AI analysis yet.
 

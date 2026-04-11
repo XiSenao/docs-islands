@@ -41,6 +41,7 @@
     "@vitejs/plugin-react-swc": "catalog:dev",
     "@vercel/analytics": "catalog:docs-dev",
     "vue-router": "catalog:dev",
+    "vue-json-pretty": "catalog:dev",
     "tsx": "catalog:dev",
     "pathe": "catalog:dev",
     "wait-on": "catalog:dev",

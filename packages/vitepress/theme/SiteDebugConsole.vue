@@ -26,14 +26,13 @@ import {
 import { useData, useRoute } from 'vitepress';
 import {
   computed,
+  defineAsyncComponent,
   onBeforeUnmount,
   onMounted,
   ref,
   watch,
   type Ref,
 } from 'vue';
-import VueJsonPretty from 'vue-json-pretty';
-import 'vue-json-pretty/lib/styles.css';
 import type { SiteDebugAiAnalysisTarget } from '../src/shared/site-debug-ai';
 import {
   createSiteDebugAiBundleSummaryItems,
@@ -248,6 +247,10 @@ const activeSpaSyncHtmlError = ref('');
 const activeSpaSyncHtmlLoadingProgress = ref<SiteDebugLoadingProgress>(
   createSiteDebugLoadingProgress('Preparing patched HTML'),
 );
+const SiteDebugJsonTree = defineAsyncComponent({
+  loader: () => import('./SiteDebugJsonTree.vue'),
+  suspensible: false,
+});
 const bundleModuleSourceSizeCache = ref<
   Map<string, ModuleSourceSizeCacheEntry>
 >(new Map());
@@ -3889,7 +3892,8 @@ onBeforeUnmount(() => {
             class="site-debug-global-browser__tree"
             :style="globalInspectorTreeStyle"
           >
-            <VueJsonPretty
+            <SiteDebugJsonTree
+              v-if="debugOpen"
               :data="inspectedGlobalViewerData"
               :deep="2"
               :height="globalInspectorTreeHeight"
@@ -4834,6 +4838,18 @@ onBeforeUnmount(() => {
 
 .site-debug-json-pretty {
   width: 100%;
+}
+
+.site-debug-json-pretty :deep(.site-debug-json-tree) {
+  width: 100%;
+}
+
+.site-debug-json-pretty :deep(.site-debug-json-tree__viewer) {
+  width: 100%;
+}
+
+.site-debug-json-pretty :deep(.site-debug-json-tree__fallback-note) {
+  margin: 0 0 10px;
 }
 
 .site-debug-json-pretty :deep(.vjs-tree) {
