@@ -4,9 +4,7 @@ outline: false
 
 # Site Debug Console
 
-This page has moved into the dedicated Site Debug section.
-
-Read these pages instead:
+Use the dedicated Site Debug section for runtime diagnostics and report configuration:
 
 - [Introduction](../site-debug-console/index.md)
 - [Getting Started](../site-debug-console/getting-started.md)

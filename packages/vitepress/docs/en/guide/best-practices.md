@@ -1,16 +1,8 @@
 # Best Practices
 
-This page is for day-to-day authoring decisions: how to write island-component tags correctly, how to choose a render strategy conservatively, and which caveats matter before you scale usage.
+`Best Practices` focuses on day-to-day authoring decisions: how to write island-component tags correctly, how to choose a render strategy conservatively, and which caveats matter before you scale usage.
 
-If you need installation and first-run setup, read [Getting Started](./getting-started.md). If you need the runtime model, read [How It Works](./how-it-works.md).
-
-## Keep the Boundary Clear
-
-Use these three guide pages for different questions:
-
-- [Getting Started](./getting-started.md): "How do I install this and render my first island component?"
-- [How It Works](./how-it-works.md): "What does the compiler and runtime actually do?"
-- This page: "How should I write island components safely and choose strategies in a real docs site?"
+For installation and first-run setup, see [Getting Started](./getting-started.md). For the runtime model, see [How It Works](./how-it-works.md).
 
 ## Start Conservatively
 
@@ -191,7 +183,7 @@ Use this checklist before adding many island components to a docs site:
 - Hydration errors: make sure server output matches client output and avoid passing functions as attributes.
 - Node API errors: make sure the component is rendered exclusively as `ssr:only` on that page.
 
-## Continue Reading
+## Further Reading
 
 - [Getting Started](./getting-started.md): set up the integration and render the first island component.
 - [How It Works](./how-it-works.md): understand the compiler and runtime pipeline.

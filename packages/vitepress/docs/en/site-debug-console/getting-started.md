@@ -1,6 +1,6 @@
 # Getting Started
 
-This page helps you connect `Site Debug Console` with the shortest path possible and establish a first-pass debugging workflow. If you also plan to enable build-time AI reports, it also explains where the `siteDebug` configuration entry lives.
+Use the steps below to connect `Site Debug Console` and establish a first-pass debugging workflow. If you also plan to enable build-time AI reports, the same setup introduces the `siteDebug` configuration entry point.
 
 ## 1. Mount the Console in Your Theme
 
@@ -128,7 +128,7 @@ The plugin reads `vitepressConfig.siteDebug` first, then merges the second argum
 
 That rollout keeps model calls, cache behavior, and page scope under control instead of turning everything on at once.
 
-## Next Steps
+## Further Reading
 
 - [Introduction](./index.md): understand the overall value and evidence chain.
 - [Analysis](./options/analysis.md): see the responsibility boundary of `siteDebug.analysis`.

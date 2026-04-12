@@ -1,6 +1,6 @@
 # 快速上手
 
-这一页的目标是帮你用最短路径把 `Site Debug Console` 接进项目，并建立第一轮排障工作流。如果你还准备接入构建期 AI 报告，这里也会说明 `siteDebug` 配置入口应该写在哪里。
+以下步骤用于将 `Site Debug Console` 接入项目，并建立首轮排障流程。如果还需要启用构建期 AI 报告，也可以在同一次接入中完成 `siteDebug` 配置。
 
 ## 1. 在主题里挂载控制台
 
@@ -128,7 +128,7 @@ vitepressReactRenderingStrategies(vitepressConfig);
 
 这样做可以避免一开始就把模型调用、缓存和页面范围同时拉满。
 
-## 下一步
+## 延伸阅读
 
 - [介绍](./index.md)：理解控制台整体价值与证据链。
 - [分析](./options/analysis.md)：查看 `siteDebug.analysis` 的职责边界。
