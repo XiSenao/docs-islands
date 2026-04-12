@@ -1,6 +1,6 @@
 # `providers / models`
 
-这一页关注两层配置的协作关系：
+模型接入依赖两层配置协同工作：
 
 - `providers.doubao`：声明有哪些可用的 Doubao provider instance。
 - `buildReports.models`：声明这些 provider instance 之上真正要执行的模型配置。

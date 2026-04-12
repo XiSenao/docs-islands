@@ -4,9 +4,7 @@ outline: false
 
 # `siteDebug`
 
-This page has moved into the dedicated Site Debug section.
-
-Read these pages instead:
+Use the Site Debug section for `siteDebug` configuration details:
 
 - [Getting Started](../site-debug-console/getting-started.md)
 - [Analysis](../site-debug-console/options/analysis.md)

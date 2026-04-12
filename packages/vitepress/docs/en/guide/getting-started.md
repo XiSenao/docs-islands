@@ -100,18 +100,7 @@ After the first integration, verify at least these points:
 - Editing the island-component source still produces the HMR behavior you expect in development.
 - If the component has special runtime constraints, review [Best Practices](./best-practices.md) before broadening its usage.
 
-## What This Page Covers
-
-This page is intentionally narrow:
-
-- install dependencies
-- connect the runtime to VitePress
-- render one island successfully
-- verify the integration chain works
-
-Strategy trade-offs, authoring rules, and caveats are covered elsewhere so setup stays short.
-
-## Suggested Next Reads
+## Further Reading
 
 - [How It Works](./how-it-works.md): injection flow, runtime stages, strategy behavior, and `spa:sync-render`.
 - [Best Practices](./best-practices.md): Markdown authoring rules, strategy heuristics, caveats, and quick troubleshooting.

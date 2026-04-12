@@ -20,15 +20,17 @@
 
 <Landing client:load spa:sync-render />
 
-This page explains the runtime model: how Markdown tags become render containers, what each directive changes, and why `spa:sync-render` exists.
+The sections below explain the runtime model: how Markdown tags become render containers, what each directive changes, and why `spa:sync-render` exists.
 
-If you need setup steps, read [Getting Started](./getting-started.md). If you need authoring rules, strategy heuristics, or caveats, read [Best Practices](./best-practices.md).
+For setup steps, see [Getting Started](./getting-started.md). For authoring rules, strategy heuristics, and caveats, see [Best Practices](./best-practices.md).
 
 ## Injection Model
 
 When you write this in Markdown:
 
-```md
+::: code-group
+
+```md [playground.md]
 <script setup>
   const page = { title: 'Home' };
 </script>
@@ -39,6 +41,43 @@ When you write this in Markdown:
 
 <Landing client:load spa:sr :title="page.title" />
 ```
+
+```tsx [Landing.tsx]
+export { default as Landing } from './Landing/src/App';
+```
+
+```tsx [Landing/src/App.tsx]
+import { type JSX, useState } from 'react';
+import vitepressLogo from '../public/vitepress.svg';
+import './App.css';
+import reactLogo from './assets/react.svg';
+import './index.css';
+
+function App(): JSX.Element {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div className="landing">
+      <div className="logo-container">
+        <a href="https://vitepress.dev" target="_blank" rel="noreferrer">
+          <img src={vitepressLogo} className="logo" alt="VitePress logo" />
+        </a>
+        <a href="https://react.dev" target="_blank" rel="noreferrer">
+          <img src={reactLogo} className="logo react" alt="React logo" />
+        </a>
+      </div>
+      <h1>VitePress + React</h1>
+      <div className="card">
+        <button onClick={() => setCount((count) => count + 1)}>count is {count}</button>
+      </div>
+    </div>
+  );
+}
+
+export default App;
+```
+
+:::
 
 the page does not become a full client app rooted in another framework. The compiler first turns the component tag into a render container with strategy metadata:
 
@@ -89,14 +128,13 @@ This example is easiest to understand when you look at the Markdown usage, the `
   import ReactVueSharedComp from '../rendering-strategy-comps/react/ReactVueSharedComp';
 </script>
 
+<!-- prettier-ignore -->
 <VueComp1
 render-strategy="vue-parent"
 component-name="VueComp1"
 :page-title="page.title"
-:render-count="6"
-
-> <template #default="{ vueInfo }">
-
+:render-count="6">
+  <template #default="{ vueInfo }">
     <ReactVueSharedComp
       client:only
       render-strategy="client:only"
@@ -105,7 +143,6 @@ component-name="VueComp1"
       render-count="3-7"
       :vue-info="vueInfo"
     />
-
   </template>
 </VueComp1>
 ```
@@ -212,21 +249,22 @@ The container snapshot looks like this before the island component takes over:
 
 Rendering result:
 
+<!-- prettier-ignore -->
 <VueComp1
 render-strategy="vue-parent"
 component-name="VueComp1"
 :page-title="page.title"
 :render-count="6">
-<template #default="{ vueInfo }">
-<ReactVueSharedComp
-  client:only
-  render-strategy="client:only"
-  component-name="ReactVueSharedComp"
-  :page-title="page.title"
-  render-count="3-7"
-  :vue-info="vueInfo"
-/>
-</template>
+  <template #default="{ vueInfo }">
+    <ReactVueSharedComp
+      client:only
+      render-strategy="client:only"
+      component-name="ReactVueSharedComp"
+      :page-title="page.title"
+      render-count="3-7"
+      :vue-info="vueInfo"
+    />
+  </template>
 </VueComp1>
 
 ## Strategy Matrix

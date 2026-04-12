@@ -20,15 +20,17 @@
 
 <Landing client:load spa:sync-render />
 
-这一页只解释运行原理：Markdown 组件如何变成渲染容器、不同指令到底改变了什么、以及为什么会有 `spa:sync-render`。
+以下内容聚焦运行原理：Markdown 组件如何变成渲染容器、不同指令会带来哪些变化，以及为什么需要 `spa:sync-render`。
 
-如果你需要接入步骤，请看 [快速上手](./getting-started.md)。如果你需要写法规范、策略选择建议和注意事项，请看 [最佳实践](./best-practices.md)。
+接入步骤见 [快速上手](./getting-started.md)，写法规范、策略建议和注意事项见 [最佳实践](./best-practices.md)。
 
 ## 注入模型
 
 当你在 Markdown 中写下：
 
-```md
+::: code-group
+
+```md [playground.md]
 <script setup>
   const page = { title: 'Home' };
 </script>
@@ -39,6 +41,43 @@
 
 <Landing client:load spa:sr :title="page.title" />
 ```
+
+```tsx [Landing.tsx]
+export { default as Landing } from './Landing/src/App';
+```
+
+```tsx [Landing/src/App.tsx]
+import { type JSX, useState } from 'react';
+import vitepressLogo from '../public/vitepress.svg';
+import './App.css';
+import reactLogo from './assets/react.svg';
+import './index.css';
+
+function App(): JSX.Element {
+  const [count, setCount] = useState(0);
+
+  return (
+    <div className="landing">
+      <div className="logo-container">
+        <a href="https://vitepress.dev" target="_blank" rel="noreferrer">
+          <img src={vitepressLogo} className="logo" alt="VitePress logo" />
+        </a>
+        <a href="https://react.dev" target="_blank" rel="noreferrer">
+          <img src={reactLogo} className="logo react" alt="React logo" />
+        </a>
+      </div>
+      <h1>VitePress + React</h1>
+      <div className="card">
+        <button onClick={() => setCount((count) => count + 1)}>点击次数: {count}</button>
+      </div>
+    </div>
+  );
+}
+
+export default App;
+```
+
+:::
 
 页面并不会变成一个由其他框架完整接管的客户端应用。编译器会先把组件标签转换成带渲染元信息的容器节点：
 
@@ -89,14 +128,13 @@
   import ReactVueSharedComp from '../rendering-strategy-comps/react/ReactVueSharedComp';
 </script>
 
+<!-- prettier-ignore -->
 <VueComp1
 render-strategy="vue-parent"
 component-name="VueComp1"
 :page-title="page.title"
-:render-count="6"
-
-> <template #default="{ vueInfo }">
-
+:render-count="6">
+  <template #default="{ vueInfo }">
     <ReactVueSharedComp
       client:only
       render-strategy="client:only"
@@ -105,7 +143,6 @@ component-name="VueComp1"
       render-count="3-7"
       :vue-info="vueInfo"
     />
-
   </template>
 </VueComp1>
 ```
@@ -209,21 +246,22 @@ export default function ReactVueSharedComp(props: ReactVueSharedCompProps): JSX.
 
 渲染效果：
 
+<!-- prettier-ignore -->
 <VueComp1
 render-strategy="vue-parent"
 component-name="VueComp1"
 :page-title="page.title"
 :render-count="6">
-<template #default="{ vueInfo }">
-<ReactVueSharedComp
-  client:only
-  render-strategy="client:only"
-  component-name="ReactVueSharedComp"
-  :page-title="page.title"
-  render-count="3-7"
-  :vue-info="vueInfo"
-/>
-</template>
+  <template #default="{ vueInfo }">
+    <ReactVueSharedComp
+      client:only
+      render-strategy="client:only"
+      component-name="ReactVueSharedComp"
+      :page-title="page.title"
+      render-count="3-7"
+      :vue-info="vueInfo"
+    />
+  </template>
 </VueComp1>
 
 ## 渲染策略速查

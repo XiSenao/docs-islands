@@ -4,9 +4,7 @@ outline: false
 
 # `siteDebug.analysis`
 
-This page has moved into the dedicated Site Debug section.
-
-Read these pages instead:
+Use the Site Debug options below for `siteDebug.analysis` configuration:
 
 - [Analysis](../site-debug-console/options/analysis.md)
 - [Models](../site-debug-console/options/models.md)

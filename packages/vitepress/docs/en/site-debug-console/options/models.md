@@ -1,6 +1,6 @@
 # `providers / models`
 
-This page focuses on how two layers work together:
+Model integration depends on two configuration layers working together:
 
 - `providers.doubao`: declares which Doubao provider instances exist
 - `buildReports.models`: declares which model configurations actually execute on top of those provider instances
