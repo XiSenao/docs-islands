@@ -1,19 +1,25 @@
 import type { PageBuildMetrics, PageMetafile } from '#dep-types/page';
 import {
-  createSiteDebugLogger,
-  dispatchSiteDebugPageMetafileEvent,
-  getSiteDebugNow,
-} from '#shared/debug';
+  createSiteDevToolsLogger,
+  dispatchSiteDevToolsPageMetafileEvent,
+  getSiteDevToolsNow,
+} from '#shared/devtools';
+import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
 import getLoggerInstance from '#shared/logger';
 import { DocsComponentManager } from '@docs-islands/core/client';
 import type { DocsComponentManagerInitializeOptions } from '@docs-islands/core/types/client';
-import { formatErrorMessage } from '@docs-islands/utils/logger';
+import {
+  formatDebugMessage,
+  formatErrorMessage,
+} from '@docs-islands/utils/logger';
 import type React from 'react';
 import { getCleanPathname } from '../../shared/runtime';
 
 const loggerInstance = getLoggerInstance();
-const Logger = loggerInstance.getLoggerByGroup('react-component-manager');
-const DebugLogger = createSiteDebugLogger('react-component-manager');
+const Logger = loggerInstance.getLoggerByGroup(
+  VITEPRESS_LOG_GROUPS.runtimeReactComponentManager,
+);
+const DebugLogger = createSiteDevToolsLogger('react-component-manager');
 
 type ReactComponentRecord = React.ComponentType<Record<string, string>>;
 
@@ -42,7 +48,7 @@ export class ReactComponentManager {
      * runtime/component subscriptions, CSS synchronization, and loader-script orchestration.
      *
      * The React wrapper intentionally stays thin and only layers on React-specific runtime
-     * loading plus the existing VitePress site-debug hooks that users already rely on.
+     * loading plus the existing VitePress site-devtools hooks that users already rely on.
      */
     this.manager = new DocsComponentManager<
       ReactComponentRecord,
@@ -68,7 +74,7 @@ export class ReactComponentManager {
           }
         },
         onPageMetafileEvent: (detail) => {
-          dispatchSiteDebugPageMetafileEvent(detail);
+          dispatchSiteDevToolsPageMetafileEvent(detail);
         },
       },
       isFrameworkRuntimeAvailable: () => this.isReactAvailable(),
@@ -80,6 +86,7 @@ export class ReactComponentManager {
     options: DocsComponentManagerInitializeOptions,
   ): Promise<void> {
     const canLogInitialization = globalThis.window !== undefined;
+    const initializeStartedAt = getSiteDevToolsNow();
 
     await this.manager.initialize(options);
 
@@ -93,7 +100,22 @@ export class ReactComponentManager {
      * React-specific success message is part of the existing debugging/test contract.
      */
     this.initializationMode = options.mode;
-    Logger.success('Initialization completed');
+    const initializeCompletedAt = getSiteDevToolsNow();
+    Logger.debug(
+      formatDebugMessage({
+        context: 'react component manager initialization',
+        decision:
+          'record wrapper initialization state after shared runtime ready',
+        summary: {
+          mode: options.mode,
+          pageId: getCleanPathname(),
+          reactLoaded: this.reactLoaded || this.isReactAvailable(),
+        },
+        timingMs: Number(
+          (initializeCompletedAt - initializeStartedAt).toFixed(2),
+        ),
+      }),
+    );
     DebugLogger.info(
       options.mode === 'dev'
         ? 'runtime initialized in development'
@@ -121,10 +143,21 @@ export class ReactComponentManager {
       return false;
     }
 
-    const loadStart = getSiteDebugNow();
+    const loadStart = getSiteDevToolsNow();
 
     try {
-      Logger.info('Starting React lazy loading...');
+      Logger.debug(
+        formatDebugMessage({
+          context: 'react framework runtime load',
+          decision: 'begin lazy React and ReactDOM imports',
+          summary: {
+            pageId: getCleanPathname(),
+            reactAvailable: this.isReactAvailable(),
+            reactLoaded: this.reactLoaded,
+          },
+          timingMs: 0,
+        }),
+      );
       DebugLogger.info('react runtime load started');
 
       /**
@@ -145,9 +178,21 @@ export class ReactComponentManager {
       }
 
       this.reactLoaded = true;
-      Logger.success('React lazy loading completed');
+      const loadCompletedAt = getSiteDevToolsNow();
+      Logger.debug(
+        formatDebugMessage({
+          context: 'react framework runtime load',
+          decision: 'mark React runtime ready after lazy imports resolved',
+          summary: {
+            pageId: getCleanPathname(),
+            reactAvailable: this.isReactAvailable(),
+            reactVersion: globalThis.React?.version ?? null,
+          },
+          timingMs: Number((loadCompletedAt - loadStart).toFixed(2)),
+        }),
+      );
       DebugLogger.info('react runtime load completed', {
-        durationMs: Number((getSiteDebugNow() - loadStart).toFixed(2)),
+        durationMs: Number((loadCompletedAt - loadStart).toFixed(2)),
         reactVersion: globalThis.React?.version ?? null,
       });
       return true;
@@ -156,7 +201,7 @@ export class ReactComponentManager {
         `React lazy loading failed, message: ${formatErrorMessage(error)}`,
       );
       DebugLogger.error('react runtime load failed', {
-        durationMs: Number((getSiteDebugNow() - loadStart).toFixed(2)),
+        durationMs: Number((getSiteDevToolsNow() - loadStart).toFixed(2)),
         message: formatErrorMessage(error),
       });
       this.reactLoadPromise = null;

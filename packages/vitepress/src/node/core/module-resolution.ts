@@ -1,3 +1,4 @@
+import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
 import getLoggerInstance from '#shared/logger';
 import {
   getPagePathByPathname,
@@ -12,6 +13,7 @@ import {
   type DocsStaticRouteResolver,
   isInlinePageRequest as isDocsInlinePageRequest,
 } from '@docs-islands/core/node/module-resolution';
+import { formatDebugMessage } from '@docs-islands/utils/logger';
 import { getProjectRoot } from '@docs-islands/utils/path';
 import { dirname, extname, isAbsolute, relative, resolve } from 'pathe';
 import type { Plugin } from 'vite';
@@ -238,9 +240,18 @@ function createRenderingModuleResolutionVitePlugin(): Plugin {
 
         if (resolvedId) {
           loggerInstance
-            .getLoggerByGroup('vitepress-inline-page-resolution')
-            .success(
-              `${id.replace(/[&?]+__INLINE_PATH_RESOLVER__/, '')} -> ${resolvedId}`,
+            .getLoggerByGroup(VITEPRESS_LOG_GROUPS.resolverInlinePage)
+            .debug(
+              formatDebugMessage({
+                context: 'inline page module resolution',
+                decision:
+                  'map inline page request to a concrete VitePress page module',
+                summary: {
+                  requestId: id.replace(/[&?]+__INLINE_PATH_RESOLVER__/, ''),
+                  resolvedId,
+                },
+                timingMs: 0,
+              }),
             );
         }
 

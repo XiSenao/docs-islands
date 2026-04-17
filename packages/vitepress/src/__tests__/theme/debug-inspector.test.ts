@@ -158,9 +158,9 @@ describe('debug-inspector build metric lookup', () => {
         },
         totalEstimatedComponentBytes: 0,
       },
-      cssBundlePaths: ['/docs/assets/site-debug.css'],
+      cssBundlePaths: ['/docs/assets/site-devtools.css'],
       loaderScript: '/docs/assets/unified-loader.js',
-      modulePreloads: ['/docs/assets/site-debug.js'],
+      modulePreloads: ['/docs/assets/site-devtools.js'],
       pathname: '/guide/how-it-works',
       ssrInjectScript: '',
     };
@@ -187,9 +187,9 @@ describe('debug-inspector build metric lookup', () => {
         },
         totalEstimatedComponentBytes: 0,
       },
-      cssBundlePaths: ['/docs/assets/site-debug.css'],
+      cssBundlePaths: ['/docs/assets/site-devtools.css'],
       loaderScript: '/docs/assets/unified-loader.js',
-      modulePreloads: ['/docs/assets/site-debug.js'],
+      modulePreloads: ['/docs/assets/site-devtools.js'],
       pathname: '/zh/guide/how-it-works',
       ssrInjectScript: '',
     };
@@ -272,13 +272,13 @@ describe('debug-inspector build metric lookup', () => {
     expect(
       getCurrentPageCandidates(
         debugWindow,
-        '/blog/rendering-strategy?site-debug=1#overview',
+        '/blog/rendering-strategy?site-devtools=1#overview',
       )[0],
     ).toBe('/blog/rendering-strategy');
     expect(
       resolvePageMetafileState(
         debugWindow,
-        '/blog/rendering-strategy?site-debug=1#overview',
+        '/blog/rendering-strategy?site-devtools=1#overview',
       ).currentPageMetafile,
     ).toBe(pageMetafile);
   });

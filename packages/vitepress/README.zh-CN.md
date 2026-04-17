@@ -32,6 +32,17 @@
 
 阅读 [快速上手](https://docs.senao.me/docs-islands/vitepress/zh/guide/getting-started) 来了解更多信息。
 
+```ts
+import { createDocsIslands } from '@docs-islands/vitepress';
+import { react } from '@docs-islands/vitepress/adapters/react';
+
+const islands = createDocsIslands({
+  adapters: [react()],
+});
+
+islands.apply(vitepressConfig);
+```
+
 补充说明：用户使用指南中已明确注明，支持通过重导出模块导入组件，但不应将副作用放在中间的 barrel / 重导出模块中。
 
 ## 贡献

@@ -95,7 +95,7 @@ const registerClientOnlyContainerTests = () => {
       const hasClientRenderingMessage = consoleMessages.some((msg) =>
         msg.includes('Component HelloWorld client-side rendering completed'),
       );
-      expect(hasClientRenderingMessage).toBe(true);
+      expect(hasClientRenderingMessage).toBe(false);
 
       // Verify that basic messages also exist.
       const hasInitializationMessage = consoleMessages.some((msg) =>
@@ -104,8 +104,8 @@ const registerClientOnlyContainerTests = () => {
       const hasRuntimeMessage = consoleMessages.some((msg) =>
         msg.includes('Development render runtime loaded successfully'),
       );
-      expect(hasInitializationMessage).toBe(true);
-      expect(hasRuntimeMessage).toBe(true);
+      expect(hasInitializationMessage).toBe(false);
+      expect(hasRuntimeMessage).toBe(false);
 
       // Verify that interactive components exist and are visible.
       const counterButton = helloWorldComponent.locator(buttonSelector);
@@ -126,7 +126,7 @@ const registerClientOnlyContainerTests = () => {
       await page.waitForSelector(clientOnlyContainer);
       await page.waitForTimeout(1500);
 
-      // Verify if there are client-side rendering related messages.
+      // Debug-only lifecycle messages should stay hidden by default.
       const clientRenderingMessages = consoleMessages.filter(
         (msg) =>
           msg.toLowerCase().includes('client-side rendering') ||
@@ -134,7 +134,7 @@ const registerClientOnlyContainerTests = () => {
           msg.toLowerCase().includes('rendering completed'),
       );
 
-      expect(clientRenderingMessages.length).toBeGreaterThan(0);
+      expect(clientRenderingMessages.length).toBe(0);
     });
   });
 };
@@ -175,7 +175,7 @@ const registerSSROnlyContainerTests = () => {
       // Wait for a period to ensure console messages are output
       await page.waitForTimeout(1000);
 
-      // Verify basic initialization and runtime loading messages (all rendering strategies have these)
+      // Debug-only initialization/runtime loading messages should stay hidden by default.
       const hasInitializationMessage = consoleMessages.some((msg) =>
         msg.includes('Initialization completed'),
       );
@@ -183,8 +183,8 @@ const registerSSROnlyContainerTests = () => {
         msg.includes('Development render runtime loaded successfully'),
       );
 
-      expect(hasInitializationMessage).toBe(true);
-      expect(hasRuntimeMessage).toBe(true);
+      expect(hasInitializationMessage).toBe(false);
+      expect(hasRuntimeMessage).toBe(false);
 
       // Verify SSR:only characteristics: no client-side rendering or hydration messages
       const hasClientRenderingMessage = consoleMessages.some(
@@ -204,7 +204,7 @@ const registerSSROnlyContainerTests = () => {
       // Wait for page loading to complete.
       await page.waitForTimeout(1500);
 
-      // Verify that basic messages exist (all rendering strategies have these).
+      // Debug-only initialization/runtime loading messages should stay hidden by default.
       const initializationMessages = consoleMessages.filter(
         (msg) =>
           msg.toLowerCase().includes('initialization completed') ||
@@ -213,14 +213,14 @@ const registerSSROnlyContainerTests = () => {
             .includes('development render runtime loaded successfully'),
       );
 
-      // Verify SSR:only characteristics: only basic messages, no client-interaction-related messages.
+      // SSR:only should also stay free of client-interaction lifecycle logs.
       const clientInteractionMessages = consoleMessages.filter(
         (msg) =>
           msg.toLowerCase().includes('hydration completed') ||
           msg.toLowerCase().includes('client-side rendering completed'),
       );
 
-      expect(initializationMessages.length).toBeGreaterThan(0);
+      expect(initializationMessages.length).toBe(0);
       expect(clientInteractionMessages.length).toBe(0);
     });
   });
@@ -267,7 +267,7 @@ const registerClientLoadContainerTests = () => {
       const hasHydrationMessage = consoleMessages.some((msg) =>
         msg.includes('Component HelloWorld hydration completed'),
       );
-      expect(hasHydrationMessage).toBe(true);
+      expect(hasHydrationMessage).toBe(false);
 
       // Verify that basic messages also exist (all rendering strategies have these).
       const hasInitializationMessage = consoleMessages.some((msg) =>
@@ -276,8 +276,8 @@ const registerClientLoadContainerTests = () => {
       const hasRuntimeMessage = consoleMessages.some((msg) =>
         msg.includes('Development render runtime loaded successfully'),
       );
-      expect(hasInitializationMessage).toBe(true);
-      expect(hasRuntimeMessage).toBe(true);
+      expect(hasInitializationMessage).toBe(false);
+      expect(hasRuntimeMessage).toBe(false);
 
       // Verify that interactive components exist and are visible.
       const counterButton = page.locator(buttonSelector);
@@ -305,15 +305,17 @@ const registerClientLoadContainerTests = () => {
       await page.waitForSelector(clientLoadContainer);
       await page.waitForTimeout(1500); // Give more time to ensure all messages are captured
 
-      // Verify if there are runtime-related messages
-      const runtimeRelatedMessages = consoleMessages.filter(
+      // Debug-only lifecycle success logs should stay hidden by default.
+      const hiddenLifecycleMessages = consoleMessages.filter(
         (msg) =>
-          msg.toLowerCase().includes('runtime') ||
-          msg.toLowerCase().includes('loaded') ||
-          msg.toLowerCase().includes('development'),
+          msg
+            .toLowerCase()
+            .includes('development render runtime loaded successfully') ||
+          msg.toLowerCase().includes('initialization completed') ||
+          msg.toLowerCase().includes('hydration completed'),
       );
 
-      expect(runtimeRelatedMessages.length).toBeGreaterThan(0);
+      expect(hiddenLifecycleMessages.length).toBe(0);
     });
 
     test('should keep client:load components renderable after repeated page reloads in dev', async () => {
@@ -385,8 +387,8 @@ const registerClientVisibleContainerTests = () => {
         msg.includes('Development render runtime loaded successfully'),
       );
 
-      expect(hasInitializationMessage).toBe(true);
-      expect(hasRuntimeMessage).toBe(true);
+      expect(hasInitializationMessage).toBe(false);
+      expect(hasRuntimeMessage).toBe(false);
 
       // Verify that the initial state has no lazy-loading hydration messages.
       const hasLazyHydrationMessage = consoleMessages.some((msg) =>
@@ -414,7 +416,7 @@ const registerClientVisibleContainerTests = () => {
       const hasFirstLazyHydrationMessage = consoleMessages.some((msg) =>
         msg.includes('Component HelloWorld lazy hydration completed'),
       );
-      expect(hasFirstLazyHydrationMessage).toBe(true);
+      expect(hasFirstLazyHydrationMessage).toBe(false);
 
       // Verify the first component is visible and interactive.
       const firstComponent = page.locator('[data-testid="first-component"]');
@@ -455,7 +457,7 @@ const registerClientVisibleContainerTests = () => {
       const hasSecondLazyHydrationMessage = consoleMessages.some((msg) =>
         msg.includes('Component HelloWorld lazy hydration completed'),
       );
-      expect(hasSecondLazyHydrationMessage).toBe(true);
+      expect(hasSecondLazyHydrationMessage).toBe(false);
 
       // Verify the second component is visible and interactive.
       const secondComponent = page.locator('[data-testid="second-component"]');
@@ -502,7 +504,7 @@ const registerClientVisibleContainerTests = () => {
       totalLazyHydrationMessages = allHydrationMessages.length;
 
       // Should have hydration messages for two components.
-      expect(totalLazyHydrationMessages).toBe(2);
+      expect(totalLazyHydrationMessages).toBe(0);
 
       // Verify both components can interact normally.
       const firstComponent = page.locator('[data-testid="first-component"]');
@@ -557,25 +559,25 @@ const registerMixedRenderDirectiveTests = () => {
       const hasInitializationMessage = consoleMessages.some((msg) =>
         msg.includes('Initialization completed'),
       );
-      expect(hasInitializationMessage).toBe(true);
+      expect(hasInitializationMessage).toBe(false);
 
       // Verify development runtime loading messages.
       const hasRuntimeMessage = consoleMessages.some((msg) =>
         msg.includes('Development render runtime loaded successfully'),
       );
-      expect(hasRuntimeMessage).toBe(true);
+      expect(hasRuntimeMessage).toBe(false);
 
       // Verify client:only client-side rendering messages.
       const hasClientRenderingMessage = consoleMessages.some((msg) =>
         msg.includes('Component HelloWorld client-side rendering completed'),
       );
-      expect(hasClientRenderingMessage).toBe(true);
+      expect(hasClientRenderingMessage).toBe(false);
 
       // Verify client:load hydration messages.
       const hasHydrationMessage = consoleMessages.some((msg) =>
         msg.includes('Component HelloWorld hydration completed'),
       );
-      expect(hasHydrationMessage).toBe(true);
+      expect(hasHydrationMessage).toBe(false);
 
       // Verify no lazy-loading hydration messages (client:visible is outside the viewport).
       const hasLazyHydrationMessage = consoleMessages.some((msg) =>
@@ -710,7 +712,7 @@ const registerMixedRenderDirectiveTests = () => {
       const hasLazyHydrationMessage = consoleMessages.some((msg) =>
         msg.includes('Component HelloWorld lazy hydration completed'),
       );
-      expect(hasLazyHydrationMessage).toBe(true);
+      expect(hasLazyHydrationMessage).toBe(false);
 
       // Use uniqueId to verify the client:visible component is interactive.
       const clientVisibleComponent = page.locator(

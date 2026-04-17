@@ -1,2 +1,6 @@
-export { default as createRenderingStrategies } from './core/orchestrator';
-export { default as reactIntegration } from './react';
+export { default as createDocsIslands } from './core/orchestrator';
+export type {
+  DocsIslands,
+  DocsIslandsAdapter,
+  DocsIslandsOptions,
+} from './core/orchestrator';

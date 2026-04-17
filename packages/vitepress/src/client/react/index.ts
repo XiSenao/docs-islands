@@ -8,19 +8,24 @@ import {
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
 import {
-  createSiteDebugLogger,
-  getSiteDebugNow,
-  type SiteDebugHmrMechanismType,
-  type SiteDebugHmrUpdateType,
-  updateSiteDebugHmrMetric,
-} from '#shared/debug';
+  createSiteDevToolsLogger,
+  getSiteDevToolsNow,
+  type SiteDevToolsHmrMechanismType,
+  type SiteDevToolsHmrUpdateType,
+  updateSiteDevToolsHmrMetric,
+} from '#shared/devtools';
+import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
 import getLoggerInstance from '#shared/logger';
 import { validateLegalRenderElements } from '#shared/utils';
 import { createDocsClientIntegration } from '@docs-islands/core/client';
 import { querySelectorAllToArray } from '@docs-islands/utils/dom-iterable';
-import { formatErrorMessage } from '@docs-islands/utils/logger';
+import {
+  formatDebugMessage,
+  formatErrorMessage,
+} from '@docs-islands/utils/logger';
 import type React from 'react';
 import type ReactDOM from 'react-dom/client';
+import '../../shared/runtime-logger';
 import { createVitePressDevBridge } from '../vitepress-dev-bridge';
 import { createVitePressLifecycleAdapter } from '../vitepress-lifecycle-adapter';
 import { reactComponentManager } from './react-component-manager';
@@ -34,7 +39,7 @@ import { getReactRenderedComponent } from './react-render-root-store';
 import { reactRenderStrategy } from './react-render-strategy';
 
 const loggerInstance = getLoggerInstance();
-const DebugLogger = createSiteDebugLogger('react-hmr');
+const DebugLogger = createSiteDevToolsLogger('react-hmr');
 /**
  * VitePress still redirects the compiled client entry through vitepress/client.
  * We keep the React-specific entry as an explicit composition layer so users do not
@@ -81,7 +86,7 @@ class ReactIntegration {
       componentName: string;
       hmrId: string;
       importedName?: string;
-      mechanismType: SiteDebugHmrMechanismType;
+      mechanismType: SiteDevToolsHmrMechanismType;
       pageId: string;
       renderIds: string[];
       sourceColumn?: number;
@@ -89,7 +94,7 @@ class ReactIntegration {
       sourcePath?: string;
       startedAt: number;
       triggerEvent: string;
-      updateType: SiteDebugHmrUpdateType;
+      updateType: SiteDevToolsHmrUpdateType;
     }
   >();
   private react: typeof React | null = null;
@@ -104,9 +109,9 @@ class ReactIntegration {
     return `${pageId}::${componentName}::hmr::${this.devHmrUpdateSequence}::${Date.now()}`;
   }
 
-  private getDevHmrMechanismDescriptor(updateType: SiteDebugHmrUpdateType): {
+  private getDevHmrMechanismDescriptor(updateType: SiteDevToolsHmrUpdateType): {
     applyEvent: string;
-    mechanismType: SiteDebugHmrMechanismType;
+    mechanismType: SiteDevToolsHmrMechanismType;
     triggerEvent: string;
   } {
     switch (updateType) {
@@ -143,14 +148,14 @@ class ReactIntegration {
       sourceLine?: number;
       sourcePath?: string;
     }[],
-    updateType: SiteDebugHmrUpdateType,
+    updateType: SiteDevToolsHmrUpdateType,
   ): void {
     const pageId = this.getPageId();
     const mechanism = this.getDevHmrMechanismDescriptor(updateType);
 
     for (const entry of componentEntries) {
       const hmrId = this.createDevHmrMetricId(pageId, entry.componentName);
-      const startedAt = getSiteDebugNow();
+      const startedAt = getSiteDevToolsNow();
       const renderIds = [...entry.renderIds];
 
       this.pendingDevHmrMetrics.set(entry.componentName, {
@@ -169,7 +174,7 @@ class ReactIntegration {
         updateType,
       });
 
-      updateSiteDebugHmrMetric({
+      updateSiteDevToolsHmrMetric({
         applyEvent: mechanism.applyEvent,
         componentName: entry.componentName,
         hmrId,
@@ -221,8 +226,8 @@ class ReactIntegration {
         continue;
       }
 
-      const updatedAt = patch.updatedAt ?? getSiteDebugNow();
-      updateSiteDebugHmrMetric({
+      const updatedAt = patch.updatedAt ?? getSiteDevToolsNow();
+      updateSiteDevToolsHmrMetric({
         applyEvent: session.applyEvent,
         clientApplyDurationMs: includesClientApplyDuration
           ? (patch.clientApplyDurationMs ??
@@ -264,7 +269,7 @@ class ReactIntegration {
     componentNames: Iterable<string>,
     error: unknown,
   ): void {
-    const updatedAt = getSiteDebugNow();
+    const updatedAt = getSiteDevToolsNow();
     const message = formatErrorMessage(error);
 
     this.updateDevHmrMetrics(
@@ -297,7 +302,9 @@ class ReactIntegration {
     }
   }
 
-  private completeReactFastRefreshCycle(completedAt = getSiteDebugNow()): void {
+  private completeReactFastRefreshCycle(
+    completedAt = getSiteDevToolsNow(),
+  ): void {
     const cycle = this.activeReactFastRefreshCycle;
     if (!cycle || cycle.componentNames.length === 0) {
       return;
@@ -338,7 +345,7 @@ class ReactIntegration {
       return;
     }
 
-    const startedAt = getSiteDebugNow();
+    const startedAt = getSiteDevToolsNow();
     this.activeReactFastRefreshCycle = {
       componentNames,
       startedAt,
@@ -523,7 +530,7 @@ class ReactIntegration {
       this.runAsyncTask(
         this.ensureDevHMRReactRuntime()
           .then(async () => {
-            const runtimeReadyAt = getSiteDebugNow();
+            const runtimeReadyAt = getSiteDevToolsNow();
             this.updateDevHmrMetrics(this.pendingDevHmrMetrics.keys(), {
               runtimeReadyDurationMs: undefined,
               updatedAt: runtimeReadyAt,
@@ -561,7 +568,7 @@ class ReactIntegration {
             );
             throw error;
           }),
-        'vite:after-update',
+        VITEPRESS_LOG_GROUPS.hmrViteAfterUpdate,
         'Failed to handle React markdown HMR',
       );
     });
@@ -570,6 +577,7 @@ class ReactIntegration {
       REACT_HMR_EVENT_NAMES.ssrOnlyRender,
       ({ pathname, data }: SSRUpdateRenderData) => {
         if (pathname === this.getPageId() && data.length > 0) {
+          const ssrApplyStartedAt = getSiteDevToolsNow();
           const completedComponentNames = new Set<string>();
           const ssrComponentsMap = new Map<string, Element>();
           const renderComponents =
@@ -607,13 +615,26 @@ class ReactIntegration {
                 }
               }
               element.innerHTML = ssrHtml;
-              loggerInstance
-                .getLoggerByGroup('hot-updated')
-                .success('ssr:only component HMR completed.');
             }
           }
 
-          const completedAt = getSiteDebugNow();
+          const completedAt = getSiteDevToolsNow();
+          loggerInstance
+            .getLoggerByGroup(VITEPRESS_LOG_GROUPS.hmrReactSsrOnlyRender)
+            .debug(
+              formatDebugMessage({
+                context: 'react ssr-only hmr apply',
+                decision:
+                  'replace prerendered HTML and refresh css references for ssr-only containers',
+                summary: {
+                  completedComponentCount: completedComponentNames.size,
+                  pageId: pathname,
+                  renderPayloadCount: data.length,
+                  ssrContainerCount: ssrComponents.length,
+                },
+                timingMs: Number((completedAt - ssrApplyStartedAt).toFixed(2)),
+              }),
+            );
           this.updateDevHmrMetrics(
             completedComponentNames,
             {
@@ -729,7 +750,7 @@ class ReactIntegration {
       this.ensureDevHMRReactRuntime().then(() => {
         this.setupReactFastRefreshObserver();
       }),
-      'integration-hmr-runtime',
+      'hmr.react.runtime-prepare',
       'Failed to prepare React runtime for development HMR',
     );
   }
@@ -743,10 +764,10 @@ class ReactIntegration {
   }
 }
 
-const reactIntegration = new ReactIntegration();
+const reactClientRuntime = new ReactIntegration();
 
-export default async function reactClientIntegration(): Promise<void> {
+export async function reactClient(): Promise<void> {
   if (lifecycleAdapter.inBrowser && globalThis.window !== undefined) {
-    await reactIntegration.initialize();
+    await reactClientRuntime.initialize();
   }
 }

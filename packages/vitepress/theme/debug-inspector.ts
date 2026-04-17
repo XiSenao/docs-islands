@@ -1,4 +1,4 @@
-import type { SiteDebugRenderMetric } from '@docs-islands/vitepress/internal/debug';
+import type { SiteDevToolsRenderMetric } from '@docs-islands/vitepress/internal/devtools';
 
 export interface BundleAssetMetric {
   bytes: number;
@@ -14,7 +14,7 @@ export interface BundleModuleMetric {
   sourcePath?: string;
 }
 
-export interface SiteDebugAiBuildReportReference {
+export interface SiteDevToolsAiBuildReportReference {
   detail?: string;
   generatedAt: string;
   model?: string;
@@ -28,8 +28,8 @@ export interface SiteDebugAiBuildReportReference {
 }
 
 export interface ComponentBuildMetricAiReports {
-  chunkReports?: Record<string, SiteDebugAiBuildReportReference[]>;
-  moduleReports?: Record<string, SiteDebugAiBuildReportReference[]>;
+  chunkReports?: Record<string, SiteDevToolsAiBuildReportReference[]>;
+  moduleReports?: Record<string, SiteDevToolsAiBuildReportReference[]>;
 }
 
 export interface ComponentBuildMetric {
@@ -44,7 +44,7 @@ export interface ComponentBuildMetric {
 }
 
 export interface PageBuildMetrics {
-  aiReports?: SiteDebugAiBuildReportReference[];
+  aiReports?: SiteDevToolsAiBuildReportReference[];
   components: ComponentBuildMetric[];
   spaSyncEffects?: {
     components: {
@@ -297,7 +297,7 @@ export const getSpaSyncEffectForRender = (
 
 export const getMetricPageId = (
   debugWindow: DebugWindow,
-  metric: SiteDebugRenderMetric,
+  metric: SiteDevToolsRenderMetric,
 ): boolean => {
   if (!metric.pageId) {
     return true;

@@ -16,7 +16,7 @@ const escapeHtml = (value: string) =>
 export const __DOCS_ISLANDS_OPTIONAL_DEPENDENCY_FALLBACK__ = true;
 
 export const codeToHtml = async (sourceContent: string) =>
-  `<pre class="shiki site-debug-source-viewer__fallback"><code>${escapeHtml(sourceContent)}</code></pre>`;
+  `<pre class="shiki site-devtools-source-viewer__fallback"><code>${escapeHtml(sourceContent)}</code></pre>`;
 
 export const codeToTokens = async (sourceContent: string) => ({
   bg: 'transparent',

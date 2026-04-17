@@ -1,9 +1,9 @@
 import type { RenderDirective } from '#dep-types/render';
 import {
-  createSiteDebugLogger,
-  type SiteDebugRenderMode,
-  updateSiteDebugRenderMetric,
-} from '#shared/debug';
+  createSiteDevToolsLogger,
+  type SiteDevToolsRenderMode,
+  updateSiteDevToolsRenderMetric,
+} from '#shared/devtools';
 import { validateLegalRenderElements } from '#shared/utils';
 import type { DocsHydrateResult } from '@docs-islands/core/client';
 import { DocsRenderStrategy } from '@docs-islands/core/client';
@@ -13,7 +13,7 @@ import { getCleanPathname } from '../../shared/runtime';
 import { reactComponentManager } from './react-component-manager';
 import { rememberReactRenderState } from './react-render-root-store';
 
-const DebugLogger = createSiteDebugLogger('react-render-strategy');
+const DebugLogger = createSiteDevToolsLogger('react-render-strategy');
 
 type ReactComponentRecord = React.ComponentType<Record<string, string>>;
 
@@ -95,12 +95,12 @@ export class ReactRenderStrategy {
         }
       },
       onRenderStateChange: (info, patch) => {
-        updateSiteDebugRenderMetric({
+        updateSiteDevToolsRenderMetric({
           componentName: info.renderComponent,
           pageId: getCleanPathname(),
           renderDirective: info.renderDirective,
           renderId: info.renderId,
-          renderMode: patch.renderMode as SiteDebugRenderMode | undefined,
+          renderMode: patch.renderMode as SiteDevToolsRenderMode | undefined,
           renderWithSpaSync: info.renderWithSpaSync,
           source: 'react-render-strategy',
           ...patch,

@@ -1,1 +1,1 @@
-declare module '@docs-islands/vitepress/debug-console/client/style.css' {}
+declare module '@docs-islands/vitepress/devtools/client/style.css' {}

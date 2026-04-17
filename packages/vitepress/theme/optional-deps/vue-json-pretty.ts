@@ -1,10 +1,10 @@
-import SiteDebugJsonFallback from '../SiteDebugJsonFallback.vue';
+import SiteDevToolsJsonFallback from '../SiteDevToolsJsonFallback.vue';
 
-const siteDebugJsonFallback =
-  SiteDebugJsonFallback as typeof SiteDebugJsonFallback & {
+const siteDevtoolsJsonFallback =
+  SiteDevToolsJsonFallback as typeof SiteDevToolsJsonFallback & {
     __DOCS_ISLANDS_OPTIONAL_DEPENDENCY_FALLBACK__?: boolean;
   };
 
-siteDebugJsonFallback.__DOCS_ISLANDS_OPTIONAL_DEPENDENCY_FALLBACK__ = true;
+siteDevtoolsJsonFallback.__DOCS_ISLANDS_OPTIONAL_DEPENDENCY_FALLBACK__ = true;
 
-export default siteDebugJsonFallback;
+export default siteDevtoolsJsonFallback;

@@ -10,15 +10,15 @@ const externalImports: string[] = [];
 
 const supportedUIFrameworksNodeEntries = new Map(
   supportedUIFrameworks.map((framework) => [
-    `./${framework}`,
-    `./node/${framework}.js`,
+    `./adapters/${framework}`,
+    `./node/adapters/${framework}.js`,
   ]),
 );
 
 const supportedUIFrameworksClientEntries = new Map(
   supportedUIFrameworks.map((framework) => [
-    `./${framework}/client`,
-    `./client/${framework}.mjs`,
+    `./adapters/${framework}/client`,
+    `./client/adapters/${framework}.mjs`,
   ]),
 );
 
@@ -286,6 +286,10 @@ type PackageJson = Omit<Partial<typeof packageJson>, 'exports'> & {
   optionalDependencies?: Record<string, string>;
 };
 
+const isClientExportKey = (key: string): boolean => {
+  return /^\.\/(?:client(?:\/.+)?|adapters\/.+\/client)$/.test(key);
+};
+
 const filterExports = (key: string) => {
   if (key.startsWith('./internal-helper')) {
     return true;
@@ -304,7 +308,7 @@ const rewriteExportPath = (
     !value.endsWith('.d.ts') &&
     !value.endsWith('.d.mts')
   ) {
-    const targetExt = /^\.\/client(?:\/.+)?$/.test(key) ? '.d.mts' : '.d.ts';
+    const targetExt = isClientExportKey(key) ? '.d.mts' : '.d.ts';
     return value.replace('src/', '').replace('.ts', targetExt);
   }
   if (
@@ -317,11 +321,11 @@ const rewriteExportPath = (
     return value;
   }
   if (value.includes('src/')) {
-    const targetExt = /^\.\/client(?:\/.+)?$/.test(key) ? '.mjs' : '.js';
+    const targetExt = isClientExportKey(key) ? '.mjs' : '.js';
     return value.replace('src/', '').replace('.ts', targetExt);
   }
   if (value.includes('theme/')) {
-    const targetExt = /^\.\/client(?:\/.+)?$/.test(key) ? '.mjs' : '.js';
+    const targetExt = isClientExportKey(key) ? '.mjs' : '.js';
     return value.replace('.ts', targetExt);
   }
   if (value.endsWith('.ts')) {

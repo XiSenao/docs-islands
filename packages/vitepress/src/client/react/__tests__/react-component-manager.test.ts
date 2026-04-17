@@ -6,7 +6,7 @@ import {
   PAGE_METAFILE_META_NAMES,
   RENDER_STRATEGY_CONSTANTS,
 } from '../../../shared/constants';
-import { SITE_DEBUG_PAGE_METAFILE_EVENT_NAME } from '../../../shared/debug';
+import { SITE_DEVTOOLS_PAGE_METAFILE_EVENT_NAME } from '../../../shared/devtools';
 import { ReactComponentManager } from '../react-component-manager';
 
 vi.mock('#shared/logger', () => ({
@@ -20,27 +20,28 @@ vi.mock('#shared/logger', () => ({
   }),
 }));
 
-vi.mock('#shared/debug', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../shared/debug')>();
+vi.mock('#shared/devtools', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../../shared/devtools')>();
 
   return {
     ...actual,
-    createSiteDebugLogger: () => ({
+    createSiteDevToolsLogger: () => ({
       error: vi.fn(),
       info: vi.fn(),
       warn: vi.fn(),
     }),
-    dispatchSiteDebugPageMetafileEvent: (detail: unknown) => {
+    dispatchSiteDevToolsPageMetafileEvent: (detail: unknown) => {
       globalThis.dispatchEvent(
-        new CustomEvent(actual.SITE_DEBUG_PAGE_METAFILE_EVENT_NAME, {
+        new CustomEvent(actual.SITE_DEVTOOLS_PAGE_METAFILE_EVENT_NAME, {
           detail,
         }),
       );
 
       return true;
     },
-    getSiteDebugNow: () => 0,
-    isSiteDebugEnabled: () => true,
+    getSiteDevToolsNow: () => 0,
+    isSiteDevToolsEnabled: () => true,
   };
 });
 
@@ -143,7 +144,7 @@ describe('ReactComponentManager page metafile loading', () => {
 
     vi.stubGlobal('fetch', fetchMock);
     globalThis.addEventListener(
-      SITE_DEBUG_PAGE_METAFILE_EVENT_NAME,
+      SITE_DEVTOOLS_PAGE_METAFILE_EVENT_NAME,
       handlePageMetafileEvent as EventListener,
     );
     document.head.innerHTML = `
@@ -187,7 +188,7 @@ describe('ReactComponentManager page metafile loading', () => {
       }),
     );
     globalThis.removeEventListener(
-      SITE_DEBUG_PAGE_METAFILE_EVENT_NAME,
+      SITE_DEVTOOLS_PAGE_METAFILE_EVENT_NAME,
       handlePageMetafileEvent as EventListener,
     );
   });

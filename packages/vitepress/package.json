@@ -154,19 +154,19 @@
   "exports": {
     ".": "./src/node/index.ts",
     "./client": "./src/client/index.ts",
-    "./debug-console/client": {
-      "types": "./types/debug-console.d.ts",
-      "default": "./theme/debug-console.mjs"
+    "./adapters/react": "./src/node/adapters/react/index.ts",
+    "./adapters/react/client": "./src/client/adapters/react/index.ts",
+    "./devtools/client": {
+      "types": "./types/devtools-client.d.ts",
+      "default": "./theme/devtools.mjs"
     },
-    "./debug-console/client/style.css": {
+    "./devtools/client/style.css": {
       "types": "./types/theme.css.d.ts",
-      "default": "./theme/debug-console.css"
+      "default": "./theme/devtools.css"
     },
-    "./react": "./src/node/react/index.ts",
-    "./react/mcp": "./src/node/react-mcp.ts",
-    "./react/client": "./src/client/react/index.ts",
+    "./devtools/mcp": "./src/node/site-devtools/mcp.ts",
     "./package.json": "./package.json",
-    "./internal/debug": "./src/shared/debug.ts",
+    "./internal/devtools": "./src/shared/devtools.ts",
     "./internal/logger": "./src/shared/logger.ts",
     "./internal/runtime": "./src/shared/client-runtime.ts",
     "./internal-helper/runtime": "./dist/shared/client-runtime.js",
@@ -180,26 +180,26 @@
   "types": "./node/index.d.ts",
   "typesVersions": {
     "*": {
+      "adapters/react": [
+        "./node/adapters/react.d.ts"
+      ],
+      "adapters/react/client": [
+        "./client/adapters/react.d.mts"
+      ],
       "client": [
         "./client/index.d.mts"
       ],
-      "debug-console/client": [
-        "./types/debug-console.d.ts"
+      "devtools/client": [
+        "./types/devtools-client.d.ts"
       ],
-      "debug-console/client/style.css": [
+      "devtools/client/style.css": [
         "./types/theme.css.d.ts"
       ],
-      "react": [
-        "./node/react.d.ts"
+      "devtools/mcp": [
+        "./node/site-devtools/mcp.d.ts"
       ],
-      "react/mcp": [
-        "./node/react-mcp.d.ts"
-      ],
-      "react/client": [
-        "./client/react.d.mts"
-      ],
-      "internal/debug": [
-        "./shared/debug.d.ts"
+      "internal/devtools": [
+        "./shared/devtools.d.ts"
       ],
       "internal/logger": [
         "./shared/logger.d.ts"

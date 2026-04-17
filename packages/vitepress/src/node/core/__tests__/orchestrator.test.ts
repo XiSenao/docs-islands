@@ -3,30 +3,19 @@
  */
 import type { PluginOption } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { REACT_RUNTIME_BUNDLING_PLUGIN_NAME } from '../../react/plugin-names';
+import { react } from '../../adapters/react';
+import { REACT_RUNTIME_BUNDLING_PLUGIN_NAME } from '../../adapters/react/plugin-names';
 import {
   FRAMEWORK_MARKDOWN_TRANSFORM_PLUGIN_NAME,
   INLINE_PAGE_RESOLUTION_PLUGIN_NAME,
+  SITE_DEVTOOLS_OPTIONAL_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME,
+  SITE_DEVTOOLS_SOURCE_PLUGIN_NAME,
 } from '../plugin-names';
-
-const mockWarn = vi.fn();
 
 vi.mock('@vitejs/plugin-react-swc', () => ({
   default: vi.fn(() => ({
     name: 'mock-react-swc',
   })),
-}));
-
-vi.mock('#shared/logger', () => ({
-  default: () => ({
-    getLoggerByGroup: () => ({
-      error: vi.fn(),
-      warn: mockWarn,
-      info: vi.fn(),
-      success: vi.fn(),
-      debug: vi.fn(),
-    }),
-  }),
 }));
 
 afterEach(() => {
@@ -71,14 +60,14 @@ function findPluginIndexByName(
   );
 }
 
-describe('createRenderingStrategies', () => {
-  it('registers the React integration by default', async () => {
-    const { default: createRenderingStrategies } = await import(
-      '../orchestrator'
-    );
+describe('createDocsIslands', () => {
+  it('registers the React integration when applied', async () => {
+    const { default: createDocsIslands } = await import('../orchestrator');
 
     const vitepressConfig: any = {};
-    createRenderingStrategies(vitepressConfig);
+    createDocsIslands({
+      adapters: [react()],
+    }).apply(vitepressConfig);
 
     expect(
       findPluginByName(
@@ -122,26 +111,76 @@ describe('createRenderingStrategies', () => {
     );
   });
 
-  it('ignores unknown integrations and logs a warning', async () => {
-    const { default: createRenderingStrategies } = await import(
-      '../orchestrator'
-    );
+  it('registers site-devtools orchestration in core when enabled', async () => {
+    const { default: createDocsIslands } = await import('../orchestrator');
 
-    const vitepressConfig: any = {};
-    mockWarn.mockClear();
+    const vitepressConfig: any = {
+      base: '/docs/',
+    };
 
-    createRenderingStrategies(vitepressConfig, {
-      frameworks: ['react', 'solid'],
-    });
+    createDocsIslands({
+      adapters: [react()],
+      siteDevtools: {},
+    }).apply(vitepressConfig);
 
-    expect(mockWarn).toHaveBeenCalledWith(
-      'Unknown rendering integration "solid" was ignored. Supported integrations: react.',
-    );
     expect(
       findPluginByName(
         vitepressConfig.vite?.plugins,
-        REACT_RUNTIME_BUNDLING_PLUGIN_NAME,
+        SITE_DEVTOOLS_OPTIONAL_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME,
       ),
     ).toBeTruthy();
+    expect(
+      findPluginByName(
+        vitepressConfig.vite?.plugins,
+        SITE_DEVTOOLS_SOURCE_PLUGIN_NAME,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('does not register site-devtools orchestration in core when disabled', async () => {
+    const { default: createDocsIslands } = await import('../orchestrator');
+
+    const vitepressConfig: any = {};
+
+    createDocsIslands({
+      adapters: [react()],
+    }).apply(vitepressConfig);
+
+    expect(
+      findPluginByName(
+        vitepressConfig.vite?.plugins,
+        SITE_DEVTOOLS_OPTIONAL_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME,
+      ),
+    ).toBeNull();
+    expect(
+      findPluginByName(
+        vitepressConfig.vite?.plugins,
+        SITE_DEVTOOLS_SOURCE_PLUGIN_NAME,
+      ),
+    ).toBeNull();
+  });
+
+  it('throws when adapters is empty', async () => {
+    const { default: createDocsIslands } = await import('../orchestrator');
+
+    expect(() =>
+      createDocsIslands({
+        adapters: [],
+      }),
+    ).toThrow(
+      'createDocsIslands() requires at least one adapter in the adapters array.',
+    );
+  });
+
+  it('throws when the same framework adapter is registered twice', async () => {
+    const { default: createDocsIslands } = await import('../orchestrator');
+
+    expect(() =>
+      createDocsIslands({
+        adapters: [react(), react()],
+      }),
+    ).toThrow(
+      'createDocsIslands() received multiple adapters for framework "react".',
+    );
   });
 });

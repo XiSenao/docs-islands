@@ -32,6 +32,17 @@ Brings cross‑framework component rendering to VitePress (currently built-in Re
 
 Read [Getting Started](https://docs.senao.me/docs-islands/vitepress/guide/getting-started) for more information.
 
+```ts
+import { createDocsIslands } from '@docs-islands/vitepress';
+import { react } from '@docs-islands/vitepress/adapters/react';
+
+const islands = createDocsIslands({
+  adapters: [react()],
+});
+
+islands.apply(vitepressConfig);
+```
+
 Additional note: the user guide now explicitly documents that re-exported component imports are supported, but intermediate barrel / re-export modules must not be used as side-effect injection points.
 
 ## Contributing
