@@ -1,4 +1,5 @@
 import type { UsedSnippetContainerType } from '#dep-types/component';
+import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
 import getLoggerInstance from '#shared/logger';
 import {
   type CompilationContainerType,
@@ -173,7 +174,7 @@ export class RenderingFrameworkParserManager {
 
       skippedFrameworks.add(framework);
       loggerInstance
-        .getLoggerByGroup('framework-parser')
+        .getLoggerByGroup(VITEPRESS_LOG_GROUPS.parserFramework)
         .error(
           `Single file can contain only one <script lang="${scriptMatches[0].lang}"> element.`,
         );
@@ -207,7 +208,7 @@ export class RenderingFrameworkParserManager {
       } catch (error) {
         skippedFrameworks.add(parser.framework);
         loggerInstance
-          .getLoggerByGroup('framework-parser')
+          .getLoggerByGroup(VITEPRESS_LOG_GROUPS.parserFramework)
           .error(
             `Failed to parse <script lang="${parser.lang}"> in ${id}: ${
               error instanceof Error ? error.message : String(error)
@@ -237,7 +238,7 @@ export class RenderingFrameworkParserManager {
         skippedFrameworks.add(existingFramework);
         skippedFrameworks.add(parser.framework);
         loggerInstance
-          .getLoggerByGroup('framework-parser')
+          .getLoggerByGroup(VITEPRESS_LOG_GROUPS.parserFramework)
           .error(
             `Duplicate component local name "${componentName}" found across rendering frameworks in ${id}. Rename one of the imports before mixing frameworks on the same page.`,
           );

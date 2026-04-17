@@ -1,1 +1,1 @@
-export * from './site-debug/mcp';
+export * from './site-devtools/mcp';

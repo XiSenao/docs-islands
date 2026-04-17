@@ -11,7 +11,11 @@ import {
   applySsrRenderResult,
   requiresPreRenderDirective,
 } from '@docs-islands/core/client';
-import { formatErrorMessage } from '@docs-islands/utils/logger';
+import {
+  formatDebugMessage,
+  formatErrorMessage,
+} from '@docs-islands/utils/logger';
+import { VITEPRESS_LOG_GROUPS } from '../shared/log-groups';
 
 const loggerInstance = getLoggerInstance();
 const DEV_MOUNT_RETRY_INTERVAL_MS = 350;
@@ -105,14 +109,27 @@ export class VitePressDevBridge<
     }
 
     const timestamp = Date.now();
+    const loadStartedAt = timestamp;
     const scriptPath = /* @vite-ignore */ this.options.createDevRuntimeUrl(
       pathname,
       timestamp,
     );
     const loadPromise = import(scriptPath).then(() => {
+      const loadCompletedAt = Date.now();
       loggerInstance
-        .getLoggerByGroup('load-dev-render-runtime')
-        .success('Development render runtime loaded successfully');
+        .getLoggerByGroup(VITEPRESS_LOG_GROUPS.runtimeReactDevRuntimeLoader)
+        .debug(
+          formatDebugMessage({
+            context: 'development render runtime load',
+            decision: 'cache runtime module for the current pathname',
+            summary: {
+              pageId: pathname,
+              pendingRuntimeLoads: this.pendingRuntimeLoads.size + 1,
+              requestId: `${pathname}?t=${timestamp}`,
+            },
+            timingMs: Number((loadCompletedAt - loadStartedAt).toFixed(2)),
+          }),
+        );
     });
 
     this.pendingRuntimeLoads.set(pathname, loadPromise);
@@ -258,7 +275,7 @@ export class VitePressDevBridge<
     if (!fallbackTriggered) {
       this.runAsyncTask(
         this.loadDevRenderRuntime(pathname),
-        'dev-mount-render',
+        'runtime.react.dev-mount.render',
         'Failed to load development render runtime after SSR mount',
       );
     }
@@ -331,7 +348,7 @@ export class VitePressDevBridge<
     this.pendingDevMountFallbackTimer = setTimeout(() => {
       this.runAsyncTask(
         this.triggerDevRuntimeFallback(pathname),
-        'dev-mount-fallback',
+        'runtime.react.dev-mount.fallback',
         'Failed to execute dev runtime fallback',
       );
     }, DEV_RUNTIME_FALLBACK_DELAY_MS);
@@ -371,7 +388,7 @@ export class VitePressDevBridge<
         this.currentLocationPathname = pathname;
         this.runAsyncTask(
           this.loadDevRenderRuntime(pathname),
-          'dev-content-updated',
+          'runtime.react.dev-content-updated',
           'Failed to load development render runtime for the current page',
         );
         return;

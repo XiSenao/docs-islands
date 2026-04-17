@@ -1,4 +1,5 @@
-import vitepressReactRenderingStrategies from '@docs-islands/vitepress/react';
+import { createDocsIslands } from '@docs-islands/vitepress';
+import { react } from '@docs-islands/vitepress/adapters/react';
 import { type DefaultTheme, defineConfig, type UserConfig } from 'vitepress';
 
 const config: UserConfig<DefaultTheme.Config> = defineConfig({
@@ -19,6 +20,8 @@ const config: UserConfig<DefaultTheme.Config> = defineConfig({
   },
 });
 
-vitepressReactRenderingStrategies(config);
+createDocsIslands({
+  adapters: [react()],
+}).apply(config);
 
 export default config;

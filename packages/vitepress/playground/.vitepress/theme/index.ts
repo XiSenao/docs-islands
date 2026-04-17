@@ -1,4 +1,4 @@
-import reactClientIntegration from '@docs-islands/vitepress/react/client';
+import reactClientIntegration from '@docs-islands/vitepress/adapters/react/client';
 import type { Theme } from 'vitepress';
 import DefaultTheme from 'vitepress/theme';
 import { h } from 'vue';

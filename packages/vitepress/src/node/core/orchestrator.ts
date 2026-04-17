@@ -1,36 +1,160 @@
-import getLoggerInstance from '#shared/logger';
+import { resolveConfig } from '#shared/config';
+import type { PluginOption } from 'vite';
 import type { DefaultTheme, UserConfig } from 'vitepress';
-import { createReactRenderingIntegrationPlugin } from '../react/plugin';
-import { applyRenderingIntegrationPlugin } from './integration-plugin';
+import { applySiteDevToolsOptionalDependencyFallbacks } from '../site-devtools/optional-dependencies';
+import { getSiteDevToolsVitePlugins } from '../site-devtools/vite-plugin-site-devtools';
+import type {
+  DocsIslandsResolvedUserConfig,
+  DocsIslandsSharedOptions,
+} from './config';
+import { applyDocsIslandsUserConfig } from './config';
+import { resolveCurrentDependencyResolutionBase } from './dependency-resolution';
+import { ensureVitepressViteConfig } from './integration-plugin';
+import {
+  SITE_DEVTOOLS_OPTIONAL_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME,
+  SITE_DEVTOOLS_SOURCE_PLUGIN_NAME,
+} from './plugin-names';
 
-export interface CreateRenderingStrategiesOptions {
-  frameworks?: ('react' | string)[];
+export interface DocsIslandsAdapter {
+  apply: (
+    vitepressConfig: UserConfig<DefaultTheme.Config>,
+    resolvedUserConfig: DocsIslandsResolvedUserConfig,
+  ) => void;
+  framework: string;
 }
 
-const loggerInstance = getLoggerInstance();
-const renderingIntegrationFactories = new Map([
-  ['react', createReactRenderingIntegrationPlugin],
-]);
+export interface DocsIslandsOptions extends DocsIslandsSharedOptions {
+  adapters: DocsIslandsAdapter[];
+}
 
-export default function createRenderingStrategies(
-  vitepressConfig: UserConfig<DefaultTheme.Config>,
-  options?: CreateRenderingStrategiesOptions,
-): void {
-  const frameworks = [...new Set(options?.frameworks ?? ['react'])];
+export interface DocsIslands {
+  apply: (vitepressConfig: UserConfig<DefaultTheme.Config>) => void;
+}
 
-  for (const framework of frameworks) {
-    const createIntegrationPlugin =
-      renderingIntegrationFactories.get(framework);
+function validateAdapters(
+  adapters: DocsIslandsAdapter[],
+): DocsIslandsAdapter[] {
+  if (adapters.length === 0) {
+    throw new Error(
+      'createDocsIslands() requires at least one adapter in the adapters array.',
+    );
+  }
 
-    if (!createIntegrationPlugin) {
-      loggerInstance
-        .getLoggerByGroup('create-rendering-strategies')
-        .warn(
-          `Unknown rendering integration "${framework}" was ignored. Supported integrations: react.`,
-        );
+  const frameworks = new Set<string>();
+
+  for (const adapter of adapters) {
+    if (frameworks.has(adapter.framework)) {
+      throw new Error(
+        `createDocsIslands() received multiple adapters for framework "${adapter.framework}".`,
+      );
+    }
+
+    frameworks.add(adapter.framework);
+  }
+
+  return adapters;
+}
+
+function hasVitePluginNamed(
+  plugins: PluginOption[] | undefined,
+  name: string,
+): boolean {
+  if (!plugins) {
+    return false;
+  }
+
+  for (const plugin of plugins) {
+    if (Array.isArray(plugin)) {
+      if (hasVitePluginNamed(plugin, name)) {
+        return true;
+      }
       continue;
     }
 
-    applyRenderingIntegrationPlugin(vitepressConfig, createIntegrationPlugin());
+    if (
+      plugin &&
+      typeof plugin === 'object' &&
+      'name' in plugin &&
+      plugin.name === name
+    ) {
+      return true;
+    }
   }
+
+  return false;
+}
+
+function getSiteDevToolsOrchestrationPlugins(
+  vitepressConfig: UserConfig<DefaultTheme.Config>,
+  resolvedUserConfig: DocsIslandsResolvedUserConfig,
+): PluginOption[] {
+  if (!resolvedUserConfig.siteDevtoolsEnabled) {
+    return [];
+  }
+
+  const siteConfig = resolveConfig(vitepressConfig);
+
+  return [
+    {
+      name: SITE_DEVTOOLS_OPTIONAL_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME,
+      enforce: 'pre',
+      config(config) {
+        applySiteDevToolsOptionalDependencyFallbacks(
+          vitepressConfig,
+          resolveCurrentDependencyResolutionBase(config.root),
+        );
+      },
+    },
+    ...getSiteDevToolsVitePlugins({
+      base: siteConfig.base,
+      enabled: true,
+      pluginName: SITE_DEVTOOLS_SOURCE_PLUGIN_NAME,
+    }),
+  ];
+}
+
+function applySiteDevToolsOrchestration(
+  vitepressConfig: UserConfig<DefaultTheme.Config>,
+  resolvedUserConfig: DocsIslandsResolvedUserConfig,
+): void {
+  const viteConfig = ensureVitepressViteConfig(vitepressConfig);
+
+  for (const plugin of getSiteDevToolsOrchestrationPlugins(
+    vitepressConfig,
+    resolvedUserConfig,
+  )) {
+    if (
+      !Array.isArray(plugin) &&
+      plugin &&
+      typeof plugin === 'object' &&
+      'name' in plugin &&
+      typeof plugin.name === 'string' &&
+      hasVitePluginNamed(viteConfig.plugins, plugin.name)
+    ) {
+      continue;
+    }
+
+    viteConfig.plugins!.push(plugin);
+  }
+}
+
+export default function createDocsIslands(
+  options: DocsIslandsOptions,
+): DocsIslands {
+  const adapters = validateAdapters([...options.adapters]);
+
+  return {
+    apply(vitepressConfig) {
+      const resolvedUserConfig = applyDocsIslandsUserConfig(
+        vitepressConfig,
+        options,
+      );
+
+      for (const adapter of adapters) {
+        adapter.apply(vitepressConfig, resolvedUserConfig);
+      }
+
+      applySiteDevToolsOrchestration(vitepressConfig, resolvedUserConfig);
+    },
+  };
 }

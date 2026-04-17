@@ -9,7 +9,7 @@ import { dts } from 'rolldown-plugin-dts';
 import pkg from './package.json' with { type: 'json' };
 import generatePackageJson from './packagePlugin';
 
-const { config, debug, env } = loadEnv();
+const { config, env } = loadEnv();
 const { sourcemap, minify } = config;
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -28,7 +28,6 @@ const getExternalDeps = () => {
 
 const externalDeps = getExternalDeps();
 let hasCleanedDist = false;
-const vitepressConfigTypesImport = 'import "../types/vitepress-config.js";\n';
 
 const nodePlugins: RolldownOptions['plugins'] = [
   {
@@ -52,9 +51,9 @@ const nodePlugins: RolldownOptions['plugins'] = [
   ),
   generatePackageJson(),
   {
-    name: 'rolldown-plugin-add-react-mcp-shebang',
+    name: 'rolldown-plugin-add-devtools-mcp-shebang',
     generateBundle(_options: unknown, bundle: Record<string, unknown>) {
-      const output = bundle['node/react-mcp.js'];
+      const output = bundle['node/site-devtools/mcp.js'];
 
       if (
         output &&
@@ -109,7 +108,11 @@ const nodePlugins: RolldownOptions['plugins'] = [
 const createVitepressConfigDtsInjectPlugin = () => ({
   name: 'rolldown-plugin-inject-vitepress-config-dts',
   generateBundle(_options: unknown, bundle: Record<string, unknown>) {
-    for (const fileName of ['node/index.d.ts', 'node/react.d.ts']) {
+    for (const fileName of ['node/index.d.ts', 'node/adapters/react.d.ts']) {
+      const vitepressConfigTypesImport = `import "${path.posix.relative(
+        path.posix.dirname(fileName),
+        'types/vitepress-config.js',
+      )}";\n`;
       const output = bundle[fileName];
 
       if (!output || typeof output !== 'object') {
@@ -161,12 +164,11 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
       dir: './dist',
       entryFileNames: (chunkInfo: PreRenderedChunk) => {
         /**
-         * The entry modules logger and client-runtime are runtime-injected
-         * artifacts that are not designed for direct consumption by end
-         * users, therefore separate .d.ts type declaration files are not
-         * required.
+         * Internal helper entry modules are consumed through package exports
+         * instead of the public client entrypoints, so they must be emitted
+         * under dist/shared to match the published export map.
          */
-        if (['debug', 'logger', 'client-runtime'].includes(chunkInfo.name)) {
+        if (['devtools', 'logger', 'client-runtime'].includes(chunkInfo.name)) {
           return 'shared/[name].js';
         }
         return `${baseDir}/[name].${chunkFileExt}`;
@@ -186,9 +188,9 @@ const sharedBrowserOptions = getSharedOptions('browser');
 const nodeConfig = defineConfig({
   ...sharedNodeOptions,
   input: {
+    'adapters/react': resolve(__dirname, 'src/node/adapters/react/index.ts'),
     index: resolve(__dirname, 'src/node/index.ts'),
-    react: resolve(__dirname, 'src/node/react/index.ts'),
-    'react-mcp': resolve(__dirname, 'src/node/react-mcp.ts'),
+    'site-devtools/mcp': resolve(__dirname, 'src/node/site-devtools/mcp.ts'),
   },
   plugins: nodePlugins,
   output: {
@@ -210,9 +212,9 @@ const nodeConfig = defineConfig({
 const nodeDtsConfig = defineConfig({
   ...sharedNodeOptions,
   input: {
+    'adapters/react': resolve(__dirname, 'src/node/adapters/react/index.ts'),
     index: resolve(__dirname, 'src/node/index.ts'),
-    react: resolve(__dirname, 'src/node/react/index.ts'),
-    'react-mcp': resolve(__dirname, 'src/node/react-mcp.ts'),
+    'site-devtools/mcp': resolve(__dirname, 'src/node/site-devtools/mcp.ts'),
   },
   plugins: [
     dts({
@@ -227,7 +229,8 @@ const nodeDtsConfig = defineConfig({
 const clientConfig = defineConfig({
   ...sharedBrowserOptions,
   input: {
-    debug: resolve(__dirname, 'src/shared/debug.ts'),
+    'adapters/react': resolve(__dirname, 'src/client/adapters/react/index.ts'),
+    devtools: resolve(__dirname, 'src/shared/devtools.ts'),
     logger: resolve(__dirname, 'src/shared/logger.ts'),
     index: resolve(__dirname, 'src/client/index.ts'),
     react: resolve(__dirname, 'src/client/react/index.ts'),
@@ -240,6 +243,7 @@ const clientConfig = defineConfig({
 const clientDtsConfig = defineConfig({
   ...sharedBrowserOptions,
   input: {
+    'adapters/react': resolve(__dirname, 'src/client/adapters/react/index.ts'),
     index: resolve(__dirname, 'src/client/index.ts'),
     react: resolve(__dirname, 'src/client/react/index.ts'),
   },
@@ -263,7 +267,6 @@ const clientRuntimeConfig = defineConfig({
   transform: {
     target: 'es2020',
     define: {
-      __DEBUG__: String(debug),
       __ENV__: JSON.stringify(env),
     },
   },
@@ -293,14 +296,14 @@ const clientRuntimeConfig = defineConfig({
             source: loggerDtsContent,
           });
 
-          const debugDtsContent = await readFile(
-            resolve(__dirname, 'src/shared/debug.d.ts'),
+          const devtoolsDtsContent = await readFile(
+            resolve(__dirname, 'src/shared/devtools.d.ts'),
             'utf8',
           );
           this.emitFile({
             type: 'asset',
-            fileName: 'shared/debug.d.ts',
-            source: debugDtsContent,
+            fileName: 'shared/devtools.d.ts',
+            source: devtoolsDtsContent,
           });
         },
       },

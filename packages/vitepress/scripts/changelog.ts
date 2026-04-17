@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import packageJson from '../package.json' with { type: 'json' };
 
 const loggerInstance = getLoggerInstance();
-const Logger = loggerInstance.getLoggerByGroup('changelog');
+const Logger = loggerInstance.getLoggerByGroup('task.changelog');
 
 interface ChangelogOptions {
   version?: string;

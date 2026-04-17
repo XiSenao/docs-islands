@@ -5,7 +5,8 @@ import {
   REACT_HMR_EVENT_NAMES,
   RENDER_STRATEGY_CONSTANTS,
 } from '#shared/constants';
-import { createSiteDebugLogger, getSiteDebugNow } from '#shared/debug';
+import { createSiteDevToolsLogger, getSiteDevToolsNow } from '#shared/devtools';
+import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
 import getLoggerInstance from '#shared/logger';
 import { validateLegalRenderElements } from '#shared/utils';
 import {
@@ -13,6 +14,7 @@ import {
   replaceSsrCssResources,
   requiresPreRenderDirective,
 } from '@docs-islands/core/client';
+import { formatDebugMessage } from '@docs-islands/utils/logger';
 import type React from 'react';
 import type ReactDOM from 'react-dom/client';
 import { reactComponentManager } from './react-component-manager';
@@ -24,7 +26,7 @@ import {
 import { reactRenderStrategy } from './react-render-strategy';
 
 const loggerInstance = getLoggerInstance();
-const DebugLogger = createSiteDebugLogger('react-hmr');
+const DebugLogger = createSiteDevToolsLogger('react-hmr');
 const renderIdAttr = RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase();
 const renderComponentAttr =
   RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase();
@@ -250,7 +252,9 @@ export const applyReactMarkdownAfterUpdate = async (
    * 2. Ask the SSR side for fresh HTML when the directive requires pre-rendering.
    * 3. Reconnect client roots so hydrated/client-only components stay interactive.
    */
-  const Logger = loggerInstance.getLoggerByGroup('vite:after-update');
+  const Logger = loggerInstance.getLoggerByGroup(
+    VITEPRESS_LOG_GROUPS.hmrViteAfterUpdate,
+  );
   const activeHmrComponentNames = Object.keys(
     memoizedUpdateState.pendingUpdateState ?? {},
   );
@@ -500,7 +504,7 @@ export const applyReactMarkdownAfterUpdate = async (
    */
   const loadComponentsAndRenderComponentsOrHydrateComponents =
     async (): Promise<void> => {
-      const clientApplyStartedAt = getSiteDebugNow();
+      const clientApplyStartedAt = getSiteDevToolsNow();
       const loadComponents: Record<string, Promise<ReactComponentRecord>> = {};
       const workInProgressInjectComponent: Record<string, DevComponentInfo> =
         {};
@@ -668,10 +672,25 @@ export const applyReactMarkdownAfterUpdate = async (
         );
       }
 
-      Logger.success('Markdown HMR completed.');
-      const completedAt = getSiteDebugNow();
+      const completedAt = getSiteDevToolsNow();
       const clientApplyDurationMs = Number(
         (completedAt - clientApplyStartedAt).toFixed(2),
+      );
+      Logger.debug(
+        formatDebugMessage({
+          context: 'react markdown hmr apply',
+          decision:
+            'replace injectComponent registry and notify component runtime subscribers',
+          summary: {
+            clientRenderCount: Object.keys(clientComponents).length,
+            hydrateCount: Object.keys(ssrClientComponents).length,
+            pageId: context.getPageId(),
+            registryCount: Object.keys(workInProgressInjectComponent).length,
+            rerenderCount: Object.keys(rerenderExistingRoots).length,
+            updatedComponentCount: activeHmrComponentNames.length,
+          },
+          timingMs: clientApplyDurationMs,
+        }),
       );
       context.updateDevHmrMetrics(
         activeHmrComponentNames,
@@ -737,7 +756,7 @@ export const applyReactMarkdownAfterUpdate = async (
         element.innerHTML = ssrHtml;
       }
 
-      const ssrAppliedAt = getSiteDebugNow();
+      const ssrAppliedAt = getSiteDevToolsNow();
       context.updateDevHmrMetrics(ssrUpdatedComponentNames, {
         ssrApplyDurationMs: undefined,
         updatedAt: ssrAppliedAt,
@@ -749,7 +768,7 @@ export const applyReactMarkdownAfterUpdate = async (
         context.failPendingDevHmrMetrics(activeHmrComponentNames, error);
         throw error;
       }),
-      'markdown-update-render',
+      VITEPRESS_LOG_GROUPS.hmrViteAfterUpdateRender,
       'Failed to apply React markdown HMR render',
     );
   };
@@ -779,7 +798,7 @@ export const applyReactMarkdownAfterUpdate = async (
       context.failPendingDevHmrMetrics(activeHmrComponentNames, error);
       throw error;
     }),
-    'vite:after-update-render',
+    VITEPRESS_LOG_GROUPS.hmrViteAfterUpdateRender,
     'Failed to finalize React markdown HMR',
   );
 };

@@ -7,7 +7,7 @@ import { normalizePath } from 'vite';
 import packageJson from '../package.json' with { type: 'json' };
 
 const loggerInstance = getLoggerInstance();
-const Logger = loggerInstance.getLoggerByGroup('release');
+const Logger = loggerInstance.getLoggerByGroup('task.release');
 
 type PackageJson = typeof packageJson;
 

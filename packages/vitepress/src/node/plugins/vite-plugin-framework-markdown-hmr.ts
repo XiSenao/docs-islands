@@ -1,4 +1,5 @@
 import type { ConfigType } from '#dep-types/utils';
+import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
 import getLoggerInstance from '#shared/logger';
 import type { RenderController } from '@docs-islands/core/node/render-controller';
 import { join } from 'pathe';
@@ -34,7 +35,9 @@ export function createFrameworkMarkdownHmrPlugin({
       order: 'pre',
       async handler(ctx) {
         const { file, modules, server, read } = ctx;
-        const Logger = loggerInstance.getLoggerByGroup('handle-hot-update');
+        const Logger = loggerInstance.getLoggerByGroup(
+          VITEPRESS_LOG_GROUPS.hmrMarkdownUpdate,
+        );
 
         if (!file.endsWith('.md')) {
           return modules;

@@ -10,18 +10,18 @@ const { config } = loadEnv();
 const { sourcemap, minify } = config;
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const entry = path.resolve(__dirname, 'theme/SiteDebugConsole.vue');
+const entry = path.resolve(__dirname, 'theme/SiteDevToolsConsole.vue');
 const sourcePreviewWorkerEntry = path.resolve(
   __dirname,
-  'theme/site-debug-source-preview.worker.ts',
+  'theme/site-devtools-source-preview.worker.ts',
 );
 const sourceTextWorkerEntry = path.resolve(
   __dirname,
-  'theme/site-debug-source-text.worker.ts',
+  'theme/site-devtools-source-text.worker.ts',
 );
 const sourceHighlightWorkerEntry = path.resolve(
   __dirname,
-  'theme/site-debug-source-highlight.worker.ts',
+  'theme/site-devtools-source-highlight.worker.ts',
 );
 const vueJsonPrettyFallbackEntry = path.resolve(
   __dirname,
@@ -80,26 +80,29 @@ const createThemeDistCleanPlugin = (): Plugin => ({
   },
 });
 
-const createSiteDebugWorkerUrlRewritePlugin = (): Plugin => ({
-  name: 'rolldown-plugin-rewrite-site-debug-worker-urls',
+const createSiteDevToolsWorkerUrlRewritePlugin = (): Plugin => ({
+  name: 'rolldown-plugin-rewrite-site-devtools-worker-urls',
   renderChunk(code: string, chunk: { fileName: string }) {
     const chunkDirectory = path.posix.dirname(chunk.fileName);
     const previewWorkerPath = path.posix.relative(
       chunkDirectory,
-      'site-debug-source-preview.worker.mjs',
+      'site-devtools-source-preview.worker.mjs',
     );
     const textWorkerPath = path.posix.relative(
       chunkDirectory,
-      'site-debug-source-text.worker.mjs',
+      'site-devtools-source-text.worker.mjs',
     );
     const highlightWorkerPath = path.posix.relative(
       chunkDirectory,
-      'site-debug-source-highlight.worker.mjs',
+      'site-devtools-source-highlight.worker.mjs',
     );
     const nextCode = code
-      .replaceAll('site-debug-source-preview.worker.ts', previewWorkerPath)
-      .replaceAll('site-debug-source-text.worker.ts', textWorkerPath)
-      .replaceAll('site-debug-source-highlight.worker.ts', highlightWorkerPath);
+      .replaceAll('site-devtools-source-preview.worker.ts', previewWorkerPath)
+      .replaceAll('site-devtools-source-text.worker.ts', textWorkerPath)
+      .replaceAll(
+        'site-devtools-source-highlight.worker.ts',
+        highlightWorkerPath,
+      );
 
     if (nextCode === code) {
       return null;
@@ -167,15 +170,15 @@ const createThemeOutput = (
   ...overrides,
 });
 
-const debugConsoleConfig: RolldownOptions = {
+const devtoolsConfig: RolldownOptions = {
   input: {
-    'debug-console': entry,
+    devtools: entry,
   },
   external: shouldExternalizeThemeRuntimeDependency,
   plugins: [
     createThemeDistCleanPlugin(),
     vue(),
-    createSiteDebugWorkerUrlRewritePlugin(),
+    createSiteDevToolsWorkerUrlRewritePlugin(),
   ],
   transform: {
     target: 'es2020',
@@ -199,12 +202,12 @@ const debugConsoleConfig: RolldownOptions = {
 
 const previewWorkerConfig: RolldownOptions = {
   input: {
-    'site-debug-source-preview.worker': sourcePreviewWorkerEntry,
+    'site-devtools-source-preview.worker': sourcePreviewWorkerEntry,
   },
   external: shouldExternalizeThemeRuntimeDependency,
   plugins: [
     createThemeDistCleanPlugin(),
-    createSiteDebugWorkerUrlRewritePlugin(),
+    createSiteDevToolsWorkerUrlRewritePlugin(),
   ],
   transform: {
     target: 'es2020',
@@ -216,12 +219,12 @@ const previewWorkerConfig: RolldownOptions = {
 
 const textWorkerConfig: RolldownOptions = {
   input: {
-    'site-debug-source-text.worker': sourceTextWorkerEntry,
+    'site-devtools-source-text.worker': sourceTextWorkerEntry,
   },
   external: shouldExternalizeThemeRuntimeDependency,
   plugins: [
     createThemeDistCleanPlugin(),
-    createSiteDebugWorkerUrlRewritePlugin(),
+    createSiteDevToolsWorkerUrlRewritePlugin(),
   ],
   transform: {
     target: 'es2020',
@@ -233,12 +236,12 @@ const textWorkerConfig: RolldownOptions = {
 
 const highlightWorkerConfig: RolldownOptions = {
   input: {
-    'site-debug-source-highlight.worker': sourceHighlightWorkerEntry,
+    'site-devtools-source-highlight.worker': sourceHighlightWorkerEntry,
   },
   external: shouldExternalizeThemeRuntimeDependency,
   plugins: [
     createThemeDistCleanPlugin(),
-    createSiteDebugWorkerUrlRewritePlugin(),
+    createSiteDevToolsWorkerUrlRewritePlugin(),
   ],
   transform: {
     target: 'es2020',
@@ -273,7 +276,7 @@ const shikiFallbackConfig = createOptionalDependencyFallbackConfig({
 
 // const vueClientDtsConfig: RolldownOptions = {
 //   input: {
-//     'debug-console': entry,
+//     'devtools': entry,
 //   },
 //   plugins: [
 //     dts({
@@ -293,7 +296,7 @@ const shikiFallbackConfig = createOptionalDependencyFallbackConfig({
 // };
 
 const configs: RolldownOptions[] = [
-  debugConsoleConfig,
+  devtoolsConfig,
   previewWorkerConfig,
   textWorkerConfig,
   highlightWorkerConfig,

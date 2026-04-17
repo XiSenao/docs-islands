@@ -14,7 +14,7 @@ import { publint } from 'publint';
 import { formatMessage } from 'publint/utils';
 
 const loggerInstance = getLoggerInstance();
-const Logger = loggerInstance.getLoggerByGroup('lint-package');
+const Logger = loggerInstance.getLoggerByGroup('task.package-lint');
 
 type CheckTarget = 'all' | 'publint' | 'attw';
 type AttwProfile = 'strict' | 'node16' | 'esm-only';

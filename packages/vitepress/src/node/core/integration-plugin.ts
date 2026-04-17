@@ -28,7 +28,7 @@ export interface RenderingIntegrationPlugin<
   TContext extends
     RenderingIntegrationPluginContext = RenderingIntegrationPluginContext,
 > {
-  applyUserConfig: (vitepressConfig: UserConfig<DefaultTheme.Config>) => void;
+  applyUserConfig?: (vitepressConfig: UserConfig<DefaultTheme.Config>) => void;
   createContext: (context: RenderingIntegrationPluginContext) => TContext;
   frameworkParsers?: (context: TContext) => RenderingFrameworkParser[];
   vitePlugins: (context: TContext) => PluginOption[];
@@ -116,7 +116,7 @@ export function applyRenderingIntegrationPlugin<
   vitepressConfig: UserConfig<DefaultTheme.Config>,
   plugin: RenderingIntegrationPlugin<TContext>,
 ): TContext {
-  plugin.applyUserConfig(vitepressConfig);
+  plugin.applyUserConfig?.(vitepressConfig);
 
   const baseContext = getOrCreateRenderingIntegrationContext(vitepressConfig);
   const context = plugin.createContext(baseContext);
