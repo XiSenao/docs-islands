@@ -1,4 +1,4 @@
-import logger from '@docs-islands/utils/logger';
+import { createLogger } from '@docs-islands/utils/logger';
 import httpProxy from 'http-proxy';
 import type { ChildProcess } from 'node:child_process';
 import { spawn } from 'node:child_process';
@@ -29,7 +29,9 @@ const DEFAULT_CONFIG: ProxyConfig = {
   shutdownTimeout: 5000,
 };
 
-const Logger = new logger();
+const Logger = createLogger({
+  main: '@docs-islands/monorepo-docs',
+}).getLoggerByGroup('plugin.docs.dynamic-proxy');
 
 class ProjectManager {
   private runningProjects = new Map<string, ProjectInfo>();

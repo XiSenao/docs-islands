@@ -1,8 +1,32 @@
+import { loadEnv } from '@docs-islands/utils';
+import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import type { DefaultTheme, LocaleSpecificConfig } from 'vitepress';
 
 const __require = createRequire(import.meta.url);
 const pkg = __require('@docs-islands/vitepress/package.json');
+const { env } = loadEnv();
+const isBuild = env === 'production';
+
+function resolveCommitId(): string | null {
+  if (!isBuild) {
+    return 'dev';
+  }
+
+  try {
+    return execSync('git rev-parse --short=7 HEAD', {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+const commitId = resolveCommitId();
+const footerMessage = commitId
+  ? `Released under the MIT License. (${commitId})`
+  : 'Released under the MIT License. (dev)';
 
 const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
   label: string;
@@ -11,7 +35,7 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
   label: 'English',
   lang: 'en',
   description:
-    'Cross-framework Islands Architecture for VitePress with multi-UI framework component rendering',
+    'Render React islands inside VitePress Markdown without giving up its static-first model',
 
   themeConfig: {
     nav: [
@@ -25,9 +49,9 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
         link: '/guide/',
       },
       {
-        text: 'Site Debug',
-        activeMatch: '/site-debug-console/',
-        link: '/site-debug-console/',
+        text: 'Options',
+        activeMatch: '/options/',
+        link: '/options/',
       },
       {
         text: pkg.version,
@@ -43,76 +67,88 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
         ],
       },
     ],
-    sidebar: {
-      '/guide/': [
-        {
-          text: 'Guide',
-          base: '/guide/',
-          items: [
-            {
-              text: 'Introduction',
-              link: 'index.md',
-            },
-            {
-              text: 'Getting Started',
-              link: 'getting-started',
-            },
-            {
-              text: 'How It Works',
-              link: 'how-it-works',
-            },
-            {
-              text: 'Best Practices',
-              link: 'best-practices',
-            },
-          ],
-        },
-      ],
-      '/site-debug-console/': [
-        {
-          text: 'Site Debug',
-          base: '/site-debug-console/',
-          items: [
-            {
-              text: 'Introduction',
-              link: 'index.md',
-            },
-            {
-              text: 'Getting Started',
-              link: 'getting-started',
-            },
-          ],
-        },
-        {
-          text: 'Options',
-          base: '/site-debug-console/options/',
-          items: [
-            {
-              text: 'Analysis',
-              link: 'analysis',
-            },
-            {
-              text: 'Models',
-              link: 'models',
-            },
-            {
-              text: 'Build Reports',
-              link: 'build-reports',
-            },
-          ],
-        },
-      ],
-    },
-    footer: {
-      message: 'Released under the MIT License.',
-      copyright: `Copyright © 2025-present Senao Xi`,
-    },
-    socialLinks: [
+    sidebar: [
       {
-        icon: 'github',
-        link: 'https://github.com/XiSenao/docs-islands/tree/main/packages/vitepress',
+        text: 'Guide',
+        items: [
+          {
+            text: 'Introduction',
+            link: '/guide/',
+          },
+          {
+            text: 'Getting Started',
+            link: '/guide/getting-started',
+          },
+          {
+            text: 'How It Works',
+            link: '/guide/how-it-works',
+          },
+          {
+            text: 'Troubleshooting',
+            link: '/guide/troubleshooting',
+          },
+        ],
+      },
+      {
+        text: 'Options',
+        items: [
+          {
+            text: 'logging',
+            link: '/options/logging',
+          },
+          {
+            text: 'Site DevTools',
+            items: [
+              {
+                text: 'Overview',
+                link: '/options/site-devtools/',
+              },
+              {
+                text: 'Build-time Analysis',
+                link: '/options/site-devtools/analysis',
+              },
+              {
+                text: 'Providers and Models',
+                link: '/options/site-devtools/models',
+              },
+              {
+                text: 'Build Reports',
+                link: '/options/site-devtools/build-reports',
+              },
+            ],
+          },
+        ],
       },
     ],
+    footer: {
+      message: footerMessage,
+      copyright: `Copyright © 2025-present Senao Xi`,
+    },
+    docFooter: {
+      prev: 'Previous page',
+      next: 'Next page',
+    },
+    outline: {
+      label: 'On this page',
+      level: 'deep',
+    },
+    lastUpdated: {
+      text: 'Last updated',
+    },
+    notFound: {
+      title: 'Page Not Found',
+      quote:
+        'But if you do not change direction, and if you keep looking, you may end up where you are heading.',
+      linkLabel: 'Go to home',
+      linkText: 'Take me home',
+    },
+    langMenuLabel: 'Languages',
+    returnToTopLabel: 'Return to top',
+    sidebarMenuLabel: 'Menu',
+    darkModeSwitchLabel: 'Theme',
+    lightModeSwitchTitle: 'Switch to light theme',
+    darkModeSwitchTitle: 'Switch to dark theme',
+    skipToContentLabel: 'Skip to content',
   },
 };
 

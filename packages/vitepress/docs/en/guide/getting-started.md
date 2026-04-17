@@ -2,106 +2,193 @@
 
 ## Prerequisites
 
-- Node.js: `^20.19.0` or `>=22.12.0`
-- VitePress: `^1.6.3`
-- React / ReactDOM: `^18.2.0`
-- `@vitejs/plugin-react-swc`: `^3.9.0`
+| Dependency                 | Required version          |
+| -------------------------- | ------------------------- |
+| Node.js                    | `^20.19.0` or `>=22.12.0` |
+| VitePress                  | `^1.6.3`                  |
+| React / ReactDOM           | `^18.2.0`                 |
+| `@vitejs/plugin-react-swc` | `^3.9.0`                  |
 
-## Install Dependencies
+## 1. Install Dependencies
 
-::: code-group
-
-```bash [pnpm]
+```bash
 pnpm add -D @docs-islands/vitepress @vitejs/plugin-react-swc
 pnpm add react react-dom
 ```
 
-:::
+## 2. Apply the Plugin in `.vitepress/config.ts`
 
-## Configure VitePress
+```ts [.vitepress/config.ts]
+import { createDocsIslands } from '@docs-islands/vitepress';
+import { react } from '@docs-islands/vitepress/adapters/react';
+import { defineConfig } from 'vitepress';
 
-1. Integrate `vitepressReactRenderingStrategies()` in `.vitepress/config.ts`:
+const vitepressConfig = defineConfig({
+  // your VitePress config
+});
 
-   ::: code-group
+const islands = createDocsIslands({
+  adapters: [react()],
+});
 
-   ```ts [react]
-   import { defineConfig } from 'vitepress';
-   import vitepressReactRenderingStrategies from '@docs-islands/vitepress/react';
+islands.apply(vitepressConfig);
 
-   const vitepressConfig = defineConfig({
-     // your VitePress config
-   });
+export default vitepressConfig;
+```
 
-   vitepressReactRenderingStrategies(vitepressConfig);
+## 3. Register the Client Runtime in Your Theme
 
-   export default vitepressConfig;
-   ```
+```ts [theme/index.ts]
+import type { Theme } from 'vitepress';
+import DefaultTheme from 'vitepress/theme';
+import { reactClient } from '@docs-islands/vitepress/adapters/react/client';
 
-   :::
+const theme: Theme = {
+  extends: DefaultTheme,
+  async enhanceApp() {
+    await reactClient();
+  },
+};
 
-2. Register the client runtime in your theme enhancement:
+export default theme;
+```
 
-   ::: code-group
+## 4. Render the First Island in Markdown
 
-   ```ts [react]
-   import DefaultTheme from 'vitepress/theme';
-   import reactClientIntegration from '@docs-islands/vitepress/react/client';
-   import type { Theme } from 'vitepress';
-
-   const theme: Theme = {
-     extends: DefaultTheme,
-     async enhanceApp() {
-       await reactClientIntegration();
-     },
-   };
-
-   export default theme;
-   ```
-
-   :::
-
-## Render Your First Island Component in Markdown
-
-Create a component:
+Create a component. Keeping the presentation in a separate CSS file makes the example closer to a real project:
 
 ::: code-group
 
-```tsx [components/Landing.tsx]
-export default function Landing() {
-  return <div>Hello Docs Islands</div>;
+```tsx [CounterCard.tsx]
+import './CounterCard.css';
+
+export default function CounterCard() {
+  return (
+    <section className="counter-card">
+      <div className="counter-card__eyebrow">
+        <span className="counter-card__dot" />
+        Getting started example
+      </div>
+      <h3 className="counter-card__title">Hello Docs Islands</h3>
+      <p className="counter-card__body">
+        Your first React component is already rendering inside this VitePress page.
+      </p>
+    </section>
+  );
+}
+```
+
+```css [CounterCard.css]
+.counter-card {
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-soft);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+}
+
+.counter-card__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--vp-c-text-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.counter-card__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--vp-c-brand-1);
+  opacity: 0.65;
+}
+
+.counter-card__title {
+  margin: 12px 0 6px;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.counter-card__body {
+  margin: 0;
+  color: var(--vp-c-text-2);
+  line-height: 1.6;
 }
 ```
 
 :::
 
-Then import and render it inside Markdown:
+Then import and render it in Markdown:
 
-::: code-group
-
-```md [guide/getting-started.md]
+```md [index.md]
 <script lang="react">
-  import Landing from '../components/Landing';
+  import CounterCard from './CounterCard';
 </script>
 
-<Landing ssr:only title="Hello" />
+<CounterCard />
 ```
 
+Then the page will render this result:
+
+---
+
+<script lang="react">
+  import CounterCard from './CounterCard';
+</script>
+
+<CounterCard />
+
+---
+
+## 5. Verify the First Integration
+
+Use `ssr:only` first and confirm the whole chain is working: the page should build successfully, the Markdown component tag should be recognized, and the component output should appear as stable static content. Only move to `client:load` or `client:visible` when the component actually needs interaction. If the first pass already looks wrong, start with [Troubleshooting](./troubleshooting.md).
+
+## Optional: Mount `Site DevTools` in the Same Pass
+
+If you want runtime visibility early, mount `Site DevTools` during the same setup pass. Keep the setup minimal here; model, cache, and page-scope settings belong in the reference pages.
+
+### Mount the Console in Your Theme
+
+```ts [theme/index.ts]
+import type { Theme } from 'vitepress';
+import DefaultTheme from 'vitepress/theme';
+import SiteDevToolsLayout from './SiteDevToolsLayout.vue';
+import { reactClient } from '@docs-islands/vitepress/adapters/react/client';
+import '@docs-islands/vitepress/devtools/client/style.css';
+// Optional: only import this when vue-json-pretty is installed.
+import 'vue-json-pretty/lib/styles.css';
+
+const theme: Theme = {
+  extends: DefaultTheme,
+  Layout: SiteDevToolsLayout,
+  async enhanceApp() {
+    await reactClient();
+  },
+};
+
+export default theme;
+```
+
+```vue [SiteDevToolsLayout.vue]
+<script setup lang="ts">
+import SiteDevToolsConsole from '@docs-islands/vitepress/devtools/client';
+import DefaultTheme from 'vitepress/theme';
+</script>
+
+<template>
+  <DefaultTheme.Layout />
+  <SiteDevToolsConsole />
+</template>
+```
+
+### Turn It On
+
+The console supports URL-based toggles. Use `?site-devtools=1` to force it on and `?site-devtools=0` to force it off; the current choice is persisted for later visits. This docs site also supports a triple-click on the top-left `logo` as a local toggle.
+
+::: tip When to Add `siteDevtools.analysis`
+
+If you only need the runtime overlay and `Debug Logs`, mounting the console is enough. If you want the console to read build-time analysis reports, continue with [Build-time Analysis](../options/site-devtools/analysis.md). If you also need provider selection, model choice, page scope, or cache strategy, continue with [Providers and Models](../options/site-devtools/models.md) and [Build Reports](../options/site-devtools/build-reports.md).
+
 :::
-
-If you omit a render directive, the default behavior is `ssr:only`.
-
-## First Verification Checklist
-
-After the first integration, verify at least these points:
-
-- The page builds successfully and the Markdown component tag is not ignored.
-- The component renders correctly as `ssr:only` before you introduce interaction.
-- Upgrading to an interactive strategy does not immediately cause hydration mismatch.
-- Editing the island-component source still produces the HMR behavior you expect in development.
-- If the component has special runtime constraints, review [Best Practices](./best-practices.md) before broadening its usage.
-
-## Further Reading
-
-- [How It Works](./how-it-works.md): injection flow, runtime stages, strategy behavior, and `spa:sync-render`.
-- [Best Practices](./best-practices.md): Markdown authoring rules, strategy heuristics, caveats, and quick troubleshooting.
-- [Site Debug Getting Started](../site-debug-console/getting-started.md): console setup and first diagnosis workflow.

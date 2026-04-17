@@ -19,8 +19,12 @@ const ANSI_ESCAPE_RE = new RegExp(
   'g',
 );
 const repoRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
+const vitePressGeneratedConfigModuleRe =
+  /(?:^|[/\\])\.vitepress[/\\]config\.ts\.timestamp-\d+-[\da-f]+\.mjs$/i;
 
 const stripAnsi = (value: string) => value.replaceAll(ANSI_ESCAPE_RE, '');
+const isTransientSourceArtifact = (filePath: string) =>
+  vitePressGeneratedConfigModuleRe.test(filePath);
 
 const collectSourceFiles = (directory: string): string[] => {
   const entries = fs.readdirSync(directory, {
@@ -44,7 +48,10 @@ const collectSourceFiles = (directory: string): string[] => {
       continue;
     }
 
-    if (/\.(?:cjs|js|mjs|ts|tsx)$/.test(entry.name)) {
+    if (
+      /\.(?:cjs|js|mjs|ts|tsx)$/.test(entry.name) &&
+      !isTransientSourceArtifact(nextPath)
+    ) {
       files.push(nextPath);
     }
   }

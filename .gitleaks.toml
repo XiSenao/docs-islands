@@ -9,7 +9,7 @@ regexes = [
   '''"cacheKey"\s*:\s*"[\w.=-]{10,150}"'''
 ]
 paths = [
-  '''(?:^|/)packages/vitepress/docs/\.vitepress/site-debug-reports(?:/.*)?$''',
+  '''(?:^|/)packages/vitepress/docs/\.vitepress/site-devtools-reports(?:/.*)?$''',
 ]
 
 

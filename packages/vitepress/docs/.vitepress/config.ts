@@ -1,6 +1,7 @@
 import { loadEnv } from '@docs-islands/utils';
+import { createDocsIslands } from '@docs-islands/vitepress';
+import { react } from '@docs-islands/vitepress/adapters/react';
 import vitepressRenderingStrategiesPackageJson from '@docs-islands/vitepress/package.json' with { type: 'json' };
-import vitepressReactRenderingStrategies from '@docs-islands/vitepress/react';
 import isInCi from 'is-in-ci';
 import { join } from 'pathe';
 import { type DefaultTheme, defineConfig, type UserConfig } from 'vitepress';
@@ -12,8 +13,8 @@ import llmstxt from 'vitepress-plugin-llms';
 import enConfig from '../en/config';
 import zhConfig from '../zh/config';
 
-const { release, siteDebug } = loadEnv();
-const { doubao_api_key } = siteDebug;
+const { debug, release, siteDevtools } = loadEnv();
+const { doubao_api_key } = siteDevtools;
 
 const base = `/${vitepressRenderingStrategiesPackageJson.name.replace('@', '')}/`;
 
@@ -101,8 +102,32 @@ const vitepressConfig: UserConfig<DefaultTheme.Config> = defineConfig({
   },
 });
 
-vitepressReactRenderingStrategies(vitepressConfig, {
-  siteDebug: {
+createDocsIslands({
+  adapters: [react()],
+  logging: {
+    debug,
+    levels: release ? ['warn', 'error'] : ['info', 'success', 'warn', 'error'],
+    rules: [
+      {
+        main: '@docs-islands/vitepress',
+        group: 'plugin.hmr.markdown-update',
+        label: 'docs-markdown-hmr',
+        message: '*changed, container script content will be re-parsed...*',
+        levels: ['info', 'success', 'warn', 'error'],
+      },
+      {
+        label: 'vitepress-react-runtime',
+        main: '@docs-islands/vitepress',
+        group: 'runtime.react.*',
+      },
+      {
+        label: 'core-react-runtime',
+        main: '@docs-islands/core',
+        group: 'runtime.react.*',
+      },
+    ],
+  },
+  siteDevtools: {
     analysis: {
       providers: {
         doubao: [
@@ -118,7 +143,7 @@ vitepressReactRenderingStrategies(vitepressConfig, {
       },
       buildReports: {
         cache: {
-          dir: '.vitepress/site-debug-reports',
+          dir: '.vitepress/site-devtools-reports',
           // Environmental factors can cause prompts to be unstable, thereby destroying cacheKey.
           strategy: isInCi ? 'fallback' : 'exact',
         },
@@ -150,7 +175,7 @@ vitepressReactRenderingStrategies(vitepressConfig, {
           return {
             modelId: 'doubao-pro',
             cache: {
-              dir: `.vitepress/site-debug-reports/${cacheDir}`,
+              dir: `.vitepress/site-devtools-reports/${cacheDir}`,
               strategy: isInCi ? 'fallback' : 'exact',
             },
           };
@@ -158,6 +183,6 @@ vitepressReactRenderingStrategies(vitepressConfig, {
       },
     },
   },
-});
+}).apply(vitepressConfig);
 
 export default vitepressConfig;

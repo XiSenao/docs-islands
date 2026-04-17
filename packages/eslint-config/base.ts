@@ -157,11 +157,14 @@ export const eslintConfigBase: Config = [
 
   gitignore(),
   globalIgnores([
+    '**/.DS_Store',
     '**/node_modules/**',
     '**/cache/**',
     '**/dist/**',
     '**/public/**',
     '**/coverage/**',
+    // VitePress may emit transient compiled config modules beside the source config.
+    '**/.vitepress/config.ts.timestamp-*.mjs',
   ]),
 
   {

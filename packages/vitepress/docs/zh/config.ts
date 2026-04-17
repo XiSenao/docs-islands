@@ -1,8 +1,32 @@
+import { loadEnv } from '@docs-islands/utils';
+import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import type { DefaultTheme, LocaleSpecificConfig } from 'vitepress';
 
 const __require = createRequire(import.meta.url);
 const pkg = __require('@docs-islands/vitepress/package.json');
+const { env } = loadEnv();
+const isBuild = env === 'production';
+
+function resolveCommitId(): string | null {
+  if (!isBuild) {
+    return 'dev';
+  }
+
+  try {
+    return execSync('git rev-parse --short=7 HEAD', {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+const commitId = resolveCommitId();
+const footerMessage = commitId
+  ? `根据 MIT 许可证发布。 (${commitId})`
+  : '根据 MIT 许可证发布。 (dev)';
 
 const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
   label: string;
@@ -10,7 +34,7 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
 } = {
   label: '简体中文',
   lang: 'zh',
-  description: '赋予 vitepress 多 UI 框架支持',
+  description: '在 VitePress 的 Markdown 中渲染 React 孤岛组件',
 
   themeConfig: {
     nav: [
@@ -24,9 +48,9 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
         link: '/zh/guide/',
       },
       {
-        text: '站点调试',
-        activeMatch: '/zh/site-debug-console/',
-        link: '/zh/site-debug-console/',
+        text: '配置与诊断',
+        activeMatch: '/zh/options/',
+        link: '/zh/options/logging',
       },
       {
         text: pkg.version,
@@ -42,84 +66,74 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
         ],
       },
     ],
-    sidebar: {
-      '/zh/guide/': [
-        {
-          text: '指南',
-          base: '/zh/guide/',
-          items: [
-            {
-              text: '介绍',
-              link: 'index.md',
-            },
-            {
-              text: '快速上手',
-              link: 'getting-started',
-            },
-            {
-              text: '工作原理',
-              link: 'how-it-works',
-            },
-            {
-              text: '最佳实践',
-              link: 'best-practices',
-            },
-          ],
-        },
-      ],
-      '/zh/site-debug-console/': [
-        {
-          text: '站点调试',
-          base: '/zh/site-debug-console/',
-          items: [
-            {
-              text: '介绍',
-              link: 'index.md',
-            },
-            {
-              text: '快速上手',
-              link: 'getting-started',
-            },
-          ],
-        },
-        {
-          text: '配置项',
-          base: '/zh/site-debug-console/options/',
-          items: [
-            {
-              text: '分析',
-              link: 'analysis',
-            },
-            {
-              text: '模型接入',
-              link: 'models',
-            },
-            {
-              text: '产物分析',
-              link: 'build-reports',
-            },
-          ],
-        },
-      ],
-    },
+    sidebar: [
+      {
+        text: '指南',
+        items: [
+          {
+            text: '介绍',
+            link: '/zh/guide/',
+          },
+          {
+            text: '快速上手',
+            link: '/zh/guide/getting-started',
+          },
+          {
+            text: '工作原理',
+            link: '/zh/guide/how-it-works',
+          },
+          {
+            text: '排障',
+            link: '/zh/guide/troubleshooting',
+          },
+        ],
+      },
+      {
+        text: '配置与诊断',
+        items: [
+          {
+            text: '日志配置',
+            link: '/zh/options/logging',
+          },
+          {
+            text: '站点开发工具',
+            items: [
+              {
+                text: '概览',
+                link: '/zh/options/site-devtools/',
+              },
+              {
+                text: '构建期分析',
+                link: '/zh/options/site-devtools/analysis',
+              },
+              {
+                text: '提供商与模型',
+                link: '/zh/options/site-devtools/models',
+              },
+              {
+                text: '构建报告',
+                link: '/zh/options/site-devtools/build-reports',
+              },
+            ],
+          },
+        ],
+      },
+    ],
     footer: {
-      message: '根据 MIT 许可证发布。',
+      message: footerMessage,
       copyright: `版权所有 © 2025-present Senao Xi`,
     },
     docFooter: {
       prev: '上一页',
       next: '下一页',
     },
-
     outline: {
       label: '页面导航',
       level: 'deep',
     },
-
     lastUpdated: {
       text: '最后更新于',
     },
-
     notFound: {
       title: '页面未找到',
       quote:
@@ -127,7 +141,6 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
       linkLabel: '前往首页',
       linkText: '带我回首页',
     },
-
     langMenuLabel: '多语言',
     returnToTopLabel: '回到顶部',
     sidebarMenuLabel: '菜单',

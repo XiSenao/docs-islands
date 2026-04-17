@@ -1,0 +1,36 @@
+.counter-card {
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-soft);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+}
+
+.counter-card__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--vp-c-text-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.counter-card__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--vp-c-brand-1);
+  opacity: 0.65;
+}
+
+.counter-card__title {
+  margin: 12px 0 6px;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.counter-card__body {
+  margin: 0;
+  color: var(--vp-c-text-2);
+  line-height: 1.6;
+}

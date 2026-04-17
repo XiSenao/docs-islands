@@ -17,27 +17,27 @@ hero:
       link: https://github.com/XiSenao/docs-islands/tree/main/packages/vitepress
 
 features:
-  - title: React in Markdown
-    details: Import and use React components directly in VitePress Markdown files with zero configuration. Full JSX/TSX support with complete TypeScript typing.
+  - title: Use React in Markdown
+    details: 'Render React components directly inside VitePress Markdown pages while keeping existing JSX, TSX, and TypeScript workflows.'
     icon: '⚛️'
 
-  - title: Flexible Rendering Strategies
-    details: Currently supports ssr:only (default, static), client:load (immediate hydration), client:visible (hydrate on visible), client:only (client-only) — extensible for additional strategies.
+  - title: Per-component Rendering Strategies
+    details: 'Choose `ssr:only`, `client:load`, `client:visible`, or `client:only` per component instead of turning the whole page into a separate app.'
     icon: '🎯'
 
-  - title: SPA Navigation Optimization
-    details: spa:sync-render directive designed specifically for VitePress SPA mode. Synchronizes with Vue rendering cycle to inject pre-rendered template, eliminating component flicker during route transitions and optimizing CLS metrics.
+  - title: Smoother SPA Route Changes
+    details: '`spa:sync-render` lets selected components land earlier during route changes so flicker and layout shift stay under control.'
     icon: '⚡'
 
-  - title: Static-First, Progressive Enhancement
-    details: Built on VitePress SSG architecture, pre-renders component templates at build time. Selective client-side hydration only where interaction is needed, optimizing first-paint performance.
+  - title: Keep the Static-site Model
+    details: 'The site still follows the VitePress static-generation model, and client takeover only happens where interaction is actually needed.'
     icon: '🚀'
 
-  - title: Developer Experience First
-    details: Full HMR support with instant hot updates for React components and Markdown files, preserving component internal state. Consistent dev/prod rendering behavior prevents production surprises.
+  - title: Fits the VitePress Workflow
+    details: 'React components, Markdown content, and theme extensions stay in one documentation workflow with aligned `HMR` and build behavior.'
     icon: '🛠️'
 
-  - title: Built-in Site Debug Console
-    details: Provides a visual debugging panel and AI Reports to analyze rendering behavior, HMR, bundle composition, and spa:sync-render side effects, enabling faster identification of performance and build issues.
+  - title: Site DevTools
+    details: 'Inspect page overlays, debug logs, bundle composition, and build reports when you need to understand rendering, `HMR`, or asset cost.'
     icon: '🔎'
 ---
