@@ -4,14 +4,14 @@ import { resolveConfig } from '../config';
 const resolveBuildReportsTestPage = () => false as const;
 
 describe('resolveConfig', () => {
-  it('normalizes siteDebug.analysis config in the resolved config object', () => {
+  it('normalizes siteDevtools.analysis config in the resolved config object', () => {
     const config = resolveConfig({
       base: '/docs',
-      siteDebug: {
+      siteDevtools: {
         analysis: {
           buildReports: {
             cache: {
-              dir: '.vitepress/site-debug-reports',
+              dir: '.vitepress/site-devtools-reports',
               strategy: 'fallback',
             },
             models: [
@@ -47,16 +47,20 @@ describe('resolveConfig', () => {
     });
 
     expect(config.base).toBe('/docs/');
-    expect(config.siteDebug.analysis?.buildReports?.cache).toEqual({
-      dir: expect.stringMatching(/site-debug-reports$/),
+    expect(config.siteDevtools.analysis?.buildReports?.cache).toEqual({
+      dir: expect.stringMatching(/site-devtools-reports$/),
       strategy: 'fallback',
     });
-    expect(config.siteDebug.analysis?.buildReports?.includeChunks).toBe(false);
-    expect(config.siteDebug.analysis?.buildReports?.includeModules).toBe(false);
-    expect(config.siteDebug.analysis?.buildReports?.resolvePage).toBe(
+    expect(config.siteDevtools.analysis?.buildReports?.includeChunks).toBe(
+      false,
+    );
+    expect(config.siteDevtools.analysis?.buildReports?.includeModules).toBe(
+      false,
+    );
+    expect(config.siteDevtools.analysis?.buildReports?.resolvePage).toBe(
       resolveBuildReportsTestPage,
     );
-    expect(config.siteDebug.analysis?.buildReports?.models?.[0]).toEqual({
+    expect(config.siteDevtools.analysis?.buildReports?.models?.[0]).toEqual({
       default: true,
       id: 'doubao-pro',
       label: 'Doubao Pro',
@@ -68,28 +72,28 @@ describe('resolveConfig', () => {
       temperature: 0.1,
       thinking: true,
     });
-    expect(config.siteDebug.analysis?.providers?.doubao?.[0]?.apiKey).toBe(
+    expect(config.siteDevtools.analysis?.providers?.doubao?.[0]?.apiKey).toBe(
       'test-key',
     );
-    expect(config.siteDebug.analysis?.providers?.doubao?.[0]?.baseUrl).toBe(
+    expect(config.siteDevtools.analysis?.providers?.doubao?.[0]?.baseUrl).toBe(
       'https://ark.cn-beijing.volces.com/api/v3',
     );
-    expect(config.siteDebug.analysis?.providers?.doubao?.[0]?.default).toBe(
+    expect(config.siteDevtools.analysis?.providers?.doubao?.[0]?.default).toBe(
       true,
     );
-    expect(config.siteDebug.analysis?.providers?.doubao?.[0]?.id).toBe('cn');
-    expect(config.siteDebug.analysis?.providers?.doubao?.[0]?.label).toBe(
+    expect(config.siteDevtools.analysis?.providers?.doubao?.[0]?.id).toBe('cn');
+    expect(config.siteDevtools.analysis?.providers?.doubao?.[0]?.label).toBe(
       'Doubao CN',
     );
-    expect(config.siteDebug.analysis?.providers?.doubao?.[0]?.timeoutMs).toBe(
-      90_000,
-    );
-    expect(config.siteDebug).not.toHaveProperty('ai');
+    expect(
+      config.siteDevtools.analysis?.providers?.doubao?.[0]?.timeoutMs,
+    ).toBe(90_000);
+    expect(config.siteDevtools).not.toHaveProperty('ai');
   });
 
   it('fills cache option defaults when cache is true', () => {
     const config = resolveConfig({
-      siteDebug: {
+      siteDevtools: {
         analysis: {
           buildReports: {
             cache: true,
@@ -98,15 +102,15 @@ describe('resolveConfig', () => {
       },
     });
 
-    expect(config.siteDebug.analysis?.buildReports?.cache).toEqual({
-      dir: expect.stringMatching(/\.vitepress\/cache\/site-debug-reports$/),
+    expect(config.siteDevtools.analysis?.buildReports?.cache).toEqual({
+      dir: expect.stringMatching(/\.vitepress\/cache\/site-devtools-reports$/),
       strategy: 'exact',
     });
   });
 
   it('fills cache option defaults when cache config is enabled', () => {
     const config = resolveConfig({
-      siteDebug: {
+      siteDevtools: {
         analysis: {
           buildReports: {
             cache: {},
@@ -115,24 +119,26 @@ describe('resolveConfig', () => {
       },
     });
 
-    expect(config.siteDebug.analysis?.buildReports?.cache).toEqual({
-      dir: expect.stringMatching(/\.vitepress\/cache\/site-debug-reports$/),
+    expect(config.siteDevtools.analysis?.buildReports?.cache).toEqual({
+      dir: expect.stringMatching(/\.vitepress\/cache\/site-devtools-reports$/),
       strategy: 'exact',
     });
   });
 
   it('treats buildReports presence as enabled and defaults cache to true', () => {
     const config = resolveConfig({
-      siteDebug: {
+      siteDevtools: {
         analysis: {
           buildReports: {},
         },
       },
     });
 
-    expect(config.siteDebug.analysis?.buildReports).toEqual({
+    expect(config.siteDevtools.analysis?.buildReports).toEqual({
       cache: {
-        dir: expect.stringMatching(/\.vitepress\/cache\/site-debug-reports$/),
+        dir: expect.stringMatching(
+          /\.vitepress\/cache\/site-devtools-reports$/,
+        ),
         strategy: 'exact',
       },
       includeChunks: false,

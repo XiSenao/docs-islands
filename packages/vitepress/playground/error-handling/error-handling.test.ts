@@ -1,13 +1,12 @@
 import { loadEnv } from '@docs-islands/utils/env';
-import Logger from '@docs-islands/utils/logger';
 import { expect } from '@playwright/test';
+import { getPlaygroundLogger } from '../test-utils/logger';
 import {
   debugElementState,
   waitForElementRobust,
 } from '../test-utils/platform-helpers';
 
-const logger = new Logger();
-const TestLogger = logger.getLoggerByGroup('error-handling-test');
+const TestLogger = getPlaygroundLogger('test.playground.error-handling');
 const { test: TEST } = loadEnv();
 
 describe('Error Handling and Edge Cases', () => {

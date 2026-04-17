@@ -3,6 +3,7 @@ import {
   PAGE_METAFILE_META_NAMES,
   RENDER_STRATEGY_CONSTANTS,
 } from '../shared/constants';
+import { getFrameworkComponentManagerLogGroup } from '../shared/log-groups';
 import getLoggerInstance from '../shared/logger';
 import type {
   DocsComponentManagerHooks,
@@ -72,7 +73,7 @@ export class DocsComponentManager<TComponent, TBuildMetrics = unknown> {
   public constructor(options: DocsComponentManagerOptions<TBuildMetrics>) {
     this.options = options;
     this.Logger = loggerInstance.getLoggerByGroup(
-      `${options.framework}-component-manager`,
+      getFrameworkComponentManagerLogGroup(options.framework),
     );
     this.ensureGlobalBindings();
   }
@@ -87,7 +88,7 @@ export class DocsComponentManager<TComponent, TBuildMetrics = unknown> {
       level,
       message,
       payload,
-      scope: `${this.options.framework}-component-manager`,
+      scope: getFrameworkComponentManagerLogGroup(this.options.framework),
     });
   }
 

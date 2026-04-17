@@ -1,4 +1,4 @@
-import Logger from '@docs-islands/utils/logger';
+import { createLogger } from '@docs-islands/utils/logger';
 import { execSync } from 'node:child_process';
 import {
   existsSync,
@@ -13,7 +13,9 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const logger = new Logger('@docs-islands/agents').getLoggerByGroup('link');
+const logger = createLogger({
+  main: '@docs-islands/agents',
+}).getLoggerByGroup('task.link');
 
 function findProjectRoot() {
   try {

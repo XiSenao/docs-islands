@@ -1,5 +1,5 @@
 import { scanFiles } from '@docs-islands/utils/fs-utils';
-import logger from '@docs-islands/utils/logger';
+import { createLogger } from '@docs-islands/utils/logger';
 import { existsSync, readFileSync } from 'node:fs';
 import { copyFile, mkdir, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -12,7 +12,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = resolve(__dirname, '..');
 
-const Logger = new logger().getLoggerByGroup('build');
+const MergeDocsLogger = createLogger({
+  main: 'docs-islands-monorepo',
+}).getLoggerByGroup('task.docs.merge');
 
 interface PackageInfo {
   name: string;
@@ -40,7 +42,9 @@ async function findDocsPackages(): Promise<PackageInfo[]> {
     },
   );
 
-  Logger.info(`Found ${packageJsonPaths.length} package.json files to check`);
+  MergeDocsLogger.info(
+    `Found ${packageJsonPaths.length} package.json files to check`,
+  );
 
   for (const packageJsonPath of packageJsonPaths) {
     await processPackageJson(packageJsonPath, packages);
@@ -64,9 +68,9 @@ async function processPackageJson(
       const packageDir = dirname(packageJsonPath);
       const distPath = join(packageDir, '.vitepress/dist');
 
-      Logger.info(`Checking docs package: ${packageName}`);
-      Logger.info(`  Package path: ${packageDir}`);
-      Logger.info(`  Expected dist path: ${distPath}`);
+      MergeDocsLogger.info(`Checking docs package: ${packageName}`);
+      MergeDocsLogger.info(`  Package path: ${packageDir}`);
+      MergeDocsLogger.info(`  Expected dist path: ${distPath}`);
 
       if (existsSync(distPath)) {
         packages.push({
@@ -75,15 +79,21 @@ async function processPackageJson(
           distPath,
           targetName,
         });
-        Logger.success(`Found docs package: ${packageName} -> ${targetName}`);
+        MergeDocsLogger.success(
+          `Found docs package: ${packageName} -> ${targetName}`,
+        );
       } else {
-        Logger.warn(`${packageName} dist directory not found: ${distPath}`);
+        MergeDocsLogger.warn(
+          `${packageName} dist directory not found: ${distPath}`,
+        );
       }
     } else if (packageName?.startsWith('@docs-islands/')) {
-      Logger.warn(`Skipping @docs-islands package (not docs): ${packageName}`);
+      MergeDocsLogger.warn(
+        `Skipping @docs-islands package (not docs): ${packageName}`,
+      );
     }
   } catch (error) {
-    Logger.error(`Failed to parse ${packageJsonPath}: ${error}`);
+    MergeDocsLogger.error(`Failed to parse ${packageJsonPath}: ${error}`);
   }
 }
 
@@ -93,7 +103,9 @@ async function mergeDistDirectories(packages: PackageInfo[]): Promise<void> {
   );
 
   if (!mainPackage) {
-    Logger.error('Main package(@docs-islands/monorepo-docs) not found');
+    MergeDocsLogger.error(
+      'Main package(@docs-islands/monorepo-docs) not found',
+    );
     return;
   }
 
@@ -101,7 +113,7 @@ async function mergeDistDirectories(packages: PackageInfo[]): Promise<void> {
 
   await mkdir(mainDistPath, { recursive: true });
 
-  Logger.info(`Main dist directory: ${mainDistPath}`);
+  MergeDocsLogger.info(`Main dist directory: ${mainDistPath}`);
 
   for (const pkg of packages) {
     try {
@@ -116,19 +128,21 @@ async function mergeDistDirectories(packages: PackageInfo[]): Promise<void> {
 
       const srcStat = await stat(pkg.distPath);
       if (!srcStat.isDirectory()) {
-        Logger.info(`Skip ${pkg.name}: source path is not a directory`);
+        MergeDocsLogger.info(
+          `Skip ${pkg.name}: source path is not a directory`,
+        );
         continue;
       }
 
       const srcFiles = await readdir(pkg.distPath);
       if (srcFiles.length === 0) {
-        Logger.info(`Skip ${pkg.name}: source directory is empty`);
+        MergeDocsLogger.info(`Skip ${pkg.name}: source directory is empty`);
         continue;
       }
 
-      Logger.info(`Merging ${pkg.name}`);
-      Logger.info(`  Source: ${pkg.distPath}`);
-      Logger.info(`  Target: ${targetPath}`);
+      MergeDocsLogger.info(`Merging ${pkg.name}`);
+      MergeDocsLogger.info(`  Source: ${pkg.distPath}`);
+      MergeDocsLogger.info(`  Target: ${targetPath}`);
 
       await scanFiles(pkg.distPath, async (relativePath, absolutePath) => {
         const destPath = join(targetPath, relativePath);
@@ -137,36 +151,38 @@ async function mergeDistDirectories(packages: PackageInfo[]): Promise<void> {
         await copyFile(absolutePath, destPath);
       });
 
-      Logger.success(`Successfully merged ${pkg.name} to ${pkg.targetName}`);
+      MergeDocsLogger.success(
+        `Successfully merged ${pkg.name} to ${pkg.targetName}`,
+      );
     } catch (error) {
-      Logger.error(`Failed to merge ${pkg.name}: ${error}`);
+      MergeDocsLogger.error(`Failed to merge ${pkg.name}: ${error}`);
     }
   }
 }
 
 async function main(): Promise<void> {
   try {
-    Logger.info('Starting docs merge...');
-    Logger.info(`Project root: ${projectRoot}`);
+    MergeDocsLogger.info('Starting docs merge...');
+    MergeDocsLogger.info(`Project root: ${projectRoot}`);
 
     const packages = await findDocsPackages();
 
     if (packages.length === 0) {
-      Logger.info('No @docs-islands/xxx-docs packages found');
+      MergeDocsLogger.info('No @docs-islands/xxx-docs packages found');
       return;
     }
 
-    Logger.info(`Found ${packages.length} docs packages:`);
+    MergeDocsLogger.info(`Found ${packages.length} docs packages:`);
     for (const pkg of packages) {
-      Logger.info(`  - ${pkg.name} (${pkg.targetName})`);
+      MergeDocsLogger.info(`  - ${pkg.name} (${pkg.targetName})`);
     }
 
-    Logger.info('Starting dist directory merge...');
+    MergeDocsLogger.info('Starting dist directory merge...');
     await mergeDistDirectories(packages);
 
-    Logger.info('Docs merge completed!');
+    MergeDocsLogger.info('Docs merge completed!');
   } catch (error) {
-    Logger.error(`Error during merge process: ${error}`);
+    MergeDocsLogger.error(`Error during merge process: ${error}`);
     process.exit(1);
   }
 }

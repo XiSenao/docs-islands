@@ -1,22 +1,23 @@
 import type {
   ConfigType,
-  SiteDebugAnalysisBuildReportModelConfig,
-  SiteDebugAnalysisBuildReportsCacheConfig,
-  SiteDebugAnalysisUserConfig,
-  SiteDebugUserConfig,
+  SiteDevToolsAnalysisBuildReportModelConfig,
+  SiteDevToolsAnalysisBuildReportsCacheConfig,
+  SiteDevToolsAnalysisUserConfig,
+  SiteDevToolsUserConfig,
 } from '#dep-types/utils';
 import { getProjectRoot, slash } from '@docs-islands/utils/path';
 import { join, resolve } from 'pathe';
 import { normalizePath } from 'vite';
 import type { DefaultTheme, UserConfig } from 'vitepress';
 
-type SiteDebugBuildReportsInput = SiteDebugAnalysisUserConfig['buildReports'];
-const SITE_DEBUG_AI_BUILD_REPORTS_DEFAULT_CACHE_DIR =
-  '.vitepress/cache/site-debug-reports';
+type SiteDevToolsBuildReportsInput =
+  SiteDevToolsAnalysisUserConfig['buildReports'];
+const SITE_DEVTOOLS_AI_BUILD_REPORTS_DEFAULT_CACHE_DIR =
+  '.vitepress/cache/site-devtools-reports';
 
 const normalizeBuildReportModels = (
-  buildReports: SiteDebugBuildReportsInput,
-): SiteDebugAnalysisBuildReportModelConfig[] | undefined => {
+  buildReports: SiteDevToolsBuildReportsInput,
+): SiteDevToolsAnalysisBuildReportModelConfig[] | undefined => {
   if (!buildReports) {
     return undefined;
   }
@@ -29,12 +30,12 @@ const normalizeBuildReportModels = (
               thinking: model.thinking ?? false,
             }
           : model,
-      ) as SiteDebugAnalysisBuildReportModelConfig[])
+      ) as SiteDevToolsAnalysisBuildReportModelConfig[])
     : undefined;
 };
 
 const normalizeAnalysisProviders = (
-  providers: SiteDebugAnalysisUserConfig['providers'],
+  providers: SiteDevToolsAnalysisUserConfig['providers'],
 ) => {
   const normalizedProviders = {
     ...(Array.isArray(providers?.doubao)
@@ -57,9 +58,9 @@ const normalizeAnalysisProviders = (
 };
 
 const normalizeBuildReportCache = (
-  cache: NonNullable<SiteDebugBuildReportsInput>['cache'],
+  cache: NonNullable<SiteDevToolsBuildReportsInput>['cache'],
   root: string,
-): SiteDebugAnalysisBuildReportsCacheConfig => {
+): SiteDevToolsAnalysisBuildReportsCacheConfig => {
   if (cache === false) {
     return false;
   }
@@ -69,7 +70,7 @@ const normalizeBuildReportCache = (
   const cacheDir =
     typeof cacheOptions?.dir === 'string' && cacheOptions.dir.trim()
       ? cacheOptions.dir
-      : SITE_DEBUG_AI_BUILD_REPORTS_DEFAULT_CACHE_DIR;
+      : SITE_DEVTOOLS_AI_BUILD_REPORTS_DEFAULT_CACHE_DIR;
   const strategy = cacheOptions?.strategy === 'fallback' ? 'fallback' : 'exact';
 
   return {
@@ -79,7 +80,7 @@ const normalizeBuildReportCache = (
 };
 
 const normalizeBuildReportsConfig = (
-  buildReports: SiteDebugBuildReportsInput,
+  buildReports: SiteDevToolsBuildReportsInput,
   root: string,
 ) => {
   const normalizedModels = buildReports
@@ -101,21 +102,21 @@ const normalizeBuildReportsConfig = (
               models: normalizedModels,
             }
           : {}),
-      } satisfies NonNullable<SiteDebugAnalysisUserConfig['buildReports']>)
+      } satisfies NonNullable<SiteDevToolsAnalysisUserConfig['buildReports']>)
     : undefined;
 };
 
-const normalizeSiteDebugAnalysisConfig = (
-  siteDebug: SiteDebugUserConfig | undefined,
+const normalizeSiteDevToolsAnalysisConfig = (
+  siteDevtools: SiteDevToolsUserConfig | undefined,
   root: string,
-): SiteDebugAnalysisUserConfig | undefined => {
-  const analysisConfig = siteDebug?.analysis;
+): SiteDevToolsAnalysisUserConfig | undefined => {
+  const analysisConfig = siteDevtools?.analysis;
 
   if (!analysisConfig) {
     return undefined;
   }
 
-  const normalizedAnalysis: SiteDebugAnalysisUserConfig = {};
+  const normalizedAnalysis: SiteDevToolsAnalysisUserConfig = {};
 
   const normalizedProviders = normalizeAnalysisProviders(
     analysisConfig.providers,
@@ -159,13 +160,13 @@ export const resolveConfig = (
     ? normalizePath(resolve(root, rawVitepressConfig.cacheDir))
     : vitepressResolve(root, 'cache');
   const cleanUrls = rawVitepressConfig.cleanUrls ?? false;
-  const normalizedSiteDebugAnalysis = normalizeSiteDebugAnalysisConfig(
-    rawVitepressConfig.siteDebug,
+  const normalizedSiteDevToolsAnalysis = normalizeSiteDevToolsAnalysisConfig(
+    rawVitepressConfig.siteDevtools,
     root,
   );
-  const siteDebug: SiteDebugUserConfig = normalizedSiteDebugAnalysis
+  const siteDevtools: SiteDevToolsUserConfig = normalizedSiteDevToolsAnalysis
     ? {
-        analysis: normalizedSiteDebugAnalysis,
+        analysis: normalizedSiteDevToolsAnalysis,
       }
     : {};
 
@@ -179,7 +180,7 @@ export const resolveConfig = (
     publicDir,
     cacheDir,
     cleanUrls,
-    siteDebug,
+    siteDevtools,
     wrapBaseUrl: (path: string) => {
       return path.startsWith('http') ? path : join('/', base, path);
     },

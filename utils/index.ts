@@ -9,16 +9,15 @@
  *    uses `index.ts` as its sole entry point).
  *
  * 2. **`env.ts` must NOT import `logger.ts`** — `rolldown.config.ts` runs
- *    `loadEnv()` **before** the build starts, to obtain the values that feed
- *    `transform.define` (e.g. `__SILENCE_LOG__`, `__DEBUG__`). If `env`
- *    imported `logger`, those global constants would be evaluated before Rolldown
- *    has a chance to replace them, causing unresolvable references at build time.
+ *    `loadEnv()` **before** the build starts, so `env.ts` must stay free of
+ *    logger/runtime dependencies that rely on the package build output.
  *    Use plain `console.*` for any log output within `env.ts`.
  *
- * 3. **All other modules must use `logger.ts` for logging** — Apart from
- *    `env.ts`, all modules in this package should import `Logger` from
- *    `./logger` for log output. Do NOT use raw `console.*` in those modules;
- *    keep logging behaviour consistent and centrally controlled.
+ * 3. **All other modules must use `logger.ts` or package-local wrappers for
+ *    logging** — Apart from `env.ts`, modules in this package should use
+ *    `createLogger({ main })` or the package-local wrapper in `./log` instead
+ *    of raw `console.*`, keeping logging behaviour consistent and centrally
+ *    controlled.
  *
  * 4. **`console` and `process.env` APIs are restricted to this package** — The
  *    shared ESLint config enforces `no-console: error` and `no-restricted-syntax`
@@ -41,11 +40,23 @@ export {
 export { scanFiles } from './fs-utils';
 export { importWithError, pkgExists } from './general';
 export {
-  default as Logger,
+  createLogger,
+  emitRuntimeLog,
+  formatDebugMessage,
   formatErrorMessage,
   lightGeneralLogger,
+  normalizeLoggerConfig,
+  resetLoggerConfig,
+  sanitizeDebugSummary,
+  setLoggerConfig,
+  shouldSuppressLog,
+  type CreateLoggerOptions,
+  type DebugMessageOptions,
   type LogKind,
   type LogLevel,
+  type LoggerConfig,
+  type LoggerRule,
+  type LoggerVisibilityLevel,
 } from './logger';
 export {
   findMonorepoRoot,

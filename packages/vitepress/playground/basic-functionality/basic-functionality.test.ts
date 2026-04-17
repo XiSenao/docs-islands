@@ -1,8 +1,7 @@
-import Logger from '@docs-islands/utils/logger';
 import { expect } from '@playwright/test';
+import { getPlaygroundLogger } from '../test-utils/logger';
 
-const logger = new Logger();
-const TestLogger = logger.getLoggerByGroup('basic-functionality-test');
+const TestLogger = getPlaygroundLogger('test.playground.basic-functionality');
 
 describe('Basic Site Functionality', () => {
   test('should load home page', async () => {

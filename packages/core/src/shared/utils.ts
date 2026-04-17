@@ -4,13 +4,14 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from './constants';
+import { CORE_LOG_GROUPS } from './log-groups';
 import getLoggerInstance from './logger';
 
 const loggerInstance = getLoggerInstance();
 
 export const validateLegalRenderElements = (element: Element): boolean => {
   const logger = loggerInstance.getLoggerByGroup(
-    'validate-legal-render-elements',
+    CORE_LOG_GROUPS.renderValidation,
   );
   const renderStrategyProps: Record<string, string> = {};
 

@@ -8,6 +8,7 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '../shared/constants';
+import { CORE_LOG_GROUPS } from '../shared/log-groups';
 import getLoggerInstance from '../shared/logger';
 
 type JsonPrimitive = string | number | boolean | null;
@@ -59,7 +60,7 @@ const loggerInstance = getLoggerInstance();
 class SSRContainerIntegrationProcessor {
   private readonly callback: SSRContainerIntegrationCallback;
   private readonly Logger = loggerInstance.getLoggerByGroup(
-    'ssr-container-integration-processor',
+    CORE_LOG_GROUPS.ssrContainerIntegration,
   );
   private readonly sourceCode: string;
   private transformations: TransformationRecord[] = [];
@@ -408,14 +409,14 @@ class SSRContainerIntegrationProcessor {
 
     if (!ast) {
       loggerInstance
-        .getLoggerByGroup('apply-css-injection-transformation')
+        .getLoggerByGroup(CORE_LOG_GROUPS.ssrCssInjection)
         .warn('Invalid AST provided, skipping CSS injection');
       return;
     }
 
     const cssPathsArray = [...ssrCssBundlePaths];
     const Logger = loggerInstance.getLoggerByGroup(
-      'apply-css-injection-transformation',
+      CORE_LOG_GROUPS.ssrCssInjection,
     );
 
     const validCssPaths = cssPathsArray.filter((path) => {
