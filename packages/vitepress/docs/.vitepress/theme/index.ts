@@ -1,4 +1,4 @@
-import reactClientIntegration from '@docs-islands/vitepress/react/client';
+import { reactClient } from '@docs-islands/vitepress/adapters/react/client';
 import '@nolebase/vitepress-plugin-enhanced-mark/client/style.css';
 import { inject } from '@vercel/analytics';
 import 'virtual:group-icons.css';
@@ -16,7 +16,7 @@ const theme: Theme = {
   },
   async enhanceApp() {
     inject();
-    await reactClientIntegration();
+    await reactClient();
   },
 };
 

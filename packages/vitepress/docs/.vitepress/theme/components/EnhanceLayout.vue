@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import SiteDebugConsole from '@docs-islands/vitepress/debug-console/client';
-import '@docs-islands/vitepress/debug-console/client/style.css';
+import SiteDevToolsConsole from '@docs-islands/vitepress/devtools/client';
+import '@docs-islands/vitepress/devtools/client/style.css';
 import { Analytics } from '@vercel/analytics/vue';
 import DefaultTheme from 'vitepress/theme';
 </script>
@@ -8,5 +8,5 @@ import DefaultTheme from 'vitepress/theme';
 <template>
   <DefaultTheme.Layout />
   <Analytics />
-  <SiteDebugConsole />
+  <SiteDevToolsConsole />
 </template>

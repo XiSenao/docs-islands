@@ -1,4 +1,4 @@
-import reactClientIntegration from '@docs-islands/vitepress/adapters/react/client';
+import { reactClient } from '@docs-islands/vitepress/adapters/react/client';
 import type { Theme } from 'vitepress';
 import DefaultTheme from 'vitepress/theme';
 import { h } from 'vue';
@@ -9,7 +9,7 @@ const theme: Theme = {
     return h(DefaultTheme.Layout, null);
   },
   async enhanceApp() {
-    await reactClientIntegration();
+    await reactClient();
   },
 };
 
