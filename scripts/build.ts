@@ -1,5 +1,5 @@
 import { loadEnv } from '@docs-islands/utils/env';
-import logger from '@docs-islands/utils/logger';
+import { createLogger } from '@docs-islands/utils/logger';
 import { execSync, spawn } from 'node:child_process';
 
 type BuildPhase = string | string[];
@@ -15,7 +15,9 @@ const BUILD_PIPELINE: BuildPhase[] = [
   AUTO_DISCOVER_PLACEHOLDER,
 ];
 
-const Logger = new logger().getLoggerByGroup('build');
+const BuildLogger = createLogger({
+  main: 'docs-islands-monorepo',
+}).getLoggerByGroup('task.build.pipeline');
 
 function parsePackageList(value: string): string[] {
   return value
@@ -47,7 +49,7 @@ function parseSkippedPackages(argv = process.argv.slice(2)): Set<string> {
 
     const nextArg = argv[index + 1];
     if (nextArg === undefined || nextArg.startsWith('--')) {
-      Logger.warn(
+      BuildLogger.warn(
         `Missing package list for "${argument}", this option is ignored`,
       );
       continue;
@@ -90,7 +92,7 @@ function getAllMonorepoPackages(): string[] {
 
     return packages;
   } catch {
-    Logger.warn('Failed to get monorepo packages, using fallback method');
+    BuildLogger.warn('Failed to get monorepo packages, using fallback method');
     return [
       '@docs-islands/plugin-license',
       '@docs-islands/utils',
@@ -201,12 +203,12 @@ function resolveBuildPipeline(
 
 async function buildPackagesParallel(packages: string[]): Promise<boolean> {
   if (packages.length === 0) {
-    Logger.info('Skipping empty parallel phase');
+    BuildLogger.info('Skipping empty parallel phase');
     return true;
   }
 
   try {
-    Logger.info(`Building in parallel: [${packages.join(', ')}]`);
+    BuildLogger.info(`Building in parallel: [${packages.join(', ')}]`);
 
     const commands = packages.map((pkg, index) => {
       const color = ['blue', 'green', 'yellow', 'magenta', 'cyan'][index % 5];
@@ -241,23 +243,23 @@ async function buildPackagesParallel(packages: string[]): Promise<boolean> {
     return new Promise((resolve) => {
       child.on('close', (code) => {
         if (code === 0) {
-          Logger.success(`Parallel build completed successfully`);
+          BuildLogger.success(`Parallel build completed successfully`);
           resolve(true);
         } else {
-          Logger.error(`Parallel build failed with code ${code}`);
+          BuildLogger.error(`Parallel build failed with code ${code}`);
           resolve(false);
         }
       });
     });
   } catch (error) {
-    Logger.error(`Parallel build failed: ${error}`);
+    BuildLogger.error(`Parallel build failed: ${error}`);
     return false;
   }
 }
 
 async function buildPackagesSerial(packageName: string): Promise<boolean> {
   try {
-    Logger.info(`Building: ${packageName}`);
+    BuildLogger.info(`Building: ${packageName}`);
 
     const child = spawn('pnpm', ['--filter', packageName, 'build'], {
       stdio: ['inherit', 'pipe', 'pipe'],
@@ -275,16 +277,16 @@ async function buildPackagesSerial(packageName: string): Promise<boolean> {
     return new Promise((resolve) => {
       child.on('close', (code) => {
         if (code === 0) {
-          Logger.success(`Build completed successfully`);
+          BuildLogger.success(`Build completed successfully`);
           resolve(true);
         } else {
-          Logger.error(`Build failed with code ${code}`);
+          BuildLogger.error(`Build failed with code ${code}`);
           resolve(false);
         }
       });
     });
   } catch (error) {
-    Logger.error(`Build failed: ${error}`);
+    BuildLogger.error(`Build failed: ${error}`);
     return false;
   }
 }
@@ -297,7 +299,7 @@ async function buildPackages(packages: string | string[]): Promise<boolean> {
 }
 
 async function main() {
-  Logger.info('Starting optimized build process...\n');
+  BuildLogger.info('Starting optimized build process...\n');
 
   const allPackages = getAllMonorepoPackages();
   const skippedPackages = parseSkippedPackages();
@@ -305,12 +307,12 @@ async function main() {
     resolveSkippedPackages(skippedPackages, allPackages);
 
   if (validSkippedPackages.size > 0) {
-    Logger.info(
+    BuildLogger.info(
       `Skip build packages: [${[...validSkippedPackages].join(', ')}]`,
     );
   }
   if (invalidSkippedPackages.length > 0) {
-    Logger.warn(
+    BuildLogger.warn(
       `Ignored unknown skip packages: [${invalidSkippedPackages.join(', ')}]`,
     );
   }
@@ -327,14 +329,14 @@ async function main() {
   );
 
   if (remainingPackages.length > 0) {
-    Logger.info(
+    BuildLogger.info(
       `Found ${remainingPackages.length} remaining packages:
 
 ${remainingPackages.map((pkg) => `- ${pkg}`).join('\n')}
 `,
     );
   } else {
-    Logger.info('No remaining packages found');
+    BuildLogger.info('No remaining packages found');
   }
 
   const fullPipeline = resolveBuildPipeline(
@@ -342,19 +344,21 @@ ${remainingPackages.map((pkg) => `- ${pkg}`).join('\n')}
     remainingPackages,
   );
   if (fullPipeline.length === 0) {
-    Logger.warn('No packages to build after applying skip filters');
+    BuildLogger.warn('No packages to build after applying skip filters');
     process.exit(0);
   }
 
-  Logger.info('Build Pipeline:');
+  BuildLogger.info('Build Pipeline:');
   for (const [index, phase] of fullPipeline.entries()) {
     if (Array.isArray(phase)) {
-      Logger.info(`  Phase ${index + 1}: [${phase.join(', ')}] (parallel)`);
+      BuildLogger.info(
+        `  Phase ${index + 1}: [${phase.join(', ')}] (parallel)`,
+      );
     } else {
-      Logger.info(`  Phase ${index + 1}: ${phase}`);
+      BuildLogger.info(`  Phase ${index + 1}: ${phase}`);
     }
   }
-  Logger.info('');
+  BuildLogger.info('');
 
   let successCount = 0;
   const totalPhases = fullPipeline.length;
@@ -363,23 +367,23 @@ ${remainingPackages.map((pkg) => `- ${pkg}`).join('\n')}
     if (await buildPackages(phase)) {
       successCount++;
     } else {
-      Logger.error(`Phase ${i + 1} failed`);
+      BuildLogger.error(`Phase ${i + 1} failed`);
       process.exit(1);
     }
 
-    Logger.info('');
+    BuildLogger.info('');
   }
 
   if (successCount === totalPhases) {
-    Logger.success('All packages built successfully!');
+    BuildLogger.success('All packages built successfully!');
     process.exit(0);
   } else {
-    Logger.warn('Some phases failed');
+    BuildLogger.warn('Some phases failed');
     process.exit(1);
   }
 }
 
 main().catch((error) => {
-  Logger.error(`Build process failed: ${error}`);
+  BuildLogger.error(`Build process failed: ${error}`);
   process.exit(1);
 });

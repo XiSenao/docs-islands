@@ -3,8 +3,8 @@ import { dts } from 'rolldown-plugin-dts';
 import { glob } from 'tinyglobby';
 import { loadEnv } from './env';
 
-const { config, debug } = loadEnv();
-const { sourcemap, minify, silence } = config;
+const { config } = loadEnv();
+const { sourcemap, minify } = config;
 
 async function getModuleFiles(): Promise<string[]> {
   const files = await glob(['**/*.ts'], {
@@ -31,12 +31,6 @@ const moduleConfig: RolldownOptions = defineConfig({
   platform: 'neutral',
   preserveEntrySignatures: 'strict',
   external: [/^[\w@][^:]/],
-  transform: {
-    define: {
-      __SILENCE_LOG__: String(silence),
-      __DEBUG__: String(debug),
-    },
-  },
   output: {
     dir: 'dist',
     format: 'esm',

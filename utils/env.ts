@@ -48,7 +48,7 @@ const managedProcessEnvSchema = z.object({
   // build
   DOCS_ISLANDS_BUILD_SKIP_PACKAGES: z.string().default(''),
 
-  // site debug
+  // site devtools
   DOCS_ISLANDS_ARK_API_KEY: z.string().default(''),
 });
 
@@ -64,7 +64,7 @@ export interface EnvConfig {
     minify: boolean;
     silence: boolean;
   };
-  siteDebug: {
+  siteDevtools: {
     doubao_api_key: string;
   };
   build: {
@@ -226,7 +226,7 @@ export function loadEnv(options: LoadEnvOptions = defaultOptions): EnvConfig {
       minify: finalEnv.DOCS_ISLANDS_MINIFY,
       silence: finalEnv.DOCS_ISLANDS_SILENCE_LOG,
     },
-    siteDebug: {
+    siteDevtools: {
       doubao_api_key: finalEnv.DOCS_ISLANDS_ARK_API_KEY,
     },
     build: {

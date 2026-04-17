@@ -1,7 +1,9 @@
-import logger, { formatErrorMessage } from '@docs-islands/utils/logger';
+import { createLogger, formatErrorMessage } from '@docs-islands/utils/logger';
 import { spawnSync } from 'node:child_process';
 
-const Logger = new logger().getLoggerByGroup('workspace-runner');
+const WorkspaceLogger = createLogger({
+  main: 'docs-islands-monorepo',
+}).getLoggerByGroup('task.workspace.run');
 
 interface RunTarget {
   forwardedArgs: string[];
@@ -81,7 +83,7 @@ function main(): void {
   try {
     process.exit(runWorkspaceScript(parseArguments()));
   } catch (error) {
-    Logger.error(formatErrorMessage(error));
+    WorkspaceLogger.error(formatErrorMessage(error));
     process.exit(1);
   }
 }

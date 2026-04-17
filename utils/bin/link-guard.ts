@@ -15,9 +15,9 @@
  */
 import { execSync, spawn } from 'node:child_process';
 import path from 'node:path';
-import logger from '../logger.js';
+import getLoggerInstance from '../log.js';
 
-const Log = new logger().getLoggerByGroup('link-guard');
+const Log = getLoggerInstance().getLoggerByGroup('task.link.guard');
 
 // ---------------------------------------------------------------------------
 // 1. Parse arguments

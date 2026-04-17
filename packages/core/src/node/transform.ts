@@ -17,6 +17,7 @@ import {
   SPA_RENDER_SYNC_OFF,
   SPA_RENDER_SYNC_ON,
 } from '../shared/constants';
+import { CORE_LOG_GROUPS } from '../shared/log-groups';
 import getLoggerInstance from '../shared/logger';
 import type { RenderDirective } from '../types/render';
 
@@ -122,7 +123,9 @@ export default function transformComponentTags(
   renderIdToRenderDirectiveMap: Map<string, string[]>;
   map: SourceMap | null;
 } {
-  const logger = loggerInstance.getLoggerByGroup('transform-component-tags');
+  const logger = loggerInstance.getLoggerByGroup(
+    CORE_LOG_GROUPS.transformComponentTags,
+  );
   const tokens = componentTagExtractorMd.parse(code, {});
   const s = new MagicString(code);
   const renderIdToRenderDirectiveMap = new Map<string, string[]>();

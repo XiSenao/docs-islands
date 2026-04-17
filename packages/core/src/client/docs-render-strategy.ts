@@ -1,4 +1,5 @@
 import { formatErrorMessage } from '@docs-islands/utils/logger';
+import { getFrameworkRenderStrategyLogGroup } from '../shared/log-groups';
 import getLoggerInstance from '../shared/logger';
 import type {
   DocsRendererAdapter,
@@ -54,7 +55,7 @@ export class DocsRenderStrategy<TComponent, TBuildMetrics = unknown> {
   ) {
     this.options = options;
     this.Logger = loggerInstance.getLoggerByGroup(
-      `${options.framework}-render-strategy`,
+      getFrameworkRenderStrategyLogGroup(options.framework),
     );
   }
 
@@ -68,7 +69,7 @@ export class DocsRenderStrategy<TComponent, TBuildMetrics = unknown> {
       level,
       message,
       payload,
-      scope: `${this.options.framework}-render-strategy`,
+      scope: getFrameworkRenderStrategyLogGroup(this.options.framework),
     });
   }
 

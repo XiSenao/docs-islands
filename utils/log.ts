@@ -4,9 +4,9 @@ import {
   type LightGeneralLoggerReturn,
   type LoggerType,
   type LogKind,
-} from '@docs-islands/utils/logger';
+} from './logger';
 
-const MAIN_NAME = '@docs-islands/core';
+const MAIN_NAME = '@docs-islands/utils';
 
 export type BoundLightGeneralLogger = (
   type: LogKind,
@@ -35,8 +35,9 @@ export function createLoggerAccessor(mainName: string): () => LoggerType {
   };
 }
 
-export const LightGeneralLogger = createLightGeneralLogger(MAIN_NAME);
+export const LightGeneralLogger: BoundLightGeneralLogger =
+  createLightGeneralLogger(MAIN_NAME);
 
-const getLoggerInstance = createLoggerAccessor(MAIN_NAME);
+const getLoggerInstance: () => LoggerType = createLoggerAccessor(MAIN_NAME);
 
 export default getLoggerInstance;

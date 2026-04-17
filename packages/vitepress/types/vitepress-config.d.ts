@@ -1,13 +1,13 @@
-export type SiteDebugAnalysisProvider = 'doubao';
-export type SiteDebugAnalysisDoubaoThinkingType = boolean;
-export type SiteDebugAnalysisBuildReportCacheStrategy = 'exact' | 'fallback';
+export type SiteDevToolsAnalysisProvider = 'doubao';
+export type SiteDevToolsAnalysisDoubaoThinkingType = boolean;
+export type SiteDevToolsAnalysisBuildReportCacheStrategy = 'exact' | 'fallback';
 
-export interface SiteDebugAnalysisBuildReportsCacheOptions {
+export interface SiteDevToolsAnalysisBuildReportsCacheOptions {
   /**
    * Directory for persisted AI reports cache.
    * Relative paths are resolved from the docs root.
    *
-   * @default '.vitepress/cache/site-debug-reports'
+   * @default '.vitepress/cache/site-devtools-reports'
    */
   dir?: string;
   /**
@@ -19,15 +19,15 @@ export interface SiteDebugAnalysisBuildReportsCacheOptions {
    *
    * @default 'exact'
    */
-  strategy?: SiteDebugAnalysisBuildReportCacheStrategy;
+  strategy?: SiteDevToolsAnalysisBuildReportCacheStrategy;
 }
 
-export type SiteDebugAnalysisBuildReportsCacheConfig =
+export type SiteDevToolsAnalysisBuildReportsCacheConfig =
   | false
   | true
-  | SiteDebugAnalysisBuildReportsCacheOptions;
+  | SiteDevToolsAnalysisBuildReportsCacheOptions;
 
-export interface SiteDebugAnalysisProviderBaseConfig {
+export interface SiteDevToolsAnalysisProviderBaseConfig {
   /**
    * Maximum time to wait for a single analysis request, in milliseconds.
    *
@@ -38,8 +38,8 @@ export interface SiteDebugAnalysisProviderBaseConfig {
   timeoutMs?: number;
 }
 
-export interface SiteDebugAnalysisDoubaoConfig
-  extends SiteDebugAnalysisProviderBaseConfig {
+export interface SiteDevToolsAnalysisDoubaoConfig
+  extends SiteDevToolsAnalysisProviderBaseConfig {
   /**
    * Volcengine Ark API key used for ChatCompletions requests.
    */
@@ -61,7 +61,7 @@ export interface SiteDebugAnalysisDoubaoConfig
    *
    * @default false
    */
-  thinking?: SiteDebugAnalysisDoubaoThinkingType;
+  thinking?: SiteDevToolsAnalysisDoubaoThinkingType;
   /**
    * Sampling temperature for the generated analysis.
    * Lower values are more deterministic; higher values are more creative.
@@ -69,7 +69,7 @@ export interface SiteDebugAnalysisDoubaoConfig
   temperature?: number;
 }
 
-interface SiteDebugAnalysisBuildReportModelBaseConfig {
+interface SiteDevToolsAnalysisBuildReportModelBaseConfig {
   /**
    * Optional label shown in the debug console for the generated report.
    */
@@ -77,11 +77,11 @@ interface SiteDebugAnalysisBuildReportModelBaseConfig {
   /**
    * Provider used for this build-time AI report.
    */
-  provider: SiteDebugAnalysisProvider;
+  provider: SiteDevToolsAnalysisProvider;
 }
 
-export interface SiteDebugAnalysisBuildReportDoubaoModelConfig
-  extends SiteDebugAnalysisBuildReportModelBaseConfig {
+export interface SiteDevToolsAnalysisBuildReportDoubaoModelConfig
+  extends SiteDevToolsAnalysisBuildReportModelBaseConfig {
   /**
    * Doubao model used for this build-time analysis model.
    */
@@ -92,13 +92,13 @@ export interface SiteDebugAnalysisBuildReportDoubaoModelConfig
    *
    * @default false
    */
-  thinking?: SiteDebugAnalysisDoubaoThinkingType;
+  thinking?: SiteDevToolsAnalysisDoubaoThinkingType;
 }
 
-export type SiteDebugAnalysisBuildReportModelConfig =
-  SiteDebugAnalysisBuildReportDoubaoModelConfig;
+export type SiteDevToolsAnalysisBuildReportModelConfig =
+  SiteDevToolsAnalysisBuildReportDoubaoModelConfig;
 
-export interface SiteDebugAnalysisBuildReportsPageContext {
+export interface SiteDevToolsAnalysisBuildReportsPageContext {
   /**
    * VitePress page route, e.g. '/guide/getting-started'.
    */
@@ -109,12 +109,12 @@ export interface SiteDebugAnalysisBuildReportsPageContext {
   filePath: string;
 }
 
-export interface SiteDebugAnalysisBuildReportsPageOverride {
+export interface SiteDevToolsAnalysisBuildReportsPageOverride {
   /**
    * Page-local cache behavior override.
    * When omitted, the global buildReports.cache setting is reused.
    */
-  cache?: SiteDebugAnalysisBuildReportsCacheConfig;
+  cache?: SiteDevToolsAnalysisBuildReportsCacheConfig;
   /**
    * Page-local chunk detail override.
    * When omitted, the global buildReports.includeChunks setting is reused.
@@ -127,7 +127,7 @@ export interface SiteDebugAnalysisBuildReportsPageOverride {
   includeModules?: boolean;
 }
 
-export interface SiteDebugAnalysisBuildReportsConfig {
+export interface SiteDevToolsAnalysisBuildReportsConfig {
   /**
    * Build-time AI report cache behavior.
    *
@@ -139,12 +139,12 @@ export interface SiteDebugAnalysisBuildReportsConfig {
    *
    * @default true
    */
-  cache?: SiteDebugAnalysisBuildReportsCacheConfig;
+  cache?: SiteDevToolsAnalysisBuildReportsCacheConfig;
   /**
    * Explicit analysis models to execute during build.
    * When omitted or empty, build-time AI report generation is skipped.
    */
-  models?: SiteDebugAnalysisBuildReportModelConfig[];
+  models?: SiteDevToolsAnalysisBuildReportModelConfig[];
   /**
    * Resolves whether a specific eligible page should generate a build report.
    *
@@ -154,8 +154,8 @@ export interface SiteDebugAnalysisBuildReportsConfig {
    * When omitted, all eligible pages generate reports with the global defaults.
    */
   resolvePage?: (
-    page: SiteDebugAnalysisBuildReportsPageContext,
-  ) => false | SiteDebugAnalysisBuildReportsPageOverride;
+    page: SiteDevToolsAnalysisBuildReportsPageContext,
+  ) => false | SiteDevToolsAnalysisBuildReportsPageOverride;
   /**
    * Includes chunk resource reports in the build output.
    *
@@ -170,48 +170,79 @@ export interface SiteDebugAnalysisBuildReportsConfig {
   includeModules?: boolean;
 }
 
-export interface SiteDebugAnalysisUserConfig {
+export interface SiteDevToolsAnalysisUserConfig {
   /**
    * Build-time analysis report generation for the debug console UI.
    */
-  buildReports?: SiteDebugAnalysisBuildReportsConfig;
+  buildReports?: SiteDevToolsAnalysisBuildReportsConfig;
   providers?: {
-    doubao?: SiteDebugAnalysisDoubaoConfig;
+    doubao?: SiteDevToolsAnalysisDoubaoConfig;
   };
 }
 
-export type SiteDebugAiProvider = SiteDebugAnalysisProvider;
-export type SiteDebugAiDoubaoThinkingType = SiteDebugAnalysisDoubaoThinkingType;
-export type SiteDebugAiProviderBaseConfig = SiteDebugAnalysisProviderBaseConfig;
-export type SiteDebugAiDoubaoConfig = SiteDebugAnalysisDoubaoConfig;
-export type SiteDebugAiBuildReportDoubaoModelConfig =
-  SiteDebugAnalysisBuildReportDoubaoModelConfig;
-export type SiteDebugAiBuildReportModelConfig =
-  SiteDebugAnalysisBuildReportModelConfig;
-export type SiteDebugAiBuildReportCacheStrategy =
-  SiteDebugAnalysisBuildReportCacheStrategy;
-export type SiteDebugAiBuildReportsCacheOptions =
-  SiteDebugAnalysisBuildReportsCacheOptions;
-export type SiteDebugAiBuildReportsCacheConfig =
-  SiteDebugAnalysisBuildReportsCacheConfig;
-export type SiteDebugAiBuildReportsPageContext =
-  SiteDebugAnalysisBuildReportsPageContext;
-export type SiteDebugAiBuildReportsPageOverride =
-  SiteDebugAnalysisBuildReportsPageOverride;
-export type SiteDebugAiBuildReportsConfig = SiteDebugAnalysisBuildReportsConfig;
-export type SiteDebugAiUserConfig = SiteDebugAnalysisUserConfig;
+export type SiteDevToolsAiProvider = SiteDevToolsAnalysisProvider;
+export type SiteDevToolsAiDoubaoThinkingType =
+  SiteDevToolsAnalysisDoubaoThinkingType;
+export type SiteDevToolsAiProviderBaseConfig =
+  SiteDevToolsAnalysisProviderBaseConfig;
+export type SiteDevToolsAiDoubaoConfig = SiteDevToolsAnalysisDoubaoConfig;
+export type SiteDevToolsAiBuildReportDoubaoModelConfig =
+  SiteDevToolsAnalysisBuildReportDoubaoModelConfig;
+export type SiteDevToolsAiBuildReportModelConfig =
+  SiteDevToolsAnalysisBuildReportModelConfig;
+export type SiteDevToolsAiBuildReportCacheStrategy =
+  SiteDevToolsAnalysisBuildReportCacheStrategy;
+export type SiteDevToolsAiBuildReportsCacheOptions =
+  SiteDevToolsAnalysisBuildReportsCacheOptions;
+export type SiteDevToolsAiBuildReportsCacheConfig =
+  SiteDevToolsAnalysisBuildReportsCacheConfig;
+export type SiteDevToolsAiBuildReportsPageContext =
+  SiteDevToolsAnalysisBuildReportsPageContext;
+export type SiteDevToolsAiBuildReportsPageOverride =
+  SiteDevToolsAnalysisBuildReportsPageOverride;
+export type SiteDevToolsAiBuildReportsConfig =
+  SiteDevToolsAnalysisBuildReportsConfig;
+export type SiteDevToolsAiUserConfig = SiteDevToolsAnalysisUserConfig;
 
-export interface SiteDebugUserConfig {
+export interface SiteDevToolsUserConfig {
   /**
-   * Analysis integration for the site debug console.
+   * Analysis integration for Site DevTools.
    */
-  analysis?: SiteDebugAnalysisUserConfig;
+  analysis?: SiteDevToolsAnalysisUserConfig;
+}
+
+export type LoggingVisibilityLevel = 'error' | 'warn' | 'info' | 'success';
+
+export interface LoggingRuleUserConfig {
+  enabled?: boolean;
+  group?: string;
+  /**
+   * Stable unique identifier for this rule.
+   *
+   * When `logging.debug` is enabled, emitted logs surface the matched rule label
+   * as `[rule:<label>]` before the message body so it is clear which rule won.
+   */
+  label: string;
+  levels?: LoggingVisibilityLevel[];
+  main?: string;
+  message?: string;
+}
+
+export interface LoggingUserConfig {
+  /**
+   * Global debug gate for project-owned debug logs.
+   *
+   * When omitted, debug logs stay disabled.
+   */
+  debug?: boolean;
+  levels?: LoggingVisibilityLevel[];
+  rules?: LoggingRuleUserConfig[];
 }
 
 declare module 'vitepress' {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- must match upstream VitePress generic default for declaration merging
   interface UserConfig<ThemeConfig = any> {
     themeConfig?: ThemeConfig;
-    siteDebug?: SiteDebugUserConfig;
+    siteDevtools?: SiteDevToolsUserConfig;
   }
 }

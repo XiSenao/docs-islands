@@ -13,6 +13,7 @@
     "clean": "del-cli .eslintcache dist node_modules"
   },
   "dependencies": {
+    "picomatch": "catalog:prod",
     "tinyglobby": "catalog:prod"
   },
   "devDependencies": {

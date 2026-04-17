@@ -1,7 +1,10 @@
 /// <reference types="vite/client" />
 
 import type { PageMetafile } from '#dep-types/page';
-import type { SiteDebugUserConfig } from '#dep-types/utils';
+import type {
+  LoggingUserConfig,
+  SiteDevToolsUserConfig,
+} from '#dep-types/utils';
 import type { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
 import type {
   DocsInjectComponent,
@@ -24,7 +27,7 @@ declare module 'vitepress' {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- must match upstream VitePress generic default for declaration merging
   interface UserConfig<ThemeConfig = any> {
     themeConfig?: ThemeConfig;
-    siteDebug?: SiteDebugUserConfig;
+    siteDevtools?: SiteDevToolsUserConfig;
   }
 }
 
@@ -32,6 +35,7 @@ declare global {
   // Define-time global constant injected via bundler `define`.
   const __BASE__: string | undefined;
   const __CLEAN_URLS__: boolean | undefined;
+  const __DOCS_ISLANDS_LOGGER_CONFIG__: LoggingUserConfig | null | undefined;
 
   // Global React and ReactDOM runtime (loaded dynamically)
   var React: typeof React | undefined;
