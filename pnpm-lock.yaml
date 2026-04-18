@@ -698,6 +698,9 @@ importers:
       picocolors:
         specifier: catalog:dev
         version: 1.1.1
+      playwright-chromium:
+        specifier: catalog:test
+        version: 1.58.2
       prettier:
         specifier: catalog:format
         version: 3.5.3

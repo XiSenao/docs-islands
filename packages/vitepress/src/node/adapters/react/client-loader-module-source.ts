@@ -25,7 +25,7 @@ export function createReactClientLoaderModuleSource({
 import {
   emitRuntimeLog as __docs_islands_runtime_log__,
   formatDebugMessage as __docs_islands_format_debug__
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/vitepress/internal/logger';
 
 const getPageId = ${getCleanPathnameRuntime};
 

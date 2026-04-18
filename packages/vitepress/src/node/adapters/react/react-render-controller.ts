@@ -61,11 +61,7 @@ const __site_debug_metric__ = () => {};
     return `
 import { createRoot as __react_client_render__, hydrateRoot as __react_hydrate__ } from 'react-dom/client';
 import { startTransition as __start_transition__ } from 'react';
-import {
-  emitRuntimeLog as __docs_islands_runtime_log__,
-  formatDebugMessage as __docs_islands_format_debug__
-} from '@docs-islands/utils/logger';
-import getLoggerInstance from '@docs-islands/vitepress/internal/logger';
+import getLoggerInstance, { emitRuntimeLog as __docs_islands_runtime_log__, formatDebugMessage as __docs_islands_format_debug__ } from '@docs-islands/vitepress/internal/logger';
 
 ${this.getSiteDevToolsRuntimePrelude()}
 

@@ -5,6 +5,7 @@ import {
   type LoggerType,
   type LogKind,
 } from '@docs-islands/utils/logger';
+export { emitRuntimeLog, formatDebugMessage } from '@docs-islands/utils/logger';
 
 const MAIN_NAME = '@docs-islands/core';
 
