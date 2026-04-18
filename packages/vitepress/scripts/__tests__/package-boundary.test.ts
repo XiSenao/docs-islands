@@ -66,6 +66,13 @@ export { path, defineConfig, runtimeLogger };
 `,
     );
     writeTextFile(
+      path.join(distDir, 'node\\windows-entry.js'),
+      `import { createHash } from 'node:crypto';
+
+export { createHash };
+`,
+    );
+    writeTextFile(
       path.join(distDir, 'shared', 'logger.js'),
       `import React from 'react';
 import './dep.js';

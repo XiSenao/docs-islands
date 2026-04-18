@@ -113,10 +113,16 @@ function isAllowedSelfSpecifier(
   );
 }
 
+function normalizePublishedModulePath(relativeFilePath: string): string {
+  return relativeFilePath.replace(/\\/g, '/');
+}
+
 function classifyRuntimeEnvironment(
   relativeFilePath: string,
 ): RuntimeEnvironment {
-  return relativeFilePath.startsWith('node/') ? 'node' : 'browser';
+  return normalizePublishedModulePath(relativeFilePath).startsWith('node/')
+    ? 'node'
+    : 'browser';
 }
 
 async function collectPublishedModuleFiles(
