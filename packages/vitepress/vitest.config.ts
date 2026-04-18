@@ -12,7 +12,10 @@ const config: ViteUserConfig = defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['src/**/__tests__/**/*.{test,spec}.{js,ts,tsx}'],
+    include: [
+      'src/**/__tests__/**/*.{test,spec}.{js,ts,tsx}',
+      'scripts/**/__tests__/**/*.{test,spec}.{js,ts,tsx}',
+    ],
     testTimeout: 50_000,
     hookTimeout: 30_000,
     coverage: {

@@ -156,6 +156,7 @@ class ReleaseSystemManager {
         await this.buildProject();
         await this.verifyDistPackageJsonVersion(newVersion);
         await this.verifyPackageLint();
+        await this.verifyConsumerSmoke();
       }
 
       if (!this.options.dryRun) {
@@ -366,7 +367,7 @@ class ReleaseSystemManager {
   }
 
   private async verifyPackageLint(): Promise<void> {
-    Logger.info('Verifying package lint (publint + attw)...');
+    Logger.info('Verifying package lint (publint + attw + boundary audit)...');
     try {
       execSync('pnpm lint:package', {
         stdio: 'inherit',
@@ -375,6 +376,19 @@ class ReleaseSystemManager {
       Logger.success('Package lint passed\n');
     } catch {
       throw new Error('Package lint failed');
+    }
+  }
+
+  private async verifyConsumerSmoke(): Promise<void> {
+    Logger.info('Verifying external consumer smoke...');
+    try {
+      execSync('pnpm smoke:consumer', {
+        stdio: 'inherit',
+        cwd: this.packageRootDir,
+      });
+      Logger.success('External consumer smoke passed\n');
+    } catch {
+      throw new Error('External consumer smoke failed');
     }
   }
 

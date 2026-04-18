@@ -61,6 +61,10 @@ describe('Script Content Changes', () => {
   });
 
   describe('Import Path Errors', () => {
+    beforeEach(() => {
+      allowBrowserRuntimeFailures();
+    });
+
     // Vite path resolution is case-insensitive on macOS and Unix-like systems.
     test('Should markdown be rendered normally', async () => {
       await goto('/script-content-changes/import-path-error');
@@ -155,6 +159,7 @@ describe('HMR: Changing Render Component References', () => {
   const hmrTestFilePath = path.join(__dirname, 'hmr-test.md');
 
   test('Should handle import path errors in HMR', async () => {
+    allowBrowserRuntimeFailures();
     const originalContent = `# HMR Import Path Test
 
 <script lang="react">
@@ -253,6 +258,7 @@ describe('HMR: Adding New Render Component References', () => {
   const hmrTestFilePath = path.join(__dirname, 'hmr-test.md');
 
   test('Should handle adding new components with incorrect import paths', async () => {
+    allowBrowserRuntimeFailures();
     const originalContent = `# HMR Add Component Test
 
 <script lang="react">

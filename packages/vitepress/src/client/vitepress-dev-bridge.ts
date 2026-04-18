@@ -20,6 +20,7 @@ import { VITEPRESS_LOG_GROUPS } from '../shared/log-groups';
 const loggerInstance = getLoggerInstance();
 const DEV_MOUNT_RETRY_INTERVAL_MS = 350;
 const DEV_MOUNT_RETRY_LIMIT = 4;
+const DEV_MOUNT_PREPARATION_RETRY_LIMIT = 10;
 const DEV_RUNTIME_FALLBACK_DELAY_MS = 1200;
 const DEV_MOUNT_RENDER_REPLAY_INTERVAL_MS = 32;
 const DEV_MOUNT_PREPARATION_DELAY_MS = 32;
@@ -354,11 +355,10 @@ export class VitePressDevBridge<
     }, DEV_RUNTIME_FALLBACK_DELAY_MS);
   }
 
-  private schedulePendingDevMountPreparation(pathname: string): void {
-    if (!import.meta.hot) {
-      return;
-    }
-
+  private schedulePendingDevMountPreparation(
+    pathname: string,
+    attempt = 0,
+  ): void {
     this.clearPendingDevMountPreparation();
     this.pendingDevMountPreparationPathname = pathname;
     this.pendingDevMountPreparationTimer = setTimeout(() => {
@@ -374,6 +374,20 @@ export class VitePressDevBridge<
       this.pendingDevMountPreparationPathname = null;
 
       const renderContainers = this.collectRenderContainers();
+      if (renderContainers.length === 0) {
+        if (
+          attempt < DEV_MOUNT_PREPARATION_RETRY_LIMIT &&
+          this.pendingDevMountPathname !== pathname &&
+          this.getPageId() === pathname
+        ) {
+          this.schedulePendingDevMountPreparation(pathname, attempt + 1);
+          return;
+        }
+
+        this.currentLocationPathname = pathname;
+        return;
+      }
+
       const preRenderContainers = renderContainers.filter((info) =>
         requiresPreRenderDirective(info.renderDirective),
       );
@@ -384,7 +398,7 @@ export class VitePressDevBridge<
           renderId: info.renderId,
         }));
 
-      if (pendingPreRenderComponents.length === 0) {
+      if (pendingPreRenderComponents.length === 0 || !import.meta.hot) {
         this.currentLocationPathname = pathname;
         this.runAsyncTask(
           this.loadDevRenderRuntime(pathname),
@@ -468,10 +482,11 @@ export class VitePressDevBridge<
         return;
       }
 
-      if (import.meta.hot) {
-        this.schedulePendingDevMountPreparation(pageId);
-      }
+      this.schedulePendingDevMountPreparation(pageId);
     });
+
+    const initialPageId = this.getPageId();
+    this.schedulePendingDevMountPreparation(initialPageId);
   }
 }
 

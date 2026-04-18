@@ -30,6 +30,8 @@ describe('ReactRenderController', () => {
 
     const code = await controller.generateClientRuntimeInDEV('/guide/react.md');
 
+    expect(code).toContain('@docs-islands/vitepress/internal/logger');
+    expect(code).not.toContain('@docs-islands/utils/logger');
     expect(code).toContain('const __MAX_RENDER_ATTEMPTS__ = 10;');
     expect(code).toContain('function __queueRenderRetry__()');
     expect(code).not.toContain('@docs-islands/vitepress/internal/devtools');

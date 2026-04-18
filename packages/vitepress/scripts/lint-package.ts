@@ -4,20 +4,20 @@ import {
   createPackageFromTarballData,
   type Problem,
 } from '@arethetypeswrong/core';
-import { pack } from '@publint/pack';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { publint } from 'publint';
 import { formatMessage } from 'publint/utils';
+import { packDistTarball } from './package-artifacts';
+import { auditPublishedPackageBoundaries } from './package-boundary';
 
 const loggerInstance = getLoggerInstance();
 const Logger = loggerInstance.getLoggerByGroup('task.package-lint');
 
 type CheckTarget = 'all' | 'publint' | 'attw';
 type AttwProfile = 'strict' | 'node16' | 'esm-only';
+type ExtendedCheckTarget = CheckTarget | 'boundary';
 
 const ATTW_PROFILE_IGNORED_RESOLUTIONS: Record<AttwProfile, string[]> = {
   strict: [],
@@ -25,7 +25,7 @@ const ATTW_PROFILE_IGNORED_RESOLUTIONS: Record<AttwProfile, string[]> = {
   'esm-only': ['node16-cjs'],
 };
 
-function parseCheckTarget(argv: string[]): CheckTarget {
+function parseCheckTarget(argv: string[]): ExtendedCheckTarget {
   const toolIndex = argv.indexOf('--tool');
   if (toolIndex === -1) {
     return 'all';
@@ -34,16 +34,21 @@ function parseCheckTarget(argv: string[]): CheckTarget {
   const target = argv[toolIndex + 1];
   if (!target) {
     throw new Error(
-      'Missing value for --tool. Expected one of: all, publint, attw.',
+      'Missing value for --tool. Expected one of: all, publint, attw, boundary.',
     );
   }
 
-  if (target === 'all' || target === 'publint' || target === 'attw') {
+  if (
+    target === 'all' ||
+    target === 'publint' ||
+    target === 'attw' ||
+    target === 'boundary'
+  ) {
     return target;
   }
 
   throw new Error(
-    `Invalid --tool value "${target}". Expected one of: all, publint, attw.`,
+    `Invalid --tool value "${target}". Expected one of: all, publint, attw, boundary.`,
   );
 }
 
@@ -198,11 +203,31 @@ async function runAttwCheck(
   return false;
 }
 
+async function runBoundaryCheck(distDir: string): Promise<boolean> {
+  Logger.info('Running published package boundary audit...');
+  const start = Date.now();
+  const violations = await auditPublishedPackageBoundaries(distDir);
+
+  if (violations.length === 0) {
+    Logger.success(`boundary audit passed (${Date.now() - start}ms)`);
+    return true;
+  }
+
+  for (const violation of violations) {
+    Logger.error(
+      `[boundary] ${violation.filePath} (${violation.environment}) imports "${violation.specifier}": ${violation.message}`,
+    );
+  }
+
+  Logger.error(`boundary audit found ${violations.length} issue(s)`);
+  return false;
+}
+
 async function main(): Promise<void> {
   const packageRootDir = fileURLToPath(new URL('..', import.meta.url));
   const distDir = path.join(packageRootDir, 'dist');
   const distPkgPath = path.join(distDir, 'package.json');
-  let destination: string | undefined;
+  let cleanupPackedDist: (() => Promise<void>) | undefined;
   let exitCode = 0;
 
   try {
@@ -217,21 +242,24 @@ async function main(): Promise<void> {
       throw new Error('dist/package.json not found. Run `pnpm build` first.');
     }
 
-    destination = await mkdtemp(path.join(tmpdir(), '__DOCS_ISLANDS__'));
-    Logger.info('Packing dist tarball with pnpm...');
-    const tarballPath = await pack(distDir, {
-      destination,
-      packageManager: 'pnpm',
-      ignoreScripts: true,
-    });
-    const tarball = await readFile(tarballPath);
+    let tarball: Buffer | undefined;
+    const requiresPackedTarball = checkTarget !== 'boundary';
+    if (requiresPackedTarball) {
+      Logger.info('Packing dist tarball with pnpm...');
+      const packedDist = await packDistTarball(distDir);
+      cleanupPackedDist = packedDist.cleanup;
+      tarball = packedDist.tarball;
+    }
 
     let passed = true;
     if (checkTarget === 'all' || checkTarget === 'publint') {
-      passed = (await runPublintCheck(tarball)) && passed;
+      passed = (await runPublintCheck(tarball!)) && passed;
     }
     if (checkTarget === 'all' || checkTarget === 'attw') {
-      passed = (await runAttwCheck(tarball, attwProfile)) && passed;
+      passed = (await runAttwCheck(tarball!, attwProfile)) && passed;
+    }
+    if (checkTarget === 'all' || checkTarget === 'boundary') {
+      passed = (await runBoundaryCheck(distDir)) && passed;
     }
 
     if (passed) {
@@ -246,8 +274,8 @@ async function main(): Promise<void> {
     );
     exitCode = 1;
   } finally {
-    if (destination) {
-      await rm(destination, { recursive: true, force: true }).catch(() => null);
+    if (cleanupPackedDist) {
+      await cleanupPackedDist();
     }
     process.exit(exitCode);
   }

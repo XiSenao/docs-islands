@@ -313,6 +313,7 @@ describe('bundleUIComponentsForBrowser', () => {
       loaderScriptContent,
       'loaderScript should resolve the global component manager before registering components',
     ).to.include('__COMPONENT_MANAGER__');
+    expect(loaderScriptContent).not.toContain('@docs-islands/utils/logger');
 
     expect(
       loaderScriptContent,

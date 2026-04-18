@@ -10,6 +10,10 @@ const TestLogger = getPlaygroundLogger('test.playground.error-handling');
 const { test: TEST } = loadEnv();
 
 describe('Error Handling and Edge Cases', () => {
+  beforeEach(() => {
+    allowBrowserRuntimeFailures();
+  });
+
   describe('Import Resolution Errors', () => {
     test('Should handle missing components gracefully', async () => {
       await goto('/error-handling/missing-component');
