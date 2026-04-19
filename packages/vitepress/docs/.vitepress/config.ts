@@ -109,9 +109,15 @@ createDocsIslands({
     levels: release ? ['warn', 'error'] : ['info', 'success', 'warn', 'error'],
     rules: [
       {
+        label: 'site-devtools-reports',
+        main: '@docs-islands/vitepress',
+        group: 'site-devtools.ai*',
+        levels: ['info', 'success', 'warn', 'error'],
+      },
+      {
+        label: 'docs-markdown-hmr',
         main: '@docs-islands/vitepress',
         group: 'plugin.hmr.markdown-update',
-        label: 'docs-markdown-hmr',
         message: '*changed, container script content will be re-parsed...*',
         levels: ['info', 'success', 'warn', 'error'],
       },

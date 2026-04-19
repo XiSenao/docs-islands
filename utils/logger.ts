@@ -46,7 +46,8 @@ declare global {
   var __DOCS_ISLANDS_LOGGER_CONFIG__: LoggerConfig | undefined;
 }
 
-const GROUP_NAME_RE = /^[\da-z]+(?:-[\da-z]+)*(?:\.[\da-z]+(?:-[\da-z]+)*)*$/;
+const GROUP_NAME_RE =
+  /^[\da-z]+(?:[_-][\da-z]+)*(?:\.[\da-z]+(?:[_-][\da-z]+)*)*$/;
 const BROWSER_STYLES = {
   debug: 'color: #6c757d;',
   default: '',
@@ -77,7 +78,12 @@ interface NormalizedLoggerRule {
 interface NormalizedLoggerConfig {
   debug?: boolean;
   levels?: ReadonlySet<ResolvedLogLevel>;
-  rules: NormalizedLoggerRule[];
+  rules?: NormalizedLoggerRule[];
+}
+interface ResolvedLoggerContext {
+  appendElapsedTime: boolean;
+  ruleLabels: string[];
+  suppress: boolean;
 }
 
 const LOG_KIND_TO_LEVEL = {
@@ -114,6 +120,28 @@ interface PicocolorsType {
 const colors = isColorSupported ? (picocolors as PicocolorsType) : null;
 
 let activeLoggerConfig: NormalizedLoggerConfig | null = null;
+const readLoggerClockMs = (): number => {
+  if (
+    globalThis.performance &&
+    typeof globalThis.performance.now === 'function'
+  ) {
+    return globalThis.performance.now();
+  }
+
+  return Date.now();
+};
+
+let loggerClockStartMs = readLoggerClockMs();
+
+const resetLoggerClockStart = (): void => {
+  loggerClockStartMs = readLoggerClockMs();
+};
+
+const formatElapsedTime = (): string => {
+  const elapsedMs = Math.max(0, readLoggerClockMs() - loggerClockStartMs);
+
+  return `${elapsedMs.toFixed(2)}ms`;
+};
 
 const sanitizeDebugText = (
   value: string,
@@ -351,7 +379,10 @@ const createPatternMatcher = (
   pattern: string,
   mode: 'group' | 'message',
 ): ((value: string) => boolean) => {
-  if (mode === 'group' && !GLOB_PATTERN_RE.test(pattern)) {
+  if (
+    (mode === 'group' || mode === 'message') &&
+    !GLOB_PATTERN_RE.test(pattern)
+  ) {
     return (value) => value === pattern;
   }
 
@@ -370,16 +401,6 @@ const normalizeLoggerRule = (rule: LoggerRule): LoggerRule | undefined => {
       ? undefined
       : (normalizeLoggerLevelsArray(rule.levels) ?? []);
 
-  if (
-    normalizedMain === undefined &&
-    normalizedGroup === undefined &&
-    normalizedMessage === undefined &&
-    normalizedLevels === undefined &&
-    rule.enabled === undefined
-  ) {
-    return undefined;
-  }
-
   return {
     ...(rule.enabled === undefined ? {} : { enabled: rule.enabled }),
     ...(normalizedGroup === undefined ? {} : { group: normalizedGroup }),
@@ -396,7 +417,9 @@ const compileLoggerRule = (rule: LoggerRule): NormalizedLoggerRule => ({
     ? { groupMatcher: createPatternMatcher(rule.group, 'group') }
     : {}),
   label: rule.label,
-  ...(rule.levels ? { levels: normalizeLoggerLevelsSet(rule.levels) } : {}),
+  ...(rule.levels === undefined
+    ? {}
+    : { levels: normalizeLoggerLevelsSet(rule.levels) }),
   ...(rule.main ? { main: rule.main } : {}),
   ...(rule.message
     ? { messageMatcher: createPatternMatcher(rule.message, 'message') }
@@ -419,34 +442,17 @@ const compileLoggerConfig = (
     ...(normalizedConfig.levels
       ? { levels: normalizeLoggerLevelsSet(normalizedConfig.levels) }
       : {}),
-    rules: (normalizedConfig.rules ?? []).map((rule) =>
-      compileLoggerRule(rule),
-    ),
+    ...(normalizedConfig.rules === undefined
+      ? {}
+      : {
+          rules: normalizedConfig.rules.map((rule) => compileLoggerRule(rule)),
+        }),
   };
 };
 
 const cloneLevels = (
   levels: ReadonlySet<ResolvedLogLevel>,
 ): Set<ResolvedLogLevel> => new Set(levels);
-
-const intersectLevels = (
-  baseLevels: ReadonlySet<ResolvedLogLevel>,
-  narrowedLevels: ReadonlySet<ResolvedLogLevel> | undefined,
-): Set<ResolvedLogLevel> => {
-  if (!narrowedLevels) {
-    return cloneLevels(baseLevels);
-  }
-
-  const nextLevels = new Set<ResolvedLogLevel>();
-
-  for (const level of baseLevels) {
-    if (narrowedLevels.has(level)) {
-      nextLevels.add(level);
-    }
-  }
-
-  return nextLevels;
-};
 
 const getNormalizedActiveLoggerConfig = (): NormalizedLoggerConfig | null => {
   if (activeLoggerConfig) {
@@ -486,59 +492,72 @@ const matchesLoggerRule = (
   return true;
 };
 
+const getRuleEffectiveLevels = (
+  rule: NormalizedLoggerRule,
+  config: NormalizedLoggerConfig,
+): ReadonlySet<ResolvedLogLevel> => {
+  if (rule.levels !== undefined) {
+    return rule.levels;
+  }
+
+  if (config.levels !== undefined) {
+    return config.levels;
+  }
+
+  return DEFAULT_RESOLVED_LEVELS;
+};
+
 const resolveLoggerContext = (
   context: LoggerContext,
-): {
-  debugEnabled: boolean;
-  enabledLevels: Set<ResolvedLogLevel>;
-  ruleLabel: string;
-  suppress: boolean;
-} => {
+): ResolvedLoggerContext => {
   const config = getNormalizedActiveLoggerConfig();
   const baseEnabledLevels = config?.levels
     ? cloneLevels(config.levels)
     : cloneLevels(DEFAULT_RESOLVED_LEVELS);
   const baseDebugEnabled = config?.debug ?? false;
-  let matchedRule: NormalizedLoggerRule | null = null;
-
-  for (const rule of config?.rules ?? []) {
-    if (matchesLoggerRule(rule, context)) {
-      matchedRule = rule;
-    }
-  }
-
-  if (matchedRule?.enabled === false) {
-    return {
-      debugEnabled: false,
-      enabledLevels: new Set(),
-      ruleLabel: matchedRule.label,
-      suppress: true,
-    };
-  }
-
-  const enabledLevels = matchedRule
-    ? intersectLevels(baseEnabledLevels, matchedRule.levels)
-    : baseEnabledLevels;
-  const debugEnabled = baseDebugEnabled;
+  const hasRules = config?.rules !== undefined;
 
   if (context.kind === 'debug') {
     return {
-      debugEnabled,
-      enabledLevels,
-      ruleLabel: matchedRule?.label ?? ROOT_LOGGER_RULE_LABEL,
-      suppress: !debugEnabled,
+      appendElapsedTime: false,
+      ruleLabels: [],
+      suppress: hasRules || !baseDebugEnabled,
     };
   }
 
+  const level = LOG_KIND_TO_LEVEL[context.kind];
+
+  if (!hasRules) {
+    return {
+      appendElapsedTime: baseDebugEnabled,
+      ruleLabels: [],
+      suppress: !baseEnabledLevels.has(level),
+    };
+  }
+
+  const matchedRules = (config.rules ?? [])
+    .filter((rule) => rule.enabled !== false)
+    .filter((rule) => matchesLoggerRule(rule, context));
+  const contributingRules = matchedRules.filter((rule) =>
+    getRuleEffectiveLevels(rule, config!).has(level),
+  );
+
   return {
-    debugEnabled,
-    enabledLevels,
-    ruleLabel: matchedRule?.label ?? ROOT_LOGGER_RULE_LABEL,
-    suppress: !enabledLevels.has(LOG_KIND_TO_LEVEL[context.kind]),
+    appendElapsedTime: baseDebugEnabled && contributingRules.length > 0,
+    ruleLabels: baseDebugEnabled
+      ? contributingRules.map((rule) => rule.label)
+      : [],
+    suppress: contributingRules.length === 0,
   };
 };
 
-const formatRuleLabelPrefix = (label: string): string => `[rule:${label}] `;
+const formatRuleLabelPrefix = (labels: string[]): string => {
+  if (labels.length === 0) {
+    return '';
+  }
+
+  return `${labels.map((label) => `[${label}]`).join('')} `;
+};
 
 const isBrowserConsole = (): boolean =>
   globalThis.window !== undefined && globalThis.document !== undefined;
@@ -659,11 +678,13 @@ export function normalizeLoggerConfig(
 export function setLoggerConfig(config: LoggerConfig | null | undefined): void {
   const normalizedConfig = normalizeLoggerConfig(config);
 
+  resetLoggerClockStart();
   activeLoggerConfig = compileLoggerConfig(normalizedConfig);
   globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__ = normalizedConfig;
 }
 
 export function resetLoggerConfig(): void {
+  resetLoggerClockStart();
   activeLoggerConfig = null;
   delete globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__;
 }
@@ -752,24 +773,26 @@ class Logger {
     }
 
     const level = consoleMethodByKind(kind);
-    const renderedMessage = resolvedContext.debugEnabled
-      ? `${formatRuleLabelPrefix(resolvedContext.ruleLabel)}${message}`
+    const labelPrefix = formatRuleLabelPrefix(resolvedContext.ruleLabels);
+    const renderedMessage = resolvedContext.appendElapsedTime
+      ? `${message} ${formatElapsedTime()}`
       : message;
 
     if (!this.#group) {
-      console[level](`${this.#main}: ${renderedMessage}`);
+      console[level](`${labelPrefix}${this.#main}: ${renderedMessage}`);
       return;
     }
 
     if (!isBrowserConsole()) {
       console[level](
-        `${formatNodePrefix(this.#main, this.#group)}${formatNodeMessage(kind, renderedMessage)}`,
+        `${labelPrefix}${formatNodePrefix(this.#main, this.#group)}${formatNodeMessage(kind, renderedMessage)}`,
       );
       return;
     }
 
     const { texts, styles } = formatBrowserPrefix(this.#main, this.#group);
 
+    texts[0] = `${labelPrefix}${texts[0]}`;
     texts.push(`%c${renderedMessage}`);
     styles.push(BROWSER_STYLES[kind] ?? BROWSER_STYLES.default);
 
