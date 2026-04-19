@@ -7,12 +7,17 @@ import {
   resetLoggerConfig,
   sanitizeDebugSummary,
   setLoggerConfig,
-  shouldSuppressLog,
 } from '@docs-islands/utils/logger';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  LOGGER_SPEC_CASE_COUNT,
+  LOGGER_SPEC_ELAPSED,
+  type LoggerSpecCase,
+  loggerSpecCases,
+} from './logger-test-cases';
 
 const ANSI_ESCAPE_RE = new RegExp(
   `${String.fromCodePoint(27)}\\[[\\d;]*m`,
@@ -59,277 +64,78 @@ const collectSourceFiles = (directory: string): string[] => {
   return files;
 };
 
+const normalizeConsoleMessage = (value: unknown): string =>
+  stripAnsi(String(value)).replaceAll('%c', '');
+
+const captureConsoleOutput = (): string[] => {
+  const output: string[] = [];
+  const capture = (firstArg: unknown) => {
+    output.push(normalizeConsoleMessage(firstArg));
+  };
+
+  vi.spyOn(console, 'debug').mockImplementation(capture);
+  vi.spyOn(console, 'error').mockImplementation(capture);
+  vi.spyOn(console, 'log').mockImplementation(capture);
+  vi.spyOn(console, 'warn').mockImplementation(capture);
+
+  return output;
+};
+
+const setStableElapsedClock = () => {
+  const now = vi.spyOn(globalThis.performance, 'now');
+
+  now.mockReturnValue(0);
+
+  return now;
+};
+
+const runLoggerSpecCase = (
+  specCase: LoggerSpecCase,
+  debugOverride?: boolean,
+): string[] => {
+  const output = captureConsoleOutput();
+  const now = setStableElapsedClock();
+
+  setLoggerConfig({
+    ...specCase.config,
+    ...(debugOverride === undefined ? {} : { debug: debugOverride }),
+  });
+  now.mockReturnValue(Number.parseFloat(LOGGER_SPEC_ELAPSED));
+
+  const loggers = Object.fromEntries(
+    Object.entries(specCase.loggers).map(([name, fixture]) => [
+      name,
+      createLogger({
+        main: fixture.main,
+      }).getLoggerByGroup(fixture.group),
+    ]),
+  );
+
+  for (const operation of specCase.operations) {
+    loggers[operation.logger]![operation.kind](operation.message);
+  }
+
+  return output;
+};
+
 afterEach(() => {
   resetLoggerConfig();
   vi.restoreAllMocks();
 });
 
 describe('logger node behavior', () => {
-  it('defaults to info or above while keeping debug disabled', () => {
-    expect(
-      shouldSuppressLog('info', {
-        group: 'runtime.react.component-manager',
-        main: '@docs-islands/vitepress',
-        message: 'visible by default',
-      }),
-    ).toBe(false);
-
-    expect(
-      shouldSuppressLog('success', {
-        group: 'runtime.react.component-manager',
-        main: '@docs-islands/vitepress',
-        message: 'success visible by default',
-      }),
-    ).toBe(false);
-
-    expect(
-      shouldSuppressLog('debug', {
-        group: 'runtime.react.component-manager',
-        main: '@docs-islands/vitepress',
-        message: 'hidden by default',
-      }),
-    ).toBe(true);
+  it('keeps the markdown logger spec as the complete visibility baseline', () => {
+    expect(loggerSpecCases).toHaveLength(LOGGER_SPEC_CASE_COUNT);
   });
 
-  it('formats node logs as main[group]: message', () => {
-    const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-    createLogger({
-      main: '@docs-islands/vitepress',
-    })
-      .getLoggerByGroup('runtime.react.component-manager')
-      .info('ready');
-
-    expect(stripAnsi(String(consoleLog.mock.calls[0]?.[0]))).toBe(
-      '@docs-islands/vitepress[runtime.react.component-manager]: ready',
-    );
+  it.each(loggerSpecCases)('$name', (specCase) => {
+    expect(runLoggerSpecCase(specCase)).toEqual(specCase.expected);
   });
 
-  it('routes success logs through the public success level', () => {
-    const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-    createLogger({
-      main: '@docs-islands/vitepress',
-    })
-      .getLoggerByGroup('runtime.react.component-manager')
-      .success('done');
-
-    expect(stripAnsi(String(consoleLog.mock.calls[0]?.[0]))).toBe(
-      '@docs-islands/vitepress[runtime.react.component-manager]: done',
-    );
-  });
-
-  it('keeps grouped logger cache main-aware', () => {
-    const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const coreLogger = createLogger({
-      main: '@docs-islands/core',
-    }).getLoggerByGroup('runtime.react.component-manager');
-    const vitepressLogger = createLogger({
-      main: '@docs-islands/vitepress',
-    }).getLoggerByGroup('runtime.react.component-manager');
-
-    expect(coreLogger).not.toBe(vitepressLogger);
-
-    coreLogger.info('from core');
-    vitepressLogger.info('from vitepress');
-
-    expect(stripAnsi(String(consoleLog.mock.calls[0]?.[0]))).toBe(
-      '@docs-islands/core[runtime.react.component-manager]: from core',
-    );
-    expect(stripAnsi(String(consoleLog.mock.calls[1]?.[0]))).toBe(
-      '@docs-islands/vitepress[runtime.react.component-manager]: from vitepress',
-    );
-  });
-
-  it('matches main exact, group exact-or-glob, and message picomatch rules', () => {
-    setLoggerConfig({
-      debug: false,
-      levels: ['info', 'success', 'warn', 'error'],
-      rules: [
-        {
-          group: 'runtime.react.*',
-          label: 'vitepress-runtime-react',
-          levels: ['warn'],
-          main: '@docs-islands/vitepress',
-          message: '*secret*',
-        },
-        {
-          group: 'runtime.react.component-manager',
-          label: 'core-runtime-react',
-          levels: ['error'],
-          main: '@docs-islands/core',
-          message: 'special-*',
-        },
-      ],
-    });
-
-    expect(
-      shouldSuppressLog('info', {
-        group: 'runtime.react.component-manager',
-        main: '@docs-islands/vitepress',
-        message: 'secret payload',
-      }),
-    ).toBe(true);
-
-    expect(
-      shouldSuppressLog('warn', {
-        group: 'runtime.react.component-manager',
-        main: '@docs-islands/vitepress',
-        message: 'secret payload',
-      }),
-    ).toBe(false);
-
-    expect(
-      shouldSuppressLog('info', {
-        group: 'runtime.vue.component-manager',
-        main: '@docs-islands/vitepress',
-        message: 'secret payload',
-      }),
-    ).toBe(false);
-
-    expect(
-      shouldSuppressLog('warn', {
-        group: 'runtime.react.component-manager',
-        main: '@docs-islands/core',
-        message: 'special-case',
-      }),
-    ).toBe(true);
-
-    expect(
-      shouldSuppressLog('error', {
-        group: 'runtime.react.component-manager',
-        main: '@docs-islands/core',
-        message: 'special-case',
-      }),
-    ).toBe(false);
-  });
-
-  it('treats success as its own allowlisted API in logging levels', () => {
-    setLoggerConfig({
-      debug: false,
-      levels: ['info', 'success', 'warn', 'error'],
-      rules: [
-        {
-          group: 'runtime.react.*',
-          label: 'success-only-runtime-react',
-          levels: ['success'],
-          main: '@docs-islands/vitepress',
-        },
-      ],
-    });
-
-    expect(
-      shouldSuppressLog('success', {
-        group: 'runtime.react.component-manager',
-        main: '@docs-islands/vitepress',
-        message: 'successful hydration',
-      }),
-    ).toBe(false);
-
-    expect(
-      shouldSuppressLog('info', {
-        group: 'runtime.react.component-manager',
-        main: '@docs-islands/vitepress',
-        message: 'successful hydration',
-      }),
-    ).toBe(true);
-
-    expect(
-      shouldSuppressLog('warn', {
-        group: 'runtime.react.component-manager',
-        main: '@docs-islands/vitepress',
-        message: 'successful hydration',
-      }),
-    ).toBe(true);
-  });
-
-  it('suppresses success when the matched levels omit success explicitly', () => {
-    setLoggerConfig({
-      debug: false,
-      levels: ['info', 'warn', 'error'],
-    });
-
-    expect(
-      shouldSuppressLog('success', {
-        group: 'runtime.react.component-manager',
-        main: '@docs-islands/vitepress',
-        message: 'success hidden by explicit omission',
-      }),
-    ).toBe(true);
-  });
-
-  it('treats empty levels as an explicit no-output rule', () => {
-    setLoggerConfig({
-      debug: false,
-      levels: ['info', 'success', 'warn', 'error'],
-      rules: [
-        {
-          group: 'runtime.react.*',
-          label: 'hide-vitepress-runtime-react',
-          levels: [],
-          main: '@docs-islands/vitepress',
-        },
-      ],
-    });
-
-    expect(
-      shouldSuppressLog('info', {
-        group: 'runtime.react.component-manager',
-        main: '@docs-islands/vitepress',
-        message: 'hidden info',
-      }),
-    ).toBe(true);
-
-    expect(
-      shouldSuppressLog('warn', {
-        group: 'runtime.react.component-manager',
-        main: '@docs-islands/vitepress',
-        message: 'hidden warn',
-      }),
-    ).toBe(true);
-
-    expect(
-      shouldSuppressLog('error', {
-        group: 'runtime.react.component-manager',
-        main: '@docs-islands/vitepress',
-        message: 'hidden error',
-      }),
-    ).toBe(true);
-  });
-
-  it('keeps debug as an independent global gate', () => {
-    setLoggerConfig({
-      debug: false,
-      levels: [],
-      rules: [
-        {
-          group: 'runtime.react.*',
-          label: 'vitepress-debug-runtime-react',
-          main: '@docs-islands/vitepress',
-        },
-      ],
-    });
-
-    expect(
-      shouldSuppressLog('debug', {
-        group: 'runtime.react.component-manager',
-        main: '@docs-islands/vitepress',
-        message: 'hidden debug',
-      }),
-    ).toBe(true);
-
-    setLoggerConfig({
-      debug: true,
-      levels: [],
-    });
-
-    expect(
-      shouldSuppressLog('debug', {
-        group: 'runtime.react.component-manager',
-        main: '@docs-islands/vitepress',
-        message: 'visible debug',
-      }),
-    ).toBe(false);
+  it.each(
+    loggerSpecCases.filter((specCase) => specCase.expectedDebug !== undefined),
+  )('$name with debug labels and elapsed time', (specCase) => {
+    expect(runLoggerSpecCase(specCase, true)).toEqual(specCase.expectedDebug);
   });
 
   it('formats debug messages with context decision sanitized summary and timing', () => {
@@ -357,58 +163,6 @@ describe('logger node behavior', () => {
     expect(sanitizedSummary).toContain('"token":"');
     expect(sanitizedSummary.endsWith('...')).toBe(true);
     expect(sanitizedSummary).not.toContain('x'.repeat(180));
-  });
-
-  it('shows the matched rule label before every emitted log when debug is enabled', () => {
-    const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-    setLoggerConfig({
-      debug: true,
-      levels: ['info', 'success', 'warn', 'error'],
-      rules: [
-        {
-          group: 'runtime.react.*',
-          label: 'runtime-react-rule',
-          main: '@docs-islands/vitepress',
-        },
-      ],
-    });
-
-    createLogger({
-      main: '@docs-islands/vitepress',
-    })
-      .getLoggerByGroup('runtime.react.component-manager')
-      .info('ready');
-
-    expect(stripAnsi(String(consoleLog.mock.calls[0]?.[0]))).toBe(
-      '@docs-islands/vitepress[runtime.react.component-manager]: [rule:runtime-react-rule] ready',
-    );
-  });
-
-  it('shows the root label when debug is enabled and no rule matches', () => {
-    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    setLoggerConfig({
-      debug: true,
-      levels: ['warn'],
-      rules: [
-        {
-          group: 'runtime.react.*',
-          label: 'runtime-react-rule',
-          main: '@docs-islands/vitepress',
-        },
-      ],
-    });
-
-    createLogger({
-      main: '@docs-islands/core',
-    })
-      .getLoggerByGroup('runtime.react.component-manager')
-      .warn('fallback');
-
-    expect(stripAnsi(String(consoleWarn.mock.calls[0]?.[0]))).toBe(
-      '@docs-islands/core[runtime.react.component-manager]: [rule:<root>] fallback',
-    );
   });
 
   it('keeps non-test debug call sites on the structured debug helper', () => {

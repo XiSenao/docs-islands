@@ -123,7 +123,7 @@ describe('react logging config', () => {
         main: '@docs-islands/vitepress',
         message: 'visible ready',
       }),
-    ).toBe(false);
+    ).toBe(true);
 
     expect(
       shouldSuppressLog('success', {
@@ -131,7 +131,7 @@ describe('react logging config', () => {
         main: '@docs-islands/core',
         message: 'visible success',
       }),
-    ).toBe(false);
+    ).toBe(true);
 
     expect(
       shouldSuppressLog('debug', {

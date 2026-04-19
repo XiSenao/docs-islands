@@ -114,7 +114,7 @@ function isAllowedSelfSpecifier(
 }
 
 function normalizePublishedModulePath(relativeFilePath: string): string {
-  return relativeFilePath.replace(/\\/g, '/');
+  return relativeFilePath.replaceAll('\\', '/');
 }
 
 function classifyRuntimeEnvironment(

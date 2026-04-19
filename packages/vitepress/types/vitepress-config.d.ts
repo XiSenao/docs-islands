@@ -214,17 +214,49 @@ export interface SiteDevToolsUserConfig {
 export type LoggingVisibilityLevel = 'error' | 'warn' | 'info' | 'success';
 
 export interface LoggingRuleUserConfig {
+  /**
+   * Pre-filter switch for this rule.
+   *
+   * `false` makes the rule fully inactive: it does not match scope, does not
+   * allow levels, and does not appear in debug labels.
+   *
+   * @default true
+   */
   enabled?: boolean;
+  /**
+   * Logger group matcher.
+   *
+   * Plain strings are exact matches. Patterns containing glob magic use
+   * picomatch, for example `runtime.react.*`, `test.case.?1`, or `task-[ab]`.
+   */
   group?: string;
   /**
    * Stable unique identifier for this rule.
    *
-   * When `logging.debug` is enabled, emitted logs surface the matched rule label
-   * as `[rule:<label>]` before the message body so it is clear which rule won.
+   * When `logging.debug` is enabled, visible logs surface every contributing
+   * rule label as `[LabelA][LabelB]` before the normal log prefix.
    */
   label: string;
+  /**
+   * Effective levels for this rule.
+   *
+   * When omitted, the rule inherits `logging.levels`. When present, it replaces
+   * the root levels for this rule and contributes to the union with other
+   * matching active rules.
+   */
   levels?: LoggingVisibilityLevel[];
+  /**
+   * Exact package-name matcher, for example `@docs-islands/vitepress`.
+   *
+   * `main` does not use glob matching.
+   */
   main?: string;
+  /**
+   * Log message matcher.
+   *
+   * Plain strings are exact matches. Patterns containing glob magic use
+   * picomatch, for example `*timeout*`, `request *`, or `task-[ab]`.
+   */
   message?: string;
 }
 
@@ -232,10 +264,31 @@ export interface LoggingUserConfig {
   /**
    * Global debug gate for project-owned debug logs.
    *
-   * When omitted, debug logs stay disabled.
+   * When enabled, visible `error`, `warn`, `info`, and `success` logs include
+   * contributing rule labels and a relative elapsed-time suffix such as
+   * `12.34ms`. `debug` logs are visible by default only when `rules` are not
+   * configured.
+   *
+   * @default false
    */
   debug?: boolean;
+  /**
+   * Root visibility levels.
+   *
+   * Without `rules`, this controls the visible non-debug levels. With `rules`,
+   * it is the default effective levels for rules that omit `rule.levels`; it is
+   * not a maximum that narrows explicit `rule.levels`.
+   *
+   * @default ['error', 'warn', 'info', 'success']
+   */
   levels?: LoggingVisibilityLevel[];
+  /**
+   * Rule-mode visibility configuration.
+   *
+   * When configured, output is decided only by active matching rules. Multiple
+   * matching rules contribute as a union, and no active/matched rule means no
+   * output rather than fallback to root levels.
+   */
   rules?: LoggingRuleUserConfig[];
 }
 
