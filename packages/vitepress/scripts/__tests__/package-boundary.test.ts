@@ -42,7 +42,8 @@ describe('auditPublishedPackageBoundaries', () => {
           name: '@docs-islands/vitepress',
           exports: {
             '.': './node/index.js',
-            './internal/logger': './shared/logger.js',
+            './logger': './shared/logger.js',
+            './logger/presets': './shared/logger/presets.js',
             './types/*': './types/*',
           },
           dependencies: {
@@ -60,9 +61,10 @@ describe('auditPublishedPackageBoundaries', () => {
       path.join(distDir, 'node', 'index.js'),
       `import path from 'node:path';
 import { defineConfig } from 'vite';
-import runtimeLogger from '@docs-islands/vitepress/internal/logger';
+import { createLogger } from '@docs-islands/vitepress/logger';
+import loggerPresets from '@docs-islands/vitepress/logger/presets';
 
-export { path, defineConfig, runtimeLogger };
+export { path, defineConfig, loggerPresets, createLogger };
 `,
     );
     writeTextFile(
@@ -77,7 +79,21 @@ export { createHash };
       `import React from 'react';
 import './dep.js';
 
-export default React;
+export const createLogger = () => React;
+`,
+    );
+    writeTextFile(
+      path.join(distDir, 'shared', 'logger/presets.js'),
+      `export const hmr = {
+  rules: {
+    viteAfterUpdate: {
+      group: 'hmr.vite.after-update',
+      main: '@docs-islands/vitepress',
+    },
+  },
+};
+
+export default { hmr };
 `,
     );
     writeTextFile(
@@ -98,7 +114,7 @@ export default React;
           name: '@docs-islands/vitepress',
           exports: {
             '.': './node/index.js',
-            './internal/logger': './shared/logger.js',
+            './logger': './shared/logger.js',
           },
           dependencies: {
             vite: '^5.0.0',

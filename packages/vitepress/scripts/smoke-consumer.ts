@@ -1,5 +1,6 @@
-import getLoggerInstance from '#shared/logger';
+import { createLogger } from '#shared/logger';
 import { loadEnv } from '@docs-islands/utils';
+import { createElapsedLogOptions } from '@docs-islands/utils/logger';
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync, readFileSync } from 'node:fs';
@@ -11,8 +12,13 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-chromium';
 import { packDistTarball } from './package-artifacts';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
 const Logger = loggerInstance.getLoggerByGroup('task.consumer-smoke');
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, Date.now());
+const scriptStartedAt = Date.now();
 const require = createRequire(import.meta.url);
 const { ci, runtime } = loadEnv();
 
@@ -234,11 +240,17 @@ async function writeConsumerFixtureFiles(fixtureDir: string): Promise<void> {
     path.join(fixtureDir, '.vitepress', 'config.ts'),
     `import { createDocsIslands } from '@docs-islands/vitepress';
 import { react } from '@docs-islands/vitepress/adapters/react';
+import { createLogger } from '@docs-islands/vitepress/logger';
 import { defineConfig } from 'vitepress';
 
+const Logger = createLogger({
+  main: '@docs-islands/vitepress',
+}).getLoggerByGroup('consumer.smoke');
 const config = defineConfig({
   title: 'Consumer Smoke',
 });
+
+void Logger;
 
 createDocsIslands({
   adapters: [react()],
@@ -320,6 +332,7 @@ function installConsumerDependencies(options: {
   manifest: DistPackageJson;
   tarballPath: string;
 }): void {
+  const installStartedAt = Date.now();
   const { fixtureDir, manifest, tarballPath } = options;
   const dependencyArguments = REQUIRED_CONSUMER_DEPENDENCIES.map(
     (packageName) =>
@@ -329,7 +342,10 @@ function installConsumerDependencies(options: {
       )}`,
   );
 
-  Logger.info('Installing consumer fixture dependencies...');
+  Logger.info(
+    'Installing consumer fixture dependencies...',
+    elapsedSince(installStartedAt),
+  );
   execFileSync(
     getPnpmCommand(),
     [
@@ -489,7 +505,11 @@ function isIgnorableRequestFailure(errorText?: string): boolean {
 }
 
 async function verifyConsumerRuntime(port: number): Promise<void> {
-  Logger.info('Launching browser for consumer smoke verification...');
+  const verifyStartedAt = Date.now();
+  Logger.info(
+    'Launching browser for consumer smoke verification...',
+    elapsedSince(verifyStartedAt),
+  );
   const browser = await chromium.launch({
     args: ci ? ['--no-sandbox', '--disable-setuid-sandbox'] : undefined,
     executablePath: resolveChromiumExecutablePath(),
@@ -659,6 +679,7 @@ async function verifyConsumerRuntime(port: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const smokeStartedAt = Date.now();
   const packageRootDir = fileURLToPath(new URL('..', import.meta.url));
   const distDir = path.join(packageRootDir, 'dist');
   const manifestPath = path.join(distDir, 'package.json');
@@ -672,7 +693,10 @@ async function main(): Promise<void> {
       readFileSync(manifestPath, 'utf8'),
     ) as DistPackageJson;
 
-    Logger.info('Packing dist tarball for consumer smoke...');
+    Logger.info(
+      'Packing dist tarball for consumer smoke...',
+      elapsedSince(smokeStartedAt),
+    );
     const packedDist = await packDistTarball(distDir);
     cleanupPackedDist = packedDist.cleanup;
 
@@ -695,7 +719,7 @@ async function main(): Promise<void> {
       process: server.process,
     });
     await verifyConsumerRuntime(port);
-    Logger.success('Consumer smoke passed');
+    Logger.success('Consumer smoke passed', elapsedSince(smokeStartedAt));
   } catch (error) {
     const renderedLogs =
       serverLogs.length > 0
@@ -703,6 +727,7 @@ async function main(): Promise<void> {
         : '';
     Logger.error(
       `Consumer smoke failed: ${error instanceof Error ? error.message : String(error)}${renderedLogs}`,
+      elapsedSince(smokeStartedAt),
     );
     process.exitCode = 1;
   } finally {
@@ -721,6 +746,7 @@ async function main(): Promise<void> {
 main().catch((error: unknown) => {
   Logger.error(
     `Consumer smoke failed with an unexpected error: ${error instanceof Error ? error.message : String(error)}`,
+    elapsedSince(scriptStartedAt),
   );
   process.exitCode = 1;
 });

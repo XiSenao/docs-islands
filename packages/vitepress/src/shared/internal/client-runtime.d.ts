@@ -20,8 +20,8 @@
  *
  * @example
  * // ❌ DON'T: Direct import from package users
- * import runtime from '@docs-islands/vitepress/internal/runtime'
- * import { __CSS_LOADING_RUNTIME__ } from '@docs-islands/vitepress/internal/runtime'
+ * import runtime from '@docs-islands/vitepress/internal/client-runtime'
+ * import { __CSS_LOADING_RUNTIME__ } from '@docs-islands/vitepress/internal/client-runtime'
  *
  * // ✅ DO: Let the build plugin inject it automatically
  * // The runtime will be available globally after build injection

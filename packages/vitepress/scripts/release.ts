@@ -1,4 +1,5 @@
-import getLoggerInstance from '#shared/logger';
+import { createLogger } from '#shared/logger';
+import { createElapsedLogOptions } from '@docs-islands/utils/logger';
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -6,8 +7,13 @@ import { fileURLToPath } from 'node:url';
 import { normalizePath } from 'vite';
 import packageJson from '../package.json' with { type: 'json' };
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
 const Logger = loggerInstance.getLoggerByGroup('task.release');
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, Date.now());
+const cliStartedAt = Date.now();
 
 type PackageJson = typeof packageJson;
 
@@ -135,8 +141,12 @@ class ReleaseSystemManager {
   }
 
   async release(): Promise<void> {
+    const releaseStartedAt = Date.now();
     try {
-      Logger.info('Starting release process...\n');
+      Logger.info(
+        'Starting release process...\n',
+        elapsedSince(releaseStartedAt),
+      );
 
       await this.preReleaseCheck();
 
@@ -168,15 +178,22 @@ class ReleaseSystemManager {
       }
 
       await this.postRelease(newVersion);
-      Logger.success(`Release ${newVersion} completed successfully!\n`);
+      Logger.success(
+        `Release ${newVersion} completed successfully!\n`,
+        elapsedSince(releaseStartedAt),
+      );
     } catch (error) {
-      Logger.error(`Release failed: ${String(error)}`);
+      Logger.error(
+        `Release failed: ${String(error)}`,
+        elapsedSince(releaseStartedAt),
+      );
       throw error instanceof Error ? error : new Error('Release failed');
     }
   }
 
   private async preReleaseCheck(): Promise<void> {
-    Logger.info('Running pre-release checks...');
+    const checkStartedAt = Date.now();
+    Logger.info('Running pre-release checks...', elapsedSince(checkStartedAt));
 
     try {
       const status = execSync('git status --porcelain', {
@@ -198,14 +215,20 @@ class ReleaseSystemManager {
         cwd: this.packageRootDir,
       }).trim();
       if (branch !== 'main' && branch !== 'master' && !this.options.dryRun) {
-        Logger.warn(`You are not on main/master branch (current: ${branch})`);
+        Logger.warn(
+          `You are not on main/master branch (current: ${branch})`,
+          elapsedSince(checkStartedAt),
+        );
       }
     } catch {
       throw new Error('Git branch check failed');
     }
 
     if (this.options.dryRun) {
-      Logger.info('Dry-run mode: skipping npm auth check');
+      Logger.info(
+        'Dry-run mode: skipping npm auth check',
+        elapsedSince(checkStartedAt),
+      );
     } else {
       try {
         execSync('npm whoami', { stdio: 'pipe', cwd: this.packageRootDir });
@@ -239,29 +262,32 @@ class ReleaseSystemManager {
       if (behindCount > 0) {
         Logger.warn(
           `Your branch is behind ${upstream} by ${behindCount} commits.`,
+          elapsedSince(checkStartedAt),
         );
       }
       if (aheadCount > 0) {
         Logger.warn(
           `Your branch is ahead of ${upstream} by ${aheadCount} commits.`,
+          elapsedSince(checkStartedAt),
         );
       }
     } catch {
       // Ignore for repos without upstream.
     }
 
-    Logger.success('Pre-release checks passed\n');
+    Logger.success('Pre-release checks passed\n', elapsedSince(checkStartedAt));
   }
 
   private async runTests(): Promise<void> {
-    Logger.info('Running test suite...');
+    const testsStartedAt = Date.now();
+    Logger.info('Running test suite...', elapsedSince(testsStartedAt));
 
     try {
       await this.buildProject({
         localTest: true,
       });
       execSync('pnpm test', { stdio: 'inherit', cwd: this.packageRootDir });
-      Logger.success('All tests passed\n');
+      Logger.success('All tests passed\n', elapsedSince(testsStartedAt));
     } catch {
       throw new Error('Tests failed');
     }
@@ -298,20 +324,31 @@ class ReleaseSystemManager {
   }
 
   private async buildProject(options: BuildOptions = {}): Promise<void> {
-    Logger.info('Building workspace dependencies...');
+    const buildStartedAt = Date.now();
+    Logger.info(
+      'Building workspace dependencies...',
+      elapsedSince(buildStartedAt),
+    );
 
     const { localTest = false } = options;
     this.cleanDist();
     const workspaceDeps = this.getWorkspaceDependencies();
     if (workspaceDeps.length === 0) {
-      Logger.info('No workspace dependencies found');
+      Logger.info(
+        'No workspace dependencies found',
+        elapsedSince(buildStartedAt),
+      );
       return;
     }
 
-    Logger.info(`Found workspace dependencies: ${workspaceDeps.join(', ')}`);
+    Logger.info(
+      `Found workspace dependencies: ${workspaceDeps.join(', ')}`,
+      elapsedSince(buildStartedAt),
+    );
 
     for (const dep of workspaceDeps) {
-      Logger.info(`Building ${dep}...`);
+      const dependencyBuildStartedAt = Date.now();
+      Logger.info(`Building ${dep}...`, elapsedSince(dependencyBuildStartedAt));
       try {
         execSync(`pnpm --filter ${dep} build`, {
           stdio: 'inherit',
@@ -322,15 +359,22 @@ class ReleaseSystemManager {
             DOCS_ISLANDS_TEST: localTest ? '1' : '0',
           },
         });
-        Logger.success(`${dep} built successfully`);
+        Logger.success(
+          `${dep} built successfully`,
+          elapsedSince(dependencyBuildStartedAt),
+        );
       } catch {
         throw new Error(`Failed to build workspace dependency: ${dep}`);
       }
     }
 
-    Logger.success('All workspace dependencies built\n');
+    Logger.success(
+      'All workspace dependencies built\n',
+      elapsedSince(buildStartedAt),
+    );
 
-    Logger.info('Building project...');
+    const projectBuildStartedAt = Date.now();
+    Logger.info('Building project...', elapsedSince(projectBuildStartedAt));
     try {
       execSync('pnpm build', {
         stdio: 'inherit',
@@ -340,7 +384,7 @@ class ReleaseSystemManager {
           DOCS_ISLANDS_MODE: 'production',
         },
       });
-      Logger.success('Build completed\n');
+      Logger.success('Build completed\n', elapsedSince(projectBuildStartedAt));
     } catch {
       throw new Error('Build failed');
     }
@@ -367,33 +411,48 @@ class ReleaseSystemManager {
   }
 
   private async verifyPackageLint(): Promise<void> {
-    Logger.info('Verifying package lint (publint + attw + boundary audit)...');
+    const packageLintStartedAt = Date.now();
+    Logger.info(
+      'Verifying package lint (publint + attw + boundary audit)...',
+      elapsedSince(packageLintStartedAt),
+    );
     try {
       execSync('pnpm lint:package', {
         stdio: 'inherit',
         cwd: this.packageRootDir,
       });
-      Logger.success('Package lint passed\n');
+      Logger.success(
+        'Package lint passed\n',
+        elapsedSince(packageLintStartedAt),
+      );
     } catch {
       throw new Error('Package lint failed');
     }
   }
 
   private async verifyConsumerSmoke(): Promise<void> {
-    Logger.info('Verifying external consumer smoke...');
+    const consumerSmokeStartedAt = Date.now();
+    Logger.info(
+      'Verifying external consumer smoke...',
+      elapsedSince(consumerSmokeStartedAt),
+    );
     try {
       execSync('pnpm smoke:consumer', {
         stdio: 'inherit',
         cwd: this.packageRootDir,
       });
-      Logger.success('External consumer smoke passed\n');
+      Logger.success(
+        'External consumer smoke passed\n',
+        elapsedSince(consumerSmokeStartedAt),
+      );
     } catch {
       throw new Error('External consumer smoke failed');
     }
   }
 
   private async manageVersion(): Promise<string> {
-    Logger.info('Managing version...');
+    const manageVersionStartedAt = Date.now();
+    Logger.info('Managing version...', elapsedSince(manageVersionStartedAt));
     const currentVersion = this.pkg.version;
     let newVersion: string;
     if (this.options.version) {
@@ -425,11 +484,15 @@ class ReleaseSystemManager {
       );
     }
 
-    Logger.success(`Version: ${currentVersion} -> ${newVersion}\n`);
+    Logger.success(
+      `Version: ${currentVersion} -> ${newVersion}\n`,
+      elapsedSince(manageVersionStartedAt),
+    );
     return newVersion;
   }
 
   private async ensureVersionNotPublished(version: string): Promise<void> {
+    const publishCheckStartedAt = Date.now();
     const packageName = this.pkg.name;
     try {
       execSync(`npm view ${packageName}@${version} version`, {
@@ -445,15 +508,25 @@ class ReleaseSystemManager {
           stdio: 'pipe',
           cwd: this.packageRootDir,
         });
-        Logger.success(`Package ${packageName} exists on npm`);
+        Logger.success(
+          `Package ${packageName} exists on npm`,
+          elapsedSince(publishCheckStartedAt),
+        );
       } catch {
-        Logger.success(`Package ${packageName} is new to npm`);
+        Logger.success(
+          `Package ${packageName} is new to npm`,
+          elapsedSince(publishCheckStartedAt),
+        );
       }
     }
   }
 
   private async checkChangelogUpdated(version: string): Promise<void> {
-    Logger.info('Checking changelog update...');
+    const changelogCheckStartedAt = Date.now();
+    Logger.info(
+      'Checking changelog update...',
+      elapsedSince(changelogCheckStartedAt),
+    );
 
     const changelogPath = path.join(this.packageRootDir, 'CHANGELOG.md');
 
@@ -472,11 +545,15 @@ class ReleaseSystemManager {
       );
     }
 
-    Logger.success(`CHANGELOG.md contains entry for version ${version}\n`);
+    Logger.success(
+      `CHANGELOG.md contains entry for version ${version}\n`,
+      elapsedSince(changelogCheckStartedAt),
+    );
   }
 
   private async commitAndTag(version: string): Promise<void> {
-    Logger.info('Committing and tagging...');
+    const commitStartedAt = Date.now();
+    Logger.info('Committing and tagging...', elapsedSince(commitStartedAt));
     try {
       execSync('git add .', { stdio: 'pipe', cwd: this.packageRootDir });
       execSync(`git commit -m "release: ${version}"`, {
@@ -502,14 +579,18 @@ class ReleaseSystemManager {
         stdio: 'pipe',
         cwd: this.packageRootDir,
       });
-      Logger.success(`Committed and tagged as ${tag}\n`);
+      Logger.success(
+        `Committed and tagged as ${tag}\n`,
+        elapsedSince(commitStartedAt),
+      );
     } catch {
       throw new Error('Git operations failed');
     }
   }
 
   private async publishToNpm(): Promise<void> {
-    Logger.info('Publishing to npm...');
+    const publishStartedAt = Date.now();
+    Logger.info('Publishing to npm...', elapsedSince(publishStartedAt));
     try {
       const distDir = path.join(this.packageRootDir, 'dist');
       const distPkgPath = path.join(distDir, 'package.json');
@@ -530,40 +611,61 @@ class ReleaseSystemManager {
       }
       execSync(publishArgs.join(' '), { stdio: 'inherit', cwd: distDir });
 
-      Logger.success('Published to npm\n');
+      Logger.success('Published to npm\n', elapsedSince(publishStartedAt));
     } catch (error) {
       throw new Error(`Publishing to npm failed, ${error}`);
     }
   }
 
   private async postRelease(version: string): Promise<void> {
-    Logger.info('Running post-release tasks...');
+    const postReleaseStartedAt = Date.now();
+    Logger.info(
+      'Running post-release tasks...',
+      elapsedSince(postReleaseStartedAt),
+    );
     if (!this.options.dryRun) {
       try {
+        const pushStartedAt = Date.now();
         execSync('git push origin --follow-tags', {
           stdio: 'pipe',
           cwd: this.packageRootDir,
         });
-        Logger.success('Pushed to remote repository');
+        Logger.success(
+          'Pushed to remote repository',
+          elapsedSince(pushStartedAt),
+        );
       } catch {
-        Logger.warn('Failed to push to remote repository');
+        Logger.warn(
+          'Failed to push to remote repository',
+          elapsedSince(postReleaseStartedAt),
+        );
       }
     }
 
     try {
       execSync('which gh', { stdio: 'pipe', cwd: this.packageRootDir });
       if (!this.options.dryRun) {
+        const githubReleaseStartedAt = Date.now();
         const tag = this.options.gitTag || this.options.tag || `v${version}`;
         execSync(`gh release create ${tag} --generate-notes`, {
           stdio: 'pipe',
           cwd: this.packageRootDir,
         });
-        Logger.success('GitHub release created');
+        Logger.success(
+          'GitHub release created',
+          elapsedSince(githubReleaseStartedAt),
+        );
       }
     } catch {
-      Logger.info('GitHub CLI not found, skipping GitHub release');
+      Logger.info(
+        'GitHub CLI not found, skipping GitHub release',
+        elapsedSince(postReleaseStartedAt),
+      );
     }
-    Logger.success('Post-release tasks completed\n');
+    Logger.success(
+      'Post-release tasks completed\n',
+      elapsedSince(postReleaseStartedAt),
+    );
   }
 }
 
@@ -629,7 +731,9 @@ async function main() {
         break;
       }
       case '--help': {
-        Logger.info(`
+        const helpStartedAt = Date.now();
+        Logger.info(
+          `
 Usage: pnpm release [options]
 
 Options:
@@ -650,7 +754,9 @@ Examples:
   pnpm release --version 1.2.3
   pnpm release --type prerelease --preid beta
   pnpm release --dry-run --type minor
-        `);
+        `,
+          elapsedSince(helpStartedAt),
+        );
         process.exit(0);
       }
     }
@@ -665,7 +771,10 @@ if (
   normalizePath(process.argv[1])
 ) {
   main().catch((error) => {
-    Logger.error(`Release failed: ${String(error)}`);
+    Logger.error(
+      `Release failed: ${String(error)}`,
+      elapsedSince(cliStartedAt),
+    );
     // Allow process to exit with failure naturally.
     process.exitCode = 1;
   });

@@ -4,6 +4,7 @@
 import {
   createLogger,
   formatDebugMessage,
+  lightGeneralLogger,
   resetLoggerConfig,
   sanitizeDebugSummary,
   setLoggerConfig,
@@ -12,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { VITEPRESS_RUNTIME_LOG_GROUPS } from '../constants/log-groups/runtime';
 import {
   LOGGER_SPEC_CASE_COUNT,
   LOGGER_SPEC_ELAPSED,
@@ -23,6 +25,7 @@ const ANSI_ESCAPE_RE = new RegExp(
   `${String.fromCodePoint(27)}\\[[\\d;]*m`,
   'g',
 );
+const currentTestFile = fileURLToPath(import.meta.url);
 const repoRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
 const vitePressGeneratedConfigModuleRe =
   /(?:^|[/\\])\.vitepress[/\\]config\.ts\.timestamp-\d+-[\da-f]+\.mjs$/i;
@@ -112,6 +115,13 @@ const runLoggerSpecCase = (
   );
 
   for (const operation of specCase.operations) {
+    if (operation.kind !== 'debug') {
+      loggers[operation.logger]![operation.kind](operation.message, {
+        elapsedTimeMs: Number.parseFloat(LOGGER_SPEC_ELAPSED),
+      });
+      continue;
+    }
+
     loggers[operation.logger]![operation.kind](operation.message);
   }
 
@@ -136,6 +146,68 @@ describe('logger node behavior', () => {
     loggerSpecCases.filter((specCase) => specCase.expectedDebug !== undefined),
   )('$name with debug labels and elapsed time', (specCase) => {
     expect(runLoggerSpecCase(specCase, true)).toEqual(specCase.expectedDebug);
+  });
+
+  it('allows debug elapsed suffix to use a caller supplied duration', () => {
+    const output = captureConsoleOutput();
+    const now = setStableElapsedClock();
+
+    setLoggerConfig({ debug: true });
+    now.mockReturnValue(99);
+
+    createLogger({
+      main: '@docs-islands/vitepress',
+    })
+      .getLoggerByGroup(VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender)
+      .success('Component Landing render completed (hydrate)', {
+        elapsedTimeMs: 12.345,
+      });
+
+    expect(output).toEqual([
+      `@docs-islands/vitepress[${VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender}]: Component Landing render completed (hydrate) 12.35ms`,
+    ]);
+  });
+
+  it('reuses cached main and grouped logger instances for the same main', () => {
+    const mainLogger = createLogger({
+      main: '@docs-islands/vitepress',
+    });
+    const sameMainLogger = createLogger({
+      main: '@docs-islands/vitepress',
+    });
+    const otherMainLogger = createLogger({
+      main: '@docs-islands/core',
+    });
+    const groupLogger = mainLogger.getLoggerByGroup(
+      VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender,
+    );
+    const sameGroupLogger = mainLogger.getLoggerByGroup(
+      VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender,
+    );
+    const otherGroupLogger = mainLogger.getLoggerByGroup(
+      VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
+    );
+    const sameGroupNameDifferentMain = otherMainLogger.getLoggerByGroup(
+      VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender,
+    );
+
+    expect(sameMainLogger).toBe(mainLogger);
+    expect(groupLogger).toBe(sameGroupLogger);
+    expect('info' in (mainLogger as object)).toBe(false);
+    expect(groupLogger).not.toBe(mainLogger);
+    expect(otherGroupLogger).not.toBe(groupLogger);
+    expect(sameGroupNameDifferentMain).not.toBe(groupLogger);
+  });
+
+  it('requires a group for lightGeneralLogger', () => {
+    expect(() =>
+      lightGeneralLogger(
+        '@docs-islands/vitepress',
+        'warn',
+        'runtime warning',
+        undefined as never,
+      ),
+    ).toThrow(/lightGeneralLogger requires a logger group/);
   });
 
   it('formats debug messages with context decision sanitized summary and timing', () => {
@@ -202,16 +274,23 @@ describe('logger node behavior', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('forbids raw new Logger construction outside the logger implementation', () => {
+  it('forbids raw new Logger or ScopedLogger construction outside the logger implementation', () => {
     const targetRoots = ['packages', 'scripts', 'utils'].map((segment) =>
       path.join(repoRoot, segment),
     );
+    const loggerImplementationFiles = new Set([
+      path.join(repoRoot, 'utils', 'logger.ts'),
+      path.join(repoRoot, 'utils', 'logger', 'factory.ts'),
+    ]);
     const offenders = targetRoots
       .flatMap((targetRoot) => collectSourceFiles(targetRoot))
       .filter(
         (filePath) =>
-          filePath !== path.join(repoRoot, 'utils', 'logger.ts') &&
-          /new Logger\(/.test(fs.readFileSync(filePath, 'utf8')),
+          !loggerImplementationFiles.has(filePath) &&
+          filePath !== currentTestFile &&
+          /new (?:Logger|ScopedLogger)\(/.test(
+            fs.readFileSync(filePath, 'utf8'),
+          ),
       )
       .map((filePath) => path.relative(repoRoot, filePath));
 

@@ -61,6 +61,8 @@
   "imports": {
     "#types/*": "./types/*.d.ts",
     "#dep-types/*": "./src/types/*.d.ts",
+    "#shared/constants/*": "./src/shared/constants/*.ts",
+    "#shared/constants/log-groups/*": "./src/shared/constants/log-groups/*.ts",
     "#shared/*": "./src/shared/*.ts"
   },
   "dependencies": {
@@ -159,6 +161,8 @@
     "./client": "./src/client/index.ts",
     "./adapters/react": "./src/node/adapters/react/index.ts",
     "./adapters/react/client": "./src/client/adapters/react/index.ts",
+    "./logger": "./src/shared/logger.ts",
+    "./logger/presets": "./src/shared/logger/presets.ts",
     "./devtools/client": {
       "types": "./types/devtools-client.d.ts",
       "default": "./theme/devtools.mjs"
@@ -169,12 +173,13 @@
     },
     "./devtools/mcp": "./src/node/site-devtools/mcp.ts",
     "./package.json": "./package.json",
-    "./internal/devtools": "./src/shared/devtools.ts",
-    "./internal/logger": "./src/shared/logger.ts",
-    "./internal/runtime": "./src/shared/client-runtime.ts",
-    "./internal-helper/runtime": "./dist/shared/client-runtime.js",
+    "./internal/devtools": "./src/shared/internal/devtools.ts",
+    "./internal/client-runtime": "./src/shared/internal/client-runtime.ts",
+    "./internal-helper/client-runtime": "./dist/shared/internal/client-runtime.js",
     "./internal-helper/imports/types/*": "./types/*.d.ts",
     "./internal-helper/imports/dep-types/*": "./src/types/*.d.ts",
+    "./internal-helper/imports/shared/constants/*": "./src/shared/constants/*.ts",
+    "./internal-helper/imports/shared/constants/log-groups/*": "./src/shared/constants/log-groups/*.ts",
     "./internal-helper/imports/shared/*": "./src/shared/*.ts",
     "./types/*": {
       "types": "./types/*"
@@ -183,6 +188,12 @@
   "types": "./node/index.d.ts",
   "typesVersions": {
     "*": {
+      "logger": [
+        "./shared/logger.d.ts"
+      ],
+      "logger/presets": [
+        "./shared/logger/presets.d.ts"
+      ],
       "adapters/react": [
         "./node/adapters/react.d.ts"
       ],
@@ -202,13 +213,10 @@
         "./node/site-devtools/mcp.d.ts"
       ],
       "internal/devtools": [
-        "./shared/devtools.d.ts"
+        "./shared/internal/devtools.d.ts"
       ],
-      "internal/logger": [
-        "./shared/logger.d.ts"
-      ],
-      "internal/runtime": [
-        "./shared/client-runtime.d.ts"
+      "internal/client-runtime": [
+        "./shared/internal/client-runtime.d.ts"
       ]
     }
   }

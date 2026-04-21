@@ -297,11 +297,52 @@ const filterExports = (key: string) => {
   return false;
 };
 
+const rewritePublicLoggerExportPath = (
+  key: string,
+  value: string,
+  exportCondition?: string,
+): string | undefined => {
+  if (key !== './logger' || !value.includes('src/shared/logger.')) {
+    return undefined;
+  }
+
+  const rewrittenLoggerValue = value.replace(
+    'src/shared/logger.',
+    'shared/logger.',
+  );
+
+  if (
+    exportCondition === 'types' &&
+    rewrittenLoggerValue.endsWith('.ts') &&
+    !rewrittenLoggerValue.endsWith('.d.ts')
+  ) {
+    return rewrittenLoggerValue.replace('.ts', '.d.ts');
+  }
+
+  if (
+    rewrittenLoggerValue.endsWith('.d.ts') ||
+    !rewrittenLoggerValue.endsWith('.ts')
+  ) {
+    return rewrittenLoggerValue;
+  }
+
+  return rewrittenLoggerValue.replace('.ts', '.js');
+};
+
 const rewriteExportPath = (
   key: string,
   value: string,
   exportCondition?: string,
 ): string => {
+  const rewrittenPublicLoggerPath = rewritePublicLoggerExportPath(
+    key,
+    value,
+    exportCondition,
+  );
+  if (rewrittenPublicLoggerPath) {
+    return rewrittenPublicLoggerPath;
+  }
+
   if (
     exportCondition === 'types' &&
     value.endsWith('.ts') &&
