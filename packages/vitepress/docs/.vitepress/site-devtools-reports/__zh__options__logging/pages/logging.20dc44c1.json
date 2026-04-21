@@ -1,0 +1,428 @@
+{
+  "cacheIdentity": {
+    "promptHash": "a6c997d062128f08efddb9ab526ba83b5efc2a0d812292ef8476329611272716",
+    "provider": "doubao",
+    "providerConfig": {
+      "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+      "maxTokens": 4096,
+      "model": "doubao-seed-2-0-pro-260215",
+      "providerId": "cn",
+      "thinking": true,
+      "temperature": 0.2
+    }
+  },
+  "cacheKey": "8d9ea085e141d88b388a1c62525bd74778db5f1a748fabfbbc177002312daa47",
+  "report": {
+    "detail": "Using https://ark.cn-beijing.volces.com/api/v3/chat/completions · provider Doubao CN",
+    "generatedAt": "2026-04-21T13:05:12.163Z",
+    "model": "doubao-seed-2-0-pro-260215",
+    "prompt": "## Task\nAnalyze the current docs-islands / VitePress page-build snapshot for this page.\nPrioritize build diagnosis over descriptive inventory. Focus first on dominant page cost drivers, SPA route-transition blocking paths, and the directives that materially change current-page behavior before spending time on secondary components.\nTreat `includeChunks` and `includeModules` as independent switches, and do not invent details that are not shown.\n\nAnalysis priorities:\n1. Identify the dominant deduped page-level cost drivers that are visible in the page bundle summary, top page resources, and top page modules.\n2. Identify the main SPA route-transition blocking path from the visible `spa:sync-render` side effects, including blocking CSS, embedded HTML, and render-order implications.\n3. Distinguish which directives materially affect this page now versus which directives are only present in the page inventory.\n4. Use component sections for local composition attribution and notable outliers, not for exhaustive repetition.\n5. Call out what cannot be proven from this snapshot and which additional artifact view would close the gap.\n\nMeta-rules:\n- Scope discipline: Always keep deduped page-level cost, per-component local composition, and `spa:sync-render` transition-side cost separate. Do not sum per-component totals to estimate page cost. A component with `Total: 0 B` or `Bundle Mode: No dedicated client component bundle emitted` can still contribute transition-side cost through `spa:sync-render` embedded HTML or blocking CSS. Page-level runtime or loader cost can appear in the page cost snapshot even when it does not appear in a component-local chunk list.\n- Evidence discipline: Separate observed facts from inferences. Use wording such as `visible in the snapshot`, `suggests`, or `cannot be confirmed from this snapshot` when appropriate. Keep inference confidence proportional to the evidence. Identify shared/runtime overhead only when the snapshot supports it; do not classify something as shared/runtime overhead from naming alone. For render-order implications, describe only ordering effects that are explicitly visible from the listed render order, patch sizes, and blocking CSS data.\n- Diagnosis discipline: Prioritize dominant drivers and blocking paths over exhaustive inventory. Do not restate the full snapshot component-by-component. Focus on the smallest set of components, chunks, modules, and directives that explains most of the page cost, transition blocking, or build interpretation.\n- Directive discipline: Explain only directive effects that materially affect this page now. Prioritize visible effects on deduped page cost, hydration timing, presence or absence of SSR HTML, `spa:sync-render` participation, blocking CSS, and route-transition stability. Do not fall back to generic framework explanations when the snapshot does not show a current-page consequence.\n- Optimization discipline: Order ideas by expected impact and confidence. Prefer a few high-signal opportunities over a long generic list. Tie every idea to visible evidence, name the component, directive, chunk, module, or `spa:sync-render` behavior it targets, and explain the expected tradeoff.\n\n## Output\nRespond in Markdown using these sections:\n- Summary\n- Dominant Page Cost Drivers\n- Rendering Strategy Breakdown\n- Component Composition Highlights\n- spa:sync-render Transition Impact\n- Optimization Opportunities\n- Evidence Gaps / Unknowns\n\nSection guidance:\n- Summary: Lead with the most important diagnosis. State explicitly whether page cost is concentrated in a few dominant resources/modules or spread across many smaller items, and whether SPA transition overhead is concentrated in a few `spa:sync-render` renders or broadly distributed.\n- Dominant Page Cost Drivers: Use the deduped page-level view first. Call out shared/runtime overhead versus component-specific payload when the snapshot supports that distinction.\n- Rendering Strategy Breakdown: Explain which directives materially affect current-page runtime or SPA transition behavior, and which directives are merely present.\n- Component Composition Highlights: Focus on the highest-impact or most diagnostic components. Keep lower-impact components brief instead of repeating every item evenly.\n- spa:sync-render Transition Impact: Report the exact visible fields when present: enabled component count, enabled render count, HTML patch target, total embedded HTML, blocking CSS files and total size, whether the CSS loading runtime is required, the biggest contributors to patch size, the components that add blocking CSS, and any render-order implications visible in the snapshot.\n- Optimization Opportunities: Order ideas by expected impact and confidence. Prefer a few high-signal opportunities over a long generic list. Tie every idea to visible evidence. For each idea, name the component, directive, chunk, module, or `spa:sync-render` behavior it targets, and explain the expected tradeoff.\n- Evidence Gaps / Unknowns: Categorize gaps as `Need chunk report`, `Need module report`, `Need page comparison`, or `Need directive config evidence`, and explain why that evidence is needed.\n\nKeep the analysis grounded in the visible snapshot. If evidence is missing, say exactly which additional page, chunk, module, comparison, or directive-config view would help.\n\n## Current Page Snapshot\n\nCurrent Page:\n- Panel: Page Build\n- Title: /zh/options/logging\n- Path: /zh/options/logging\n- Components: 1\n- Render Instances: 1\n- Used Directives: client:load\n- Chunk Resources: 4\n- Module Sources: 8\n- Composition Detail: component -> chunks -> modules\n\nGlossary:\n- Share: Rendered-byte share within the current visible list.\n- Source: Resolved source or source-asset size when the original file is available.\n- Delta: Rendered-size change relative to the resolved source size.\n\nCurrent Page Rendered React Components:\n1. LoggingPresetCatalog\n   source path: components/react/LoggingPresetCatalog.tsx\n   render directives: `client:load`\n   Total: 35.3 KB\n   JS: 23.0 KB\n   CSS: 12.3 KB\n   Asset: 0 B\n   Render Instances: 1\n   spa:sync-render Renders: 1\n   Build Chunks (2 shown):\n   1. LoggingPresetCatalog.BKXeqTK3.js\n      path: /docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js\n      type: JS\n      size: 23.0 KB\n      share: 65.2%\n      source modules: 7\n      Chunk Modules:\n         1. LoggingPresetCatalog.tsx\n            module id: /components/react/LoggingPresetCatalog.tsx\n            rendered size: 27.0 KB\n            share: 77.1%\n            source: Source 30.2 KB\n            delta: Delta -10.6%\n         2. presets.js\n            module id: /dist/shared/logger/presets.js\n            rendered size: 7.0 KB\n            share: 19.8%\n            source: Source 7.1 KB\n            delta: Delta -1.7%\n         3. react-jsx-runtime.production.min.js\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js\n            rendered size: 914 B\n            share: 2.5%\n            source: Source 859 B\n            delta: Delta +6.4%\n         4. jsx-runtime.js\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js\n            rendered size: 103 B\n            share: 0.3%\n            source: Source 214 B\n            delta: Delta -51.9%\n         5. react-jsx-runtime.production.min.js?commonjs-exports\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports\n            rendered size: 40 B\n         6. jsx-runtime.js?commonjs-module\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module\n            rendered size: 31 B\n         7. react.cjs\n            module id: react.cjs\n            rendered size: 26 B\n   2. LoggingPresetCatalog.BYZKw_ZV.css\n      path: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css\n      type: CSS\n      size: 12.3 KB\n      share: 34.8%\n      source modules: 1\n      Chunk Modules:\n         1. logging-preset-catalog.css\n            module id: /components/react/css/logging-preset-catalog.css\n            rendered size: 12.3 KB\n            share: 100.0%\n            source: Source 14.5 KB\n            delta: Delta -15.2%\n\nPage Build Cost Snapshot:\nBundle Summary:\n- Total: 174.4 KB\n- JS: 162.1 KB\n- CSS: 12.3 KB\n\nTop Page Resources (4 shown):\n1. LoggingPresetCatalog.BKXeqTK3.js\n   path: /docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js\n   type: JS\n   size: 23.0 KB\n   share: 13.2%\n   source modules: 7\n2. LoggingPresetCatalog.BYZKw_ZV.css\n   path: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css\n   type: CSS\n   size: 12.3 KB\n   share: 7.0%\n   source modules: 1\n3. zh_options_logging.md.BtNlvcVH.js\n   path: /docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js\n   type: JS\n   size: 105.6 KB\n   share: 60.6%\n   source modules: 0\n4. unified-loader.CKvk6nCI.js\n   path: /docs-islands/vitepress/assets/unified-loader.CKvk6nCI.js\n   type: JS\n   size: 33.5 KB\n   share: 19.2%\n   source modules: 0\n\nTop Page Modules (8 shown):\n1. LoggingPresetCatalog.tsx\n   module id: /components/react/LoggingPresetCatalog.tsx\n   rendered size: 27.0 KB\n   share: 57.1%\n   source: Source 30.2 KB\n   delta: Delta -10.6%\n2. logging-preset-catalog.css\n   module id: /components/react/css/logging-preset-catalog.css\n   rendered size: 12.3 KB\n   share: 25.9%\n   source: Source 14.5 KB\n   delta: Delta -15.2%\n3. presets.js\n   module id: /dist/shared/logger/presets.js\n   rendered size: 7.0 KB\n   share: 14.7%\n   source: Source 7.1 KB\n   delta: Delta -1.7%\n4. react-jsx-runtime.production.min.js\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js\n   rendered size: 914 B\n   share: 1.9%\n   source: Source 859 B\n   delta: Delta +6.4%\n5. jsx-runtime.js\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js\n   rendered size: 103 B\n   share: 0.2%\n   source: Source 214 B\n   delta: Delta -51.9%\n6. react-jsx-runtime.production.min.js?commonjs-exports\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports\n   rendered size: 40 B\n7. jsx-runtime.js?commonjs-module\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module\n   rendered size: 31 B\n8. react.cjs\n   module id: react.cjs\n   rendered size: 26 B\n\nCurrent Page Rendering Strategy Context:\n1. `client:load`\n   description: Build-time pre-render plus eager client hydration after the page runtime is ready.\n   impacts:\n   - Useful for components that should become interactive immediately.\n   - Adds early JavaScript execution and hydration cost during page load or SPA navigation.\n   - `spa:sync-render` is opt-in and can reduce flicker during SPA route transitions at the cost of synchronous work.\n\nspa:sync-render Artifact Context:\n- `client:only` does not support `spa:sync-render`.\n- `client:load` and `client:visible` only use `spa:sync-render` when explicitly enabled.\n- `ssr:only` defaults to `spa:sync-render` unless it is explicitly disabled.\n- When enabled, pre-rendered HTML is patched into the page client chunk used for SPA route transitions.\n- Blocking CSS required by those renders can delay the page content until the CSS is loaded.\n- Enabled Components: 1\n- Enabled Renders: 1\n- HTML Patch Target: /docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js\n- Embedded HTML: 57.9 KB\n- Blocking CSS: 1 file(s) · 12.3 KB\n- Blocking CSS Files: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)\n- CSS Loading Runtime: Required\n- Loader Script: /docs-islands/vitepress/assets/unified-loader.CKvk6nCI.js\n\nspa:sync-render Components (1 shown):\n1. LoggingPresetCatalog\n   render ids: 8987f003\n   render directives: `client:load`\n   HTML Patch Target: /docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js\n   Embedded HTML Patch: 57.9 KB\n   Blocking CSS: 1 file(s) · 12.3 KB\n   Blocking CSS Files: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)\n   CSS Loading Runtime: Required\n   spa:sync-render Side Effect: injects 57.9 KB of pre-rendered HTML into /docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB).\n\nRender Order and Side Effects:\n1. LoggingPresetCatalog\n   render id: 8987f003\n   source path: components/react/LoggingPresetCatalog.tsx\n   render directive: `client:load`\n   spa:sync-render: Enabled\n   HTML Patch Target: /docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js\n   Embedded HTML Patch: 57.9 KB\n   Blocking CSS: 1 file(s) · 12.3 KB\n   Blocking CSS Files: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)\n   CSS Loading Runtime: Required\n   spa:sync-render Side Effect: injects 57.9 KB of pre-rendered HTML into /docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB).",
+    "provider": "doubao",
+    "providerId": "cn",
+    "providerLabel": "Doubao CN",
+    "reportId": "doubao-pro",
+    "reportLabel": "Doubao Pro",
+    "result": "# Analysis of /zh/options/logging Page Build Snapshot\n---\n## Summary\nPage cost is highly concentrated in 4 dominant resources that make up 100% of the 174.4KB total bundle weight. SPA route transition overhead is entirely isolated to the single `LoggingPresetCatalog` component, which is the only client component on the page and has `spa:sync-render` explicitly enabled.\n---\n## Dominant Page Cost Drivers\nAll observed cost drivers are deduped at the page level:\n1. **Route chunk (60.6% of total, 105.6KB)**: `zh_options_logging.md.BtNlvcVH.js` is the single largest resource, 57.9KB (54.8% of its size) is embedded pre-rendered HTML for `spa:sync-render` functionality.\n2. **Unified CSS loader (19.2% of total, 33.5KB)**: Required runtime to load blocking CSS for `spa:sync-render` transitions.\n3. **`LoggingPresetCatalog` component assets (20.2% of total, 35.3KB)**: 23KB JS chunk + 12.3KB CSS chunk. The JS chunk includes 7KB of shared logger preset data, with React JSX runtime contributing <1KB of negligible overhead.\n---\n## Rendering Strategy Breakdown\nOnly the `client:load` directive is used on this page, with material active effects:\n1. Eager hydration of `LoggingPresetCatalog` runs immediately after page runtime initialization, adding early JS execution cost on initial load and SPA transitions.\n2. Explicit opt-in to `spa:sync-render` for this component enables the transition-blocking embedded HTML and CSS loading behavior documented below.\nNo other directives are present in the page inventory.\n---\n## Component Composition Highlights\nOnly one client component is rendered on the page:\n### `LoggingPresetCatalog`\n- Makes up 100% of client component cost, with 19.8% of its JS chunk size coming from shared `presets.js` logger data rather than component logic.\n- Has fully self-contained CSS with no shared CSS dependencies observed in the snapshot.\n- React runtime overhead is minimal (~1KB total) with no sign of duplicated framework code in its chunk.\n---\n## spa:sync-render Transition Impact\nExact observed fields from the snapshot:\n- Enabled component count: 1, Enabled render count: 1\n- HTML patch target: `/docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js`\n- Total embedded HTML: 57.9KB\n- Blocking CSS: 1 file, 12.3KB (`LoggingPresetCatalog.BYZKw_ZV.css`)\n- CSS loading runtime: Required, uses the 33.5KB `unified-loader.CKvk6nCI.js`\n- 100% of patch size and blocking CSS cost comes from `LoggingPresetCatalog`\n- Render order implication: During SPA transitions, page content will not render until both the route chunk (with embedded HTML) is downloaded and the blocking CSS file is loaded.\n---\n## Optimization Opportunities\nOrdered by expected impact and confidence:\n1. **Disable `spa:sync-render` for `LoggingPresetCatalog` (if transition flicker is acceptable)**\n   - Tied to evidence: Eliminates 57.9KB of embedded HTML from the route chunk, removes the 12.3KB blocking CSS requirement, and eliminates the need for the 33.5KB unified CSS loader, cutting total page weight by up to ~103.7KB (59% of total current size).\n   - Tradeoff: May cause brief visual flicker during SPA transitions when the component hydrates, with no impact to initial SSR render or final functionality.\n2. **Split shared `presets.js` into a cross-page cached chunk**\n   - Tied to evidence: The 7KB `presets.js` makes up 19.8% of the component JS chunk size.\n   - Tradeoff: Adds 1 extra network request on initial load if the shared chunk is not already cached, but reduces redundant payload across all pages that use the same logger preset data.\n3. **Switch `client:load` to `client:visible` if the component is below the fold**\n   - Tied to evidence: `client:load` runs eager hydration immediately, adding unnecessary execution cost if the component is not in the initial viewport.\n   - Tradeoff: Delays hydration until the component enters the viewport, reducing initial load/transition JS cost but making the component non-interactive until it is scrolled into view.\n---\n## Evidence Gaps / Unknowns\n| Gap Category | Gap Description | Rationale |\n|--------------|-----------------|-----------|\n| Need chunk report | Breakdown of `zh_options_logging.md.BtNlvcVH.js` content outside the 57.9KB embedded HTML | We can only account for 54.8% of the route chunk size, the remaining 47.7KB of content is unaccounted for. |\n| Need directive config evidence | Explicit `spa:sync-render` enable flag for `LoggingPresetCatalog` | The snapshot states `client:load` only uses `spa:sync-render` when explicitly enabled, but we cannot confirm if the current enablement is intentional or accidental. |\n| Need page comparison | Usage of `presets.js` across other site pages | We cannot confirm if splitting `presets.js` to a shared chunk provides net site-wide benefit without knowing if it is reused elsewhere. |\n| Need chunk report | `unified-loader.CKvk6nCI.js` module breakdown | We only know it is required for `spa:sync-render` CSS loading, but cannot confirm if it contains unused functionality for this page, or if it is shared across other routes. |\n| Need module report | React runtime bundling across all site client components | We see React JSX runtime bundled in the `LoggingPresetCatalog` chunk, but cannot confirm if it is duplicated across other client components, which would justify deduping to a shared framework chunk. |",
+    "target": {
+      "artifactKind": "page-build",
+      "artifactLabel": "/zh/options/logging",
+      "bytes": 178535,
+      "content": "Build overview for /zh/options/logging",
+      "context": {
+        "artifactHeaderItems": [
+          {
+            "label": "Path",
+            "value": "/zh/options/logging"
+          },
+          {
+            "label": "Components",
+            "value": "1"
+          },
+          {
+            "label": "Render Instances",
+            "value": "1"
+          },
+          {
+            "label": "Used Directives",
+            "value": "client:load"
+          },
+          {
+            "label": "Chunk Resources",
+            "value": "4"
+          },
+          {
+            "label": "Module Sources",
+            "value": "8"
+          },
+          {
+            "label": "Composition Detail",
+            "value": "component -> chunks -> modules"
+          }
+        ],
+        "bundleSummaryItems": [
+          {
+            "label": "Total",
+            "value": "174.4 KB"
+          },
+          {
+            "label": "JS",
+            "value": "162.1 KB"
+          },
+          {
+            "label": "CSS",
+            "value": "12.3 KB"
+          }
+        ],
+        "chunkResourceItems": [
+          {
+            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+            "label": "LoggingPresetCatalog.BKXeqTK3.js",
+            "moduleCount": 7,
+            "share": "13.2%",
+            "size": "23.0 KB",
+            "type": "js"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css",
+            "label": "LoggingPresetCatalog.BYZKw_ZV.css",
+            "moduleCount": 1,
+            "share": "7.0%",
+            "size": "12.3 KB",
+            "type": "css"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js",
+            "label": "zh_options_logging.md.BtNlvcVH.js",
+            "moduleCount": 0,
+            "share": "60.6%",
+            "size": "105.6 KB",
+            "type": "js"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/unified-loader.CKvk6nCI.js",
+            "label": "unified-loader.CKvk6nCI.js",
+            "moduleCount": 0,
+            "share": "19.2%",
+            "size": "33.5 KB",
+            "type": "js"
+          }
+        ],
+        "componentName": "LoggingPresetCatalog",
+        "moduleItems": [
+          {
+            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+            "id": "/components/react/LoggingPresetCatalog.tsx",
+            "label": "LoggingPresetCatalog.tsx",
+            "renderedSize": "27.0 KB",
+            "share": "57.1%",
+            "sizeDelta": "Delta -10.6%",
+            "sourceInfo": "Source 30.2 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css",
+            "id": "/components/react/css/logging-preset-catalog.css",
+            "label": "logging-preset-catalog.css",
+            "renderedSize": "12.3 KB",
+            "share": "25.9%",
+            "sizeDelta": "Delta -15.2%",
+            "sourceInfo": "Source 14.5 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+            "id": "/dist/shared/logger/presets.js",
+            "label": "presets.js",
+            "renderedSize": "7.0 KB",
+            "share": "14.7%",
+            "sizeDelta": "Delta -1.7%",
+            "sourceInfo": "Source 7.1 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+            "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js",
+            "label": "react-jsx-runtime.production.min.js",
+            "renderedSize": "914 B",
+            "share": "1.9%",
+            "sizeDelta": "Delta +6.4%",
+            "sourceInfo": "Source 859 B"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+            "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js",
+            "label": "jsx-runtime.js",
+            "renderedSize": "103 B",
+            "share": "0.2%",
+            "sizeDelta": "Delta -51.9%",
+            "sourceInfo": "Source 214 B"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+            "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports",
+            "isVirtual": true,
+            "label": "react-jsx-runtime.production.min.js?commonjs-exports",
+            "renderedSize": "40 B",
+            "share": "0.1%",
+            "sourceInfo": "Source n/a",
+            "statusLabel": "generated virtual module"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+            "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module",
+            "isVirtual": true,
+            "label": "jsx-runtime.js?commonjs-module",
+            "renderedSize": "31 B",
+            "share": "0.1%",
+            "sourceInfo": "Source n/a",
+            "statusLabel": "generated virtual module"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+            "id": "\u0000react.cjs",
+            "isVirtual": true,
+            "label": "\u0000react.cjs",
+            "renderedSize": "26 B",
+            "share": "0.1%",
+            "sourceInfo": "Source n/a",
+            "statusLabel": "generated virtual module"
+          }
+        ],
+        "pageComponentItems": [
+          {
+            "sourcePath": "components/react/LoggingPresetCatalog.tsx",
+            "chunkItems": [
+              {
+                "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+                "label": "LoggingPresetCatalog.BKXeqTK3.js",
+                "moduleCount": 7,
+                "share": "65.2%",
+                "size": "23.0 KB",
+                "type": "js",
+                "modules": [
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+                    "id": "/components/react/LoggingPresetCatalog.tsx",
+                    "label": "LoggingPresetCatalog.tsx",
+                    "renderedSize": "27.0 KB",
+                    "share": "77.1%",
+                    "sizeDelta": "Delta -10.6%",
+                    "sourceInfo": "Source 30.2 KB"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+                    "id": "/dist/shared/logger/presets.js",
+                    "label": "presets.js",
+                    "renderedSize": "7.0 KB",
+                    "share": "19.8%",
+                    "sizeDelta": "Delta -1.7%",
+                    "sourceInfo": "Source 7.1 KB"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+                    "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js",
+                    "label": "react-jsx-runtime.production.min.js",
+                    "renderedSize": "914 B",
+                    "share": "2.5%",
+                    "sizeDelta": "Delta +6.4%",
+                    "sourceInfo": "Source 859 B"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+                    "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js",
+                    "label": "jsx-runtime.js",
+                    "renderedSize": "103 B",
+                    "share": "0.3%",
+                    "sizeDelta": "Delta -51.9%",
+                    "sourceInfo": "Source 214 B"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+                    "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports",
+                    "isVirtual": true,
+                    "label": "react-jsx-runtime.production.min.js?commonjs-exports",
+                    "renderedSize": "40 B",
+                    "share": "0.1%",
+                    "sourceInfo": "Source n/a",
+                    "statusLabel": "generated virtual module"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+                    "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module",
+                    "isVirtual": true,
+                    "label": "jsx-runtime.js?commonjs-module",
+                    "renderedSize": "31 B",
+                    "share": "0.1%",
+                    "sourceInfo": "Source n/a",
+                    "statusLabel": "generated virtual module"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+                    "id": "\u0000react.cjs",
+                    "isVirtual": true,
+                    "label": "\u0000react.cjs",
+                    "renderedSize": "26 B",
+                    "share": "0.1%",
+                    "sourceInfo": "Source n/a",
+                    "statusLabel": "generated virtual module"
+                  }
+                ]
+              },
+              {
+                "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css",
+                "label": "LoggingPresetCatalog.BYZKw_ZV.css",
+                "moduleCount": 1,
+                "share": "34.8%",
+                "size": "12.3 KB",
+                "type": "css",
+                "modules": [
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css",
+                    "id": "/components/react/css/logging-preset-catalog.css",
+                    "label": "logging-preset-catalog.css",
+                    "renderedSize": "12.3 KB",
+                    "share": "100.0%",
+                    "sizeDelta": "Delta -15.2%",
+                    "sourceInfo": "Source 14.5 KB"
+                  }
+                ]
+              }
+            ],
+            "componentName": "LoggingPresetCatalog",
+            "renderDirectives": ["client:load"],
+            "summaryItems": [
+              {
+                "label": "Total",
+                "value": "35.3 KB"
+              },
+              {
+                "label": "JS",
+                "value": "23.0 KB"
+              },
+              {
+                "label": "CSS",
+                "value": "12.3 KB"
+              },
+              {
+                "label": "Asset",
+                "value": "0 B"
+              },
+              {
+                "label": "Render Instances",
+                "value": "1"
+              },
+              {
+                "label": "spa:sync-render Renders",
+                "value": "1"
+              }
+            ]
+          }
+        ],
+        "pageRenderOrderItems": [
+          {
+            "componentName": "LoggingPresetCatalog",
+            "renderDirective": "client:load",
+            "renderId": "8987f003",
+            "sequence": 1,
+            "sourcePath": "components/react/LoggingPresetCatalog.tsx",
+            "summaryItems": [
+              {
+                "label": "HTML Patch Target",
+                "value": "/docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js"
+              },
+              {
+                "label": "Embedded HTML Patch",
+                "value": "57.9 KB"
+              },
+              {
+                "label": "Blocking CSS",
+                "value": "1 file(s) · 12.3 KB"
+              },
+              {
+                "label": "Blocking CSS Files",
+                "value": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)"
+              },
+              {
+                "label": "CSS Loading Runtime",
+                "value": "Required"
+              },
+              {
+                "label": "spa:sync-render Side Effect",
+                "value": "injects 57.9 KB of pre-rendered HTML into /docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)."
+              }
+            ],
+            "useSpaSyncRender": true
+          }
+        ],
+        "pageSpaSyncComponentItems": [
+          {
+            "componentName": "LoggingPresetCatalog",
+            "renderDirectives": ["client:load"],
+            "renderIds": ["8987f003"],
+            "summaryItems": [
+              {
+                "label": "HTML Patch Target",
+                "value": "/docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js"
+              },
+              {
+                "label": "Embedded HTML Patch",
+                "value": "57.9 KB"
+              },
+              {
+                "label": "Blocking CSS",
+                "value": "1 file(s) · 12.3 KB"
+              },
+              {
+                "label": "Blocking CSS Files",
+                "value": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)"
+              },
+              {
+                "label": "CSS Loading Runtime",
+                "value": "Required"
+              },
+              {
+                "label": "spa:sync-render Side Effect",
+                "value": "injects 57.9 KB of pre-rendered HTML into /docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)."
+              }
+            ]
+          }
+        ],
+        "pageSpaSyncSummaryItems": [
+          {
+            "label": "Enabled Components",
+            "value": "1"
+          },
+          {
+            "label": "Enabled Renders",
+            "value": "1"
+          },
+          {
+            "label": "HTML Patch Target",
+            "value": "/docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js"
+          },
+          {
+            "label": "Embedded HTML",
+            "value": "57.9 KB"
+          },
+          {
+            "label": "Blocking CSS",
+            "value": "1 file(s) · 12.3 KB"
+          },
+          {
+            "label": "Blocking CSS Files",
+            "value": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)"
+          },
+          {
+            "label": "CSS Loading Runtime",
+            "value": "Required"
+          },
+          {
+            "label": "Loader Script",
+            "value": "/docs-islands/vitepress/assets/unified-loader.CKvk6nCI.js"
+          }
+        ],
+        "pageId": "/zh/options/logging",
+        "renderId": null
+      },
+      "displayPath": "/zh/options/logging",
+      "language": "text"
+    }
+  }
+}

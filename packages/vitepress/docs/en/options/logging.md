@@ -1,35 +1,38 @@
 # `logging`
 
-`logging` controls the package-owned logs emitted by `createDocsIslands()`. It does not change rendering; it only decides which `@docs-islands/*` messages stay visible in Node and in the browser.
+<script lang="react">
+  import LoggingPresetCatalog from '../../components/react/LoggingPresetCatalog';
+</script>
+
+`logging` controls the package-owned logs emitted by `createDocsIslands()` and the public logger helpers exposed by this package. It does not change rendering; it only decides which `@docs-islands/*` messages stay visible in Node and in the browser.
 
 ## When to Use It
 
-Use `logging` when the integration works but the console is too noisy, or when you need focused diagnostics for one package, runtime group, or message pattern. During normal setup you may only keep `warn` and `error`; during investigation you can enable `debug` to see which rule allowed a visible log and how long the logger has been active.
+Use `logging` when the integration works but the console is too noisy, or when you need focused diagnostics for one docs-islands subsystem. During normal setup you may only keep `warn` and `error`; during investigation you can enable `debug` to see which rule allowed a visible log and how long the logger has been active.
 
 ## Minimal Example
 
 ```ts [.vitepress/config.ts]
 import { createDocsIslands } from '@docs-islands/vitepress';
 import { react } from '@docs-islands/vitepress/adapters/react';
+import { hmr } from '@docs-islands/vitepress/logger/presets';
 
 const islands = createDocsIslands({
   adapters: [react()],
   logging: {
     levels: ['warn', 'error'],
-    rules: [
-      {
-        label: 'runtime-react',
-        main: '@docs-islands/vitepress',
-        group: 'runtime.react.*',
-      },
-    ],
+    plugins: { hmr },
+    rules: {
+      'hmr/markdownUpdate': 'off',
+      'hmr/viteAfterUpdate': {},
+    },
   },
 });
 
 islands.apply(vitepressConfig);
 ```
 
-This keeps only `warn` and `error` output from `@docs-islands/vitepress` logs whose group matches `runtime.react.*`. Other groups do not fall back to the root levels once `rules` are configured.
+This keeps only `warn` and `error` output from the selected docs-islands HMR stream. `hmr/viteAfterUpdate` uses the preset default matcher, while `hmr/markdownUpdate` is disabled explicitly. `'off'` is shorthand for `{ enabled: false }`.
 
 ## Mental Model
 
@@ -38,7 +41,7 @@ When `logging.rules` is not configured, the logger uses the default visibility s
 - `debug: false`: `error`, `warn`, `info`, and `success` are visible.
 - `debug: true`: `error`, `warn`, `info`, `success`, and `debug` are visible.
 
-When `logging.rules` is configured, the logger switches to rule mode:
+When `logging.rules` is configured, the logger switches to rule mode after any plugin rules are expanded:
 
 1. Rules with `enabled: false` are filtered out first. They do not match scope, do not allow levels, and do not appear in debug labels.
 2. Every active rule is checked against the log's `main`, `group`, and `message`. Declared fields use AND semantics.
@@ -50,13 +53,98 @@ Multiple rules can contribute to the same log. Their allowed levels form a union
 
 ## Root Options
 
-| Option   | Meaning                                                                                                                                                      |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `debug`  | Enables diagnostic output. Visible `error`, `warn`, `info`, and `success` logs include matching labels and a relative elapsed-time suffix such as `12.34ms`. |
-| `levels` | Root visibility set. In rule mode, it is the default effective levels for rules that do not define `rule.levels`; it is not a maximum that narrows rules.    |
-| `rules`  | Focused rule array. When present and non-empty after normalization, logging is decided only by active matching rules.                                        |
+| Option    | Meaning                                                                                                                                                      |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `debug`   | Enables diagnostic output. Visible `error`, `warn`, `info`, and `success` logs include matching labels and a relative elapsed-time suffix such as `12.34ms`. |
+| `levels`  | Root visibility set. In rule mode, it is the default effective levels for rules that do not define `rule.levels`; it is not a maximum that narrows rules.    |
+| `plugins` | Optional preset-plugin registry. The object key becomes the namespace used by `logging.rules["<plugin>/<rule>"]`.                                            |
+| `rules`   | Either a focused rule array or a plugin-rule object. When present and non-empty after normalization, logging is decided only by active matching rules.       |
 
-## Rule Fields
+## Plugin Rules
+
+`logging.plugins` is the recommended entrypoint when you only want to filter docs-islands internal logs.
+
+```ts
+import { hmr, runtime } from '@docs-islands/vitepress/logger/presets';
+
+const logging = {
+  debug: true,
+  levels: ['warn'],
+  plugins: { hmr, runtime },
+  rules: {
+    'hmr/viteAfterUpdate': {},
+    'runtime/reactDevRender': {
+      levels: ['warn', 'error'],
+    },
+    'runtime/renderValidation': 'off',
+  },
+};
+```
+
+- `plugins` registers logging preset plugins under a namespace key such as `hmr`.
+- `rules["<plugin>/<rule>"] = {}` enables the preset rule with its default matcher.
+- `rules["<plugin>/<rule>"] = 'off'` disables that preset rule and is equivalent to `{ enabled: false }`.
+- The override object can only override `enabled`, `message`, or `levels`. `group` and `main` always inherit from the preset rule.
+
+### Built-in Presets and Coverage
+
+The presets exported by `@docs-islands/vitepress/logger/presets` are predefined `main/group` matchers for built-in docs-islands log streams. The catalog below lists every preset, every rule, and the default range each one constrains.
+
+<LoggingPresetCatalog
+  client:load
+  spa:sync-render
+  locale="en"
+/>
+
+## Public Logger Usage
+
+`@docs-islands/vitepress/logger` exposes `createLogger` and `LightGeneralLogger`. Every logger instance created through `createLogger(...)` still reads the same global logger config, so userland logs remain constrained by the resolved `logging` rules.
+
+```ts [.vitepress/config.ts]
+import { createDocsIslands } from '@docs-islands/vitepress';
+import { createLogger } from '@docs-islands/vitepress/logger';
+
+const logger = createLogger({
+  main: '@acme/custom-docs',
+});
+
+const islands = createDocsIslands({
+  logging: {
+    debug: true,
+    rules: [
+      {
+        label: 'userland-metrics',
+        main: '@acme/custom-docs',
+        group: 'userland.metrics',
+        levels: ['info'],
+      },
+    ],
+  },
+});
+
+islands.apply(vitepressConfig);
+
+logger.getLoggerByGroup('userland.metrics').info('visible userland info');
+logger.getLoggerByGroup('userland.hidden').info('suppressed userland info');
+```
+
+With this setup, `userland.metrics` stays visible, while `userland.hidden` is suppressed. `LightGeneralLogger` follows the same visibility and rule-matching behavior. If you later change `createLogger({ main: ... })`, update your rules to match that `main` or remove the `main` filter.
+
+::: warning Reusing Built-in `main/group`
+
+If your user-authored logs intentionally or accidentally reuse the same `main` / `group` values as built-in docs-islands logs, they may also match the same preset rules or direct `logging.rules` entries:
+
+- Your user logs may become visible or suppressed together with built-in logs.
+- In `debug` mode, they may show the same rule labels as built-in logs, which makes diagnosis noisier.
+- Later tuning of built-in preset coverage can unintentionally affect your user logs too.
+
+Unless you explicitly want both streams to share the same filtering space, prefer a dedicated namespace such as `@acme/custom-docs` with `userland.*`.
+
+:::
+
+## Direct Rule Fields
+
+Array-form `logging.rules` is still supported when you need raw low-level matching outside preset plugins.
 
 | Field     | Meaning                                                                                                                                            |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -68,6 +156,8 @@ Multiple rules can contribute to the same log. Their allowed levels form a union
 | `levels`  | Optional effective levels for this rule. It replaces the root levels for this rule and participates in the union with other matching rules.        |
 
 ## Matching Examples
+
+Direct rule arrays remain useful when you want broad wildcards or message-text filtering that is not tied to one preset label.
 
 ```ts
 const islands = createDocsIslands({
