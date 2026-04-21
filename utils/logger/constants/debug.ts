@@ -1,0 +1,4 @@
+export const DEBUG_MESSAGE_MAX_LENGTH = 160;
+export const DEBUG_SUMMARY_MAX_ITEMS = 6;
+export const DEBUG_SUMMARY_MAX_KEYS = 8;
+export const DEBUG_SUMMARY_MAX_DEPTH = 2;

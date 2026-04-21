@@ -13,10 +13,10 @@
  *    logger/runtime dependencies that rely on the package build output.
  *    Use plain `console.*` for any log output within `env.ts`.
  *
- * 3. **All other modules must use `logger.ts` or package-local wrappers for
+ * 3. **All other modules must use `logger.ts` or scoped helpers for
  *    logging** — Apart from `env.ts`, modules in this package should use
- *    `createLogger({ main })` or the package-local wrapper in `./log` instead
- *    of raw `console.*`, keeping logging behaviour consistent and centrally
+ *    `createLogger({ main }).getLoggerByGroup(group)` instead of raw
+ *    `console.*`, keeping logging behaviour consistent and centrally
  *    controlled.
  *
  * 4. **`console` and `process.env` APIs are restricted to this package** — The
@@ -40,8 +40,8 @@ export {
 export { scanFiles } from './fs-utils';
 export { importWithError, pkgExists } from './general';
 export {
+  ScopedLogger,
   createLogger,
-  emitRuntimeLog,
   formatDebugMessage,
   formatErrorMessage,
   lightGeneralLogger,
@@ -53,10 +53,11 @@ export {
   type CreateLoggerOptions,
   type DebugMessageOptions,
   type LogKind,
-  type LogLevel,
   type LoggerConfig,
   type LoggerRule,
+  type LoggerType,
   type LoggerVisibilityLevel,
+  type ScopedLoggerType,
 } from './logger';
 export {
   findMonorepoRoot,

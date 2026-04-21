@@ -1,4 +1,7 @@
-import { createLogger } from '@docs-islands/utils/logger';
+import {
+  createElapsedLogOptions,
+  createLogger,
+} from '@docs-islands/utils/logger';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -158,9 +161,11 @@ ${dependencyLicenseTexts}`;
 
       const existingLicenseText = fs.readFileSync(licenseFilePath, 'utf8');
       if (existingLicenseText !== licenseText) {
+        const updateStartedAt = Date.now();
         fs.writeFileSync(licenseFilePath, licenseText);
         LicenseLogger.warn(
           'LICENSE.md updated. You should commit the updated file.',
+          createElapsedLogOptions(updateStartedAt, Date.now()),
         );
       }
     },
