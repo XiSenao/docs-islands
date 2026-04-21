@@ -4,24 +4,24 @@ import type {
   PageMetafileManifestEntry,
 } from '#dep-types/page';
 import type { SiteDevToolsAiBuildReportsPageContext } from '#dep-types/utils';
-import { PAGE_METAFILE_META_NAMES } from '#shared/constants';
 import { getPagePathByPathname } from '#shared/path';
+import { PAGE_METAFILE_META_NAMES } from '@docs-islands/core/shared/constants/page-metafile';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { join, relative } from 'pathe';
 import { normalizePath } from 'vite';
-import type { RenderingStaticPageResolver } from '../core/module-resolution';
 import {
   getPageMetafileRouteStem,
   PAGE_METAFILE_ASSET_DIR,
   PAGE_METAFILE_SCHEMA_VERSION,
-} from '../page-metafile-shared';
+} from '../constants/framework-build/page-metafile';
+import type { RenderingStaticPageResolver } from '../core/module-resolution';
 
 export {
   getPageMetafileRouteStem,
   PAGE_METAFILE_ASSET_DIR,
   PAGE_METAFILE_SCHEMA_VERSION,
-} from '../page-metafile-shared';
+} from '../constants/framework-build/page-metafile';
 
 export interface PageMetafileAsset {
   content: string;

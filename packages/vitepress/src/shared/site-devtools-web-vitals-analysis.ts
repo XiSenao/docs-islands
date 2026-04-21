@@ -1,4 +1,4 @@
-import type { SiteDevToolsRenderMetric } from './devtools';
+import type { SiteDevToolsRenderMetric } from './internal/devtools';
 
 export type SiteDevToolsWebVitalRating = 'good' | 'needs-improvement' | 'poor';
 

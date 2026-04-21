@@ -1,12 +1,11 @@
 import type { PageBuildMetrics } from '#dep-types/page';
+import { VITEPRESS_RUNTIME_LOG_GROUPS } from '#shared/constants/log-groups/runtime';
+import { RenderController } from '@docs-islands/core/node/render-controller';
 import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
-} from '#shared/constants';
-import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
-import { LightGeneralLogger } from '#shared/logger';
-import { RenderController } from '@docs-islands/core/node/render-controller';
-import { REACT_FRAMEWORK } from './framework';
+} from '@docs-islands/core/shared/constants/render-strategy';
+import { REACT_FRAMEWORK } from '../../constants/adapters/react/framework';
 
 export interface ReactRenderControllerOptions {
   enableSiteDevToolsRuntime?: boolean;
@@ -61,11 +60,31 @@ const __site_debug_metric__ = () => {};
     return `
 import { createRoot as __react_client_render__, hydrateRoot as __react_hydrate__ } from 'react-dom/client';
 import { startTransition as __start_transition__ } from 'react';
-import getLoggerInstance, { emitRuntimeLog as __docs_islands_runtime_log__, formatDebugMessage as __docs_islands_format_debug__ } from '@docs-islands/vitepress/internal/logger';
+import { createLogger, formatDebugMessage as __docs_islands_format_debug__ } from '@docs-islands/vitepress/logger';
 
 ${this.getSiteDevToolsRuntimePrelude()}
 
-const Logger = getLoggerInstance().getLoggerByGroup('${VITEPRESS_LOG_GROUPS.runtimeReactDevRender}');
+const Logger = createLogger({
+  main: '@docs-islands/vitepress'
+}).getLoggerByGroup('${VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender}');
+const __get_dev_render_duration_ms__ = (start, end) => {
+  return Number(Math.max(0, end - start).toFixed(2));
+};
+const __log_dev_render_debug__ = (payload) => {
+  Logger.debug(__docs_islands_format_debug__(payload));
+};
+const __log_dev_render_info__ = (message, elapsedTimeMs) => {
+  Logger.info(message, { elapsedTimeMs });
+};
+const __log_dev_render_success__ = (message, elapsedTimeMs) => {
+  Logger.success(message, { elapsedTimeMs });
+};
+const __log_dev_render_warning__ = (message, elapsedTimeMs) => {
+  Logger.warn(message, { elapsedTimeMs });
+};
+const __log_dev_render_error__ = (message, elapsedTimeMs) => {
+  Logger.error(message, { elapsedTimeMs });
+};
 
 ${code}
 
@@ -73,9 +92,11 @@ const __MAX_RENDER_ATTEMPTS__ = 10;
 const __RENDER_RETRY_DELAY_MS__ = 120;
 const __PENDING_HYDRATION_COMPONENT_MAP__ = new Map();
 const __RENDERED_ELEMENTS__ = new WeakSet();
+const __MISSING_COMPONENT_STARTED_AT__ = new WeakMap();
 const __MISSING_COMPONENT_LOGGED_ELEMENTS__ = new WeakSet();
 let __renderRetryCount__ = 0;
 let __renderRetryTimer__ = null;
+let __renderRetryWarningLogged__ = false;
 
 function __get_page_id__() {
   let pathname = window.location.pathname || '/';
@@ -131,7 +152,8 @@ const clientVisibleObserver = new IntersectionObserver((entries) => {
             __react_hydrate__(entry.target, <Component {...props} />);
           }
           const renderEnd = __site_debug_now__();
-          Logger.debug(__docs_islands_format_debug__({
+          const renderDurationMs = __get_dev_render_duration_ms__(renderStart, renderEnd);
+          __log_dev_render_debug__({
             context: 'react dev runtime lazy render',
             decision: renderMode === 'render'
               ? 'complete client-side render for visible component'
@@ -141,10 +163,11 @@ const clientVisibleObserver = new IntersectionObserver((entries) => {
               renderId,
               renderMode
             },
-            timingMs: Number((renderEnd - renderStart).toFixed(2))
-          }));
+            timingMs: renderDurationMs
+          });
+          __log_dev_render_success__(\`Component \${renderComponentName} client:visible render completed (\${renderMode})\`, renderDurationMs);
           __site_debug_log__('react-dev-runtime', 'development lazy render completed', {
-            durationMs: Number((renderEnd - renderStart).toFixed(2)),
+            durationMs: renderDurationMs,
             renderComponentName,
             renderId,
             renderMode
@@ -152,7 +175,7 @@ const clientVisibleObserver = new IntersectionObserver((entries) => {
           __update_render_metric__({
             componentName: renderComponentName,
             hasSsrContent: renderMode === 'hydrate',
-            invokeDurationMs: Number((renderEnd - renderStart).toFixed(2)),
+            invokeDurationMs: renderDurationMs,
             renderId,
             renderMode,
             status: 'completed',
@@ -160,9 +183,10 @@ const clientVisibleObserver = new IntersectionObserver((entries) => {
           });
         } catch (error) {
           const renderEnd = __site_debug_now__();
-          Logger.error(\`Component \${ renderComponentName } lazy hydration failed: \${error}\`);
+          const renderDurationMs = __get_dev_render_duration_ms__(renderStart, renderEnd);
+          __log_dev_render_error__(\`Component \${renderComponentName} client:visible render failed: \${error instanceof Error ? error.message : String(error)}\`, renderDurationMs);
           __site_debug_log__('react-dev-runtime', 'development lazy render failed', {
-            durationMs: Number((renderEnd - renderStart).toFixed(2)),
+            durationMs: renderDurationMs,
             message: error instanceof Error ? error.message : String(error),
             renderComponentName,
             renderId,
@@ -197,6 +221,15 @@ function __queueRenderRetry__() {
     __renderRetryCount__ >= __MAX_RENDER_ATTEMPTS__
   ) {
     return;
+  }
+
+  if (!__renderRetryWarningLogged__) {
+    __renderRetryWarningLogged__ = true;
+    const retryWarningStartedAt = __site_debug_now__();
+    __log_dev_render_warning__(
+      \`React dev render targets are not ready; retrying in \${__RENDER_RETRY_DELAY_MS__}ms\`,
+      __get_dev_render_duration_ms__(retryWarningStartedAt, __site_debug_now__())
+    );
   }
 
   __renderRetryTimer__ = window.setTimeout(() => {
@@ -250,12 +283,19 @@ function __renderTarget__(dom) {
       return true;
     }
 
+    const missingComponentStart =
+      __MISSING_COMPONENT_STARTED_AT__.get(dom) ?? __site_debug_now__();
+    __MISSING_COMPONENT_STARTED_AT__.set(dom, missingComponentStart);
+
     if (
       __renderRetryCount__ >= __MAX_RENDER_ATTEMPTS__ &&
       !__MISSING_COMPONENT_LOGGED_ELEMENTS__.has(dom)
     ) {
+      const renderEnd = __site_debug_now__();
+      const renderDurationMs = __get_dev_render_duration_ms__(missingComponentStart, renderEnd);
       __MISSING_COMPONENT_LOGGED_ELEMENTS__.add(dom);
       __site_debug_log__('react-dev-runtime', 'development render target missing component after retries', {
+        durationMs: renderDurationMs,
         renderComponentName,
         renderDirective,
         renderId,
@@ -263,15 +303,17 @@ function __renderTarget__(dom) {
       }, 'error');
       __update_render_metric__({
         componentName: renderComponentName,
-        detectedAt: __site_debug_now__(),
+        detectedAt: missingComponentStart,
         errorMessage: 'Component not found after retries',
         hasSsrContent: __hasSsrContent__(dom),
         renderDirective,
         renderId,
         renderMode: __hasSsrContent__(dom) ? 'hydrate' : 'render',
-        status: 'failed'
+        status: 'failed',
+        updatedAt: renderEnd
       });
-      ${LightGeneralLogger('error', `'Component '+ props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLocaleLowerCase()}"] + ' not found'`, VITEPRESS_LOG_GROUPS.runtimeReactDevRender).formatText}
+      __log_dev_render_error__(\`Component \${props["${RENDER_STRATEGY_CONSTANTS.renderComponent.toLocaleLowerCase()}"]} not found\`, renderDurationMs);
+      __MISSING_COMPONENT_STARTED_AT__.delete(dom);
     }
     return false;
   }
@@ -301,6 +343,10 @@ function __renderTarget__(dom) {
         renderId,
         renderMode
       });
+      __log_dev_render_info__(
+        \`Component \${renderComponentName} scheduled for client:visible render (\${renderMode})\`,
+        __get_dev_render_duration_ms__(detectedAt, __site_debug_now__())
+      );
       __update_render_metric__({
         componentName: renderComponentName,
         detectedAt,
@@ -345,7 +391,8 @@ function __renderTarget__(dom) {
         __react_hydrate__(dom, <__REACT_COMPONENT__ {...userProps} />);
       }
       const renderEnd = __site_debug_now__();
-      Logger.debug(__docs_islands_format_debug__({
+      const renderDurationMs = __get_dev_render_duration_ms__(renderStart, renderEnd);
+      __log_dev_render_debug__({
         context: 'react dev runtime render',
         decision: renderMode === 'render'
           ? 'complete client-side render for render target'
@@ -356,10 +403,11 @@ function __renderTarget__(dom) {
           renderId,
           renderMode
         },
-        timingMs: Number((renderEnd - renderStart).toFixed(2))
-      }));
+        timingMs: renderDurationMs
+      });
+      __log_dev_render_success__(\`Component \${renderComponentName} render completed (\${renderMode})\`, renderDurationMs);
       __site_debug_log__('react-dev-runtime', 'development render completed', {
-        durationMs: Number((renderEnd - renderStart).toFixed(2)),
+        durationMs: renderDurationMs,
         renderComponentName,
         renderDirective,
         renderId,
@@ -368,7 +416,7 @@ function __renderTarget__(dom) {
       __update_render_metric__({
         componentName: renderComponentName,
         hasSsrContent,
-        invokeDurationMs: Number((renderEnd - renderStart).toFixed(2)),
+        invokeDurationMs: renderDurationMs,
         renderDirective,
         renderId,
         renderMode,
@@ -377,8 +425,10 @@ function __renderTarget__(dom) {
       });
     } catch (error) {
       const renderEnd = __site_debug_now__();
+      const renderDurationMs = __get_dev_render_duration_ms__(renderStart, renderEnd);
+      __log_dev_render_error__(\`Component \${renderComponentName} render failed: \${error instanceof Error ? error.message : String(error)}\`, renderDurationMs);
       __site_debug_log__('react-dev-runtime', 'development render failed', {
-        durationMs: Number((renderEnd - renderStart).toFixed(2)),
+        durationMs: renderDurationMs,
         message: error instanceof Error ? error.message : String(error),
         renderComponentName,
         renderDirective,

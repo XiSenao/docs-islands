@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { REACT_FRAMEWORK } from '../framework';
+import { VITEPRESS_RUNTIME_LOG_GROUPS } from '../../../../shared/constants/log-groups/runtime';
+import { REACT_FRAMEWORK } from '../../../constants/adapters/react/framework';
 import { ReactRenderController } from '../react-render-controller';
 
 describe('ReactRenderController', () => {
@@ -30,10 +31,78 @@ describe('ReactRenderController', () => {
 
     const code = await controller.generateClientRuntimeInDEV('/guide/react.md');
 
-    expect(code).toContain('@docs-islands/vitepress/internal/logger');
+    expect(code).toContain('@docs-islands/vitepress/logger');
+    expect(code).toContain(
+      "import { createLogger, formatDebugMessage as __docs_islands_format_debug__ } from '@docs-islands/vitepress/logger';",
+    );
+    expect(code).toContain('const Logger = createLogger({');
+    expect(code).toContain("main: '@docs-islands/vitepress'");
+    expect(code).toContain(
+      `}).getLoggerByGroup('${VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender}');`,
+    );
+    expect(code).not.toContain('getLoggerInstance()');
     expect(code).not.toContain('@docs-islands/utils/logger');
+    expect(code).not.toContain('emitRuntimeLog');
     expect(code).toContain('const __MAX_RENDER_ATTEMPTS__ = 10;');
     expect(code).toContain('function __queueRenderRetry__()');
+    expect(code).toContain(
+      'const __MISSING_COMPONENT_STARTED_AT__ = new WeakMap();',
+    );
+    expect(code).toContain(
+      'const __get_dev_render_duration_ms__ = (start, end)',
+    );
+    expect(code).toContain('const __log_dev_render_debug__ = (payload)');
+    expect(code).toContain(
+      'const __log_dev_render_info__ = (message, elapsedTimeMs)',
+    );
+    expect(code).toContain(
+      'const __log_dev_render_success__ = (message, elapsedTimeMs)',
+    );
+    expect(code).toContain(
+      'const __log_dev_render_warning__ = (message, elapsedTimeMs)',
+    );
+    expect(code).toContain(
+      'const __log_dev_render_error__ = (message, elapsedTimeMs)',
+    );
+    expect(code).toContain('Logger.info(message, { elapsedTimeMs })');
+    expect(code).toContain('Logger.success(message, { elapsedTimeMs })');
+    expect(code).toContain('Logger.warn(message, { elapsedTimeMs })');
+    expect(code).toContain('Logger.error(message, { elapsedTimeMs })');
+    expect(code).toContain(
+      '__get_dev_render_duration_ms__(detectedAt, __site_debug_now__())',
+    );
+    expect(code).toContain(
+      '__log_dev_render_success__(`Component ${renderComponentName} render completed (${renderMode})`, renderDurationMs)',
+    );
+    expect(code).toContain('let __renderRetryWarningLogged__ = false;');
+    expect(code).toContain(
+      'const retryWarningStartedAt = __site_debug_now__();',
+    );
+    expect(code).toContain(
+      '__get_dev_render_duration_ms__(retryWarningStartedAt, __site_debug_now__())',
+    );
+    expect(code).toContain(
+      '__log_dev_render_error__(`Component ${renderComponentName} render failed: ${error instanceof Error ? error.message : String(error)}`, renderDurationMs)',
+    );
+    expect(code).toContain('not found`, renderDurationMs);');
+    expect(code).toContain(
+      'const renderDurationMs = __get_dev_render_duration_ms__(renderStart, renderEnd);',
+    );
+    const successAndErrorCalls = [
+      ...code.matchAll(/__log_dev_render_(?:success|error)__\([^;]+;/g),
+    ];
+
+    expect(
+      successAndErrorCalls.every((match) =>
+        match[0].includes('renderDurationMs'),
+      ),
+    ).toBe(true);
+    expect(code).not.toContain(
+      '__log_dev_render_info__(`Component ${renderComponentName} render started',
+    );
+    expect(code).not.toContain(
+      '__log_dev_render_warning__(`Component ${renderComponentName} skipped client render',
+    );
     expect(code).not.toContain('@docs-islands/vitepress/internal/devtools');
     expect(code).toContain(
       "renderMode: __hasSsrContent__(dom) ? 'hydrate' : 'render'",

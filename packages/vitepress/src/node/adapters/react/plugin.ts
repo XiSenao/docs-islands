@@ -1,5 +1,11 @@
-import { REACT_HMR_EVENT_NAMES } from '#shared/constants';
+import { REACT_HMR_EVENT_NAMES } from '#shared/constants/react-hmr';
 import type { Rollup } from 'vite';
+import { REACT_FRAMEWORK } from '../../constants/adapters/react/framework';
+import {
+  REACT_COMPONENT_HMR_PLUGIN_NAME,
+  REACT_MARKDOWN_HMR_PLUGIN_NAME,
+  REACT_SPA_SYNC_CHUNK_TRACKER_PLUGIN_NAME,
+} from '../../constants/adapters/react/plugin-names';
 import type { DocsIslandsResolvedUserConfig } from '../../core/config';
 import type { RenderingIntegrationPlugin } from '../../core/integration-plugin';
 import { isMarkdownPageChunk } from '../../plugins/shared';
@@ -15,13 +21,7 @@ import {
   createReactDependencyBootstrapPlugin,
   createReactVitePluginDelegates,
 } from './dependencies';
-import { REACT_FRAMEWORK } from './framework';
 import { createReactFrameworkParser } from './parser';
-import {
-  REACT_COMPONENT_HMR_PLUGIN_NAME,
-  REACT_MARKDOWN_HMR_PLUGIN_NAME,
-  REACT_SPA_SYNC_CHUNK_TRACKER_PLUGIN_NAME,
-} from './plugin-names';
 import { createReactDevPlugin } from './plugins/vite-plugin-react-dev';
 import { createReactRenderPlugins } from './plugins/vite-plugin-react-render';
 

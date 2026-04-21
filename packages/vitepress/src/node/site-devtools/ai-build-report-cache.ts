@@ -13,7 +13,7 @@ import {
   type SiteDevToolsAiProvider,
   type SiteDevToolsAiSanitizeOptions,
 } from '../../shared/site-devtools-ai';
-import { PAGE_METAFILE_ASSET_DIR } from '../page-metafile-shared';
+import { PAGE_METAFILE_ASSET_DIR } from '../constants/framework-build/page-metafile';
 import type { SiteDevToolsAiConfig } from './ai-server';
 
 const SITE_DEVTOOLS_AI_BUILD_REPORTS_DIR = join(PAGE_METAFILE_ASSET_DIR, 'ai');

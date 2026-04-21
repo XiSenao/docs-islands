@@ -1,6 +1,7 @@
 import type { SSRUpdateData, SSRUpdateRenderData } from '#dep-types/ssr';
-import { REACT_HMR_EVENT_NAMES } from '#shared/constants';
-import getLoggerInstance from '#shared/logger';
+import { VITEPRESS_RUNTIME_LOG_GROUPS } from '#shared/constants/log-groups/runtime';
+import { REACT_HMR_EVENT_NAMES } from '#shared/constants/react-hmr';
+import { createLogger } from '#shared/logger';
 import type {
   DocsClientIntegrationContext,
   DocsDevBridge,
@@ -12,18 +13,22 @@ import {
   requiresPreRenderDirective,
 } from '@docs-islands/core/client';
 import {
+  createElapsedLogOptions,
   formatDebugMessage,
   formatErrorMessage,
 } from '@docs-islands/utils/logger';
-import { VITEPRESS_LOG_GROUPS } from '../shared/log-groups';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
 const DEV_MOUNT_RETRY_INTERVAL_MS = 350;
 const DEV_MOUNT_RETRY_LIMIT = 4;
 const DEV_MOUNT_PREPARATION_RETRY_LIMIT = 10;
 const DEV_RUNTIME_FALLBACK_DELAY_MS = 1200;
 const DEV_MOUNT_RENDER_REPLAY_INTERVAL_MS = 32;
 const DEV_MOUNT_PREPARATION_DELAY_MS = 32;
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, Date.now());
 
 export interface CreateVitePressDevBridgeOptions {
   createDevRuntimeUrl: (pathname: string, timestamp: number) => string;
@@ -85,10 +90,14 @@ export class VitePressDevBridge<
     loggerGroup: string,
     failureMessage: string,
   ): void {
+    const taskStartedAt = Date.now();
     task.catch((error) => {
       loggerInstance
         .getLoggerByGroup(loggerGroup)
-        .error(`${failureMessage}: ${formatErrorMessage(error)}`);
+        .error(
+          `${failureMessage}: ${formatErrorMessage(error)}`,
+          elapsedSince(taskStartedAt),
+        );
     });
   }
 
@@ -118,7 +127,7 @@ export class VitePressDevBridge<
     const loadPromise = import(scriptPath).then(() => {
       const loadCompletedAt = Date.now();
       loggerInstance
-        .getLoggerByGroup(VITEPRESS_LOG_GROUPS.runtimeReactDevRuntimeLoader)
+        .getLoggerByGroup(VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRuntimeLoader)
         .debug(
           formatDebugMessage({
             context: 'development render runtime load',
@@ -276,7 +285,7 @@ export class VitePressDevBridge<
     if (!fallbackTriggered) {
       this.runAsyncTask(
         this.loadDevRenderRuntime(pathname),
-        'runtime.react.dev-mount.render',
+        VITEPRESS_RUNTIME_LOG_GROUPS.reactDevMountRender,
         'Failed to load development render runtime after SSR mount',
       );
     }
@@ -349,7 +358,7 @@ export class VitePressDevBridge<
     this.pendingDevMountFallbackTimer = setTimeout(() => {
       this.runAsyncTask(
         this.triggerDevRuntimeFallback(pathname),
-        'runtime.react.dev-mount.fallback',
+        VITEPRESS_RUNTIME_LOG_GROUPS.reactDevMountFallback,
         'Failed to execute dev runtime fallback',
       );
     }, DEV_RUNTIME_FALLBACK_DELAY_MS);
@@ -402,7 +411,7 @@ export class VitePressDevBridge<
         this.currentLocationPathname = pathname;
         this.runAsyncTask(
           this.loadDevRenderRuntime(pathname),
-          'runtime.react.dev-content-updated',
+          VITEPRESS_RUNTIME_LOG_GROUPS.reactDevContentUpdated,
           'Failed to load development render runtime for the current page',
         );
         return;

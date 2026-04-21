@@ -4,10 +4,11 @@ import type {
 } from '#dep-types/component';
 import type { RollupOutput } from '#dep-types/rollup';
 import type { ConfigType } from '#dep-types/utils';
-import { DIRNAME_VAR_NAME } from '#shared/constants';
-import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
-import getLoggerInstance from '#shared/logger';
+import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
+import { createLogger } from '#shared/logger';
+import { DIRNAME_VAR_NAME } from '@docs-islands/core/shared/constants/runtime';
 import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
+import { createElapsedLogOptions } from '@docs-islands/utils/logger';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { join, resolve } from 'pathe';
@@ -16,10 +17,14 @@ import { build } from 'vite';
 import type { UIFrameworkBuildAdapter } from './adapter';
 import { createComponentEntryModules, isOutputChunk } from './shared';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
 const Logger = loggerInstance.getLoggerByGroup(
-  VITEPRESS_LOG_GROUPS.buildFrameworkSsrBundle,
+  VITEPRESS_BUILD_LOG_GROUPS.frameworkSsrBundle,
 );
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, Date.now());
 
 export async function bundleUIComponentsForSSR(
   config: ConfigType,
@@ -29,6 +34,7 @@ export async function bundleUIComponentsForSSR(
 ): Promise<{
   renderedComponents: Map<string, string>;
 }> {
+  const bundleStartedAt = Date.now();
   const { base, srcDir, assetsDir, cacheDir } = config;
   /**
    * Needs to be built concurrently with MPA mode.
@@ -112,6 +118,7 @@ export async function bundleUIComponentsForSSR(
             continue;
           }
           const bundlePath = resolve(ssrTempDir, chunk.fileName);
+          const importStartedAt = Date.now();
 
           try {
             const ssrModule = await import(pathToFileURL(bundlePath).href);
@@ -120,6 +127,7 @@ export async function bundleUIComponentsForSSR(
             if (!ssrModuleComponent) {
               Logger.warn(
                 `Component "${ssrComponent.componentName}" not found in bundle`,
+                elapsedSince(importStartedAt),
               );
               continue;
             }
@@ -128,6 +136,7 @@ export async function bundleUIComponentsForSSR(
 
             for (const [renderId, usedSnippet] of usedSnippetContainer) {
               if (pendingRenderIds.has(renderId)) {
+                const renderStartedAt = Date.now();
                 try {
                   /**
                    * `renderToString` is intentionally async-friendly so future
@@ -142,10 +151,12 @@ export async function bundleUIComponentsForSSR(
                   usedSnippet.ssrHtml = frameworkSSRHtml;
                   Logger.success(
                     `Rendered ${adapter.framework} component ${ssrComponent.componentName} for render ID: ${renderId}`,
+                    elapsedSince(renderStartedAt),
                   );
                 } catch (error) {
                   Logger.error(
                     `Error rendering component "${ssrComponent.componentName}" for render ID ${renderId}: ${error}`,
+                    elapsedSince(renderStartedAt),
                   );
                 }
               }
@@ -153,6 +164,7 @@ export async function bundleUIComponentsForSSR(
           } catch (error) {
             Logger.error(
               `Failed to import SSR bundle for ${ssrComponent.componentName}: ${error}`,
+              elapsedSince(importStartedAt),
             );
           }
         }
@@ -163,6 +175,7 @@ export async function bundleUIComponentsForSSR(
   } catch (error) {
     Logger.error(
       `Failed to bundle ${adapter.framework} SSR components: ${error}`,
+      elapsedSince(bundleStartedAt),
     );
     throw error;
   } finally {

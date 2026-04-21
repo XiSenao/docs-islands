@@ -2,17 +2,17 @@ import type { SSRUpdateData, SSRUpdateRenderData } from '#dep-types/ssr';
 import {
   REACT_HMR_EVENT_NAMES,
   REACT_RENDER_STRATEGY_INJECT_RUNTIME_ID,
-  RENDER_STRATEGY_CONSTANTS,
-} from '#shared/constants';
+} from '#shared/constants/react-hmr';
+import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/core/shared/constants/render-strategy';
 import { createRequire } from 'node:module';
 import { join } from 'pathe';
 import type { ModuleNode, PluginOption } from 'vite';
 import { normalizePath } from 'vite';
+import { REACT_FRAMEWORK } from '../../../constants/adapters/react/framework';
+import { REACT_DEV_RUNTIME_PLUGIN_NAME } from '../../../constants/adapters/react/plugin-names';
 import { collectCssModulesInSSR } from '../../../plugins/shared';
 import type { ReactIntegrationPluginContext } from '../context';
 import { loadReactRuntimeDependencies } from '../dependencies';
-import { REACT_FRAMEWORK } from '../framework';
-import { REACT_DEV_RUNTIME_PLUGIN_NAME } from '../plugin-names';
 
 export function createReactDevPlugin(
   context: ReactIntegrationPluginContext,
@@ -160,9 +160,9 @@ export function createReactDevPlugin(
           return normalized;
         }
 
-        if (normalized === '@docs-islands/vitepress/internal/logger') {
+        if (normalized === '@docs-islands/vitepress/logger') {
           const __require = createRequire(import.meta.url);
-          return __require.resolve('@docs-islands/vitepress/internal/logger');
+          return __require.resolve(normalized);
         }
 
         return null;

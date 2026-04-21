@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest';
-import { REACT_RUNTIME_EXTERNALIZATION_PLUGIN_NAME } from '../plugin-names';
+import { REACT_RUNTIME_EXTERNALIZATION_PLUGIN_NAME } from '../../../constants/adapters/react/plugin-names';
 
 vi.mock('@vitejs/plugin-react-swc', () => ({
   default: vi.fn(() => ({

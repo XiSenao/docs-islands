@@ -1,25 +1,30 @@
 import type { PageBuildMetrics, PageMetafile } from '#dep-types/page';
+import { VITEPRESS_RUNTIME_LOG_GROUPS } from '#shared/constants/log-groups/runtime';
 import {
   createSiteDevToolsLogger,
   dispatchSiteDevToolsPageMetafileEvent,
   getSiteDevToolsNow,
-} from '#shared/devtools';
-import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
-import getLoggerInstance from '#shared/logger';
+} from '#shared/internal/devtools';
+import { createLogger } from '#shared/logger';
 import { DocsComponentManager } from '@docs-islands/core/client';
 import type { DocsComponentManagerInitializeOptions } from '@docs-islands/core/types/client';
 import {
+  createElapsedLogOptions,
   formatDebugMessage,
   formatErrorMessage,
 } from '@docs-islands/utils/logger';
 import type React from 'react';
-import { getCleanPathname } from '../../shared/runtime';
+import { getCleanPathname } from '../../../shared/runtime';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
 const Logger = loggerInstance.getLoggerByGroup(
-  VITEPRESS_LOG_GROUPS.runtimeReactComponentManager,
+  VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
 );
 const DebugLogger = createSiteDevToolsLogger('react-component-manager');
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, getSiteDevToolsNow());
 
 type ReactComponentRecord = React.ComponentType<Record<string, string>>;
 
@@ -138,12 +143,17 @@ export class ReactComponentManager {
   }
 
   private async performReactLoad(): Promise<boolean> {
+    const loadStartedAt = getSiteDevToolsNow();
+
     if (globalThis.window === undefined) {
-      Logger.warn('React can only be loaded in browser environment');
+      Logger.warn(
+        'React can only be loaded in browser environment',
+        elapsedSince(loadStartedAt),
+      );
       return false;
     }
 
-    const loadStart = getSiteDevToolsNow();
+    const loadStart = loadStartedAt;
 
     try {
       Logger.debug(
@@ -173,7 +183,10 @@ export class ReactComponentManager {
       globalThis.ReactDOM = reactDOMModule.default || reactDOMModule;
 
       if (!this.isReactAvailable()) {
-        Logger.error('Failed to load React or ReactDOM');
+        Logger.error(
+          'Failed to load React or ReactDOM',
+          elapsedSince(loadStart),
+        );
         return false;
       }
 
@@ -199,6 +212,7 @@ export class ReactComponentManager {
     } catch (error) {
       Logger.error(
         `React lazy loading failed, message: ${formatErrorMessage(error)}`,
+        elapsedSince(loadStart),
       );
       DebugLogger.error('react runtime load failed', {
         durationMs: Number((getSiteDevToolsNow() - loadStart).toFixed(2)),

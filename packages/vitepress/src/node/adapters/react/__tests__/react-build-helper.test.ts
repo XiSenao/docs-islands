@@ -1,5 +1,5 @@
+import { PAGE_METAFILE_META_NAMES } from '@docs-islands/core/shared/constants/page-metafile';
 import { describe, expect, it } from 'vitest';
-import { PAGE_METAFILE_META_NAMES } from '../../../../shared/constants';
 import { createRenderingModuleResolution } from '../../../core/module-resolution';
 import {
   createPageMetafileReferenceTags,

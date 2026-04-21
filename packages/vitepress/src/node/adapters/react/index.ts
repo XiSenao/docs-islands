@@ -1,6 +1,6 @@
+import { REACT_FRAMEWORK } from '../../constants/adapters/react/framework';
 import { applyRenderingIntegrationPlugin } from '../../core/integration-plugin';
 import type { DocsIslandsAdapter } from '../../core/orchestrator';
-import { REACT_FRAMEWORK } from './framework';
 import { createReactRenderingIntegrationPlugin } from './plugin';
 
 export function react(): DocsIslandsAdapter {

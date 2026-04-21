@@ -1,14 +1,19 @@
 import type { ConfigType } from '#dep-types/utils';
-import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
-import getLoggerInstance from '#shared/logger';
+import { VITEPRESS_HMR_LOG_GROUPS } from '#shared/constants/log-groups/hmr';
+import { createLogger } from '#shared/logger';
 import type { RenderController } from '@docs-islands/core/node/render-controller';
+import { createElapsedLogOptions } from '@docs-islands/utils/logger';
 import { join } from 'pathe';
 import type { Plugin } from 'vite';
 import { normalizePath } from 'vite';
 import type { RenderingFrameworkParserManager } from '../core/framework-parser';
 import type { RenderingModuleResolution } from '../core/module-resolution';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, Date.now());
 
 export function createFrameworkMarkdownHmrPlugin({
   framework,
@@ -34,9 +39,10 @@ export function createFrameworkMarkdownHmrPlugin({
     handleHotUpdate: {
       order: 'pre',
       async handler(ctx) {
+        const updateStartedAt = Date.now();
         const { file, modules, server, read } = ctx;
         const Logger = loggerInstance.getLoggerByGroup(
-          VITEPRESS_LOG_GROUPS.hmrMarkdownUpdate,
+          VITEPRESS_HMR_LOG_GROUPS.markdownUpdate,
         );
 
         if (!file.endsWith('.md')) {
@@ -97,6 +103,7 @@ export function createFrameworkMarkdownHmrPlugin({
         const relativeId = normalizedId.replace(siteConfig.srcDir, '');
         Logger.success(
           `${relativeId} changed, container script content will be re-parsed...`,
+          elapsedSince(updateStartedAt),
         );
 
         const updates: Record<

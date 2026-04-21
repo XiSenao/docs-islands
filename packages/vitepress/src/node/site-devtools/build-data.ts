@@ -20,7 +20,7 @@ import {
   getSiteDevToolsAiModuleReportKey,
   inferSiteDevToolsAiLanguage,
 } from '../../shared/site-devtools-ai';
-import { PAGE_METAFILE_ASSET_DIR } from '../page-metafile-shared';
+import { PAGE_METAFILE_ASSET_DIR } from '../constants/framework-build/page-metafile';
 import {
   readSiteDevToolsTextArtifact,
   resolveSiteDevToolsOutputAssetPath,

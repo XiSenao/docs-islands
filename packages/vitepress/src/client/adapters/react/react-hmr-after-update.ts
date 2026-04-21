@@ -1,20 +1,26 @@
 import type { DevComponentInfo } from '#dep-types/react';
 import type { SSRUpdateData, SSRUpdateRenderData } from '#dep-types/ssr';
+import { VITEPRESS_HMR_LOG_GROUPS } from '#shared/constants/log-groups/hmr';
+import { REACT_HMR_EVENT_NAMES } from '#shared/constants/react-hmr';
 import {
-  NEED_PRE_RENDER_DIRECTIVES,
-  REACT_HMR_EVENT_NAMES,
-  RENDER_STRATEGY_CONSTANTS,
-} from '#shared/constants';
-import { createSiteDevToolsLogger, getSiteDevToolsNow } from '#shared/devtools';
-import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
-import getLoggerInstance from '#shared/logger';
+  createSiteDevToolsLogger,
+  getSiteDevToolsNow,
+} from '#shared/internal/devtools';
+import { createLogger } from '#shared/logger';
 import { validateLegalRenderElements } from '#shared/utils';
 import {
   collectComponentProps,
   replaceSsrCssResources,
   requiresPreRenderDirective,
 } from '@docs-islands/core/client';
-import { formatDebugMessage } from '@docs-islands/utils/logger';
+import {
+  NEED_PRE_RENDER_DIRECTIVES,
+  RENDER_STRATEGY_CONSTANTS,
+} from '@docs-islands/core/shared/constants/render-strategy';
+import {
+  createElapsedLogOptions,
+  formatDebugMessage,
+} from '@docs-islands/utils/logger';
 import type React from 'react';
 import type ReactDOM from 'react-dom/client';
 import { reactComponentManager } from './react-component-manager';
@@ -25,8 +31,12 @@ import {
 } from './react-render-root-store';
 import { reactRenderStrategy } from './react-render-strategy';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
 const DebugLogger = createSiteDevToolsLogger('react-hmr');
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, getSiteDevToolsNow());
 const renderIdAttr = RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase();
 const renderComponentAttr =
   RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase();
@@ -246,6 +256,7 @@ export const applyReactMarkdownAfterUpdate = async (
   context: ReactMarkdownAfterUpdateContext,
   memoizedUpdateState: MemoizedReactUpdateState,
 ): Promise<void> => {
+  const updateStartedAt = getSiteDevToolsNow();
   /**
    * Markdown HMR runs in three stages:
    * 1. Diff the old/new render containers and decide reuse vs rerender.
@@ -253,7 +264,7 @@ export const applyReactMarkdownAfterUpdate = async (
    * 3. Reconnect client roots so hydrated/client-only components stay interactive.
    */
   const Logger = loggerInstance.getLoggerByGroup(
-    VITEPRESS_LOG_GROUPS.hmrViteAfterUpdate,
+    VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdate,
   );
   const activeHmrComponentNames = Object.keys(
     memoizedUpdateState.pendingUpdateState ?? {},
@@ -297,7 +308,10 @@ export const applyReactMarkdownAfterUpdate = async (
     const pendingState =
       memoizedUpdateState.pendingUpdateState?.[renderComponent];
     if (!pendingState) {
-      Logger.error(`[${renderComponent}] is not found in container script`);
+      Logger.error(
+        `[${renderComponent}] is not found in container script`,
+        elapsedSince(updateStartedAt),
+      );
       continue;
     }
 
@@ -768,7 +782,7 @@ export const applyReactMarkdownAfterUpdate = async (
         context.failPendingDevHmrMetrics(activeHmrComponentNames, error);
         throw error;
       }),
-      VITEPRESS_LOG_GROUPS.hmrViteAfterUpdateRender,
+      VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdateRender,
       'Failed to apply React markdown HMR render',
     );
   };
@@ -798,7 +812,7 @@ export const applyReactMarkdownAfterUpdate = async (
       context.failPendingDevHmrMetrics(activeHmrComponentNames, error);
       throw error;
     }),
-    VITEPRESS_LOG_GROUPS.hmrViteAfterUpdateRender,
+    VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdateRender,
     'Failed to finalize React markdown HMR',
   );
 };

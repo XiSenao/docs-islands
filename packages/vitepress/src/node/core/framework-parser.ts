@@ -1,22 +1,27 @@
 import type { UsedSnippetContainerType } from '#dep-types/component';
-import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
-import getLoggerInstance from '#shared/logger';
+import { VITEPRESS_PARSER_LOG_GROUPS } from '#shared/constants/log-groups/parser';
+import { createLogger } from '#shared/logger';
 import {
   type CompilationContainerType,
   createEmptyCompilationContainer,
   type RenderController,
 } from '@docs-islands/core/node/render-controller';
+import { createElapsedLogOptions } from '@docs-islands/utils/logger';
 import MagicString, { type SourceMap } from 'magic-string';
 import MarkdownIt from 'markdown-it';
 import type { Plugin } from 'vite';
 import { normalizePath } from 'vite';
+import { FRAMEWORK_MARKDOWN_TRANSFORM_PLUGIN_NAME } from '../constants/core/plugin-names';
 import type {
   RenderingModuleResolution,
   RenderingViteModuleResolver,
 } from './module-resolution';
-import { FRAMEWORK_MARKDOWN_TRANSFORM_PLUGIN_NAME } from './plugin-names';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, Date.now());
 const scriptTagExtractorMd = new MarkdownIt({ html: true });
 const scriptBlockRE =
   /[\t ]*<script\b(?<attrs>[^>]*)>(?<content>.*?)<\/script\s*>/is;
@@ -162,6 +167,7 @@ export class RenderingFrameworkParserManager {
       normalizedId,
       scriptMatchesByFramework,
     );
+    const transformStartedAt = Date.now();
     const allRecognizedScriptMatches = [...scriptMatchesByFramework.values()]
       .flat()
       .toSorted((left, right) => left.startIndex - right.startIndex);
@@ -174,9 +180,10 @@ export class RenderingFrameworkParserManager {
 
       skippedFrameworks.add(framework);
       loggerInstance
-        .getLoggerByGroup(VITEPRESS_LOG_GROUPS.parserFramework)
+        .getLoggerByGroup(VITEPRESS_PARSER_LOG_GROUPS.framework)
         .error(
           `Single file can contain only one <script lang="${scriptMatches[0].lang}"> element.`,
+          elapsedSince(transformStartedAt),
         );
     }
 
@@ -208,11 +215,12 @@ export class RenderingFrameworkParserManager {
       } catch (error) {
         skippedFrameworks.add(parser.framework);
         loggerInstance
-          .getLoggerByGroup(VITEPRESS_LOG_GROUPS.parserFramework)
+          .getLoggerByGroup(VITEPRESS_PARSER_LOG_GROUPS.framework)
           .error(
             `Failed to parse <script lang="${parser.lang}"> in ${id}: ${
               error instanceof Error ? error.message : String(error)
             }`,
+            elapsedSince(transformStartedAt),
           );
       }
     }
@@ -238,9 +246,10 @@ export class RenderingFrameworkParserManager {
         skippedFrameworks.add(existingFramework);
         skippedFrameworks.add(parser.framework);
         loggerInstance
-          .getLoggerByGroup(VITEPRESS_LOG_GROUPS.parserFramework)
+          .getLoggerByGroup(VITEPRESS_PARSER_LOG_GROUPS.framework)
           .error(
             `Duplicate component local name "${componentName}" found across rendering frameworks in ${id}. Rename one of the imports before mixing frameworks on the same page.`,
+            elapsedSince(transformStartedAt),
           );
       }
     }

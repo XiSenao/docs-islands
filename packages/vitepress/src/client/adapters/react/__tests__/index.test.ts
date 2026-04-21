@@ -8,7 +8,7 @@ vi.mock('vitepress/client', () => ({
   onContentUpdated: vi.fn(),
 }));
 
-vi.mock('../../../shared/runtime', () => ({
+vi.mock('../../../../shared/runtime', () => ({
   getCleanPathname: vi.fn(() => '/guide/runtime'),
 }));
 

@@ -12,7 +12,7 @@ import { RenderingFrameworkParserManager } from '../framework-parser';
 const mockError = vi.fn();
 
 vi.mock('#shared/logger', () => ({
-  default: () => ({
+  createLogger: () => ({
     getLoggerByGroup: () => ({
       debug: vi.fn(),
       error: mockError,
@@ -186,6 +186,9 @@ describe('RenderingFrameworkParserManager', () => {
 
     expect(mockError).toHaveBeenCalledWith(
       'Single file can contain only one <script lang="react"> element.',
+      expect.objectContaining({
+        elapsedTimeMs: expect.any(Number),
+      }),
     );
     expect(result.code).not.toContain('<script lang="react">');
     expect(result.code.split('\n')).toHaveLength(input.split('\n').length);
@@ -226,6 +229,9 @@ describe('RenderingFrameworkParserManager', () => {
 
     expect(mockError).toHaveBeenCalledWith(
       'Duplicate component local name "Button" found across rendering frameworks in /guide/conflict.md. Rename one of the imports before mixing frameworks on the same page.',
+      expect.objectContaining({
+        elapsedTimeMs: expect.any(Number),
+      }),
     );
     expect(result.code).not.toContain('<script lang="react">');
     expect(result.code).not.toContain('<script lang="solid">');
