@@ -1,6 +1,4 @@
-import type { RenderDirective } from '../types/render';
-
-export const DIRNAME_VAR_NAME = '__INJECTED_ORIGINAL_DIRNAME__';
+import type { RenderDirective } from '../../types/render';
 
 export const RENDER_STRATEGY_CONSTANTS = {
   renderId: '__RENDER_ID__',
@@ -13,11 +11,6 @@ export const RENDER_STRATEGY_CONSTANTS = {
   injectComponent: '__INJECT_COMPONENT__',
   componentManager: '__COMPONENT_MANAGER__',
   pageMetafile: '__PAGE_METAFILE__',
-} as const;
-
-export const PAGE_METAFILE_META_NAMES = {
-  current: 'docs-islands-page-metafile-current',
-  index: 'docs-islands-page-metafile-index',
 } as const;
 
 export const SPA_RENDER_SYNC_ON = ['spa:sr', 'spa:sync-render'] as const;
@@ -45,10 +38,3 @@ export const NEED_PRE_RENDER_DIRECTIVES: readonly RenderDirective[] = [
   'client:visible',
   'ssr:only',
 ] as const;
-
-export const HMR_FLAG = {
-  Reuse: 0b0000,
-  Deletion: 0b0001,
-  Update: 0b0010,
-  Addition: 0b0100,
-} as const;

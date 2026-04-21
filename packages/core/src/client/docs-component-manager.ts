@@ -1,10 +1,11 @@
-import { formatErrorMessage } from '@docs-islands/utils/logger';
 import {
-  PAGE_METAFILE_META_NAMES,
-  RENDER_STRATEGY_CONSTANTS,
-} from '../shared/constants';
-import { getFrameworkComponentManagerLogGroup } from '../shared/log-groups';
-import getLoggerInstance from '../shared/logger';
+  createElapsedLogOptions,
+  formatErrorMessage,
+} from '@docs-islands/utils/logger';
+import { getFrameworkComponentManagerLogGroup } from '../shared/constants/log-groups/runtime';
+import { PAGE_METAFILE_META_NAMES } from '../shared/constants/page-metafile';
+import { RENDER_STRATEGY_CONSTANTS } from '../shared/constants/render-strategy';
+import { createLogger } from '../shared/logger';
 import type {
   DocsComponentManagerHooks,
   DocsComponentManagerInitializeOptions,
@@ -49,7 +50,11 @@ type DocsRuntimeWindow<TComponent> = Window & {
   [RENDER_STRATEGY_CONSTANTS.injectComponent]?: DocsInjectComponent<TComponent>;
 };
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/core',
+});
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, Date.now());
 
 export class DocsComponentManager<TComponent, TBuildMetrics = unknown> {
   private readonly loadedComponents = new Map<
@@ -82,8 +87,13 @@ export class DocsComponentManager<TComponent, TBuildMetrics = unknown> {
     level: 'error' | 'info' | 'warn',
     message: string,
     payload?: unknown,
+    startedAt: number = Date.now(),
   ): void {
-    this.Logger[level](message);
+    if (level === 'error') {
+      this.Logger.error(message, elapsedSince(startedAt));
+    } else {
+      this.Logger[level](message, elapsedSince(startedAt));
+    }
     this.options.hooks?.onEvent?.({
       level,
       message,
@@ -387,6 +397,7 @@ export class DocsComponentManager<TComponent, TBuildMetrics = unknown> {
       } catch (rejectionError) {
         this.Logger.error(
           `Subscription rejection handling error, message: ${formatErrorMessage(rejectionError)}`,
+          elapsedSince(subscriber.timestamp),
         );
       }
     }
@@ -408,6 +419,7 @@ export class DocsComponentManager<TComponent, TBuildMetrics = unknown> {
       } catch (rejectionError) {
         this.Logger.error(
           `Runtime subscription rejection handling error, message: ${formatErrorMessage(rejectionError)}`,
+          elapsedSince(subscriber.timestamp),
         );
       }
     }
@@ -416,6 +428,7 @@ export class DocsComponentManager<TComponent, TBuildMetrics = unknown> {
   public async initialize(
     initializeOptions: DocsComponentManagerInitializeOptions,
   ): Promise<void> {
+    const initializeStartedAt = Date.now();
     if (initializeOptions.mode === 'prod' && globalThis.window === undefined) {
       return;
     }
@@ -423,7 +436,10 @@ export class DocsComponentManager<TComponent, TBuildMetrics = unknown> {
     this.ensureGlobalBindings();
 
     if (this.isInitialized) {
-      this.Logger.warn('Already initialized');
+      this.Logger.warn(
+        'Already initialized',
+        elapsedSince(initializeStartedAt),
+      );
       return;
     }
 
@@ -598,6 +614,7 @@ export class DocsComponentManager<TComponent, TBuildMetrics = unknown> {
   public async loadPageComponents(
     pageId: string = this.options.getCurrentPageId(),
   ): Promise<boolean> {
+    const loadStartedAt = Date.now();
     const componentInfo = await this.ensurePageMetafile(pageId);
     if (!componentInfo) {
       this.emitEvent('info', 'page component load skipped', {
@@ -664,10 +681,15 @@ export class DocsComponentManager<TComponent, TBuildMetrics = unknown> {
         document.head.append(script);
       });
     } catch (error) {
-      this.emitEvent('error', 'page component load failed', {
-        message: formatErrorMessage(error),
-        pageId,
-      });
+      this.emitEvent(
+        'error',
+        'page component load failed',
+        {
+          message: formatErrorMessage(error),
+          pageId,
+        },
+        loadStartedAt,
+      );
       return false;
     }
   }
@@ -758,12 +780,14 @@ export class DocsComponentManager<TComponent, TBuildMetrics = unknown> {
       } catch (error) {
         this.Logger.error(
           `Runtime subscription callback execution error, message: ${formatErrorMessage(error)}`,
+          elapsedSince(subscriber.timestamp),
         );
       }
     }
   }
 
   public notifyComponentLoaded(pageId: string, componentName: string): void {
+    const notifyStartedAt = Date.now();
     const key = `${pageId}-${componentName}`;
     const runtimeWindow = this.getRuntimeWindow();
 
@@ -790,6 +814,7 @@ export class DocsComponentManager<TComponent, TBuildMetrics = unknown> {
         } catch (error) {
           this.Logger.error(
             `Subscription callback execution error, message: ${formatErrorMessage(error)}`,
+            elapsedSince(subscriber.timestamp),
           );
         }
       }
@@ -798,6 +823,7 @@ export class DocsComponentManager<TComponent, TBuildMetrics = unknown> {
     } catch (error) {
       this.Logger.error(
         `Component load notification failed, message: ${formatErrorMessage(error)}`,
+        elapsedSince(notifyStartedAt),
       );
       this.rejectSubscriptions(key, new Error('Component loading failed'));
     }

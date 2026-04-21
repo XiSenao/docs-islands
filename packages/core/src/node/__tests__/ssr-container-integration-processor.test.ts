@@ -6,7 +6,7 @@ import type { ExtractedProps } from '../ssr-container-integration-processor';
 import { transformSSRContainerIntegrationCode } from '../ssr-container-integration-processor';
 
 vi.mock('../shared/logger', () => ({
-  default: () => ({
+  createLogger: () => ({
     getLoggerByGroup: () => ({
       error: vi.fn(),
       info: vi.fn(),

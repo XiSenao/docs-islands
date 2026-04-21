@@ -2,11 +2,11 @@
  * @vitest-environment jsdom
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { RENDER_STRATEGY_CONSTANTS } from '../constants';
+import { RENDER_STRATEGY_CONSTANTS } from '../constants/render-strategy';
 import { validateLegalRenderElements } from '../utils';
 
 vi.mock('../logger', () => ({
-  default: () => ({
+  createLogger: () => ({
     getLoggerByGroup: () => ({
       warn: vi.fn(),
     }),

@@ -1,18 +1,23 @@
 import {
-  createLogger,
   lightGeneralLogger,
   type LightGeneralLoggerReturn,
-  type LoggerType,
+  type LoggerLogOptions,
   type LogKind,
 } from '@docs-islands/utils/logger';
-export { emitRuntimeLog, formatDebugMessage } from '@docs-islands/utils/logger';
+export {
+  createLogger,
+  formatDebugMessage,
+  ScopedLogger,
+  type ScopedLoggerType,
+} from '@docs-islands/utils/logger';
 
 const MAIN_NAME = '@docs-islands/core';
 
 export type BoundLightGeneralLogger = (
   type: LogKind,
   message: string,
-  group?: string,
+  group: string,
+  options?: LoggerLogOptions,
 ) => LightGeneralLoggerReturn;
 
 export function createLightGeneralLogger(
@@ -21,23 +26,5 @@ export function createLightGeneralLogger(
   return lightGeneralLogger.bind(null, mainName) as BoundLightGeneralLogger;
 }
 
-export function createLoggerAccessor(mainName: string): () => LoggerType {
-  let loggerInstance: LoggerType | null = null;
-
-  return function getLoggerInstance(): LoggerType {
-    if (loggerInstance) {
-      return loggerInstance;
-    }
-
-    loggerInstance = createLogger({
-      main: mainName,
-    });
-    return loggerInstance;
-  };
-}
-
-export const LightGeneralLogger = createLightGeneralLogger(MAIN_NAME);
-
-const getLoggerInstance = createLoggerAccessor(MAIN_NAME);
-
-export default getLoggerInstance;
+export const LightGeneralLogger: BoundLightGeneralLogger =
+  createLightGeneralLogger(MAIN_NAME);

@@ -8,17 +8,18 @@ import type {
   ImportSpecifier,
   StringLiteral,
 } from '@babel/types';
+import { createElapsedLogOptions } from '@docs-islands/utils/logger';
 import { Parser } from 'htmlparser2';
 import MagicString, { type SourceMap } from 'magic-string';
 import MarkdownIt from 'markdown-it';
 import { createHash } from 'node:crypto';
+import { CORE_TRANSFORM_LOG_GROUPS } from '../shared/constants/log-groups/transform';
 import {
   ALLOWED_RENDER_DIRECTIVES,
   SPA_RENDER_SYNC_OFF,
   SPA_RENDER_SYNC_ON,
-} from '../shared/constants';
-import { CORE_LOG_GROUPS } from '../shared/log-groups';
-import getLoggerInstance from '../shared/logger';
+} from '../shared/constants/render-strategy';
+import { createLogger } from '../shared/logger';
 import type { RenderDirective } from '../types/render';
 
 const componentTagExtractorMd = new MarkdownIt({ html: true });
@@ -106,7 +107,9 @@ export const travelImports = (
   return importNames;
 };
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/core',
+});
 
 export default function transformComponentTags(
   code: string,
@@ -123,8 +126,9 @@ export default function transformComponentTags(
   renderIdToRenderDirectiveMap: Map<string, string[]>;
   map: SourceMap | null;
 } {
+  const transformStartedAt = Date.now();
   const logger = loggerInstance.getLoggerByGroup(
-    CORE_LOG_GROUPS.transformComponentTags,
+    CORE_TRANSFORM_LOG_GROUPS.transformComponentTags,
   );
   const tokens = componentTagExtractorMd.parse(code, {});
   const s = new MagicString(code);
@@ -186,6 +190,7 @@ export default function transformComponentTags(
     if (directive === 'client:only' && useSpaSyncRender) {
       logger.warn(
         `'spa:sync-render' is not supported for 'client:only' directive, disabling 'spa:sync-render'`,
+        createElapsedLogOptions(transformStartedAt, Date.now()),
       );
       useSpaSyncRender = false;
     }
@@ -266,6 +271,7 @@ export default function transformComponentTags(
       if (!typedTagName) {
         logger.error(
           `Component name must be in PascalCase. Found "${typedTagName || startTagRaw}" in ${id}, skipping compilation!`,
+          createElapsedLogOptions(transformStartedAt, Date.now()),
         );
         continue;
       }
@@ -273,6 +279,7 @@ export default function transformComponentTags(
       if (typedTagName !== item.name) {
         logger.error(
           `React component tag "${typedTagName}" does not match imported local name "${item.name}" in ${id}, skipping compilation!`,
+          createElapsedLogOptions(transformStartedAt, Date.now()),
         );
         continue;
       }
@@ -280,6 +287,7 @@ export default function transformComponentTags(
       if (!selfClosingRE.test(startTagRaw)) {
         logger.error(
           `React component tag must be self-closing. Use "<${typedTagName} ... />". Found in ${id}, skipping compilation!`,
+          createElapsedLogOptions(transformStartedAt, Date.now()),
         );
         continue;
       }

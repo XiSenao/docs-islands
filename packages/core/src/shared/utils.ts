@@ -1,17 +1,21 @@
+import { createElapsedLogOptions } from '@docs-islands/utils/logger';
 import type { RenderDirective } from '../types/render';
+import { CORE_RUNTIME_LOG_GROUPS } from './constants/log-groups/runtime';
 import {
   ALLOWED_RENDER_DIRECTIVES,
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
-} from './constants';
-import { CORE_LOG_GROUPS } from './log-groups';
-import getLoggerInstance from './logger';
+} from './constants/render-strategy';
+import { createLogger } from './logger';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/core',
+});
 
 export const validateLegalRenderElements = (element: Element): boolean => {
+  const validationStartedAt = Date.now();
   const logger = loggerInstance.getLoggerByGroup(
-    CORE_LOG_GROUPS.renderValidation,
+    CORE_RUNTIME_LOG_GROUPS.renderValidation,
   );
   const renderStrategyProps: Record<string, string> = {};
 
@@ -26,6 +30,7 @@ export const validateLegalRenderElements = (element: Element): boolean => {
   if (missingRenderStrategyAttrs.length > 0) {
     logger.warn(
       `The element is missing rendering attributes: ${missingRenderStrategyAttrs.join(', ')}, skipping compilation.`,
+      createElapsedLogOptions(validationStartedAt, Date.now()),
     );
     return false;
   }
@@ -35,6 +40,7 @@ export const validateLegalRenderElements = (element: Element): boolean => {
   if (!/^[\da-f]{8}$/i.test(renderId)) {
     logger.warn(
       `The element with renderId: [${renderId}] is not a valid renderId, skipping compilation.`,
+      createElapsedLogOptions(validationStartedAt, Date.now()),
     );
     return false;
   }
@@ -46,6 +52,7 @@ export const validateLegalRenderElements = (element: Element): boolean => {
   if (!/^[A-Z][\dA-Za-z]*$/.test(renderComponent)) {
     logger.warn(
       `The element with renderComponent: [${renderComponent}] is not a valid component name, component name must be in PascalCase, skipping compilation.`,
+      createElapsedLogOptions(validationStartedAt, Date.now()),
     );
     return false;
   }
@@ -57,6 +64,7 @@ export const validateLegalRenderElements = (element: Element): boolean => {
   if (!ALLOWED_RENDER_DIRECTIVES.includes(renderDirective as RenderDirective)) {
     logger.warn(
       `The element with renderDirective: [${renderDirective}] is not a valid render directive, allowed render directives: ${ALLOWED_RENDER_DIRECTIVES.join(', ')}, skipping compilation.`,
+      createElapsedLogOptions(validationStartedAt, Date.now()),
     );
     return false;
   }
