@@ -1,17 +1,17 @@
-import { DIRNAME_VAR_NAME } from '#shared/constants';
+import { DIRNAME_VAR_NAME } from '@docs-islands/core/shared/constants/runtime';
 import { join } from 'pathe';
 import type { Plugin, PluginOption } from 'vite';
+import { REACT_FRAMEWORK } from '../../constants/adapters/react/framework';
+import { REACT_RUNTIME_EXTERNALIZATION_PLUGIN_NAME } from '../../constants/adapters/react/plugin-names';
+import { DIRNAME_VARIABLE_INJECTION_PLUGIN_NAME } from '../../constants/plugins/plugin-names';
 import { resolveCurrentDependencyResolutionBase } from '../../core/dependency-resolution';
 import type { UIFrameworkBuildAdapter } from '../../framework-build/adapter';
-import { DIRNAME_VARIABLE_INJECTION_PLUGIN_NAME } from '../../plugins/plugin-names';
 import { createDirnameVarInjectionPlugin } from '../../plugins/vite-plugin-dirname-var-injection';
 import { createReactClientLoaderModuleSource } from './client-loader-module-source';
 import {
   loadReactRuntimeDependencies,
   loadReactVitePluginFactory,
 } from './dependencies';
-import { REACT_FRAMEWORK } from './framework';
-import { REACT_RUNTIME_EXTERNALIZATION_PLUGIN_NAME } from './plugin-names';
 
 /**
  * The generic framework build layer already covers browser, SSR, and MPA build

@@ -1,7 +1,6 @@
 import type { UsedSnippetContainerType } from '#dep-types/component';
-import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
-import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
-import getLoggerInstance from '#shared/logger';
+import { VITEPRESS_PARSER_LOG_GROUPS } from '#shared/constants/log-groups/parser';
+import { createLogger } from '#shared/logger';
 import { createImportReferenceResolver } from '@docs-islands/core/node/import-reference-resolver';
 import {
   type CompilationContainerType,
@@ -11,10 +10,13 @@ import coreTransformComponentTags, {
   type ImportNameSpecifier,
   travelImports,
 } from '@docs-islands/core/node/transform';
+import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/core/shared/constants/render-strategy';
+import { createElapsedLogOptions } from '@docs-islands/utils/logger';
 import { type ImportSpecifier, init, parse } from 'es-module-lexer';
 import type { SourceMap } from 'magic-string';
 import { join } from 'pathe';
 import { GET_CLEAN_PATHNAME_RUNTIME } from '../../../shared/runtime';
+import { REACT_FRAMEWORK } from '../../constants/adapters/react/framework';
 import type {
   RenderingFrameworkParsedScriptResult,
   RenderingFrameworkParser,
@@ -22,9 +24,12 @@ import type {
   RenderingFrameworkTransformResult,
 } from '../../core/framework-parser';
 import type { ReactIntegrationPluginContext } from './context';
-import { REACT_FRAMEWORK } from './framework';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, Date.now());
 
 interface ReactParsedScriptResult extends RenderingFrameworkParsedScriptResult {
   metadata: {
@@ -80,6 +85,7 @@ export function createReactFrameworkParser(
       normalizedId,
       script,
     }: RenderingFrameworkParserScriptContext): Promise<ReactParsedScriptResult> {
+      const parseStartedAt = Date.now();
       await init;
       const importReferenceResolver =
         createImportReferenceResolver(moduleResolver);
@@ -97,13 +103,14 @@ export function createReactFrameworkParser(
         [imports] = parse(script.content);
       } catch (parseError) {
         loggerInstance
-          .getLoggerByGroup(VITEPRESS_LOG_GROUPS.parserReact)
+          .getLoggerByGroup(VITEPRESS_PARSER_LOG_GROUPS.react)
           .error(
             `Failed to parse JavaScript in ${id}: ${
               parseError instanceof Error
                 ? parseError.message
                 : String(parseError)
             }`,
+            elapsedSince(parseStartedAt),
           );
 
         return {
@@ -129,13 +136,14 @@ export function createReactFrameworkParser(
           importSets = travelImports(exp) || [];
         } catch (importParseError) {
           loggerInstance
-            .getLoggerByGroup(VITEPRESS_LOG_GROUPS.parserReact)
+            .getLoggerByGroup(VITEPRESS_PARSER_LOG_GROUPS.react)
             .warn(
               `Failed to parse import statement in ${id}: ${
                 importParseError instanceof Error
                   ? importParseError.message
                   : String(importParseError)
               }`,
+              elapsedSince(parseStartedAt),
             );
           continue;
         }
@@ -156,17 +164,18 @@ export function createReactFrameworkParser(
 
           if (!finalImportReference) {
             loggerInstance
-              .getLoggerByGroup(VITEPRESS_LOG_GROUPS.parserReact)
+              .getLoggerByGroup(VITEPRESS_PARSER_LOG_GROUPS.react)
               .error(
                 `Failed to resolve final import reference ${rawIdentifier}#${importedName} in ${id}, skipping component registration`,
+                elapsedSince(parseStartedAt),
               );
             continue;
           }
 
           for (const warning of finalImportReference.warnings) {
             loggerInstance
-              .getLoggerByGroup(VITEPRESS_LOG_GROUPS.parserReact)
-              .warn(warning);
+              .getLoggerByGroup(VITEPRESS_PARSER_LOG_GROUPS.react)
+              .warn(warning, elapsedSince(parseStartedAt));
           }
 
           maybeComponentReferenceMap.set(localName, {

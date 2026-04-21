@@ -1,7 +1,7 @@
 import type { PluginOption, Rollup } from 'vite';
+import { REACT_RUNTIME_BUNDLING_PLUGIN_NAME } from '../../../constants/adapters/react/plugin-names';
 import type { ReactIntegrationPluginContext } from '../context';
 import { loadReactRuntimeDependencies } from '../dependencies';
-import { REACT_RUNTIME_BUNDLING_PLUGIN_NAME } from '../plugin-names';
 import { isReactChunk, isReactClientChunk } from '../shared';
 
 export function createReactRenderPlugins(

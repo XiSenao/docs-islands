@@ -6,13 +6,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { normalizePath, type PluginOption } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { REACT_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME } from '../../../constants/adapters/react/plugin-names';
 import {
   FRAMEWORK_MARKDOWN_TRANSFORM_PLUGIN_NAME,
   INLINE_PAGE_RESOLUTION_PLUGIN_NAME,
   SITE_DEVTOOLS_OPTIONAL_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME,
   SITE_DEVTOOLS_SOURCE_PLUGIN_NAME,
-} from '../../../core/plugin-names';
-import { REACT_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME } from '../plugin-names';
+} from '../../../constants/core/plugin-names';
 
 const mockError = vi.fn();
 const mockWarn = vi.fn();
@@ -24,7 +24,7 @@ vi.mock('@vitejs/plugin-react-swc', () => ({
 }));
 
 vi.mock('#shared/logger', () => ({
-  default: () => ({
+  createLogger: () => ({
     getLoggerByGroup: () => ({
       error: mockError,
       warn: mockWarn,
@@ -451,6 +451,9 @@ describe('createDocsIslands + react adapter', () => {
 
     expect(mockError).toHaveBeenCalledWith(
       'Single file can contain only one <script lang="react"> element.',
+      expect.objectContaining({
+        elapsedTimeMs: expect.any(Number),
+      }),
     );
     expect(result.code).not.toContain('<script lang="react">');
   });

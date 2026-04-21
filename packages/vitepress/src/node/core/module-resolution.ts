@@ -1,5 +1,5 @@
-import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
-import getLoggerInstance from '#shared/logger';
+import { VITEPRESS_RESOLVER_LOG_GROUPS } from '#shared/constants/log-groups/resolver';
+import { createLogger } from '#shared/logger';
 import {
   getPagePathByPathname,
   getPathnameByPagePath,
@@ -19,9 +19,11 @@ import { dirname, extname, isAbsolute, relative, resolve } from 'pathe';
 import type { Plugin } from 'vite';
 import { normalizePath } from 'vite';
 import type { DefaultTheme, SiteConfig } from 'vitepress';
-import { INLINE_PAGE_RESOLUTION_PLUGIN_NAME } from './plugin-names';
+import { INLINE_PAGE_RESOLUTION_PLUGIN_NAME } from '../constants/core/plugin-names';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
 
 export type RenderingViteResolveContext = DocsRuntimeResolveContext;
 
@@ -240,7 +242,7 @@ function createRenderingModuleResolutionVitePlugin(): Plugin {
 
         if (resolvedId) {
           loggerInstance
-            .getLoggerByGroup(VITEPRESS_LOG_GROUPS.resolverInlinePage)
+            .getLoggerByGroup(VITEPRESS_RESOLVER_LOG_GROUPS.inlinePage)
             .debug(
               formatDebugMessage({
                 context: 'inline page module resolution',

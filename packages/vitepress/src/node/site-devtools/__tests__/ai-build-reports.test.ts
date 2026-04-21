@@ -15,7 +15,7 @@ const { mockLoggerInfo, mockLoggerWarn } = vi.hoisted(() => ({
 }));
 
 vi.mock('#shared/logger', () => ({
-  default: () => ({
+  createLogger: () => ({
     getLoggerByGroup: () => ({
       debug: vi.fn(),
       error: vi.fn(),

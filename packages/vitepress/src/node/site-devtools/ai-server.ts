@@ -2,8 +2,12 @@ import type {
   SiteDevToolsAnalysisBuildReportModelConfig,
   SiteDevToolsAnalysisUserConfig,
 } from '#dep-types/utils';
-import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
-import { createLogger, formatErrorMessage } from '@docs-islands/utils/logger';
+import { VITEPRESS_SITE_DEVTOOLS_LOG_GROUPS } from '#shared/constants/log-groups/site-devtools';
+import {
+  createElapsedLogOptions,
+  createLogger,
+  formatErrorMessage,
+} from '@docs-islands/utils/logger';
 import { createHash } from 'node:crypto';
 import {
   buildSiteDevToolsAiAnalysisPrompt,
@@ -19,7 +23,7 @@ const DEFAULT_DOUBAO_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
 const DEFAULT_ANALYSIS_TIMEOUT_MS = Number.POSITIVE_INFINITY;
 const SiteDevToolsAiLogger = createLogger({
   main: '@docs-islands/vitepress',
-}).getLoggerByGroup(VITEPRESS_LOG_GROUPS.siteDevtoolsAiServer);
+}).getLoggerByGroup(VITEPRESS_SITE_DEVTOOLS_LOG_GROUPS.aiServer);
 
 export interface SiteDevToolsAnalysisRuntimeConfig {
   buildReports?: SiteDevToolsAnalysisUserConfig['buildReports'];
@@ -311,9 +315,13 @@ const formatRequestTraceDetail = (trace: SiteDevToolsAiRequestTrace) =>
     .filter((value): value is string => Boolean(value))
     .join(' · ');
 
-const logAiRequestStarted = (trace: SiteDevToolsAiRequestTrace) => {
+const logAiRequestStarted = (
+  trace: SiteDevToolsAiRequestTrace,
+  startedAt: number,
+) => {
   SiteDevToolsAiLogger.info(
     `Starting AI analysis: ${formatRequestTraceDetail(trace)}`,
+    createElapsedLogOptions(startedAt, Date.now()),
   );
 };
 
@@ -330,6 +338,7 @@ const logAiRequestSucceeded = ({
     `AI analysis returned data: ${formatRequestTraceDetail(trace)} · response ${formatByteCount(
       Buffer.byteLength(result, 'utf8'),
     )} · elapsed ${formatDurationMs(elapsedMs)}`,
+    { elapsedTimeMs: elapsedMs },
   );
 };
 
@@ -346,6 +355,7 @@ const logAiRequestFailed = ({
     `AI analysis returned no data: ${formatRequestTraceDetail(trace)} · elapsed ${formatDurationMs(
       elapsedMs,
     )} · reason ${formatErrorMessage(error)}`,
+    { elapsedTimeMs: elapsedMs },
   );
 };
 
@@ -508,7 +518,7 @@ const runDoubaoAnalysis = async (
     });
   }
 
-  logAiRequestStarted(trace);
+  logAiRequestStarted(trace, startedAt);
 
   const providerApiKey = providerConfig.apiKey;
 

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRenderingModuleResolution } from '../module-resolution';
 
 vi.mock('#shared/logger', () => ({
-  default: () => ({
+  createLogger: () => ({
     getLoggerByGroup: () => ({
       debug: vi.fn(),
       error: vi.fn(),

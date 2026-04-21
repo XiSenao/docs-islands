@@ -13,11 +13,12 @@ import type {
 } from '#dep-types/page';
 import type { RollupOutput } from '#dep-types/rollup';
 import type { ConfigType } from '#dep-types/utils';
-import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
-import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
-import getLoggerInstance from '#shared/logger';
+import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
+import { createLogger } from '#shared/logger';
 import { parse, type ParserPlugin } from '@babel/parser';
+import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/core/shared/constants/render-strategy';
 import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
+import { createElapsedLogOptions } from '@docs-islands/utils/logger';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { basename, dirname, extname, join, relative } from 'pathe';
@@ -35,10 +36,14 @@ import {
   resolveSafeOutputPath,
 } from './shared';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
 const Logger = loggerInstance.getLoggerByGroup(
-  VITEPRESS_LOG_GROUPS.buildFrameworkBrowserBundle,
+  VITEPRESS_BUILD_LOG_GROUPS.frameworkBrowserBundle,
 );
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, Date.now());
 
 type BuildOutputMetric = BundleAssetMetric & {
   dynamicImports?: string[];
@@ -1001,6 +1006,7 @@ export async function bundleUIComponentsForBrowser(
   cssBundlePaths: string[];
   ssrInjectScript: string;
 }> {
+  const bundleStartedAt = Date.now();
   const { base, srcDir, assetsDir, outDir, wrapBaseUrl, cleanUrls, cacheDir } =
     config;
   if (components.length === 0) {
@@ -1422,6 +1428,7 @@ export async function bundleUIComponentsForBrowser(
 
     Logger.success(
       `Bundled ${adapter.framework} UI components for browser successfully`,
+      elapsedSince(bundleStartedAt),
     );
 
     const aggregatedPageFiles = aggregateUniqueBundleAssetMetrics(
@@ -1449,6 +1456,7 @@ export async function bundleUIComponentsForBrowser(
   } catch (error) {
     Logger.error(
       `Failed to bundle ${adapter.framework} UI components for browser: ${error}`,
+      elapsedSince(bundleStartedAt),
     );
     throw error;
   } finally {

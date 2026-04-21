@@ -1,7 +1,8 @@
 import type { OutputChunk, RollupOutput } from '#dep-types/rollup';
 import type { ConfigType } from '#dep-types/utils';
-import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
-import getLoggerInstance from '#shared/logger';
+import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
+import { createLogger } from '#shared/logger';
+import { createElapsedLogOptions } from '@docs-islands/utils/logger';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'pathe';
@@ -10,12 +11,16 @@ import { build as viteBuild } from 'vite';
 import type { UIFrameworkBuildAdapter } from './adapter';
 import { isOutputChunk, resolveSafeOutputPath } from './shared';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
 const UI_FRAMEWORK_MPA_VITEPRESS_CLIENT_STUB_PLUGIN_NAME =
   'docs-islands:vitepress:ui-framework-mpa-vitepress-client-stub';
 const Logger = loggerInstance.getLoggerByGroup(
-  VITEPRESS_LOG_GROUPS.buildFrameworkMpaIntegration,
+  VITEPRESS_BUILD_LOG_GROUPS.frameworkMpaIntegration,
 );
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, Date.now());
 
 /**
  * The MPA integration bundle is shared per framework/config tuple during a
@@ -52,6 +57,7 @@ export const buildUIFrameworkIntegrationInMPA = async (
   }
 
   const buildPromise = (async () => {
+    const buildStartedAt = Date.now();
     const entryBaseName = `${adapter.framework}-integration`;
     const tempEntryPath = resolve(cacheDir, `${entryBaseName}.js`);
 
@@ -77,6 +83,7 @@ ${adapter.clientEntryImportName()}();
 
       Logger.info(
         `Starting ${adapter.framework} integration build in MPA mode with Vite...`,
+        elapsedSince(buildStartedAt),
       );
 
       const vitepressTreeShakingPlugin: Plugin = {
@@ -193,6 +200,7 @@ export const inBrowser = true;
 
         Logger.success(
           `${adapter.framework} integration build completed in MPA mode, entryPoint: ${entryPointChunk ? join('/', entryPointChunk.fileName) : ''}`,
+          elapsedSince(buildStartedAt),
         );
 
         return {
@@ -206,16 +214,23 @@ export const inBrowser = true;
     } catch (error) {
       Logger.error(
         `${adapter.framework} integration build failed in MPA mode: ${error}`,
+        elapsedSince(buildStartedAt),
       );
       throw error;
     } finally {
       try {
         if (fs.existsSync(tempEntryPath)) {
           fs.unlinkSync(tempEntryPath);
-          Logger.info('Temporary files cleaned up');
+          Logger.info(
+            'Temporary files cleaned up',
+            elapsedSince(buildStartedAt),
+          );
         }
       } catch (cleanupError) {
-        Logger.warn(`Failed to clean up temporary files: ${cleanupError}`);
+        Logger.warn(
+          `Failed to clean up temporary files: ${cleanupError}`,
+          elapsedSince(buildStartedAt),
+        );
       }
       buildPromiseByKey.delete(buildKey);
     }

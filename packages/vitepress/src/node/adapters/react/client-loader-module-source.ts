@@ -1,6 +1,5 @@
-import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
-import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
-import { LightGeneralLogger } from '#shared/logger';
+import { VITEPRESS_RUNTIME_LOG_GROUPS } from '#shared/constants/log-groups/runtime';
+import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/core/shared/constants/render-strategy';
 import { GET_CLEAN_PATHNAME_RUNTIME } from '../../../shared/runtime';
 import type { CreateUIFrameworkClientLoaderModuleSourceOptions } from '../../framework-build/adapter';
 
@@ -23,9 +22,19 @@ export function createReactClientLoaderModuleSource({
 
   return `
 import {
-  emitRuntimeLog as __docs_islands_runtime_log__,
+  createLogger,
   formatDebugMessage as __docs_islands_format_debug__
-} from '@docs-islands/vitepress/internal/logger';
+} from '@docs-islands/vitepress/logger';
+
+const Logger = createLogger({
+  main: '@docs-islands/vitepress'
+}).getLoggerByGroup('${VITEPRESS_RUNTIME_LOG_GROUPS.reactClientLoader}');
+const __log_client_loader_debug__ = (payload) => {
+  Logger.debug(__docs_islands_format_debug__(payload));
+};
+const __log_client_loader_error__ = (message, elapsedTimeMs = 0) => {
+  Logger.error(message, { elapsedTimeMs });
+};
 
 const getPageId = ${getCleanPathnameRuntime};
 
@@ -92,13 +101,9 @@ const resolveComponentExport = (module, importedName) => {
         componentManager.notifyComponentLoaded(pageId, name);
         return { name, success: true };
       } catch (error) {
-        ${
-          LightGeneralLogger(
-            'error',
-            `'Failed to load component ' + name + ': ' + (error instanceof Error ? error.message : String(error))`,
-            VITEPRESS_LOG_GROUPS.runtimeReactClientLoader,
-          ).formatText
-        }
+        __log_client_loader_error__(
+          'Failed to load component ' + name + ': ' + (error instanceof Error ? error.message : String(error))
+        );
         return { name, success: false };
       }
     })
@@ -108,24 +113,18 @@ const resolveComponentExport = (module, importedName) => {
     result.status === 'fulfilled' && result.value.success
   ).length;
 
-  ${
-    LightGeneralLogger(
-      'debug',
-      `__docs_islands_format_debug__({
-        context: 'react client loader',
-        decision: 'register resolved components for the current page runtime',
-        summary: {
-          pageId,
-          successCount,
-          totalCount: componentEntries.length
-        },
-        timingMs: Number((((typeof performance !== 'undefined' && typeof performance.now === 'function'
-          ? performance.now()
-          : Date.now()) - loadStartedAt)).toFixed(2))
-      })`,
-      VITEPRESS_LOG_GROUPS.runtimeReactClientLoader,
-    ).formatText
-  }
+  __log_client_loader_debug__({
+    context: 'react client loader',
+    decision: 'register resolved components for the current page runtime',
+    summary: {
+      pageId,
+      successCount,
+      totalCount: componentEntries.length
+    },
+    timingMs: Number((((typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now()
+      : Date.now()) - loadStartedAt)).toFixed(2))
+  });
 })();
   `.trim();
 }

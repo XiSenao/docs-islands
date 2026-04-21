@@ -1,12 +1,17 @@
-import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
-import getLoggerInstance from '#shared/logger';
+import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
+import { createLogger } from '#shared/logger';
+import { createElapsedLogOptions } from '@docs-islands/utils/logger';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { extname } from 'pathe';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, Date.now());
 
 export interface SharedClientRuntimeMetafile {
   content: string;
@@ -18,6 +23,7 @@ let sharedClientRuntimeMetafileCache: SharedClientRuntimeMetafile | null = null;
 // TODO: Simplify processing; optimize further.
 export const getSharedClientRuntimeMetafile =
   async (): Promise<SharedClientRuntimeMetafile> => {
+    const metafileBuildStartedAt = Date.now();
     if (sharedClientRuntimeMetafileCache) {
       return sharedClientRuntimeMetafileCache;
     }
@@ -26,7 +32,7 @@ export const getSharedClientRuntimeMetafile =
     const fileExtension = extname(currentFilePath);
     const __require = createRequire(import.meta.url);
     let clientRuntimePath = __require.resolve(
-      '@docs-islands/vitepress/internal/runtime',
+      '@docs-islands/vitepress/internal/client-runtime',
     );
 
     if (fileExtension !== '.js') {
@@ -42,10 +48,11 @@ export const getSharedClientRuntimeMetafile =
       } catch {
         loggerInstance
           .getLoggerByGroup(
-            VITEPRESS_LOG_GROUPS.buildSharedClientRuntimeMetafile,
+            VITEPRESS_BUILD_LOG_GROUPS.sharedClientRuntimeMetafile,
           )
           .error(
             'This is developer mode, you need to build the @docs-islands/vitepress project first (pnpm build) to complete the build.',
+            elapsedSince(metafileBuildStartedAt),
           );
         throw new Error(
           'Developer mode detected without built artifacts. Please run "pnpm build" first.',

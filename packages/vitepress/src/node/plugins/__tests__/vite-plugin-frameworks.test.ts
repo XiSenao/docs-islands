@@ -1,16 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { REACT_HMR_EVENT_NAMES } from '#shared/constants';
+import { REACT_HMR_EVENT_NAMES } from '#shared/constants/react-hmr';
 import {
   createEmptyCompilationContainer,
   RenderController,
 } from '@docs-islands/core/node/render-controller';
 import type { HmrContext, ModuleNode, Plugin, Rollup } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DIRNAME_VARIABLE_INJECTION_PLUGIN_NAME } from '../../constants/plugins/plugin-names';
 import type { RenderingFrameworkParserManager } from '../../core/framework-parser';
 import type { RenderingModuleResolution } from '../../core/module-resolution';
-import { DIRNAME_VARIABLE_INJECTION_PLUGIN_NAME } from '../plugin-names';
 import { createDirnameVarInjectionPlugin } from '../vite-plugin-dirname-var-injection';
 import { createFrameworkComponentHmrPlugin } from '../vite-plugin-framework-component-hmr';
 import { createFrameworkMarkdownHmrPlugin } from '../vite-plugin-framework-markdown-hmr';
@@ -19,7 +19,7 @@ import { createFrameworkSpaSyncPlugin } from '../vite-plugin-framework-spa-sync'
 const mockSuccess = vi.fn();
 
 vi.mock('#shared/logger', () => ({
-  default: () => ({
+  createLogger: () => ({
     getLoggerByGroup: () => ({
       debug: vi.fn(),
       error: vi.fn(),
@@ -132,6 +132,9 @@ describe('node/plugins', () => {
 
     expect(mockSuccess).toHaveBeenCalledWith(
       '/page.md changed, container script content will be re-parsed...',
+      expect.objectContaining({
+        elapsedTimeMs: expect.any(Number),
+      }),
     );
     expect(send).toHaveBeenCalledWith({
       type: 'custom',

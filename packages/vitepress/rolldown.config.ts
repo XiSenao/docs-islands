@@ -3,7 +3,6 @@ import { loadEnv, scanFiles } from '@docs-islands/utils';
 import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, resolve } from 'node:url';
-import type { PreRenderedChunk } from 'rolldown';
 import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
 import pkg from './package.json' with { type: 'json' };
@@ -105,40 +104,6 @@ const nodePlugins: RolldownOptions['plugins'] = [
   },
 ];
 
-const createVitepressConfigDtsInjectPlugin = () => ({
-  name: 'rolldown-plugin-inject-vitepress-config-dts',
-  generateBundle(_options: unknown, bundle: Record<string, unknown>) {
-    for (const fileName of ['node/index.d.ts', 'node/adapters/react.d.ts']) {
-      const vitepressConfigTypesImport = `import "${path.posix.relative(
-        path.posix.dirname(fileName),
-        'types/vitepress-config.js',
-      )}";\n`;
-      const output = bundle[fileName];
-
-      if (!output || typeof output !== 'object') {
-        continue;
-      }
-
-      if (
-        'source' in output &&
-        typeof output.source === 'string' &&
-        !output.source.startsWith(vitepressConfigTypesImport)
-      ) {
-        output.source = `${vitepressConfigTypesImport}${output.source}`;
-        continue;
-      }
-
-      if (
-        'code' in output &&
-        typeof output.code === 'string' &&
-        !output.code.startsWith(vitepressConfigTypesImport)
-      ) {
-        output.code = `${vitepressConfigTypesImport}${output.code}`;
-      }
-    }
-  },
-});
-
 const getSharedOptions = (platform: 'node' | 'browser') => {
   const baseDir = platform === 'node' ? 'node' : 'client';
   const chunkFileExt = platform === 'node' ? 'js' : 'mjs';
@@ -162,17 +127,7 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
     },
     output: {
       dir: './dist',
-      entryFileNames: (chunkInfo: PreRenderedChunk) => {
-        /**
-         * Internal helper entry modules are consumed through package exports
-         * instead of the public client entrypoints, so they must be emitted
-         * under dist/shared to match the published export map.
-         */
-        if (['devtools', 'logger', 'client-runtime'].includes(chunkInfo.name)) {
-          return 'shared/[name].js';
-        }
-        return `${baseDir}/[name].${chunkFileExt}`;
-      },
+      entryFileNames: `${baseDir}/[name].${chunkFileExt}`,
       chunkFileNames: `${baseDir}/chunks/dep-[hash].${chunkFileExt}`,
       exports: 'named',
       format: 'esm',
@@ -188,8 +143,8 @@ const sharedBrowserOptions = getSharedOptions('browser');
 const nodeConfig = defineConfig({
   ...sharedNodeOptions,
   input: {
-    'adapters/react': resolve(__dirname, 'src/node/adapters/react/index.ts'),
     index: resolve(__dirname, 'src/node/index.ts'),
+    'adapters/react': resolve(__dirname, 'src/node/adapters/react/index.ts'),
     'site-devtools/mcp': resolve(__dirname, 'src/node/site-devtools/mcp.ts'),
   },
   plugins: nodePlugins,
@@ -212,8 +167,8 @@ const nodeConfig = defineConfig({
 const nodeDtsConfig = defineConfig({
   ...sharedNodeOptions,
   input: {
-    'adapters/react': resolve(__dirname, 'src/node/adapters/react/index.ts'),
     index: resolve(__dirname, 'src/node/index.ts'),
+    'adapters/react': resolve(__dirname, 'src/node/adapters/react/index.ts'),
     'site-devtools/mcp': resolve(__dirname, 'src/node/site-devtools/mcp.ts'),
   },
   plugins: [
@@ -222,18 +177,14 @@ const nodeDtsConfig = defineConfig({
       emitDtsOnly: true,
       sourcemap,
     }),
-    createVitepressConfigDtsInjectPlugin(),
   ],
 });
 
 const clientConfig = defineConfig({
   ...sharedBrowserOptions,
   input: {
-    'adapters/react': resolve(__dirname, 'src/client/adapters/react/index.ts'),
-    devtools: resolve(__dirname, 'src/shared/devtools.ts'),
-    logger: resolve(__dirname, 'src/shared/logger.ts'),
     index: resolve(__dirname, 'src/client/index.ts'),
-    react: resolve(__dirname, 'src/client/react/index.ts'),
+    'adapters/react': resolve(__dirname, 'src/client/adapters/react/index.ts'),
   },
   transform: {
     target: 'es2020',
@@ -243,9 +194,8 @@ const clientConfig = defineConfig({
 const clientDtsConfig = defineConfig({
   ...sharedBrowserOptions,
   input: {
-    'adapters/react': resolve(__dirname, 'src/client/adapters/react/index.ts'),
     index: resolve(__dirname, 'src/client/index.ts'),
-    react: resolve(__dirname, 'src/client/react/index.ts'),
+    'adapters/react': resolve(__dirname, 'src/client/adapters/react/index.ts'),
   },
   plugins: [
     dts({
@@ -262,7 +212,10 @@ const clientDtsConfig = defineConfig({
 const clientRuntimeConfig = defineConfig({
   ...sharedBrowserOptions,
   input: {
-    'client-runtime': resolve(__dirname, 'src/shared/client-runtime.ts'),
+    'internal/client-runtime': resolve(
+      __dirname,
+      'src/shared/internal/client-runtime.ts',
+    ),
   },
   transform: {
     target: 'es2020',
@@ -272,38 +225,18 @@ const clientRuntimeConfig = defineConfig({
   },
   plugins: [
     {
-      name: 'rolldown-plugin-copy-runtime-dts',
+      name: 'rolldown-plugin-copy-client-runtime-dts',
       generateBundle: {
         order: 'post',
         async handler() {
           const clientRuntimeDtsContent = await readFile(
-            resolve(__dirname, 'src/shared/client-runtime.d.ts'),
+            resolve(__dirname, 'src/shared/internal/client-runtime.d.ts'),
             'utf8',
           );
           this.emitFile({
             type: 'asset',
-            fileName: 'shared/client-runtime.d.ts',
+            fileName: 'shared/internal/client-runtime.d.ts',
             source: clientRuntimeDtsContent,
-          });
-
-          const loggerDtsContent = await readFile(
-            resolve(__dirname, 'src/shared/logger.d.ts'),
-            'utf8',
-          );
-          this.emitFile({
-            type: 'asset',
-            fileName: 'shared/logger.d.ts',
-            source: loggerDtsContent,
-          });
-
-          const devtoolsDtsContent = await readFile(
-            resolve(__dirname, 'src/shared/devtools.d.ts'),
-            'utf8',
-          );
-          this.emitFile({
-            type: 'asset',
-            fileName: 'shared/devtools.d.ts',
-            source: devtoolsDtsContent,
           });
         },
       },
@@ -318,6 +251,79 @@ const clientRuntimeConfig = defineConfig({
      */
     manualChunks: undefined,
     sourcemap: sourcemap ? 'inline' : false,
+    entryFileNames: 'shared/[name].js',
+  },
+});
+
+const utilsConfig = defineConfig({
+  ...sharedBrowserOptions,
+  input: {
+    logger: resolve(__dirname, 'src/shared/logger.ts'),
+    'logger/presets': resolve(__dirname, 'src/shared/logger/presets.ts'),
+  },
+  transform: {
+    target: 'es2020',
+  },
+  output: {
+    ...sharedBrowserOptions.output,
+    entryFileNames: 'shared/[name].js',
+  },
+});
+
+const utilsConfigDtsConfig = defineConfig({
+  ...sharedBrowserOptions,
+  input: {
+    logger: resolve(__dirname, 'src/shared/logger.ts'),
+    'logger/presets': resolve(__dirname, 'src/shared/logger/presets.ts'),
+  },
+  plugins: [
+    dts({
+      tsconfig: 'src/client/tsconfig.json',
+      emitDtsOnly: true,
+      sourcemap,
+    }),
+  ],
+  transform: {
+    target: 'es2020',
+  },
+  output: {
+    ...sharedBrowserOptions.output,
+    entryFileNames: 'shared/[name].ts',
+  },
+});
+
+const internalUtilsConfig = defineConfig({
+  ...sharedBrowserOptions,
+  input: {
+    'internal/devtools': resolve(__dirname, 'src/shared/internal/devtools.ts'),
+  },
+  transform: {
+    target: 'es2020',
+  },
+  output: {
+    ...sharedBrowserOptions.output,
+    entryFileNames: 'shared/[name].js',
+  },
+});
+
+const internalUtilsDtsConfig = defineConfig({
+  ...sharedBrowserOptions,
+  input: {
+    'internal/devtools': resolve(__dirname, 'src/shared/internal/devtools.ts'),
+  },
+  plugins: [
+    dts({
+      tsconfig: 'src/client/tsconfig.json',
+      emitDtsOnly: true,
+      sourcemap,
+    }),
+  ],
+  transform: {
+    target: 'es2020',
+  },
+  output: {
+    ...sharedBrowserOptions.output,
+    entryFileNames: 'shared/[name].ts',
   },
 });
 
@@ -327,6 +333,10 @@ const configs: RolldownOptions[] = [
   clientConfig,
   clientDtsConfig,
   clientRuntimeConfig,
+  utilsConfig,
+  utilsConfigDtsConfig,
+  internalUtilsConfig,
+  internalUtilsDtsConfig,
 ];
 
 export default configs;

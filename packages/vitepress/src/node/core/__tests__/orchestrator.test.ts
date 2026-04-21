@@ -4,13 +4,13 @@
 import type { PluginOption } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { react } from '../../adapters/react';
-import { REACT_RUNTIME_BUNDLING_PLUGIN_NAME } from '../../adapters/react/plugin-names';
+import { REACT_RUNTIME_BUNDLING_PLUGIN_NAME } from '../../constants/adapters/react/plugin-names';
 import {
   FRAMEWORK_MARKDOWN_TRANSFORM_PLUGIN_NAME,
   INLINE_PAGE_RESOLUTION_PLUGIN_NAME,
   SITE_DEVTOOLS_OPTIONAL_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME,
   SITE_DEVTOOLS_SOURCE_PLUGIN_NAME,
-} from '../plugin-names';
+} from '../../constants/core/plugin-names';
 
 vi.mock('@vitejs/plugin-react-swc', () => ({
   default: vi.fn(() => ({

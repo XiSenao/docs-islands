@@ -3,6 +3,10 @@ import { resolveConfig } from '#shared/config';
 import type { PluginOption } from 'vite';
 import type { DefaultTheme, UserConfig } from 'vitepress';
 import {
+  FRAMEWORK_MARKDOWN_TRANSFORM_PLUGIN_NAME,
+  INLINE_PAGE_RESOLUTION_PLUGIN_NAME,
+} from '../constants/core/plugin-names';
+import {
   createRenderingFrameworkMarkdownTransformPlugin,
   RenderingFrameworkParserManager as DefaultRenderingFrameworkParserManager,
   type RenderingFrameworkParser,
@@ -12,10 +16,6 @@ import {
   createRenderingModuleResolution,
   type RenderingModuleResolution,
 } from './module-resolution';
-import {
-  FRAMEWORK_MARKDOWN_TRANSFORM_PLUGIN_NAME,
-  INLINE_PAGE_RESOLUTION_PLUGIN_NAME,
-} from './plugin-names';
 
 export interface RenderingIntegrationPluginContext {
   frameworkParserManager: RenderingFrameworkParserManager;

@@ -2,6 +2,8 @@ import type {
   PageMetafile,
   SiteDevToolsAiBuildReportReference,
 } from '#dep-types/page';
+import type { LoggerElapsedLogOptions } from '@docs-islands/utils/logger';
+import { createElapsedLogOptions } from '@docs-islands/utils/logger';
 import {
   getSiteDevToolsAiModuleReportKey,
   type SiteDevToolsAiAnalysisTarget,
@@ -48,7 +50,7 @@ interface CollectBuildReportReferencesOptions<
     target: SiteDevToolsAiAnalysisTarget;
   }) => Promise<SiteDevToolsAiBuildReportReference | null>;
   logger: {
-    warn: (message: string) => void;
+    warn: (message: string, options: LoggerElapsedLogOptions) => void;
   };
   outDir: string;
   pageMetafiles: Record<string, PageMetafile>;
@@ -410,6 +412,7 @@ export const collectBuildReportReferencesForPageMetafiles = async <
   TExecution,
   TCacheConfig
 >): Promise<void> => {
+  const collectStartedAt = Date.now();
   const pageResults = await Promise.all(
     Object.entries(pageMetafiles).map(async ([pageId, pageMetafile]) => {
       const pagePlan = pagePlans[pageId];
@@ -440,7 +443,10 @@ export const collectBuildReportReferencesForPageMetafiles = async <
 
   for (const pageResult of pageResults) {
     for (const warningMessage of pageResult.warningMessages) {
-      logger.warn(warningMessage);
+      logger.warn(
+        warningMessage,
+        createElapsedLogOptions(collectStartedAt, Date.now()),
+      );
     }
 
     const pageGroupedReportReferenceMap = new Map(

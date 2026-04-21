@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createReactClientLoaderModuleSource } from '../client-loader-module-source';
 
 describe('createReactClientLoaderModuleSource', () => {
-  it('uses the internal logger entry for emitted runtime helpers', () => {
+  it('uses createLogger from the public logger entry in emitted runtime helpers', () => {
     const code = createReactClientLoaderModuleSource({
       base: '/',
       cleanUrls: false,
@@ -15,7 +15,16 @@ describe('createReactClientLoaderModuleSource', () => {
       ],
     });
 
-    expect(code).toContain('@docs-islands/vitepress/internal/logger');
+    expect(code).toContain('@docs-islands/vitepress/logger');
+    expect(code).toContain(
+      "import {\n  createLogger,\n  formatDebugMessage as __docs_islands_format_debug__\n} from '@docs-islands/vitepress/logger';",
+    );
+    expect(code).toContain('const Logger = createLogger({');
+    expect(code).toContain(
+      "}).getLoggerByGroup('runtime.react.client-loader');",
+    );
     expect(code).not.toContain('@docs-islands/utils/logger');
+    expect(code).not.toContain('emitRuntimeLog');
+    expect(code).not.toContain('__docs_islands_runtime_log__');
   });
 });

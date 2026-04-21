@@ -1,16 +1,14 @@
 /**
  * @vitest-environment jsdom
  */
+import { SITE_DEVTOOLS_PAGE_METAFILE_EVENT_NAME } from '#shared/internal/devtools';
+import { PAGE_METAFILE_META_NAMES } from '@docs-islands/core/shared/constants/page-metafile';
+import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/core/shared/constants/render-strategy';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  PAGE_METAFILE_META_NAMES,
-  RENDER_STRATEGY_CONSTANTS,
-} from '../../../shared/constants';
-import { SITE_DEVTOOLS_PAGE_METAFILE_EVENT_NAME } from '../../../shared/devtools';
 import { ReactComponentManager } from '../react-component-manager';
 
 vi.mock('#shared/logger', () => ({
-  default: () => ({
+  createLogger: () => ({
     getLoggerByGroup: () => ({
       error: vi.fn(),
       info: vi.fn(),
@@ -20,9 +18,11 @@ vi.mock('#shared/logger', () => ({
   }),
 }));
 
-vi.mock('#shared/devtools', async (importOriginal) => {
+vi.mock('#shared/internal/devtools', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('../../../shared/devtools')>();
+    await importOriginal<
+      typeof import('../../../../shared/internal/devtools')
+    >();
 
   return {
     ...actual,

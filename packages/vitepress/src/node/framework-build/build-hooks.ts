@@ -12,13 +12,8 @@ import type {
 } from '#dep-types/page';
 import type { RenderDirective } from '#dep-types/render';
 import type { ConfigType } from '#dep-types/utils';
-import {
-  ALLOWED_RENDER_DIRECTIVES,
-  RENDER_STRATEGY_ATTRS,
-  RENDER_STRATEGY_CONSTANTS,
-} from '#shared/constants';
-import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
-import getLoggerInstance from '#shared/logger';
+import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
+import { createLogger } from '#shared/logger';
 import {
   getHtmlOutputPathByPathname,
   getPathnameByPagePath,
@@ -28,6 +23,12 @@ import {
   type ExtractedProps,
   transformSSRContainerIntegrationCode,
 } from '@docs-islands/core/node/ssr-container-integration-processor';
+import {
+  ALLOWED_RENDER_DIRECTIVES,
+  RENDER_STRATEGY_ATTRS,
+  RENDER_STRATEGY_CONSTANTS,
+} from '@docs-islands/core/shared/constants/render-strategy';
+import { createElapsedLogOptions } from '@docs-islands/utils/logger';
 import type { CheerioAPI } from 'cheerio';
 import { load } from 'cheerio';
 import fs from 'node:fs';
@@ -51,7 +52,11 @@ import {
 import { getComponentBundleKey } from './shared';
 import { getSharedClientRuntimeMetafile } from './shared-client-runtime';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, Date.now());
 
 const wrapBundleAssetMetrics = (
   metrics: BundleAssetMetric[],
@@ -145,6 +150,7 @@ const writeSpaSyncRenderedPageClientChunks = ({
     markdownModuleId,
     spaSyncRender,
   ] of markdownModuleIdToSpaSyncRenderMap.entries()) {
+    const transformStartedAt = Date.now();
     const { outputPath, code, renderIdToSpaSyncRenderMap } = spaSyncRender;
     const { code: transformedCode, stats } =
       transformSSRContainerIntegrationCode(code, (props: ExtractedProps) => {
@@ -170,21 +176,27 @@ const writeSpaSyncRenderedPageClientChunks = ({
       });
 
     if (stats.totalTransformations > 0) {
-      loggerInstance.getLoggerByGroup(
-        VITEPRESS_LOG_GROUPS.buildFrameworkBuildSsrIntegration,
-      ).success(`
+      loggerInstance
+        .getLoggerByGroup(
+          VITEPRESS_BUILD_LOG_GROUPS.frameworkBuildSsrIntegration,
+        )
+        .success(
+          `
             Complete ${stats.totalTransformations} pre-rendering injections for ${framework} page ${markdownModuleId}
 
             ${stats.transformedNodes.map((node) => `- Line ${node.line}, Column ${node.column}`).join('\n')}
-          `);
+          `,
+          elapsedSince(transformStartedAt),
+        );
       fs.writeFileSync(join(outDir, outputPath), transformedCode);
       continue;
     }
 
     loggerInstance
-      .getLoggerByGroup(VITEPRESS_LOG_GROUPS.buildFrameworkBuildSsrIntegration)
+      .getLoggerByGroup(VITEPRESS_BUILD_LOG_GROUPS.frameworkBuildSsrIntegration)
       .info(
         `No transformations performed, preserve original code for ${framework} page ${markdownModuleId}.`,
+        elapsedSince(transformStartedAt),
       );
   }
 };
@@ -216,6 +228,7 @@ const collectPageComponentBundles = ({
   ssrComponentsToBundle: Map<string, ComponentBundleInfo>;
   usedSnippetContainer: Map<string, UsedSnippetContainerType>;
 } => {
+  const collectStartedAt = Date.now();
   // Multiple islands on the same page can share one loader entry, so dedupe at the page boundary.
   const clientComponentsToBundle = new Map<string, ComponentBundleInfo>();
   const ssrComponentsToBundle = new Map<string, ComponentBundleInfo>();
@@ -252,9 +265,12 @@ const collectPageComponentBundles = ({
     const importReference = importsByLocalName.get(componentName);
     if (!importReference) {
       loggerInstance
-        .getLoggerByGroup(VITEPRESS_LOG_GROUPS.buildFrameworkBuildTransformHtml)
+        .getLoggerByGroup(
+          VITEPRESS_BUILD_LOG_GROUPS.frameworkBuildTransformHtml,
+        )
         .warn(
           `${framework} component "${componentName}" import not found for page ${id}.`,
+          elapsedSince(collectStartedAt),
         );
       continue;
     }
@@ -388,7 +404,7 @@ export function registerUIFrameworkBuildHooks(
   vitepressConfig.transformHtml = async (html, id, ctx) => {
     const pendingResolvedId = join('/', ctx.page.replace('.md', ''));
     const Logger = loggerInstance.getLoggerByGroup(
-      VITEPRESS_LOG_GROUPS.buildFrameworkBuildTransformHtml,
+      VITEPRESS_BUILD_LOG_GROUPS.frameworkBuildTransformHtml,
     );
     const transformedHtml = preHtmlTransform
       ? await Promise.resolve(preHtmlTransform(html, id, ctx))
@@ -465,6 +481,7 @@ export function registerUIFrameworkBuildHooks(
 
     // Complete SSR first to enable `spa:sync-render` optimizations in the client script.
     if (ssrComponentsToBundle.size > 0) {
+      const ssrBundleStartedAt = Date.now();
       try {
         const { renderedComponents } = await bundleUIComponentsForSSR(
           config,
@@ -481,17 +498,20 @@ export function registerUIFrameworkBuildHooks(
             targetElement.html(html);
             Logger.success(
               `Injected ${framework} SSR HTML for render ID: ${renderId}`,
+              elapsedSince(ssrBundleStartedAt),
             );
           }
         }
       } catch (error) {
         Logger.error(
           `Failed to bundle and render ${framework} SSR components for page ${id}, error: ${error}`,
+          elapsedSince(ssrBundleStartedAt),
         );
       }
     }
 
     if (clientComponentsToBundle.size > 0) {
+      const clientBundleStartedAt = Date.now();
       try {
         const {
           buildMetrics,
@@ -557,6 +577,7 @@ export function registerUIFrameworkBuildHooks(
       } catch (error) {
         Logger.error(
           `Failed to bundle ${framework} components for page ${id}, error: ${error}`,
+          elapsedSince(clientBundleStartedAt),
         );
       }
     }
@@ -607,6 +628,7 @@ export function registerUIFrameworkBuildHooks(
   };
 
   vitepressConfig.buildEnd = async () => {
+    const buildFinalizeStartedAt = Date.now();
     const {
       assetsDir,
       cacheDir,
@@ -618,7 +640,7 @@ export function registerUIFrameworkBuildHooks(
     } = config;
     const metafileDir = join(outDir, assetsDir);
     const Logger = loggerInstance.getLoggerByGroup(
-      VITEPRESS_LOG_GROUPS.buildFrameworkBuildFinalize,
+      VITEPRESS_BUILD_LOG_GROUPS.frameworkBuildFinalize,
     );
     const { content, fileName } = await getSharedClientRuntimeMetafile();
     const clientRuntimeFilePath = join(metafileDir, `chunks/${fileName}`);
@@ -744,6 +766,7 @@ export function registerUIFrameworkBuildHooks(
 
       Logger.info(
         `Generated hashed page metafile manifest with ${Object.keys(transformedPageMetafileMap).length} ${framework} pages`,
+        elapsedSince(buildFinalizeStartedAt),
       );
     }
   };

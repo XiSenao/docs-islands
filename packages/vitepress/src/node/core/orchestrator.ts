@@ -1,6 +1,10 @@
 import { resolveConfig } from '#shared/config';
 import type { PluginOption } from 'vite';
 import type { DefaultTheme, UserConfig } from 'vitepress';
+import {
+  SITE_DEVTOOLS_OPTIONAL_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME,
+  SITE_DEVTOOLS_SOURCE_PLUGIN_NAME,
+} from '../constants/core/plugin-names';
 import { applySiteDevToolsOptionalDependencyFallbacks } from '../site-devtools/optional-dependencies';
 import { getSiteDevToolsVitePlugins } from '../site-devtools/vite-plugin-site-devtools';
 import type {
@@ -10,10 +14,6 @@ import type {
 import { applyDocsIslandsUserConfig } from './config';
 import { resolveCurrentDependencyResolutionBase } from './dependency-resolution';
 import { ensureVitepressViteConfig } from './integration-plugin';
-import {
-  SITE_DEVTOOLS_OPTIONAL_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME,
-  SITE_DEVTOOLS_SOURCE_PLUGIN_NAME,
-} from './plugin-names';
 
 export interface DocsIslandsAdapter {
   apply: (

@@ -2,13 +2,13 @@
  * @vitest-environment jsdom
  */
 import type { RenderDirective } from '#dep-types/render';
+import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/core/shared/constants/render-strategy';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RENDER_STRATEGY_CONSTANTS } from '../../../shared/constants';
 import { ReactRenderStrategy } from '../react-render-strategy';
 
 // Mock dependencies.
 vi.mock('#shared/logger', () => ({
-  default: () => ({
+  createLogger: () => ({
     getLoggerByGroup: () => ({
       warn: vi.fn(),
       error: vi.fn(),
@@ -18,11 +18,11 @@ vi.mock('#shared/logger', () => ({
   }),
 }));
 
-vi.mock('../../../shared/runtime', () => ({
+vi.mock('../../../../shared/runtime', () => ({
   getCleanPathname: vi.fn(() => '/test-page'),
 }));
 
-vi.mock('../../../shared/utils', () => ({
+vi.mock('../../../../shared/utils', () => ({
   validateLegalRenderElements: vi.fn(() => true),
 }));
 

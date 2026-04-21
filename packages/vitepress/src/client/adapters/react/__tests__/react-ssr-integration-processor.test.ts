@@ -7,7 +7,7 @@ import { transformReactSSRIntegrationCode } from '../react-ssr-integration-proce
 
 // Mock logger.
 vi.mock('#shared/logger', () => ({
-  default: () => ({
+  createLogger: () => ({
     getLoggerByGroup: () => ({
       error: vi.fn(),
       warn: vi.fn(),
