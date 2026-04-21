@@ -1,6 +1,7 @@
 import { loadEnv } from '@docs-islands/utils';
 import { createDocsIslands } from '@docs-islands/vitepress';
 import { react } from '@docs-islands/vitepress/adapters/react';
+import loggerPresets from '@docs-islands/vitepress/logger/presets';
 import vitepressRenderingStrategiesPackageJson from '@docs-islands/vitepress/package.json' with { type: 'json' };
 import isInCi from 'is-in-ci';
 import { join } from 'pathe';
@@ -13,7 +14,7 @@ import llmstxt from 'vitepress-plugin-llms';
 import enConfig from '../en/config';
 import zhConfig from '../zh/config';
 
-const { debug, release, siteDevtools } = loadEnv();
+const { release, siteDevtools } = loadEnv();
 const { doubao_api_key } = siteDevtools;
 
 const base = `/${vitepressRenderingStrategiesPackageJson.name.replace('@', '')}/`;
@@ -105,33 +106,30 @@ const vitepressConfig: UserConfig<DefaultTheme.Config> = defineConfig({
 createDocsIslands({
   adapters: [react()],
   logging: {
-    debug,
+    debug: true,
     levels: release ? ['warn', 'error'] : ['info', 'success', 'warn', 'error'],
-    rules: [
-      {
-        label: 'site-devtools-reports',
-        main: '@docs-islands/vitepress',
-        group: 'site-devtools.ai*',
+    plugins: loggerPresets,
+    rules: {
+      'siteDevtools/aiBuildReports': {
         levels: ['info', 'success', 'warn', 'error'],
       },
-      {
-        label: 'docs-markdown-hmr',
-        main: '@docs-islands/vitepress',
-        group: 'plugin.hmr.markdown-update',
+      'siteDevtools/aiServer': {
+        levels: ['info', 'success', 'warn', 'error'],
+      },
+      'hmr/markdownUpdate': {
+        levels: ['info', 'success', 'warn', 'error'],
         message: '*changed, container script content will be re-parsed...*',
-        levels: ['info', 'success', 'warn', 'error'],
       },
-      {
-        label: 'vitepress-react-runtime',
-        main: '@docs-islands/vitepress',
-        group: 'runtime.react.*',
-      },
-      {
-        label: 'core-react-runtime',
-        main: '@docs-islands/core',
-        group: 'runtime.react.*',
-      },
-    ],
+      'runtime/coreReactComponentManager': {},
+      'runtime/coreReactRenderStrategy': {},
+      'runtime/reactClientLoader': {},
+      'runtime/reactComponentManager': {},
+      'runtime/reactDevContentUpdated': {},
+      'runtime/reactDevMountFallback': {},
+      'runtime/reactDevMountRender': {},
+      'runtime/reactDevRender': {},
+      'runtime/reactDevRuntimeLoader': {},
+    },
   },
   siteDevtools: {
     analysis: {

@@ -1,35 +1,38 @@
 # `logging`
 
-`logging` 用来控制 `createDocsIslands()` 产生的包内日志。它不会改变渲染逻辑，只决定 `@docs-islands/*` 在 Node 和浏览器里哪些消息可见。
+<script lang="react">
+  import LoggingPresetCatalog from '../../components/react/LoggingPresetCatalog';
+</script>
+
+`logging` 用来控制 `createDocsIslands()` 产生的包内日志，以及这个包公开暴露的 logger helper。它不会改变渲染逻辑，只决定 `@docs-islands/*` 在 Node 和浏览器里哪些消息可见。
 
 ## 什么时候用它
 
-当集成本身正常、但终端或浏览器控制台太吵时，可以用 `logging` 收窄输出范围。接入初期通常只保留 `warn` 和 `error`；排查问题时，可以打开 `debug`，查看是哪几条规则放行了当前日志，以及 logger 已运行的相对耗时。
+当集成本身正常、但终端或浏览器控制台太吵时，可以用 `logging` 收窄输出范围，尤其适合按 docs-islands 内部子系统聚焦日志。接入初期通常只保留 `warn` 和 `error`；排查问题时，可以打开 `debug`，查看是哪几条规则放行了当前日志，以及 logger 已运行的相对耗时。
 
 ## 最小示例
 
 ```ts [.vitepress/config.ts]
 import { createDocsIslands } from '@docs-islands/vitepress';
 import { react } from '@docs-islands/vitepress/adapters/react';
+import { hmr } from '@docs-islands/vitepress/logger/presets';
 
 const islands = createDocsIslands({
   adapters: [react()],
   logging: {
     levels: ['warn', 'error'],
-    rules: [
-      {
-        label: 'runtime-react',
-        main: '@docs-islands/vitepress',
-        group: 'runtime.react.*',
-      },
-    ],
+    plugins: { hmr },
+    rules: {
+      'hmr/markdownUpdate': 'off',
+      'hmr/viteAfterUpdate': {},
+    },
   },
 });
 
 islands.apply(vitepressConfig);
 ```
 
-这个配置只保留 `@docs-islands/vitepress` 中 `group` 匹配 `runtime.react.*` 的 `warn` 和 `error`。一旦配置了 `rules`，其它 group 不会再回退到根 `levels` 输出。
+这个配置只保留选中的 docs-islands HMR 日志的 `warn` 和 `error`。`hmr/viteAfterUpdate` 使用预设默认匹配器，`hmr/markdownUpdate` 则被显式关闭。`'off'` 是 `{ enabled: false }` 的简写。
 
 ## 判断模型
 
@@ -38,7 +41,7 @@ islands.apply(vitepressConfig);
 - `debug: false`：输出 `error`、`warn`、`info`、`success`。
 - `debug: true`：输出 `error`、`warn`、`info`、`success`、`debug`。
 
-当配置了 `logging.rules` 时，logger 进入规则模式：
+当配置了 `logging.rules` 时，logger 会先展开 plugin 规则，再进入规则模式：
 
 1. 先过滤掉 `enabled: false` 的 rule。它们不参与 scope 匹配、不参与 level 放行，也不会出现在 debug label 中。
 2. 每一条 active rule 都会按日志的 `main`、`group`、`message` 做匹配。只要 rule 声明了多个字段，这些字段就必须同时命中。
@@ -50,13 +53,98 @@ islands.apply(vitepressConfig);
 
 ## 根配置项
 
-| 配置项   | 含义                                                                                                                           |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `debug`  | 启用诊断输出。可见的 `error`、`warn`、`info`、`success` 日志会带上命中的 label，以及 `12.34ms` 这样的相对耗时后缀。            |
-| `levels` | 根可见级别集合。在规则模式下，它是没有声明 `rule.levels` 的 rule 的默认 effective levels；它不是用来强制收窄所有 rule 的上限。 |
-| `rules`  | 聚焦规则数组。当它存在且规范化后非空时，日志是否输出只由 active 且命中的 rules 决定。                                          |
+| 配置项    | 含义                                                                                                                           |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `debug`   | 启用诊断输出。可见的 `error`、`warn`、`info`、`success` 日志会带上命中的 label，以及 `12.34ms` 这样的相对耗时后缀。            |
+| `levels`  | 根可见级别集合。在规则模式下，它是没有声明 `rule.levels` 的 rule 的默认 effective levels；它不是用来强制收窄所有 rule 的上限。 |
+| `plugins` | 可选的预设 plugin 注册表。对象 key 会成为 `logging.rules["<plugin>/<rule>"]` 里的命名空间。                                    |
+| `rules`   | 既支持原始规则数组，也支持 plugin 规则对象。它存在且规范化后非空时，日志是否输出只由 active 且命中的 rules 决定。              |
 
-## Rule 字段
+## Plugin 规则
+
+如果你只是想过滤 docs-islands 内部日志，推荐优先使用 `logging.plugins`。
+
+```ts
+import { hmr, runtime } from '@docs-islands/vitepress/logger/presets';
+
+const logging = {
+  debug: true,
+  levels: ['warn'],
+  plugins: { hmr, runtime },
+  rules: {
+    'hmr/viteAfterUpdate': {},
+    'runtime/reactDevRender': {
+      levels: ['warn', 'error'],
+    },
+    'runtime/renderValidation': 'off',
+  },
+};
+```
+
+- `plugins` 用来注册 logging 预设 plugin，例如 `hmr`。
+- `rules["<plugin>/<rule>"] = {}` 表示启用该预设规则并使用默认匹配器。
+- `rules["<plugin>/<rule>"] = 'off'` 表示关闭该预设规则，等价于 `{ enabled: false }`。
+- override 对象只允许覆盖 `enabled`、`message`、`levels`；`group` 和 `main` 始终继承 preset matcher。
+
+### 内建日志预设与覆盖范围
+
+`@docs-islands/vitepress/logger/presets` 导出的 preset，本质上是一组内建日志的默认 `main/group` 匹配器。下面这张目录会列出所有 preset、所有 rule，以及它们默认约束到的范围。
+
+<LoggingPresetCatalog
+  client:load
+  spa:sync-render
+  locale="zh"
+/>
+
+## 公开 Logger 用法
+
+`@docs-islands/vitepress/logger` 会暴露 `createLogger` 和 `LightGeneralLogger`。通过 `createLogger(...)` 创建出来的任意 logger 实例，仍然会读取同一份全局 logger 配置，所以用户侧日志依然受最终 `logging` 规则控制。
+
+```ts [.vitepress/config.ts]
+import { createDocsIslands } from '@docs-islands/vitepress';
+import { createLogger } from '@docs-islands/vitepress/logger';
+
+const logger = createLogger({
+  main: '@acme/custom-docs',
+});
+
+const islands = createDocsIslands({
+  logging: {
+    debug: true,
+    rules: [
+      {
+        label: 'userland-metrics',
+        main: '@acme/custom-docs',
+        group: 'userland.metrics',
+        levels: ['info'],
+      },
+    ],
+  },
+});
+
+islands.apply(vitepressConfig);
+
+logger.getLoggerByGroup('userland.metrics').info('visible userland info');
+logger.getLoggerByGroup('userland.hidden').info('suppressed userland info');
+```
+
+在这个配置下，`userland.metrics` 会保留输出，而 `userland.hidden` 会被抑制。`LightGeneralLogger` 的可见性和 rule 匹配行为也是同一套逻辑。
+
+::: warning 复用内建 `main/group` 的影响
+
+如果你的自定义日志故意或无意复用了 docs-islands 内建日志使用的 `main` / `group`，那么它们也可能命中同一批 preset rule 或原始 `logging.rules`：
+
+- 你的用户日志会跟着内建日志一起被放行或一起被抑制。
+- `debug` 模式下，它们可能带上和内建日志相同的 rule label，增加排查歧义。
+- 后续为了过滤内建日志而调整 preset / rule 时，也可能连带影响用户日志。
+
+除非你就是希望用户日志和内建日志共用同一套过滤空间，否则更推荐使用独立的 `main` 与 `group` 命名，例如 `@acme/custom-docs` + `userland.*`。
+
+:::
+
+## 原始 Rule 字段
+
+当你需要写更底层的 `group` / `message` 匹配，而不是绑定到某个 preset label 时，依然可以继续使用数组形式的 `logging.rules`。
 
 | 字段      | 含义                                                                                                                         |
 | --------- | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -68,6 +156,8 @@ islands.apply(vitepressConfig);
 | `levels`  | 可选的当前 rule effective levels。它会替代根 `levels`，并和其它命中 rule 的 levels 一起组成并集。                            |
 
 ## 匹配示例
+
+原始规则数组仍然适合那种跨 preset 的宽匹配，比如直接按大范围 `group` 前缀或消息文本筛选。
 
 ```ts
 const islands = createDocsIslands({

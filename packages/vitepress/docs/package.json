@@ -19,6 +19,8 @@
   "imports": {
     "#types/*": "@docs-islands/vitepress/internal-helper/imports/types/*",
     "#dep-types/*": "@docs-islands/vitepress/internal-helper/imports/dep-types/*",
+    "#shared/constants/*": "@docs-islands/vitepress/internal-helper/imports/shared/constants/*",
+    "#shared/constants/log-groups/*": "@docs-islands/vitepress/internal-helper/imports/shared/constants/log-groups/*",
     "#shared/*": "@docs-islands/vitepress/internal-helper/imports/shared/*"
   },
   "packageManager": "pnpm@10.26.0",

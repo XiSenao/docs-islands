@@ -362,9 +362,7 @@
               }
             ],
             "componentName": "Landing",
-            "renderDirectives": [
-              "client:load"
-            ],
+            "renderDirectives": ["client:load"],
             "summaryItems": [
               {
                 "label": "Total",
@@ -432,12 +430,8 @@
         "pageSpaSyncComponentItems": [
           {
             "componentName": "Landing",
-            "renderDirectives": [
-              "client:load"
-            ],
-            "renderIds": [
-              "694287d7"
-            ],
+            "renderDirectives": ["client:load"],
+            "renderIds": ["694287d7"],
             "summaryItems": [
               {
                 "label": "HTML Patch Target",
