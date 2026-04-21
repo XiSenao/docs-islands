@@ -13,55 +13,25 @@ import { globalIgnores } from 'eslint/config';
 import globals from 'globals';
 import typescriptESlint from 'typescript-eslint';
 import { supportedEcmaVersion, supportedNodeVersion } from './baseConfig';
+import {
+  javascriptFiles,
+  markdownVirtualFiles,
+  nodeFilePatterns,
+  testFilePatterns,
+  typescriptFiles,
+} from './constants/file-patterns';
+import {
+  esmRestrictedNodeGlobals,
+  nodeEsmGlobals,
+  supportedEcmaGlobals,
+} from './constants/globals';
+import {
+  baseTestFileRules,
+  untypedModuleTypeScriptRules,
+} from './constants/rules';
 
 type Config = ReturnType<typeof defineConfig>;
 type Rules = NonNullable<Config[number]['rules']>;
-
-const supportedEcmaGlobals = globals.es2023;
-const esmRestrictedNodeGlobals = [
-  '__dirname',
-  '__filename',
-  'exports',
-  'module',
-  'require',
-];
-
-const typescriptFiles = ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts'];
-const javascriptFiles = ['**/*.js', '**/*.mjs'];
-const markdownVirtualFiles = ['**/*.md/*'];
-const nodeFilePatterns = [
-  '**/.vitepress/**/*.{js,cjs,mjs,ts,cts,mts}',
-  '**/*.config.{js,cjs,mjs,ts,cts,mts}',
-  '**/bin/**/*.{js,cjs,mjs,ts,cts,mts}',
-  '**/docs/**/config.{js,cjs,mjs,ts,cts,mts}',
-  '**/scripts/**/*.{js,cjs,mjs,ts,cts,mts}',
-  '**/src/node/**/*.{js,cjs,mjs,ts,cts,mts}',
-  '**/utils/**/*.{js,cjs,mjs,ts,cts,mts}',
-  'bin/**/*.{js,cjs,mjs,ts,cts,mts}',
-  'scripts/**/*.{js,cjs,mjs,ts,cts,mts}',
-  'src/node/**/*.{js,cjs,mjs,ts,cts,mts}',
-  'utils/**/*.{js,cjs,mjs,ts,cts,mts}',
-];
-
-export const testFilePatterns: string[] = [
-  '**/__tests__/**/*.{js,jsx,ts,tsx,mjs,mjsx,mts,mtsx,cjs,cts}',
-  '**/*.{test,spec}.{js,jsx,ts,tsx,mjs,mjsx,mts,mtsx,cjs,cts}',
-  '**/tests/**/*.{js,jsx,ts,tsx,mjs,mjsx,mts,mtsx,cjs,cts}',
-];
-
-export const nodeEsmGlobals: Record<string, boolean> = Object.fromEntries(
-  Object.entries(globals.node).filter(
-    ([name]) => !esmRestrictedNodeGlobals.includes(name),
-  ),
-);
-
-export const commonJsModuleGlobals: Record<string, 'readonly'> = {
-  __dirname: 'readonly',
-  __filename: 'readonly',
-  exports: 'readonly',
-  module: 'readonly',
-  require: 'readonly',
-};
 
 const typeCheckedTypeScriptRules: Rules = {
   '@typescript-eslint/consistent-type-imports': [
@@ -78,74 +48,6 @@ const typeCheckedTypeScriptRules: Rules = {
       fixMixedExportsWithInlineTypeSpecifier: true,
     },
   ],
-};
-
-export const untypedTypeScriptRules: Rules = {
-  '@typescript-eslint/consistent-type-imports': 'off',
-  '@typescript-eslint/no-import-type-side-effects': 'off',
-  '@typescript-eslint/consistent-type-exports': 'off',
-  '@typescript-eslint/explicit-function-return-type': 'off',
-  '@typescript-eslint/explicit-module-boundary-types': 'off',
-  '@typescript-eslint/no-floating-promises': 'off',
-  '@typescript-eslint/no-misused-promises': 'off',
-  '@typescript-eslint/no-redundant-type-constituents': 'off',
-  '@typescript-eslint/no-unnecessary-boolean-literal-compare': 'off',
-  '@typescript-eslint/no-unnecessary-condition': 'off',
-  '@typescript-eslint/no-unnecessary-type-assertion': 'off',
-  '@typescript-eslint/no-unsafe-argument': 'off',
-  '@typescript-eslint/no-unsafe-assignment': 'off',
-  '@typescript-eslint/no-unsafe-call': 'off',
-  '@typescript-eslint/no-unsafe-member-access': 'off',
-  '@typescript-eslint/no-unsafe-return': 'off',
-  '@typescript-eslint/prefer-includes': 'off',
-  '@typescript-eslint/prefer-nullish-coalescing': 'off',
-  '@typescript-eslint/prefer-optional-chain': 'off',
-  '@typescript-eslint/prefer-readonly': 'off',
-  '@typescript-eslint/prefer-reduce-type-parameter': 'off',
-  '@typescript-eslint/prefer-string-starts-ends-with': 'off',
-  '@typescript-eslint/promise-function-async': 'off',
-  '@typescript-eslint/require-array-sort-compare': 'off',
-  '@typescript-eslint/restrict-plus-operands': 'off',
-  '@typescript-eslint/restrict-template-expressions': 'off',
-  '@typescript-eslint/return-await': 'off',
-  '@typescript-eslint/switch-exhaustiveness-check': 'off',
-  '@typescript-eslint/unbound-method': 'off',
-};
-
-export const untypedModuleTypeScriptRules: Rules = {
-  ...untypedTypeScriptRules,
-  '@typescript-eslint/no-require-imports': 'off',
-  '@typescript-eslint/no-var-requires': 'off',
-};
-
-export const baseTestFileRules: Rules = {
-  '@typescript-eslint/explicit-function-return-type': 'off',
-  '@typescript-eslint/no-empty-function': 'off',
-  '@typescript-eslint/no-explicit-any': 'off',
-  '@typescript-eslint/no-floating-promises': 'off',
-  '@typescript-eslint/no-misused-promises': 'off',
-  '@typescript-eslint/no-non-null-assertion': 'off',
-  '@typescript-eslint/no-unsafe-argument': 'off',
-  '@typescript-eslint/no-unsafe-assignment': 'off',
-  '@typescript-eslint/no-unsafe-call': 'off',
-  '@typescript-eslint/no-unsafe-member-access': 'off',
-  '@typescript-eslint/no-unsafe-return': 'off',
-  '@typescript-eslint/no-unused-vars': [
-    'error',
-    {
-      argsIgnorePattern: '^_',
-      varsIgnorePattern: '^_',
-      caughtErrorsIgnorePattern: '^_',
-    },
-  ],
-  complexity: 'off',
-  'max-depth': 'off',
-  'max-lines': 'off',
-  'max-lines-per-function': 'off',
-  'max-nested-callbacks': 'off',
-  'no-console': 'off',
-  'no-empty-function': 'off',
-  'unicorn/prefer-string-raw': 'off',
 };
 
 export const eslintConfigBase: Config = [
@@ -459,3 +361,12 @@ export const eslintConfigBase: Config = [
   },
   eslintConfigPrettier,
 ];
+
+export { commonJsModuleGlobals, nodeEsmGlobals } from './constants/globals';
+export {
+  baseTestFileRules,
+  untypedModuleTypeScriptRules,
+  untypedTypeScriptRules,
+} from './constants/rules';
+
+export { testFilePatterns } from './constants/file-patterns';
