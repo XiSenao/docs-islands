@@ -6,7 +6,7 @@ import { loadEnv } from './env';
 const { config } = loadEnv();
 const { sourcemap, minify } = config;
 
-async function getModuleFiles(): Promise<string[]> {
+async function getModuleEntries(): Promise<string[]> {
   const files = await glob(['**/*.ts'], {
     cwd: process.cwd(),
     absolute: false,
@@ -21,13 +21,16 @@ async function getModuleFiles(): Promise<string[]> {
     ],
   });
 
-  return files.map((file) => file.replace('.ts', ''));
+  return files.map((file) => `./${file}`);
 }
 
-const modules = await getModuleFiles();
+const modules = await getModuleEntries();
 
 const moduleConfig: RolldownOptions = defineConfig({
-  input: ['./index.ts', './bin/link-guard.ts'],
+  // Public subpath proxies such as `logger.ts` must be explicit JS entries,
+  // otherwise Rolldown can inline their re-exports into `index.js` and skip
+  // emitting the proxy module that package exports resolve to.
+  input: [...modules, './bin/link-guard.ts'],
   platform: 'neutral',
   preserveEntrySignatures: 'strict',
   external: [/^[\w@][^:]/],

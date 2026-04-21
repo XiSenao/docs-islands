@@ -1,9 +1,14 @@
-import { createLogger, formatErrorMessage } from '@docs-islands/utils/logger';
+import {
+  createElapsedLogOptions,
+  createLogger,
+  formatErrorMessage,
+} from '@docs-islands/utils/logger';
 import { spawnSync } from 'node:child_process';
 
 const WorkspaceLogger = createLogger({
   main: 'docs-islands-monorepo',
 }).getLoggerByGroup('task.workspace.run');
+const startedAt = Date.now();
 
 interface RunTarget {
   forwardedArgs: string[];
@@ -83,7 +88,10 @@ function main(): void {
   try {
     process.exit(runWorkspaceScript(parseArguments()));
   } catch (error) {
-    WorkspaceLogger.error(formatErrorMessage(error));
+    WorkspaceLogger.error(
+      formatErrorMessage(error),
+      createElapsedLogOptions(startedAt, Date.now()),
+    );
     process.exit(1);
   }
 }

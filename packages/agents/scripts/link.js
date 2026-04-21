@@ -1,4 +1,7 @@
-import { createLogger } from '@docs-islands/utils/logger';
+import {
+  createElapsedLogOptions,
+  createLogger,
+} from '@docs-islands/utils/logger';
 import { execSync } from 'node:child_process';
 import {
   existsSync,
@@ -16,6 +19,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const logger = createLogger({
   main: '@docs-islands/agents',
 }).getLoggerByGroup('task.link');
+const scriptStartedAt = Date.now();
+const elapsedSince = (startTimeMs) =>
+  createElapsedLogOptions(startTimeMs, Date.now());
 
 function findProjectRoot() {
   try {
@@ -30,8 +36,9 @@ function findProjectRoot() {
 
 function ensureDir(dir) {
   if (!existsSync(dir)) {
+    const ensureStartedAt = Date.now();
     mkdirSync(dir, { recursive: true });
-    logger.success(`Created: ${dir}`);
+    logger.success(`Created: ${dir}`, elapsedSince(ensureStartedAt));
   }
 }
 
@@ -68,6 +75,7 @@ function getSkillDirs(basePath) {
 }
 
 function linkSkillsForTool(projectRoot, skillsBase, toolDir, toolName) {
+  const linkStartedAt = Date.now();
   const targetDir = join(projectRoot, toolDir, 'skills');
   const generalSkills = join(skillsBase, 'general');
   const specificSkills = join(skillsBase, toolDir.replace(/^\./, ''));
@@ -94,10 +102,14 @@ function linkSkillsForTool(projectRoot, skillsBase, toolDir, toolName) {
     if (r === 'created') created++;
     if (r === 'exists') existed++;
   }
-  logger.success(`${toolName}: ${created} created, ${existed} exist`);
+  logger.success(
+    `${toolName}: ${created} created, ${existed} exist`,
+    elapsedSince(linkStartedAt),
+  );
 }
 
 function main() {
+  const mainStartedAt = Date.now();
   logger.info('Setting up AI tool symlinks');
   const projectRoot = findProjectRoot();
   const skillsBase = join(__dirname, '..', 'skills');
@@ -116,7 +128,15 @@ function main() {
     ensureDir(join(projectRoot, dir));
     linkSkillsForTool(projectRoot, skillsBase, dir, name);
   });
-  logger.success('Done');
+  logger.success('Done', elapsedSince(mainStartedAt));
 }
 
-main();
+try {
+  main();
+} catch (error) {
+  logger.error(
+    `Link setup failed: ${error instanceof Error ? error.message : String(error)}`,
+    elapsedSince(scriptStartedAt),
+  );
+  process.exitCode = 1;
+}
