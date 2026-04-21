@@ -298,6 +298,33 @@ export interface LoggingRuleUserConfig {
   message?: string;
 }
 
+export interface LoggingPresetRuleUserConfig {
+  group?: string;
+  levels?: LoggingVisibilityLevel[];
+  main?: string;
+  message?: string;
+}
+
+export interface LoggingPresetPlugin {
+  rules: Record<string, LoggingPresetRuleUserConfig>;
+}
+
+export interface LoggingPresetRuleOverrideUserConfig {
+  enabled?: boolean;
+  levels?: LoggingVisibilityLevel[];
+  message?: string;
+}
+
+export type LoggingPresetRuleSetting =
+  | false
+  | 'off'
+  | LoggingPresetRuleOverrideUserConfig;
+
+export type LoggingPresetRulesUserConfig = Record<
+  string,
+  LoggingPresetRuleSetting
+>;
+
 export interface LoggingUserConfig {
   /**
    * Global debug gate for project-owned debug logs.
@@ -306,7 +333,8 @@ export interface LoggingUserConfig {
    */
   debug?: boolean;
   levels?: LoggingVisibilityLevel[];
-  rules?: LoggingRuleUserConfig[];
+  plugins?: Record<string, LoggingPresetPlugin>;
+  rules?: LoggingRuleUserConfig[] | LoggingPresetRulesUserConfig;
 }
 
 export interface ConfigType {

@@ -6,11 +6,14 @@ import {
   shouldSuppressLog,
 } from '@docs-islands/utils/logger';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { VITEPRESS_HMR_LOG_GROUPS } from '../../../../shared/constants/log-groups/hmr';
+import { VITEPRESS_RUNTIME_LOG_GROUPS } from '../../../../shared/constants/log-groups/runtime';
+import { hmr } from '../../../../shared/logger/presets';
 
 const mockWarn = vi.fn();
 
 vi.mock('#shared/logger', () => ({
-  default: () => ({
+  createLogger: () => ({
     getLoggerByGroup: () => ({
       debug: vi.fn(),
       error: vi.fn(),
@@ -88,6 +91,177 @@ describe('react logging config', () => {
     });
   });
 
+  it('expands plugin-backed logging rules with inherited matchers', async () => {
+    const { resolveLoggingConfig } = await import('../../../core/config');
+
+    expect(
+      resolveLoggingConfig({
+        levels: ['warn', 'error'],
+        plugins: {
+          hmr,
+        },
+        rules: {
+          'hmr/markdownUpdate': {
+            levels: ['error'],
+            message: '*re-parsed*',
+          },
+          'hmr/reactRuntimePrepare': 'off',
+          'hmr/reactSsrOnlyRender': false,
+          'hmr/viteAfterUpdate': {
+            enabled: false,
+          },
+          'hmr/viteAfterUpdateRender': {},
+        },
+      }),
+    ).toEqual({
+      levels: ['warn', 'error'],
+      rules: [
+        {
+          group: VITEPRESS_HMR_LOG_GROUPS.markdownUpdate,
+          label: 'hmr/markdownUpdate',
+          levels: ['error'],
+          main: '@docs-islands/vitepress',
+          message: '*re-parsed*',
+        },
+        {
+          enabled: false,
+          group: VITEPRESS_HMR_LOG_GROUPS.reactRuntimePrepare,
+          label: 'hmr/reactRuntimePrepare',
+          main: '@docs-islands/vitepress',
+        },
+        {
+          enabled: false,
+          group: VITEPRESS_HMR_LOG_GROUPS.reactSsrOnlyRender,
+          label: 'hmr/reactSsrOnlyRender',
+          main: '@docs-islands/vitepress',
+        },
+        {
+          enabled: false,
+          group: VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdate,
+          label: 'hmr/viteAfterUpdate',
+          main: '@docs-islands/vitepress',
+        },
+        {
+          group: VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdateRender,
+          label: 'hmr/viteAfterUpdateRender',
+          main: '@docs-islands/vitepress',
+        },
+      ],
+    });
+  });
+
+  it('keeps preset rule mode active when the only preset rule is disabled', async () => {
+    const { applyDocsIslandsUserConfig } = await import('../../../core/config');
+    const vitepressConfig: Record<string, any> = {};
+
+    const resolved = applyDocsIslandsUserConfig(vitepressConfig as any, {
+      logging: {
+        levels: ['warn'],
+        plugins: {
+          hmr,
+        },
+        rules: {
+          'hmr/viteAfterUpdate': 'off',
+        },
+      },
+    });
+
+    expect(resolved.logging).toEqual({
+      levels: ['warn'],
+      rules: [
+        {
+          enabled: false,
+          group: VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdate,
+          label: 'hmr/viteAfterUpdate',
+          main: '@docs-islands/vitepress',
+        },
+      ],
+    });
+
+    expect(
+      shouldSuppressLog('warn', {
+        group: VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdate,
+        main: '@docs-islands/vitepress',
+        message: 'ready to update',
+      }),
+    ).toBe(true);
+  });
+
+  it('applies plugin-backed logging rules before injecting runtime config', async () => {
+    const { applyDocsIslandsUserConfig, applyDocsIslandsViteBaseConfig } =
+      await import('../../../core/config');
+    const vitepressConfig: Record<string, any> = {};
+
+    const resolved = applyDocsIslandsUserConfig(vitepressConfig as any, {
+      logging: {
+        debug: true,
+        levels: ['warn'],
+        plugins: {
+          hmr,
+        },
+        rules: {
+          'hmr/markdownUpdate': 'off',
+          'hmr/viteAfterUpdate': {},
+        },
+      },
+    });
+
+    expect(
+      shouldSuppressLog('warn', {
+        group: VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdate,
+        main: '@docs-islands/vitepress',
+        message: 'ready to update',
+      }),
+    ).toBe(false);
+    expect(
+      shouldSuppressLog('info', {
+        group: VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdate,
+        main: '@docs-islands/vitepress',
+        message: 'ready to update',
+      }),
+    ).toBe(true);
+    expect(
+      shouldSuppressLog('warn', {
+        group: VITEPRESS_HMR_LOG_GROUPS.markdownUpdate,
+        main: '@docs-islands/vitepress',
+        message:
+          'container script content changed, container script content will be re-parsed...',
+      }),
+    ).toBe(true);
+
+    applyDocsIslandsViteBaseConfig(
+      vitepressConfig as any,
+      {
+        base: '/',
+        cleanUrls: false,
+      } as any,
+      {
+        ...resolved,
+        siteDevtoolsEnabled: false,
+      },
+    );
+
+    expect(vitepressConfig.vite.define.__DOCS_ISLANDS_LOGGER_CONFIG__).toBe(
+      JSON.stringify({
+        debug: true,
+        levels: ['warn'],
+        rules: [
+          {
+            enabled: false,
+            group: VITEPRESS_HMR_LOG_GROUPS.markdownUpdate,
+            label: 'hmr/markdownUpdate',
+            main: '@docs-islands/vitepress',
+          },
+          {
+            group: VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdate,
+            label: 'hmr/viteAfterUpdate',
+            main: '@docs-islands/vitepress',
+          },
+        ],
+      }),
+    );
+  });
+
   it('applies the normalized logger config and injects it into vite define', async () => {
     const { applyDocsIslandsUserConfig, applyDocsIslandsViteBaseConfig } =
       await import('../../../core/config');
@@ -111,7 +285,7 @@ describe('react logging config', () => {
 
     expect(
       shouldSuppressLog('info', {
-        group: 'runtime.react.component-manager',
+        group: VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
         main: '@docs-islands/vitepress',
         message: 'suppressed ready',
       }),
@@ -119,7 +293,7 @@ describe('react logging config', () => {
 
     expect(
       shouldSuppressLog('info', {
-        group: 'runtime.react.component-manager',
+        group: VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
         main: '@docs-islands/vitepress',
         message: 'visible ready',
       }),
@@ -127,7 +301,7 @@ describe('react logging config', () => {
 
     expect(
       shouldSuppressLog('success', {
-        group: 'runtime.react.component-manager',
+        group: VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
         main: '@docs-islands/core',
         message: 'visible success',
       }),
@@ -135,7 +309,7 @@ describe('react logging config', () => {
 
     expect(
       shouldSuppressLog('debug', {
-        group: 'runtime.react.component-manager',
+        group: VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
         main: '@docs-islands/vitepress',
         message: 'still hidden',
       }),
@@ -185,7 +359,7 @@ describe('react logging config', () => {
             main: '@docs-islands/vitepress',
           },
           {
-            group: 'plugin.hmr.markdown-update',
+            group: VITEPRESS_HMR_LOG_GROUPS.markdownUpdate,
             label: 'duplicate-label',
             main: '@docs-islands/vitepress',
           },
@@ -193,6 +367,60 @@ describe('react logging config', () => {
       }),
     ).toThrow(
       'Logger rule label "duplicate-label" must be unique within logging.rules.',
+    );
+  });
+
+  it('rejects plugin-backed rules that reference an unknown plugin', async () => {
+    const { resolveLoggingConfig } = await import('../../../core/config');
+
+    expect(() =>
+      resolveLoggingConfig({
+        rules: {
+          'hmr/viteAfterUpdate': {},
+        },
+      }),
+    ).toThrow(
+      'logging.rules key "hmr/viteAfterUpdate" references unknown logging plugin "hmr".',
+    );
+  });
+
+  it('rejects preset overrides that try to replace inherited matchers', async () => {
+    const { resolveLoggingConfig } = await import('../../../core/config');
+
+    expect(() =>
+      resolveLoggingConfig({
+        plugins: {
+          hmr,
+        },
+        rules: {
+          'hmr/viteAfterUpdate': {
+            group: 'custom.group',
+            main: '@docs-islands/custom',
+          } as never,
+        },
+      }),
+    ).toThrow(
+      'logging.rules["hmr/viteAfterUpdate"] preset overrides only support "enabled", "message", and "levels".',
+    );
+  });
+
+  it('rejects mixing logging.plugins with array-style logging.rules', async () => {
+    const { resolveLoggingConfig } = await import('../../../core/config');
+
+    expect(() =>
+      resolveLoggingConfig({
+        plugins: {
+          hmr,
+        },
+        rules: [
+          {
+            group: 'hmr.vite.after-update',
+            label: 'manual-hmr',
+          },
+        ],
+      }),
+    ).toThrow(
+      'logging.plugins can only be used with object-style logging.rules entries such as "hmr/viteAfterUpdate".',
     );
   });
 });

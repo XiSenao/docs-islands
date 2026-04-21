@@ -1,12 +1,17 @@
-import getLoggerInstance from '#shared/logger';
+import { createLogger } from '#shared/logger';
+import { createElapsedLogOptions } from '@docs-islands/utils/logger';
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import packageJson from '../package.json' with { type: 'json' };
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
 const Logger = loggerInstance.getLoggerByGroup('task.changelog');
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, Date.now());
 
 interface ChangelogOptions {
   version?: string;
@@ -20,6 +25,7 @@ const ChangelogManager = {
     packageRootDir: string,
     dryRun = false,
   ): void {
+    const generateStartedAt = Date.now();
     const changelogPath = path.join(packageRootDir, 'CHANGELOG.md');
     const date = new Date().toISOString().split('T')[0];
 
@@ -44,7 +50,10 @@ const ChangelogManager = {
       }).trim();
 
       if (!commits) {
-        Logger.info('No commits found since last release, skipping changelog');
+        Logger.info(
+          'No commits found since last release, skipping changelog',
+          elapsedSince(generateStartedAt),
+        );
         return;
       }
 
@@ -135,20 +144,26 @@ const ChangelogManager = {
       if (dryRun) {
         Logger.info(
           `Would update CHANGELOG.md with ${commitLines.length} commits`,
+          elapsedSince(generateStartedAt),
         );
-        Logger.info('Preview of new section:');
-        Logger.info(`\n${newSection}`);
+        Logger.info('Preview of new section:', elapsedSince(generateStartedAt));
+        Logger.info(`\n${newSection}`, elapsedSince(generateStartedAt));
       } else {
         writeFileSync(changelogPath, updatedContent);
         Logger.success(
           `Updated CHANGELOG.md with ${commitLines.length} commits`,
+          elapsedSince(generateStartedAt),
         );
         Logger.info(
           `Please review the generated changelog at: ${changelogPath}`,
+          elapsedSince(generateStartedAt),
         );
       }
     } catch (error) {
-      Logger.error(`Failed to generate changelog: ${String(error)}`);
+      Logger.error(
+        `Failed to generate changelog: ${String(error)}`,
+        elapsedSince(generateStartedAt),
+      );
       throw error instanceof Error
         ? error
         : new Error('Failed to generate changelog');
@@ -177,12 +192,19 @@ class ChangelogSystemManager {
   }
 
   async generateChangelog(): Promise<void> {
+    const generateStartedAt = Date.now();
     try {
-      Logger.info('Starting changelog generation...\n');
+      Logger.info(
+        'Starting changelog generation...\n',
+        elapsedSince(generateStartedAt),
+      );
 
       const version = this.options.version || this.getNextVersion();
 
-      Logger.info(`Generating changelog for version: ${version}`);
+      Logger.info(
+        `Generating changelog for version: ${version}`,
+        elapsedSince(generateStartedAt),
+      );
 
       ChangelogManager.generateChangelog(
         version,
@@ -190,9 +212,15 @@ class ChangelogSystemManager {
         this.options.dryRun,
       );
 
-      Logger.success(`Changelog generation completed!\n`);
+      Logger.success(
+        `Changelog generation completed!\n`,
+        elapsedSince(generateStartedAt),
+      );
     } catch (error) {
-      Logger.error(`Changelog generation failed: ${String(error)}`);
+      Logger.error(
+        `Changelog generation failed: ${String(error)}`,
+        elapsedSince(generateStartedAt),
+      );
       throw error instanceof Error
         ? error
         : new Error('Changelog generation failed');
@@ -227,7 +255,9 @@ async function main() {
         break;
       }
       case '--help': {
-        Logger.info(`
+        const helpStartedAt = Date.now();
+        Logger.info(
+          `
 Usage: pnpm changelog [options]
 
 Options:
@@ -240,7 +270,9 @@ Examples:
   pnpm changelog
   pnpm changelog --version 1.2.3
   pnpm changelog --dry-run
-        `);
+        `,
+          elapsedSince(helpStartedAt),
+        );
         process.exit(0);
       }
     }
@@ -251,8 +283,12 @@ Examples:
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  const cliStartedAt = Date.now();
   main().catch((error) => {
-    Logger.error(`Changelog generation failed: ${String(error)}`);
+    Logger.error(
+      `Changelog generation failed: ${String(error)}`,
+      elapsedSince(cliStartedAt),
+    );
     // Allow process to exit with failure naturally.
     process.exitCode = 1;
   });

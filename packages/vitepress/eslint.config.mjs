@@ -8,7 +8,7 @@ export default defineConfig([
   ...defaultConfig,
 
   // Ignore intentionally empty .d.ts files for runtime modules
-  globalIgnores(['src/shared/client-runtime.d.ts', 'src/shared/logger.d.ts']),
+  globalIgnores(['src/shared/internal/client-runtime.d.ts']),
 
   {
     rules: {

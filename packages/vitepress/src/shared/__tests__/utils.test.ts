@@ -1,12 +1,12 @@
 /**
  * @vitest-environment jsdom
  */
-import { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
+import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/core/shared/constants/render-strategy';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { validateLegalRenderElements } from '../utils';
 
 vi.mock('#shared/logger', () => ({
-  default: () => ({
+  createLogger: () => ({
     getLoggerByGroup: () => ({
       warn: vi.fn(),
     }),

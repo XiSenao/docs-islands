@@ -260,6 +260,67 @@ export interface LoggingRuleUserConfig {
   message?: string;
 }
 
+export interface LoggingPresetRuleUserConfig {
+  /**
+   * Logger group matcher used by a logging preset rule.
+   */
+  group?: string;
+  /**
+   * Effective levels contributed by the preset rule.
+   *
+   * When omitted, the rule inherits `logging.levels`.
+   */
+  levels?: LoggingVisibilityLevel[];
+  /**
+   * Exact package-name matcher used by the preset rule.
+   */
+  main?: string;
+  /**
+   * Optional log message matcher used by the preset rule.
+   */
+  message?: string;
+}
+
+export interface LoggingPresetPlugin {
+  /**
+   * Plugin-exposed logging rules keyed by `<rule>` and consumed through
+   * `logging.rules["<plugin>/<rule>"]`.
+   */
+  rules: Record<string, LoggingPresetRuleUserConfig>;
+}
+
+export interface LoggingPresetRuleOverrideUserConfig {
+  /**
+   * Pre-filter switch for this preset-backed rule.
+   *
+   * `false` disables the rule entirely after it inherits the preset matcher.
+   */
+  enabled?: boolean;
+  /**
+   * Effective levels contributed by this preset-backed rule override.
+   *
+   * When omitted, the preset rule keeps its own levels and then falls back to
+   * `logging.levels` if needed.
+   */
+  levels?: LoggingVisibilityLevel[];
+  /**
+   * Optional message matcher override.
+   *
+   * `group` and `main` always inherit from the preset rule.
+   */
+  message?: string;
+}
+
+export type LoggingPresetRuleSetting =
+  | false
+  | 'off'
+  | LoggingPresetRuleOverrideUserConfig;
+
+export type LoggingPresetRulesUserConfig = Record<
+  string,
+  LoggingPresetRuleSetting
+>;
+
 export interface LoggingUserConfig {
   /**
    * Global debug gate for project-owned debug logs.
@@ -283,13 +344,21 @@ export interface LoggingUserConfig {
    */
   levels?: LoggingVisibilityLevel[];
   /**
+   * Optional logging preset plugins, similar to ESLint plugins.
+   *
+   * The object key becomes the `<plugin>` namespace referenced by
+   * `logging.rules["<plugin>/<rule>"]`.
+   */
+  plugins?: Record<string, LoggingPresetPlugin>;
+  /**
    * Rule-mode visibility configuration.
    *
-   * When configured, output is decided only by active matching rules. Multiple
-   * matching rules contribute as a union, and no active/matched rule means no
-   * output rather than fallback to root levels.
+   * Supports two forms:
+   *
+   * - array: direct low-level logger rules
+   * - object: plugin rule settings keyed by `<plugin>/<rule>`
    */
-  rules?: LoggingRuleUserConfig[];
+  rules?: LoggingRuleUserConfig[] | LoggingPresetRulesUserConfig;
 }
 
 declare module 'vitepress' {

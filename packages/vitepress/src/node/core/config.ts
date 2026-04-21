@@ -4,17 +4,19 @@ import type {
   SiteDevToolsAnalysisUserConfig,
   SiteDevToolsUserConfig,
 } from '#dep-types/utils';
-import { VITEPRESS_LOG_GROUPS } from '#shared/log-groups';
-import getLoggerInstance from '#shared/logger';
+import { VITEPRESS_CONFIG_LOG_GROUPS } from '#shared/constants/log-groups/config';
+import { createLogger } from '#shared/logger';
 import {
-  type LoggerConfig,
-  normalizeLoggerConfig,
+  createElapsedLogOptions,
   setLoggerConfig,
 } from '@docs-islands/utils/logger';
 import type { DefaultTheme, UserConfig } from 'vitepress';
 import { ensureVitepressViteConfig } from './integration-plugin';
+import { type LoggerConfig, resolveLoggingConfig } from './logging-config';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
 
 export interface DocsIslandsSharedOptions {
   logging?: LoggingUserConfig;
@@ -25,6 +27,8 @@ export interface DocsIslandsResolvedUserConfig {
   logging?: LoggerConfig;
   siteDevtoolsEnabled: boolean;
 }
+
+export { resolveLoggingConfig } from './logging-config';
 
 const mergeSiteDevToolsAnalysisConfig = (
   base: SiteDevToolsAnalysisUserConfig | undefined,
@@ -106,23 +110,20 @@ function checkNodeVersion(nodeVersion: string): boolean {
 }
 
 export function warnIfUnsupportedNodeVersion(): void {
+  const warningStartedAt = Date.now();
+
   if (checkNodeVersion(process.versions.node)) {
     return;
   }
 
   loggerInstance
-    .getLoggerByGroup(VITEPRESS_LOG_GROUPS.configNodeVersion)
+    .getLoggerByGroup(VITEPRESS_CONFIG_LOG_GROUPS.nodeVersion)
     .warn(
       `You are using Node.js ${process.versions.node}. ` +
         `@docs-islands/vitepress requires Node.js version 20.19+ or 22.12+. ` +
         `Please upgrade your Node.js version.`,
+      createElapsedLogOptions(warningStartedAt, Date.now()),
     );
-}
-
-export function resolveLoggingConfig(
-  logging: LoggingUserConfig | undefined,
-): LoggerConfig | undefined {
-  return normalizeLoggerConfig(logging);
 }
 
 export function applyDocsIslandsUserConfig(

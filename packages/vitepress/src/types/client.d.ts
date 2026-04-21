@@ -1,15 +1,13 @@
 /// <reference types="vite/client" />
 
 import type { PageMetafile } from '#dep-types/page';
-import type {
-  LoggingUserConfig,
-  SiteDevToolsUserConfig,
-} from '#dep-types/utils';
-import type { RENDER_STRATEGY_CONSTANTS } from '#shared/constants';
+import type { SiteDevToolsUserConfig } from '#dep-types/utils';
+import type { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/core/shared/constants/render-strategy';
 import type {
   DocsInjectComponent,
   DocsRuntimeManagerLike,
 } from '@docs-islands/core/types/client';
+import type { LoggerConfig } from '@docs-islands/utils/logger';
 import type * as ReactDOMClient from 'react-dom/client';
 import type { DefaultTheme, SiteConfig } from 'vitepress';
 
@@ -35,7 +33,7 @@ declare global {
   // Define-time global constant injected via bundler `define`.
   const __BASE__: string | undefined;
   const __CLEAN_URLS__: boolean | undefined;
-  const __DOCS_ISLANDS_LOGGER_CONFIG__: LoggingUserConfig | null | undefined;
+  const __DOCS_ISLANDS_LOGGER_CONFIG__: LoggerConfig | null | undefined;
 
   // Global React and ReactDOM runtime (loaded dynamically)
   var React: typeof React | undefined;

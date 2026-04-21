@@ -8,6 +8,7 @@ import {
   setLoggerConfig,
 } from '@docs-islands/utils/logger';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { VITEPRESS_RUNTIME_LOG_GROUPS } from '../constants/log-groups/runtime';
 import {
   LOGGER_SPEC_CASE_COUNT,
   LOGGER_SPEC_ELAPSED,
@@ -63,6 +64,13 @@ const runLoggerSpecCase = (
   );
 
   for (const operation of specCase.operations) {
+    if (operation.kind !== 'debug') {
+      loggers[operation.logger]![operation.kind](operation.message, {
+        elapsedTimeMs: Number.parseFloat(LOGGER_SPEC_ELAPSED),
+      });
+      continue;
+    }
+
     loggers[operation.logger]![operation.kind](operation.message);
   }
 
@@ -89,6 +97,57 @@ describe('logger browser behavior', () => {
     expect(runLoggerSpecCase(specCase, true)).toEqual(specCase.expectedDebug);
   });
 
+  it('allows debug elapsed suffix to use a caller supplied duration', () => {
+    const output = captureConsoleOutput();
+    const now = setStableElapsedClock();
+
+    setLoggerConfig({ debug: true });
+    now.mockReturnValue(99);
+
+    createLogger({
+      main: '@docs-islands/vitepress',
+    })
+      .getLoggerByGroup(VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender)
+      .success('Component Landing render completed (hydrate)', {
+        elapsedTimeMs: 12.345,
+      });
+
+    expect(output).toEqual([
+      `@docs-islands/vitepress[${VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender}]: Component Landing render completed (hydrate) 12.35ms`,
+    ]);
+  });
+
+  it('reuses cached main and grouped logger instances for the same main', () => {
+    const mainLogger = createLogger({
+      main: '@docs-islands/vitepress',
+    });
+    const sameMainLogger = createLogger({
+      main: '@docs-islands/vitepress',
+    });
+    const otherMainLogger = createLogger({
+      main: '@docs-islands/core',
+    });
+    const groupLogger = mainLogger.getLoggerByGroup(
+      VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender,
+    );
+    const sameGroupLogger = mainLogger.getLoggerByGroup(
+      VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender,
+    );
+    const otherGroupLogger = mainLogger.getLoggerByGroup(
+      VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
+    );
+    const sameGroupNameDifferentMain = otherMainLogger.getLoggerByGroup(
+      VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender,
+    );
+
+    expect(sameMainLogger).toBe(mainLogger);
+    expect(groupLogger).toBe(sameGroupLogger);
+    expect('info' in (mainLogger as object)).toBe(false);
+    expect(groupLogger).not.toBe(mainLogger);
+    expect(otherGroupLogger).not.toBe(groupLogger);
+    expect(sameGroupNameDifferentMain).not.toBe(groupLogger);
+  });
+
   it('keeps lightGeneralLogger output on the plain message body', () => {
     const output = captureConsoleOutput();
 
@@ -96,11 +155,22 @@ describe('logger browser behavior', () => {
       '@docs-islands/vitepress',
       'warn',
       'runtime warning',
-      'runtime.react.component-manager',
+      VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
     ).log();
 
     expect(output).toEqual([
-      '@docs-islands/vitepress[runtime.react.component-manager]: runtime warning',
+      `@docs-islands/vitepress[${VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager}]: runtime warning`,
     ]);
+  });
+
+  it('requires a group for lightGeneralLogger', () => {
+    expect(() =>
+      lightGeneralLogger(
+        '@docs-islands/vitepress',
+        'warn',
+        'runtime warning',
+        undefined as never,
+      ),
+    ).toThrow(/lightGeneralLogger requires a logger group/);
   });
 });

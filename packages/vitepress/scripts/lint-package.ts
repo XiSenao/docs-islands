@@ -1,9 +1,10 @@
-import getLoggerInstance from '#shared/logger';
+import { createLogger } from '#shared/logger';
 import {
   checkPackage,
   createPackageFromTarballData,
   type Problem,
 } from '@arethetypeswrong/core';
+import { createElapsedLogOptions } from '@docs-islands/utils/logger';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,8 +13,12 @@ import { formatMessage } from 'publint/utils';
 import { packDistTarball } from './package-artifacts';
 import { auditPublishedPackageBoundaries } from './package-boundary';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
 const Logger = loggerInstance.getLoggerByGroup('task.package-lint');
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, Date.now());
 
 type CheckTarget = 'all' | 'publint' | 'attw';
 type AttwProfile = 'strict' | 'node16' | 'esm-only';
@@ -84,8 +89,8 @@ function toArrayBuffer(buffer: Buffer): ArrayBuffer {
 }
 
 async function runPublintCheck(tarball: Buffer): Promise<boolean> {
-  Logger.info('Running publint...');
   const start = Date.now();
+  Logger.info('Running publint...', elapsedSince(start));
 
   const { messages, pkg } = await publint({
     strict: true,
@@ -93,24 +98,27 @@ async function runPublintCheck(tarball: Buffer): Promise<boolean> {
   });
 
   if (messages.length === 0) {
-    Logger.success(`publint passed (${Date.now() - start}ms)`);
+    Logger.success('publint passed', elapsedSince(start));
     return true;
   }
 
   for (const message of messages) {
     const rendered = formatMessage(message, pkg) ?? message.code;
     if (message.type === 'error') {
-      Logger.error(`[publint] ${rendered}`);
+      Logger.error(`[publint] ${rendered}`, elapsedSince(start));
       continue;
     }
     if (message.type === 'warning') {
-      Logger.warn(`[publint] ${rendered}`);
+      Logger.warn(`[publint] ${rendered}`, elapsedSince(start));
       continue;
     }
-    Logger.info(`[publint] ${rendered}`);
+    Logger.info(`[publint] ${rendered}`, elapsedSince(start));
   }
 
-  Logger.error(`publint found ${messages.length} issue(s)`);
+  Logger.error(
+    `publint found ${messages.length} issue(s)`,
+    elapsedSince(start),
+  );
   return false;
 }
 
@@ -171,14 +179,14 @@ async function runAttwCheck(
   tarball: Buffer,
   profile: AttwProfile,
 ): Promise<boolean> {
-  Logger.info(`Running attw (profile: ${profile})...`);
   const start = Date.now();
+  Logger.info(`Running attw (profile: ${profile})...`, elapsedSince(start));
 
   const pkg = createPackageFromTarballData(tarball);
   const result = await checkPackage(pkg);
 
   if (!result.types) {
-    Logger.error('[attw] Package has no types');
+    Logger.error('[attw] Package has no types', elapsedSince(start));
     return false;
   }
 
@@ -191,39 +199,47 @@ async function runAttwCheck(
   });
 
   if (problems.length === 0) {
-    Logger.success(`attw passed (${Date.now() - start}ms)`);
+    Logger.success('attw passed', elapsedSince(start));
     return true;
   }
 
   for (const problem of problems) {
-    Logger.error(`[attw] ${formatAttwProblem(problem)}`);
+    Logger.error(`[attw] ${formatAttwProblem(problem)}`, elapsedSince(start));
   }
 
-  Logger.error(`attw found ${problems.length} problem(s)`);
+  Logger.error(`attw found ${problems.length} problem(s)`, elapsedSince(start));
   return false;
 }
 
 async function runBoundaryCheck(distDir: string): Promise<boolean> {
-  Logger.info('Running published package boundary audit...');
   const start = Date.now();
+  Logger.info(
+    'Running published package boundary audit...',
+    elapsedSince(start),
+  );
   const violations = await auditPublishedPackageBoundaries(distDir);
 
   if (violations.length === 0) {
-    Logger.success(`boundary audit passed (${Date.now() - start}ms)`);
+    Logger.success('boundary audit passed', elapsedSince(start));
     return true;
   }
 
   for (const violation of violations) {
     Logger.error(
       `[boundary] ${violation.filePath} (${violation.environment}) imports "${violation.specifier}": ${violation.message}`,
+      elapsedSince(start),
     );
   }
 
-  Logger.error(`boundary audit found ${violations.length} issue(s)`);
+  Logger.error(
+    `boundary audit found ${violations.length} issue(s)`,
+    elapsedSince(start),
+  );
   return false;
 }
 
 async function main(): Promise<void> {
+  const lintStartedAt = Date.now();
   const packageRootDir = fileURLToPath(new URL('..', import.meta.url));
   const distDir = path.join(packageRootDir, 'dist');
   const distPkgPath = path.join(distDir, 'package.json');
@@ -245,7 +261,11 @@ async function main(): Promise<void> {
     let tarball: Buffer | undefined;
     const requiresPackedTarball = checkTarget !== 'boundary';
     if (requiresPackedTarball) {
-      Logger.info('Packing dist tarball with pnpm...');
+      const packStartedAt = Date.now();
+      Logger.info(
+        'Packing dist tarball with pnpm...',
+        elapsedSince(packStartedAt),
+      );
       const packedDist = await packDistTarball(distDir);
       cleanupPackedDist = packedDist.cleanup;
       tarball = packedDist.tarball;
@@ -263,14 +283,15 @@ async function main(): Promise<void> {
     }
 
     if (passed) {
-      Logger.success('Package lint passed');
+      Logger.success('Package lint passed', elapsedSince(lintStartedAt));
     } else {
-      Logger.error('Package lint failed');
+      Logger.error('Package lint failed', elapsedSince(lintStartedAt));
       exitCode = 1;
     }
   } catch (error) {
     Logger.error(
       `Package lint failed: ${error instanceof Error ? error.message : String(error)}`,
+      elapsedSince(lintStartedAt),
     );
     exitCode = 1;
   } finally {
