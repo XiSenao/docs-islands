@@ -2,7 +2,7 @@ import {
   NEED_PRE_RENDER_DIRECTIVES,
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
-} from '../shared/constants';
+} from '../shared/constants/render-strategy';
 import type { RenderContainerInfo } from '../types/client';
 import type { RenderDirective } from '../types/render';
 

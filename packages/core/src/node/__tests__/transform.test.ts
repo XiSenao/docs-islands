@@ -2,11 +2,11 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest';
-import { RENDER_STRATEGY_CONSTANTS } from '../../shared/constants';
+import { RENDER_STRATEGY_CONSTANTS } from '../../shared/constants/render-strategy';
 import transformComponentTags, { travelImports } from '../transform';
 
 vi.mock('../../shared/logger', () => ({
-  default: () => ({
+  createLogger: () => ({
     getLoggerByGroup: () => ({
       warn: vi.fn(),
       error: vi.fn(),

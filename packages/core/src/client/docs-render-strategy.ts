@@ -1,6 +1,9 @@
-import { formatErrorMessage } from '@docs-islands/utils/logger';
-import { getFrameworkRenderStrategyLogGroup } from '../shared/log-groups';
-import getLoggerInstance from '../shared/logger';
+import {
+  createElapsedLogOptions,
+  formatErrorMessage,
+} from '@docs-islands/utils/logger';
+import { getFrameworkRenderStrategyLogGroup } from '../shared/constants/log-groups/runtime';
+import { createLogger } from '../shared/logger';
 import type {
   DocsRendererAdapter,
   DocsRenderMode,
@@ -11,12 +14,16 @@ import type {
 import type { PageMetafile } from '../types/page';
 import { collectRenderContainers } from './dom';
 
-const loggerInstance = getLoggerInstance();
+const loggerInstance = createLogger({
+  main: '@docs-islands/core',
+});
 
 const getRuntimeNow = (): number =>
   typeof performance !== 'undefined' && typeof performance.now === 'function'
     ? performance.now()
     : Date.now();
+const elapsedSince = (startTimeMs: number) =>
+  createElapsedLogOptions(startTimeMs, getRuntimeNow());
 
 export interface DocsRenderStrategyOptions<
   TComponent,
@@ -63,8 +70,13 @@ export class DocsRenderStrategy<TComponent, TBuildMetrics = unknown> {
     level: 'error' | 'info' | 'warn',
     message: string,
     payload?: unknown,
+    startedAt: number = getRuntimeNow(),
   ): void {
-    this.Logger[level](message);
+    if (level === 'error') {
+      this.Logger.error(message, elapsedSince(startedAt));
+    } else {
+      this.Logger[level](message, elapsedSince(startedAt));
+    }
     this.options.hooks?.onEvent?.({
       level,
       message,
@@ -359,9 +371,14 @@ export class DocsRenderStrategy<TComponent, TBuildMetrics = unknown> {
           });
 
           this.renderVisibleContainer(info).catch((error) => {
-            this.emitEvent('error', 'visibility rendering failed', {
-              message: formatErrorMessage(error),
-            });
+            this.emitEvent(
+              'error',
+              'visibility rendering failed',
+              {
+                message: formatErrorMessage(error),
+              },
+              visibleAt,
+            );
           });
         }
 
@@ -448,6 +465,7 @@ export class DocsRenderStrategy<TComponent, TBuildMetrics = unknown> {
   }
 
   public async executeRuntime(context: DocsRuntimeContext): Promise<void> {
+    const executeStartedAt = getRuntimeNow();
     this.renderContext = context;
     const renderContainers = this.collectRenderContainers();
 
@@ -487,12 +505,17 @@ export class DocsRenderStrategy<TComponent, TBuildMetrics = unknown> {
         );
       }
     } catch (error) {
-      this.emitEvent('error', 'runtime execution failed', {
-        componentCount: renderContainers.length,
-        isInitialLoad: context.isInitialLoad,
-        message: formatErrorMessage(error),
-        pageId: context.pageId,
-      });
+      this.emitEvent(
+        'error',
+        'runtime execution failed',
+        {
+          componentCount: renderContainers.length,
+          isInitialLoad: context.isInitialLoad,
+          message: formatErrorMessage(error),
+          pageId: context.pageId,
+        },
+        executeStartedAt,
+      );
     }
   }
 

@@ -1,0 +1,1 @@
+export const DIRNAME_VAR_NAME = '__INJECTED_ORIGINAL_DIRNAME__';

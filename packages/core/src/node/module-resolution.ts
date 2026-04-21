@@ -1,4 +1,4 @@
-import { RENDER_STRATEGY_CONSTANTS } from '../shared/constants';
+import { RENDER_STRATEGY_CONSTANTS } from '../shared/constants/render-strategy';
 import { normalizeSlashPath } from '../shared/path';
 
 export interface DocsResolvedId {

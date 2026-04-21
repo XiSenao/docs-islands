@@ -2,15 +2,13 @@
  * @vitest-environment jsdom
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  PAGE_METAFILE_META_NAMES,
-  RENDER_STRATEGY_CONSTANTS,
-} from '../../shared/constants';
+import { PAGE_METAFILE_META_NAMES } from '../../shared/constants/page-metafile';
+import { RENDER_STRATEGY_CONSTANTS } from '../../shared/constants/render-strategy';
 import type { DocsInjectComponent } from '../../types/client';
 import { DocsComponentManager } from '../docs-component-manager';
 
 vi.mock('../../shared/logger', () => ({
-  default: () => ({
+  createLogger: () => ({
     getLoggerByGroup: () => ({
       error: vi.fn(),
       info: vi.fn(),

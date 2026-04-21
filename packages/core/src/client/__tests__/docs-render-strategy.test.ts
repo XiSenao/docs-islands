@@ -2,12 +2,12 @@
  * @vitest-environment jsdom
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RENDER_STRATEGY_CONSTANTS } from '../../shared/constants';
+import { RENDER_STRATEGY_CONSTANTS } from '../../shared/constants/render-strategy';
 import type { RenderDirective } from '../../types/render';
 import { DocsRenderStrategy } from '../docs-render-strategy';
 
 vi.mock('../../shared/logger', () => ({
-  default: () => ({
+  createLogger: () => ({
     getLoggerByGroup: () => ({
       error: vi.fn(),
       info: vi.fn(),
