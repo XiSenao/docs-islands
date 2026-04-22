@@ -509,7 +509,7 @@ function joinClassNames(...classNames: (string | false | null | undefined)[]) {
   return classNames.filter(Boolean).join(' ');
 }
 
-async function writeToClipboard(value: string) {
+async function writeToClipboardWithExecCommand(value: string) {
   if (typeof document === 'undefined') {
     return false;
   }
@@ -523,7 +523,9 @@ async function writeToClipboard(value: string) {
   textarea.style.pointerEvents = 'none';
 
   document.body.append(textarea);
+  textarea.focus();
   textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
 
   try {
     return document.execCommand('copy');
@@ -532,6 +534,26 @@ async function writeToClipboard(value: string) {
   } finally {
     textarea.remove();
   }
+}
+
+async function writeToClipboard(value: string) {
+  if (globalThis.window !== undefined) {
+    const clipboard = globalThis.window.navigator?.clipboard;
+
+    if (!clipboard?.writeText) {
+      return writeToClipboardWithExecCommand(value);
+    }
+
+    try {
+      await clipboard.writeText(value);
+      return true;
+    } catch {
+      // Fall back to execCommand for browsers or contexts that reject
+      // navigator.clipboard even during a user-initiated click.
+    }
+  }
+
+  return writeToClipboardWithExecCommand(value);
 }
 
 function CopyableCode(props: CopyableCodeProps) {
