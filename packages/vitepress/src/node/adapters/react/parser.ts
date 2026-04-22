@@ -1,6 +1,5 @@
 import type { UsedSnippetContainerType } from '#dep-types/component';
 import { VITEPRESS_PARSER_LOG_GROUPS } from '#shared/constants/log-groups/parser';
-import { createLogger } from '#shared/logger';
 import { createImportReferenceResolver } from '@docs-islands/core/node/import-reference-resolver';
 import {
   type CompilationContainerType,
@@ -23,11 +22,9 @@ import type {
   RenderingFrameworkParserScriptContext,
   RenderingFrameworkTransformResult,
 } from '../../core/framework-parser';
+import { getVitePressGroupLogger } from '../../logger';
 import type { ReactIntegrationPluginContext } from './context';
 
-const loggerInstance = createLogger({
-  main: '@docs-islands/vitepress',
-});
 const elapsedSince = (startTimeMs: number) =>
   createElapsedLogOptions(startTimeMs, Date.now());
 
@@ -44,18 +41,25 @@ function transformComponentTags(
   code: string,
   maybeReactComponentNames: string[],
   id: string,
+  loggerScopeId?: ReactIntegrationPluginContext['loggerScopeId'],
 ): {
   code: string;
   renderIdToRenderDirectiveMap: Map<string, string[]>;
   map: SourceMap | null;
 } {
-  return coreTransformComponentTags(code, maybeReactComponentNames, id, {
-    renderId: RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),
-    renderDirective: RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase(),
-    renderComponent: RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase(),
-    renderWithSpaSync:
-      RENDER_STRATEGY_CONSTANTS.renderWithSpaSync.toLowerCase(),
-  });
+  return coreTransformComponentTags(
+    code,
+    maybeReactComponentNames,
+    id,
+    {
+      renderId: RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),
+      renderDirective: RENDER_STRATEGY_CONSTANTS.renderDirective.toLowerCase(),
+      renderComponent: RENDER_STRATEGY_CONSTANTS.renderComponent.toLowerCase(),
+      renderWithSpaSync:
+        RENDER_STRATEGY_CONSTANTS.renderWithSpaSync.toLowerCase(),
+    },
+    loggerScopeId,
+  );
 }
 
 function createEmptyReactTransformResult(
@@ -73,7 +77,11 @@ function createEmptyReactTransformResult(
 export function createReactFrameworkParser(
   context: ReactIntegrationPluginContext,
 ): RenderingFrameworkParser {
-  const { renderController, siteConfig } = context;
+  const { loggerScopeId, renderController, siteConfig } = context;
+  const Logger = getVitePressGroupLogger(
+    VITEPRESS_PARSER_LOG_GROUPS.react,
+    loggerScopeId,
+  );
 
   return {
     framework: REACT_FRAMEWORK,
@@ -102,16 +110,14 @@ export function createReactFrameworkParser(
       try {
         [imports] = parse(script.content);
       } catch (parseError) {
-        loggerInstance
-          .getLoggerByGroup(VITEPRESS_PARSER_LOG_GROUPS.react)
-          .error(
-            `Failed to parse JavaScript in ${id}: ${
-              parseError instanceof Error
-                ? parseError.message
-                : String(parseError)
-            }`,
-            elapsedSince(parseStartedAt),
-          );
+        Logger.error(
+          `Failed to parse JavaScript in ${id}: ${
+            parseError instanceof Error
+              ? parseError.message
+              : String(parseError)
+          }`,
+          elapsedSince(parseStartedAt),
+        );
 
         return {
           componentReferences: maybeComponentReferenceMap,
@@ -135,16 +141,14 @@ export function createReactFrameworkParser(
         try {
           importSets = travelImports(exp) || [];
         } catch (importParseError) {
-          loggerInstance
-            .getLoggerByGroup(VITEPRESS_PARSER_LOG_GROUPS.react)
-            .warn(
-              `Failed to parse import statement in ${id}: ${
-                importParseError instanceof Error
-                  ? importParseError.message
-                  : String(importParseError)
-              }`,
-              elapsedSince(parseStartedAt),
-            );
+          Logger.warn(
+            `Failed to parse import statement in ${id}: ${
+              importParseError instanceof Error
+                ? importParseError.message
+                : String(importParseError)
+            }`,
+            elapsedSince(parseStartedAt),
+          );
           continue;
         }
 
@@ -163,19 +167,15 @@ export function createReactFrameworkParser(
             );
 
           if (!finalImportReference) {
-            loggerInstance
-              .getLoggerByGroup(VITEPRESS_PARSER_LOG_GROUPS.react)
-              .error(
-                `Failed to resolve final import reference ${rawIdentifier}#${importedName} in ${id}, skipping component registration`,
-                elapsedSince(parseStartedAt),
-              );
+            Logger.error(
+              `Failed to resolve final import reference ${rawIdentifier}#${importedName} in ${id}, skipping component registration`,
+              elapsedSince(parseStartedAt),
+            );
             continue;
           }
 
           for (const warning of finalImportReference.warnings) {
-            loggerInstance
-              .getLoggerByGroup(VITEPRESS_PARSER_LOG_GROUPS.react)
-              .warn(warning, elapsedSince(parseStartedAt));
+            Logger.warn(warning, elapsedSince(parseStartedAt));
           }
 
           maybeComponentReferenceMap.set(localName, {
@@ -220,7 +220,12 @@ export function createReactFrameworkParser(
         code: transformedCode,
         renderIdToRenderDirectiveMap,
         map,
-      } = transformComponentTags(code, maybeReactComponentNames, id);
+      } = transformComponentTags(
+        code,
+        maybeReactComponentNames,
+        id,
+        loggerScopeId,
+      );
       const transformedRenderIdToRenderDirectiveMap = new Map<
         string,
         UsedSnippetContainerType

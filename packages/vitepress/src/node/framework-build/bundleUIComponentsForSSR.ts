@@ -5,24 +5,23 @@ import type {
 import type { RollupOutput } from '#dep-types/rollup';
 import type { ConfigType } from '#dep-types/utils';
 import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
-import { createLogger } from '#shared/logger';
 import { DIRNAME_VAR_NAME } from '@docs-islands/core/shared/constants/runtime';
 import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
-import { createElapsedLogOptions } from '@docs-islands/utils/logger';
+import {
+  createElapsedLogOptions,
+  type LoggerScopeId,
+} from '@docs-islands/utils/logger';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { join, resolve } from 'pathe';
 import type { InlineConfig } from 'vite';
 import { build } from 'vite';
+import { createLoggerScopeDefinesFromRegistry } from '../core/logger-scope';
+import { createLoggerScopeTakeoverPlugin } from '../core/vite-plugin-logger-scope';
+import { getVitePressGroupLogger } from '../logger';
 import type { UIFrameworkBuildAdapter } from './adapter';
 import { createComponentEntryModules, isOutputChunk } from './shared';
 
-const loggerInstance = createLogger({
-  main: '@docs-islands/vitepress',
-});
-const Logger = loggerInstance.getLoggerByGroup(
-  VITEPRESS_BUILD_LOG_GROUPS.frameworkSsrBundle,
-);
 const elapsedSince = (startTimeMs: number) =>
   createElapsedLogOptions(startTimeMs, Date.now());
 
@@ -31,10 +30,15 @@ export async function bundleUIComponentsForSSR(
   ssrComponents: ComponentBundleInfo[],
   usedSnippetContainer: Map<string, UsedSnippetContainerType>,
   adapter: UIFrameworkBuildAdapter,
+  loggerScopeId: LoggerScopeId,
 ): Promise<{
   renderedComponents: Map<string, string>;
 }> {
   const bundleStartedAt = Date.now();
+  const Logger = getVitePressGroupLogger(
+    VITEPRESS_BUILD_LOG_GROUPS.frameworkSsrBundle,
+    loggerScopeId,
+  );
   const { base, srcDir, assetsDir, cacheDir } = config;
   /**
    * Needs to be built concurrently with MPA mode.
@@ -94,9 +98,13 @@ export async function bundleUIComponentsForSSR(
         assetsInlineLimit: 4096,
         cssCodeSplit: true,
       },
-      plugins: adapter.ssrBundlerPlugins(),
+      plugins: [
+        createLoggerScopeTakeoverPlugin(loggerScopeId),
+        ...adapter.ssrBundlerPlugins(),
+      ],
       define: {
         'import.meta.dirname': DIRNAME_VAR_NAME,
+        ...createLoggerScopeDefinesFromRegistry(loggerScopeId),
       },
       logLevel: 'warn',
     };

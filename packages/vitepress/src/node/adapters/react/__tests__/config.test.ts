@@ -3,6 +3,7 @@
  */
 import {
   resetLoggerConfig,
+  resetLoggerConfigForScope,
   shouldSuppressLog,
 } from '@docs-islands/utils/logger';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +12,7 @@ import { VITEPRESS_RUNTIME_LOG_GROUPS } from '../../../../shared/constants/log-g
 import { hmr } from '../../../../shared/logger/presets';
 
 const mockWarn = vi.fn();
+const TEST_LOGGER_SCOPE_ID = 'test-logger-scope';
 
 vi.mock('#shared/logger', () => ({
   createLogger: () => ({
@@ -26,6 +28,7 @@ vi.mock('#shared/logger', () => ({
 
 afterEach(() => {
   resetLoggerConfig();
+  resetLoggerConfigForScope(TEST_LOGGER_SCOPE_ID);
   vi.restoreAllMocks();
   vi.resetModules();
 });
@@ -154,17 +157,21 @@ describe('react logging config', () => {
     const { applyDocsIslandsUserConfig } = await import('../../../core/config');
     const vitepressConfig: Record<string, any> = {};
 
-    const resolved = applyDocsIslandsUserConfig(vitepressConfig as any, {
-      logging: {
-        levels: ['warn'],
-        plugins: {
-          hmr,
-        },
-        rules: {
-          'hmr/viteAfterUpdate': 'off',
+    const resolved = applyDocsIslandsUserConfig(
+      vitepressConfig as any,
+      TEST_LOGGER_SCOPE_ID,
+      {
+        logging: {
+          levels: ['warn'],
+          plugins: {
+            hmr,
+          },
+          rules: {
+            'hmr/viteAfterUpdate': 'off',
+          },
         },
       },
-    });
+    );
 
     expect(resolved.logging).toEqual({
       levels: ['warn'],
@@ -179,11 +186,15 @@ describe('react logging config', () => {
     });
 
     expect(
-      shouldSuppressLog('warn', {
-        group: VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdate,
-        main: '@docs-islands/vitepress',
-        message: 'ready to update',
-      }),
+      shouldSuppressLog(
+        'warn',
+        {
+          group: VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdate,
+          main: '@docs-islands/vitepress',
+          message: 'ready to update',
+        },
+        TEST_LOGGER_SCOPE_ID,
+      ),
     ).toBe(true);
   });
 
@@ -192,41 +203,57 @@ describe('react logging config', () => {
       await import('../../../core/config');
     const vitepressConfig: Record<string, any> = {};
 
-    const resolved = applyDocsIslandsUserConfig(vitepressConfig as any, {
-      logging: {
-        debug: true,
-        levels: ['warn'],
-        plugins: {
-          hmr,
-        },
-        rules: {
-          'hmr/markdownUpdate': 'off',
-          'hmr/viteAfterUpdate': {},
+    const resolved = applyDocsIslandsUserConfig(
+      vitepressConfig as any,
+      TEST_LOGGER_SCOPE_ID,
+      {
+        logging: {
+          debug: true,
+          levels: ['warn'],
+          plugins: {
+            hmr,
+          },
+          rules: {
+            'hmr/markdownUpdate': 'off',
+            'hmr/viteAfterUpdate': {},
+          },
         },
       },
-    });
+    );
 
     expect(
-      shouldSuppressLog('warn', {
-        group: VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdate,
-        main: '@docs-islands/vitepress',
-        message: 'ready to update',
-      }),
+      shouldSuppressLog(
+        'warn',
+        {
+          group: VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdate,
+          main: '@docs-islands/vitepress',
+          message: 'ready to update',
+        },
+        TEST_LOGGER_SCOPE_ID,
+      ),
     ).toBe(false);
     expect(
-      shouldSuppressLog('info', {
-        group: VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdate,
-        main: '@docs-islands/vitepress',
-        message: 'ready to update',
-      }),
+      shouldSuppressLog(
+        'info',
+        {
+          group: VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdate,
+          main: '@docs-islands/vitepress',
+          message: 'ready to update',
+        },
+        TEST_LOGGER_SCOPE_ID,
+      ),
     ).toBe(true);
     expect(
-      shouldSuppressLog('warn', {
-        group: VITEPRESS_HMR_LOG_GROUPS.markdownUpdate,
-        main: '@docs-islands/vitepress',
-        message:
-          'container script content changed, container script content will be re-parsed...',
-      }),
+      shouldSuppressLog(
+        'warn',
+        {
+          group: VITEPRESS_HMR_LOG_GROUPS.markdownUpdate,
+          main: '@docs-islands/vitepress',
+          message:
+            'container script content changed, container script content will be re-parsed...',
+        },
+        TEST_LOGGER_SCOPE_ID,
+      ),
     ).toBe(true);
 
     applyDocsIslandsViteBaseConfig(
@@ -260,6 +287,9 @@ describe('react logging config', () => {
         ],
       }),
     );
+    expect(vitepressConfig.vite.define.__DOCS_ISLANDS_LOGGER_SCOPE_ID__).toBe(
+      JSON.stringify(TEST_LOGGER_SCOPE_ID),
+    );
   });
 
   it('applies the normalized logger config and injects it into vite define', async () => {
@@ -267,52 +297,72 @@ describe('react logging config', () => {
       await import('../../../core/config');
     const vitepressConfig: Record<string, any> = {};
 
-    const resolved = applyDocsIslandsUserConfig(vitepressConfig as any, {
-      logging: {
-        debug: false,
-        levels: ['info', 'success', 'warn'],
-        rules: [
-          {
-            enabled: false,
-            group: 'runtime.react.*',
-            label: 'suppress-runtime-react',
-            main: '@docs-islands/vitepress',
-            message: '*suppressed*',
-          },
-        ],
+    const resolved = applyDocsIslandsUserConfig(
+      vitepressConfig as any,
+      TEST_LOGGER_SCOPE_ID,
+      {
+        logging: {
+          debug: false,
+          levels: ['info', 'success', 'warn'],
+          rules: [
+            {
+              enabled: false,
+              group: 'runtime.react.*',
+              label: 'suppress-runtime-react',
+              main: '@docs-islands/vitepress',
+              message: '*suppressed*',
+            },
+          ],
+        },
       },
-    });
+    );
 
     expect(
-      shouldSuppressLog('info', {
-        group: VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
-        main: '@docs-islands/vitepress',
-        message: 'suppressed ready',
-      }),
+      shouldSuppressLog(
+        'info',
+        {
+          group: VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
+          main: '@docs-islands/vitepress',
+          message: 'suppressed ready',
+        },
+        TEST_LOGGER_SCOPE_ID,
+      ),
     ).toBe(true);
 
     expect(
-      shouldSuppressLog('info', {
-        group: VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
-        main: '@docs-islands/vitepress',
-        message: 'visible ready',
-      }),
+      shouldSuppressLog(
+        'info',
+        {
+          group: VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
+          main: '@docs-islands/vitepress',
+          message: 'visible ready',
+        },
+        TEST_LOGGER_SCOPE_ID,
+      ),
     ).toBe(true);
 
     expect(
-      shouldSuppressLog('success', {
-        group: VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
-        main: '@docs-islands/core',
-        message: 'visible success',
-      }),
+      shouldSuppressLog(
+        'success',
+        {
+          group: VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
+          main: '@docs-islands/core',
+          message: 'visible success',
+        },
+        TEST_LOGGER_SCOPE_ID,
+      ),
     ).toBe(true);
 
     expect(
-      shouldSuppressLog('debug', {
-        group: VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
-        main: '@docs-islands/vitepress',
-        message: 'still hidden',
-      }),
+      shouldSuppressLog(
+        'debug',
+        {
+          group: VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
+          main: '@docs-islands/vitepress',
+          message: 'still hidden',
+        },
+        TEST_LOGGER_SCOPE_ID,
+      ),
     ).toBe(true);
 
     applyDocsIslandsViteBaseConfig(
@@ -329,6 +379,9 @@ describe('react logging config', () => {
 
     expect(vitepressConfig.vite.define.__DOCS_ISLANDS_LOGGER_CONFIG__).toBe(
       JSON.stringify(resolved.logging ?? null),
+    );
+    expect(vitepressConfig.vite.define.__DOCS_ISLANDS_LOGGER_SCOPE_ID__).toBe(
+      JSON.stringify(TEST_LOGGER_SCOPE_ID),
     );
   });
 

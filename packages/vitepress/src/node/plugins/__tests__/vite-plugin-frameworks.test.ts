@@ -18,15 +18,13 @@ import { createFrameworkSpaSyncPlugin } from '../vite-plugin-framework-spa-sync'
 
 const mockSuccess = vi.fn();
 
-vi.mock('#shared/logger', () => ({
-  createLogger: () => ({
-    getLoggerByGroup: () => ({
-      debug: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      success: mockSuccess,
-      warn: vi.fn(),
-    }),
+vi.mock('../../logger', () => ({
+  getVitePressGroupLogger: () => ({
+    debug: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    success: mockSuccess,
+    warn: vi.fn(),
   }),
 }));
 
@@ -105,6 +103,7 @@ describe('node/plugins', () => {
     const plugin = createFrameworkMarkdownHmrPlugin({
       framework,
       frameworkParserManager,
+      loggerScopeId: 'test-logger-scope',
       name: 'test:framework-markdown-hmr',
       renderController,
       resolution,

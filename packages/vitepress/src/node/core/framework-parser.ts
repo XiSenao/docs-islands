@@ -1,25 +1,24 @@
 import type { UsedSnippetContainerType } from '#dep-types/component';
 import { VITEPRESS_PARSER_LOG_GROUPS } from '#shared/constants/log-groups/parser';
-import { createLogger } from '#shared/logger';
 import {
   type CompilationContainerType,
   createEmptyCompilationContainer,
   type RenderController,
 } from '@docs-islands/core/node/render-controller';
-import { createElapsedLogOptions } from '@docs-islands/utils/logger';
+import {
+  createElapsedLogOptions,
+  type LoggerScopeId,
+} from '@docs-islands/utils/logger';
 import MagicString, { type SourceMap } from 'magic-string';
 import MarkdownIt from 'markdown-it';
 import type { Plugin } from 'vite';
 import { normalizePath } from 'vite';
 import { FRAMEWORK_MARKDOWN_TRANSFORM_PLUGIN_NAME } from '../constants/core/plugin-names';
+import { getVitePressGroupLogger } from '../logger';
 import type {
   RenderingModuleResolution,
   RenderingViteModuleResolver,
 } from './module-resolution';
-
-const loggerInstance = createLogger({
-  main: '@docs-islands/vitepress',
-});
 const elapsedSince = (startTimeMs: number) =>
   createElapsedLogOptions(startTimeMs, Date.now());
 const scriptTagExtractorMd = new MarkdownIt({ html: true });
@@ -118,7 +117,19 @@ function createEmptyTransformResult(
 }
 
 export class RenderingFrameworkParserManager {
+  readonly #getLoggerScopeId?: () => LoggerScopeId;
   readonly #parsers: RenderingFrameworkParser[] = [];
+
+  constructor(getLoggerScopeId?: () => LoggerScopeId) {
+    this.#getLoggerScopeId = getLoggerScopeId;
+  }
+
+  #getFrameworkLogger() {
+    return getVitePressGroupLogger(
+      VITEPRESS_PARSER_LOG_GROUPS.framework,
+      this.#getLoggerScopeId?.(),
+    );
+  }
 
   public registerParser(parser: RenderingFrameworkParser): void {
     const existingParserIndex = this.#parsers.findIndex(
@@ -179,12 +190,10 @@ export class RenderingFrameworkParserManager {
       }
 
       skippedFrameworks.add(framework);
-      loggerInstance
-        .getLoggerByGroup(VITEPRESS_PARSER_LOG_GROUPS.framework)
-        .error(
-          `Single file can contain only one <script lang="${scriptMatches[0].lang}"> element.`,
-          elapsedSince(transformStartedAt),
-        );
+      this.#getFrameworkLogger().error(
+        `Single file can contain only one <script lang="${scriptMatches[0].lang}"> element.`,
+        elapsedSince(transformStartedAt),
+      );
     }
 
     const parsedScripts = new Map<
@@ -214,14 +223,12 @@ export class RenderingFrameworkParserManager {
         );
       } catch (error) {
         skippedFrameworks.add(parser.framework);
-        loggerInstance
-          .getLoggerByGroup(VITEPRESS_PARSER_LOG_GROUPS.framework)
-          .error(
-            `Failed to parse <script lang="${parser.lang}"> in ${id}: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-            elapsedSince(transformStartedAt),
-          );
+        this.#getFrameworkLogger().error(
+          `Failed to parse <script lang="${parser.lang}"> in ${id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          elapsedSince(transformStartedAt),
+        );
       }
     }
 
@@ -245,12 +252,10 @@ export class RenderingFrameworkParserManager {
 
         skippedFrameworks.add(existingFramework);
         skippedFrameworks.add(parser.framework);
-        loggerInstance
-          .getLoggerByGroup(VITEPRESS_PARSER_LOG_GROUPS.framework)
-          .error(
-            `Duplicate component local name "${componentName}" found across rendering frameworks in ${id}. Rename one of the imports before mixing frameworks on the same page.`,
-            elapsedSince(transformStartedAt),
-          );
+        this.#getFrameworkLogger().error(
+          `Duplicate component local name "${componentName}" found across rendering frameworks in ${id}. Rename one of the imports before mixing frameworks on the same page.`,
+          elapsedSince(transformStartedAt),
+        );
       }
     }
 

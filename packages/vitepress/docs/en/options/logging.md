@@ -6,6 +6,8 @@
 
 `logging` controls the package-owned logs emitted by `createDocsIslands()` and the public logger helpers exposed by this package. It does not change rendering; it only decides which `@docs-islands/*` messages stay visible in Node and in the browser.
 
+Each `createDocsIslands()` instance owns an isolated logger scope. In controlled build paths, imports from `@docs-islands/vitepress/logger` are automatically bound to that instance, so parallel VitePress instances or test runs do not overwrite each other's logging config. Imports that bypass the controlled build graph still fall back to the default compatibility scope.
+
 ## When to Use It
 
 Use `logging` when the integration works but the console is too noisy, or when you need focused diagnostics for one docs-islands subsystem. During normal setup you may only keep `warn` and `error`; during investigation you can enable `debug` to see which rule allowed a visible log and how long the logger has been active.
@@ -98,7 +100,7 @@ The presets exported by `@docs-islands/vitepress/logger/presets` are predefined 
 
 ## Public Logger Usage
 
-`@docs-islands/vitepress/logger` exposes `createLogger` and `LightGeneralLogger`. Every logger instance created through `createLogger(...)` still reads the same global logger config, so userland logs remain constrained by the resolved `logging` rules.
+`@docs-islands/vitepress/logger` exposes `createLogger`, `formatDebugMessage`, and `setLoggerConfig`. In controlled build paths, every logger instance created through `createLogger(...)` is automatically bound to the current docs-islands logger scope, so userland logs still follow the resolved `logging` rules for that VitePress instance.
 
 ```ts [.vitepress/config.ts]
 import { createDocsIslands } from '@docs-islands/vitepress';
@@ -128,7 +130,19 @@ logger.getLoggerByGroup('userland.metrics').info('visible userland info');
 logger.getLoggerByGroup('userland.hidden').info('suppressed userland info');
 ```
 
-With this setup, `userland.metrics` stays visible, while `userland.hidden` is suppressed. `LightGeneralLogger` follows the same visibility and rule-matching behavior. If you later change `createLogger({ main: ... })`, update your rules to match that `main` or remove the `main` filter.
+With this setup, `userland.metrics` stays visible, while `userland.hidden` is suppressed. If you later change `createLogger({ main: ... })`, update your rules to match that `main` or remove the `main` filter.
+
+### Using `createLogger` Without `createDocsIslands()`
+
+If you import `createLogger` from `@docs-islands/vitepress/logger` but never install `createDocsIslands()`, the logger still works through the default-scope compatibility path.
+
+- Logs are **not** automatically bound to a docs-islands instance, so they do not inherit instance-local `logging` rules.
+- Multi-instance isolation does **not** apply in this fallback mode. Multiple callers share the same default scope.
+- If no logger config was injected into that default scope, logging falls back to the root defaults: `error`, `warn`, `info`, and `success` stay visible, while `debug` stays suppressed.
+- In this fallback mode, `setLoggerConfig(...)` updates that default compatibility scope directly.
+- You can clear the fallback config again with `setLoggerConfig(null)` or `setLoggerConfig(undefined)`.
+
+In short: direct logger usage remains compatible, but automatic scope takeover only happens inside the controlled build path established by `createDocsIslands()`. If the current import is already scope-controlled, `setLoggerConfig(...)` is ignored and warns once that the logger is controlled, and the warning tells you to update the logger config through `createDocsIslands({ logging: ... })`.
 
 ::: warning Reusing Built-in `main/group`
 

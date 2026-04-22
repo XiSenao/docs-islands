@@ -5,8 +5,8 @@ import type {
 import { VITEPRESS_SITE_DEVTOOLS_LOG_GROUPS } from '#shared/constants/log-groups/site-devtools';
 import {
   createElapsedLogOptions,
-  createLogger,
   formatErrorMessage,
+  type LoggerScopeId,
 } from '@docs-islands/utils/logger';
 import { createHash } from 'node:crypto';
 import {
@@ -18,12 +18,15 @@ import {
   type SiteDevToolsAiProviderCapability,
   type SiteDevToolsAiRequestTrace,
 } from '../../shared/site-devtools-ai';
+import { getVitePressGroupLogger } from '../logger';
 
 const DEFAULT_DOUBAO_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
 const DEFAULT_ANALYSIS_TIMEOUT_MS = Number.POSITIVE_INFINITY;
-const SiteDevToolsAiLogger = createLogger({
-  main: '@docs-islands/vitepress',
-}).getLoggerByGroup(VITEPRESS_SITE_DEVTOOLS_LOG_GROUPS.aiServer);
+const getSiteDevToolsAiLogger = (loggerScopeId?: LoggerScopeId) =>
+  getVitePressGroupLogger(
+    VITEPRESS_SITE_DEVTOOLS_LOG_GROUPS.aiServer,
+    loggerScopeId,
+  );
 
 export interface SiteDevToolsAnalysisRuntimeConfig {
   buildReports?: SiteDevToolsAnalysisUserConfig['buildReports'];
@@ -318,8 +321,9 @@ const formatRequestTraceDetail = (trace: SiteDevToolsAiRequestTrace) =>
 const logAiRequestStarted = (
   trace: SiteDevToolsAiRequestTrace,
   startedAt: number,
+  loggerScopeId?: LoggerScopeId,
 ) => {
-  SiteDevToolsAiLogger.info(
+  getSiteDevToolsAiLogger(loggerScopeId).info(
     `Starting AI analysis: ${formatRequestTraceDetail(trace)}`,
     createElapsedLogOptions(startedAt, Date.now()),
   );
@@ -327,14 +331,16 @@ const logAiRequestStarted = (
 
 const logAiRequestSucceeded = ({
   elapsedMs,
+  loggerScopeId,
   result,
   trace,
 }: {
   elapsedMs: number;
+  loggerScopeId?: LoggerScopeId;
   result: string;
   trace: SiteDevToolsAiRequestTrace;
 }) => {
-  SiteDevToolsAiLogger.success(
+  getSiteDevToolsAiLogger(loggerScopeId).success(
     `AI analysis returned data: ${formatRequestTraceDetail(trace)} · response ${formatByteCount(
       Buffer.byteLength(result, 'utf8'),
     )} · elapsed ${formatDurationMs(elapsedMs)}`,
@@ -345,13 +351,15 @@ const logAiRequestSucceeded = ({
 const logAiRequestFailed = ({
   elapsedMs,
   error,
+  loggerScopeId,
   trace,
 }: {
   elapsedMs: number;
   error: unknown;
+  loggerScopeId?: LoggerScopeId;
   trace: SiteDevToolsAiRequestTrace;
 }) => {
-  SiteDevToolsAiLogger.error(
+  getSiteDevToolsAiLogger(loggerScopeId).error(
     `AI analysis returned no data: ${formatRequestTraceDetail(trace)} · elapsed ${formatDurationMs(
       elapsedMs,
     )} · reason ${formatErrorMessage(error)}`,
@@ -493,6 +501,7 @@ const runDoubaoAnalysis = async (
   prompt: string,
   config: SiteDevToolsAiConfig,
   target: SiteDevToolsAiAnalysisTarget,
+  loggerScopeId?: LoggerScopeId,
 ): Promise<SiteDevToolsAiExecutionResult> => {
   const capability = getDoubaoCapability(config);
   const providerConfig = getDoubaoProviderConfig(config);
@@ -518,7 +527,7 @@ const runDoubaoAnalysis = async (
     });
   }
 
-  logAiRequestStarted(trace, startedAt);
+  logAiRequestStarted(trace, startedAt, loggerScopeId);
 
   const providerApiKey = providerConfig.apiKey;
 
@@ -595,6 +604,7 @@ const runDoubaoAnalysis = async (
 
     logAiRequestSucceeded({
       elapsedMs: Date.now() - startedAt,
+      loggerScopeId,
       result: content,
       trace,
     });
@@ -608,6 +618,7 @@ const runDoubaoAnalysis = async (
     logAiRequestFailed({
       elapsedMs: Date.now() - startedAt,
       error,
+      loggerScopeId,
       trace,
     });
 
@@ -636,10 +647,12 @@ const runDoubaoAnalysis = async (
 
 export const analyzeSiteDevToolsAiTarget = async ({
   config,
+  loggerScopeId,
   provider,
   target,
 }: {
   config: SiteDevToolsAiConfig;
+  loggerScopeId?: LoggerScopeId;
   provider: SiteDevToolsAiProvider;
   target: SiteDevToolsAiAnalysisTarget;
 }): Promise<SiteDevToolsAiExecutionResult> => {
@@ -660,5 +673,6 @@ export const analyzeSiteDevToolsAiTarget = async ({
     buildSiteDevToolsAiAnalysisPrompt(target),
     config,
     target,
+    loggerScopeId,
   );
 };

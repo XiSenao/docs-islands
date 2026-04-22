@@ -35,6 +35,16 @@ vi.mock('#shared/logger', () => ({
   }),
 }));
 
+vi.mock('../../../logger', () => ({
+  getVitePressGroupLogger: () => ({
+    debug: vi.fn(),
+    error: mockError,
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: mockWarn,
+  }),
+}));
+
 afterEach(() => {
   vi.restoreAllMocks();
   vi.doUnmock('@docs-islands/utils');

@@ -3,6 +3,7 @@ import {
   lightGeneralLogger,
   type LightGeneralLoggerReturn,
   type LoggerLogOptions,
+  type LoggerScopeId,
   type LoggerType,
   type LogKind,
 } from './logger';
@@ -14,6 +15,7 @@ export type BoundLightGeneralLogger = (
   message: string,
   group: string,
   options?: LoggerLogOptions,
+  scopeId?: LoggerScopeId,
 ) => LightGeneralLoggerReturn;
 
 export function createLightGeneralLogger(
@@ -29,4 +31,17 @@ export const UtilsLogger: LoggerType = createLogger({
   main: MAIN_NAME,
 });
 
-export { createLogger, ScopedLogger, type ScopedLoggerType } from './logger';
+export {
+  createLogger,
+  DEFAULT_LOGGER_SCOPE_ID,
+  getLoggerConfigForScope,
+  normalizeLoggerScopeId,
+  resetLoggerConfig,
+  resetLoggerConfigForScope,
+  ScopedLogger,
+  setLoggerConfig,
+  setLoggerConfigForScope,
+  shouldSuppressLog,
+  syncRuntimeDefinedLoggerConfig,
+  type ScopedLoggerType,
+} from './logger';

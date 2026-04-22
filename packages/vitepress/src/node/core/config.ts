@@ -6,17 +6,28 @@ import type {
 } from '#dep-types/utils';
 import { VITEPRESS_CONFIG_LOG_GROUPS } from '#shared/constants/log-groups/config';
 import { createLogger } from '#shared/logger';
+import type { LoggerScopeId } from '@docs-islands/utils/logger';
 import {
   createElapsedLogOptions,
-  setLoggerConfig,
+  setLoggerConfigForScope,
 } from '@docs-islands/utils/logger';
 import type { DefaultTheme, UserConfig } from 'vitepress';
 import { ensureVitepressViteConfig } from './integration-plugin';
-import { type LoggerConfig, resolveLoggingConfig } from './logging-config';
+import { createLoggerScopeDefines } from './logger-scope';
+import type { LoggerConfig } from './logging-config';
+import { resolveLoggingConfig } from './logging-config';
+import {
+  createLoggerScopeTakeoverPlugin,
+  LOGGER_SCOPE_TAKEOVER_PLUGIN_NAME,
+} from './vite-plugin-logger-scope';
 
-const loggerInstance = createLogger({
-  main: '@docs-islands/vitepress',
-});
+const getConfigLogger = (scopeId: LoggerScopeId) =>
+  createLogger(
+    {
+      main: '@docs-islands/vitepress',
+    },
+    scopeId,
+  ).getLoggerByGroup(VITEPRESS_CONFIG_LOG_GROUPS.nodeVersion);
 
 export interface DocsIslandsSharedOptions {
   logging?: LoggingUserConfig;
@@ -24,6 +35,7 @@ export interface DocsIslandsSharedOptions {
 }
 
 export interface DocsIslandsResolvedUserConfig {
+  loggerScopeId: LoggerScopeId;
   logging?: LoggerConfig;
   siteDevtoolsEnabled: boolean;
 }
@@ -109,31 +121,61 @@ function checkNodeVersion(nodeVersion: string): boolean {
   );
 }
 
-export function warnIfUnsupportedNodeVersion(): void {
+function hasVitePluginNamed(
+  plugins: NonNullable<UserConfig<DefaultTheme.Config>['vite']>['plugins'],
+  name: string,
+): boolean {
+  if (!plugins) {
+    return false;
+  }
+
+  for (const plugin of plugins) {
+    if (Array.isArray(plugin)) {
+      if (hasVitePluginNamed(plugin, name)) {
+        return true;
+      }
+      continue;
+    }
+
+    if (
+      plugin &&
+      typeof plugin === 'object' &&
+      'name' in plugin &&
+      plugin.name === name
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export function warnIfUnsupportedNodeVersion(
+  loggerScopeId: LoggerScopeId,
+): void {
   const warningStartedAt = Date.now();
 
   if (checkNodeVersion(process.versions.node)) {
     return;
   }
 
-  loggerInstance
-    .getLoggerByGroup(VITEPRESS_CONFIG_LOG_GROUPS.nodeVersion)
-    .warn(
-      `You are using Node.js ${process.versions.node}. ` +
-        `@docs-islands/vitepress requires Node.js version 20.19+ or 22.12+. ` +
-        `Please upgrade your Node.js version.`,
-      createElapsedLogOptions(warningStartedAt, Date.now()),
-    );
+  getConfigLogger(loggerScopeId).warn(
+    `You are using Node.js ${process.versions.node}. ` +
+      `@docs-islands/vitepress requires Node.js version 20.19+ or 22.12+. ` +
+      `Please upgrade your Node.js version.`,
+    createElapsedLogOptions(warningStartedAt, Date.now()),
+  );
 }
 
 export function applyDocsIslandsUserConfig(
   vitepressConfig: UserConfig<DefaultTheme.Config>,
+  loggerScopeId: LoggerScopeId,
   options?: DocsIslandsSharedOptions,
 ): DocsIslandsResolvedUserConfig {
   const logging = resolveLoggingConfig(options?.logging);
 
-  setLoggerConfig(logging);
-  warnIfUnsupportedNodeVersion();
+  setLoggerConfigForScope(loggerScopeId, logging);
+  warnIfUnsupportedNodeVersion(loggerScopeId);
 
   const mergedSiteDevTools = mergeSiteDevToolsConfig(
     vitepressConfig.siteDevtools,
@@ -145,6 +187,7 @@ export function applyDocsIslandsUserConfig(
   }
 
   return {
+    loggerScopeId,
     logging,
     siteDevtoolsEnabled: mergedSiteDevTools !== undefined,
   };
@@ -163,9 +206,18 @@ export function applyDocsIslandsViteBaseConfig(
 
   viteConfig.define.__BASE__ = JSON.stringify(siteConfig.base);
   viteConfig.define.__CLEAN_URLS__ = JSON.stringify(siteConfig.cleanUrls);
-  viteConfig.define.__DOCS_ISLANDS_LOGGER_CONFIG__ = JSON.stringify(
-    options.logging ?? null,
+  Object.assign(
+    viteConfig.define,
+    createLoggerScopeDefines(options.loggerScopeId, options.logging),
   );
+
+  if (
+    !hasVitePluginNamed(viteConfig.plugins, LOGGER_SCOPE_TAKEOVER_PLUGIN_NAME)
+  ) {
+    viteConfig.plugins!.push(
+      createLoggerScopeTakeoverPlugin(options.loggerScopeId),
+    );
+  }
 
   if (!options.siteDevtoolsEnabled) {
     return;

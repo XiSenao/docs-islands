@@ -2,6 +2,7 @@ import { createLightGeneralLogger } from '@docs-islands/core/shared/logger';
 import type {
   LightGeneralLoggerReturn,
   LoggerLogOptions,
+  LoggerScopeId,
   LogKind,
 } from '@docs-islands/utils/logger';
 
@@ -29,6 +30,7 @@ export type BoundLightGeneralLogger = (
   message: string,
   group: string,
   options?: LoggerLogOptions,
+  scopeId?: LoggerScopeId,
 ) => LightGeneralLoggerReturn;
 
 const MAIN_NAME = '@docs-islands/vitepress';

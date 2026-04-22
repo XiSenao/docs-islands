@@ -13,7 +13,6 @@ import type {
 import type { RenderDirective } from '#dep-types/render';
 import type { ConfigType } from '#dep-types/utils';
 import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
-import { createLogger } from '#shared/logger';
 import {
   getHtmlOutputPathByPathname,
   getPathnameByPagePath,
@@ -28,7 +27,10 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '@docs-islands/core/shared/constants/render-strategy';
-import { createElapsedLogOptions } from '@docs-islands/utils/logger';
+import {
+  createElapsedLogOptions,
+  type LoggerScopeId,
+} from '@docs-islands/utils/logger';
 import type { CheerioAPI } from 'cheerio';
 import { load } from 'cheerio';
 import fs from 'node:fs';
@@ -39,6 +41,7 @@ import type {
   RenderingModuleResolution,
   RenderingStaticPageResolver,
 } from '../core/module-resolution';
+import { getVitePressGroupLogger } from '../logger';
 import { generateSiteDevToolsAiBuildReports } from '../site-devtools/ai-build-reports';
 import type { UIFrameworkBuildAdapter } from './adapter';
 import { buildUIFrameworkIntegrationInMPA } from './buildUIFrameworkIntegrationInMPA';
@@ -51,10 +54,6 @@ import {
 } from './page-metafile';
 import { getComponentBundleKey } from './shared';
 import { getSharedClientRuntimeMetafile } from './shared-client-runtime';
-
-const loggerInstance = createLogger({
-  main: '@docs-islands/vitepress',
-});
 const elapsedSince = (startTimeMs: number) =>
   createElapsedLogOptions(startTimeMs, Date.now());
 
@@ -132,11 +131,13 @@ const wrapPageBuildMetrics = (
 const writeSpaSyncRenderedPageClientChunks = ({
   clientRuntimeFileName,
   framework,
+  loggerScopeId,
   markdownModuleIdToSpaSyncRenderMap,
   outDir,
 }: {
   clientRuntimeFileName: string;
   framework: string;
+  loggerScopeId: LoggerScopeId;
   markdownModuleIdToSpaSyncRenderMap: ReturnType<
     RenderController<PageBuildMetrics>['getMarkdownModuleIdToSpaSyncRenderMap']
   >;
@@ -146,6 +147,11 @@ const writeSpaSyncRenderedPageClientChunks = ({
     return;
   }
 
+  const Logger = getVitePressGroupLogger(
+    VITEPRESS_BUILD_LOG_GROUPS.frameworkBuildSsrIntegration,
+    loggerScopeId,
+  );
+
   for (const [
     markdownModuleId,
     spaSyncRender,
@@ -153,51 +159,51 @@ const writeSpaSyncRenderedPageClientChunks = ({
     const transformStartedAt = Date.now();
     const { outputPath, code, renderIdToSpaSyncRenderMap } = spaSyncRender;
     const { code: transformedCode, stats } =
-      transformSSRContainerIntegrationCode(code, (props: ExtractedProps) => {
-        const renderId =
-          props[RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()];
-        if (
-          typeof renderId === 'string' &&
-          renderIdToSpaSyncRenderMap.has(renderId)
-        ) {
-          const { ssrHtml, ssrCssBundlePaths } =
-            renderIdToSpaSyncRenderMap.get(renderId)!;
+      transformSSRContainerIntegrationCode(
+        code,
+        (props: ExtractedProps) => {
+          const renderId =
+            props[RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase()];
+          if (
+            typeof renderId === 'string' &&
+            renderIdToSpaSyncRenderMap.has(renderId)
+          ) {
+            const { ssrHtml, ssrCssBundlePaths } =
+              renderIdToSpaSyncRenderMap.get(renderId)!;
+            return {
+              clientRuntimeFileName,
+              loggerScopeId,
+              ssrCssBundlePaths,
+              ssrHtml,
+            };
+          }
           return {
             clientRuntimeFileName,
-            ssrCssBundlePaths,
-            ssrHtml,
+            loggerScopeId,
+            ssrCssBundlePaths: new Set(),
+            ssrHtml: '',
           };
-        }
-        return {
-          clientRuntimeFileName,
-          ssrCssBundlePaths: new Set(),
-          ssrHtml: '',
-        };
-      });
+        },
+        loggerScopeId,
+      );
 
     if (stats.totalTransformations > 0) {
-      loggerInstance
-        .getLoggerByGroup(
-          VITEPRESS_BUILD_LOG_GROUPS.frameworkBuildSsrIntegration,
-        )
-        .success(
-          `
-            Complete ${stats.totalTransformations} pre-rendering injections for ${framework} page ${markdownModuleId}
+      Logger.success(
+        `
+          Complete ${stats.totalTransformations} pre-rendering injections for ${framework} page ${markdownModuleId}
 
-            ${stats.transformedNodes.map((node) => `- Line ${node.line}, Column ${node.column}`).join('\n')}
-          `,
-          elapsedSince(transformStartedAt),
-        );
+          ${stats.transformedNodes.map((node) => `- Line ${node.line}, Column ${node.column}`).join('\n')}
+        `,
+        elapsedSince(transformStartedAt),
+      );
       fs.writeFileSync(join(outDir, outputPath), transformedCode);
       continue;
     }
 
-    loggerInstance
-      .getLoggerByGroup(VITEPRESS_BUILD_LOG_GROUPS.frameworkBuildSsrIntegration)
-      .info(
-        `No transformations performed, preserve original code for ${framework} page ${markdownModuleId}.`,
-        elapsedSince(transformStartedAt),
-      );
+    Logger.info(
+      `No transformations performed, preserve original code for ${framework} page ${markdownModuleId}.`,
+      elapsedSince(transformStartedAt),
+    );
   }
 };
 
@@ -207,6 +213,7 @@ const collectPageComponentBundles = ({
   framework,
   id,
   importsByLocalName,
+  loggerScopeId,
   renderController,
   resolvedId,
   srcDir,
@@ -220,6 +227,7 @@ const collectPageComponentBundles = ({
       RenderController<PageBuildMetrics>['getCompilationContainerByMarkdownModuleId']
     >
   >['importsByLocalName'];
+  loggerScopeId: LoggerScopeId;
   renderController: RenderController<PageBuildMetrics>;
   resolvedId: string;
   srcDir: string;
@@ -229,6 +237,10 @@ const collectPageComponentBundles = ({
   usedSnippetContainer: Map<string, UsedSnippetContainerType>;
 } => {
   const collectStartedAt = Date.now();
+  const Logger = getVitePressGroupLogger(
+    VITEPRESS_BUILD_LOG_GROUPS.frameworkBuildTransformHtml,
+    loggerScopeId,
+  );
   // Multiple islands on the same page can share one loader entry, so dedupe at the page boundary.
   const clientComponentsToBundle = new Map<string, ComponentBundleInfo>();
   const ssrComponentsToBundle = new Map<string, ComponentBundleInfo>();
@@ -264,14 +276,10 @@ const collectPageComponentBundles = ({
 
     const importReference = importsByLocalName.get(componentName);
     if (!importReference) {
-      loggerInstance
-        .getLoggerByGroup(
-          VITEPRESS_BUILD_LOG_GROUPS.frameworkBuildTransformHtml,
-        )
-        .warn(
-          `${framework} component "${componentName}" import not found for page ${id}.`,
-          elapsedSince(collectStartedAt),
-        );
+      Logger.warn(
+        `${framework} component "${componentName}" import not found for page ${id}.`,
+        elapsedSince(collectStartedAt),
+      );
       continue;
     }
 
@@ -351,6 +359,7 @@ const collectPageComponentBundles = ({
 
 export interface RegisterUIFrameworkBuildHooksOptions {
   adapter: UIFrameworkBuildAdapter;
+  loggerScopeId: LoggerScopeId;
   preloadFrameworkRuntimeOnEveryPage?: boolean;
   siteDevtoolsEnabled: boolean;
 }
@@ -364,6 +373,7 @@ export function registerUIFrameworkBuildHooks(
 ): void {
   const {
     adapter,
+    loggerScopeId,
     preloadFrameworkRuntimeOnEveryPage = false,
     siteDevtoolsEnabled,
   } = options;
@@ -377,7 +387,7 @@ export function registerUIFrameworkBuildHooks(
    * resolving adapter-wide dependencies before the actual per-page loader executes.
    */
   const injectFrameworkModulePreload = async ($: CheerioAPI) => {
-    const { fileName } = await getSharedClientRuntimeMetafile();
+    const { fileName } = await getSharedClientRuntimeMetafile(loggerScopeId);
     const frameworkModulePreloads =
       (await adapter.buildModulePreloadPaths?.({
         assetsDir,
@@ -403,8 +413,9 @@ export function registerUIFrameworkBuildHooks(
 
   vitepressConfig.transformHtml = async (html, id, ctx) => {
     const pendingResolvedId = join('/', ctx.page.replace('.md', ''));
-    const Logger = loggerInstance.getLoggerByGroup(
+    const Logger = getVitePressGroupLogger(
       VITEPRESS_BUILD_LOG_GROUPS.frameworkBuildTransformHtml,
+      loggerScopeId,
     );
     const transformedHtml = preHtmlTransform
       ? await Promise.resolve(preHtmlTransform(html, id, ctx))
@@ -467,6 +478,7 @@ export function registerUIFrameworkBuildHooks(
       framework,
       id,
       importsByLocalName,
+      loggerScopeId,
       renderController,
       resolvedId,
       srcDir,
@@ -488,6 +500,7 @@ export function registerUIFrameworkBuildHooks(
           [...ssrComponentsToBundle.values()],
           usedSnippetContainer,
           adapter,
+          loggerScopeId,
         );
 
         for (const [renderId, html] of renderedComponents.entries()) {
@@ -524,6 +537,7 @@ export function registerUIFrameworkBuildHooks(
           [...clientComponentsToBundle.values()],
           usedSnippetContainer,
           adapter,
+          loggerScopeId,
         );
 
         for (const [, usedSnippet] of usedSnippetContainer) {
@@ -594,7 +608,11 @@ export function registerUIFrameworkBuildHooks(
     if (clientScripts.size > 0) {
       if (mpa) {
         const { entryPoint, modulePreloads } =
-          await buildUIFrameworkIntegrationInMPA(config, adapter);
+          await buildUIFrameworkIntegrationInMPA(
+            config,
+            adapter,
+            loggerScopeId,
+          );
         if (modulePreloads.length > 0) {
           const preloadTags = modulePreloads
             .map(
@@ -639,10 +657,12 @@ export function registerUIFrameworkBuildHooks(
       srcDir,
     } = config;
     const metafileDir = join(outDir, assetsDir);
-    const Logger = loggerInstance.getLoggerByGroup(
+    const Logger = getVitePressGroupLogger(
       VITEPRESS_BUILD_LOG_GROUPS.frameworkBuildFinalize,
+      loggerScopeId,
     );
-    const { content, fileName } = await getSharedClientRuntimeMetafile();
+    const { content, fileName } =
+      await getSharedClientRuntimeMetafile(loggerScopeId);
     const clientRuntimeFilePath = join(metafileDir, `chunks/${fileName}`);
     fs.writeFileSync(clientRuntimeFilePath, content);
     let pageMetafileReferences: {
@@ -701,6 +721,7 @@ export function registerUIFrameworkBuildHooks(
     writeSpaSyncRenderedPageClientChunks({
       clientRuntimeFileName: fileName,
       framework,
+      loggerScopeId,
       markdownModuleIdToSpaSyncRenderMap,
       outDir,
     });
@@ -711,6 +732,7 @@ export function registerUIFrameworkBuildHooks(
           aiConfig: siteDevtools.analysis,
           assetsDir,
           cacheDir,
+          loggerScopeId,
           outDir,
           pageContexts,
           pageMetafiles: transformedPageMetafileMap,

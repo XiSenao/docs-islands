@@ -1,24 +1,23 @@
 import type { OutputChunk, RollupOutput } from '#dep-types/rollup';
 import type { ConfigType } from '#dep-types/utils';
 import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
-import { createLogger } from '#shared/logger';
-import { createElapsedLogOptions } from '@docs-islands/utils/logger';
+import {
+  createElapsedLogOptions,
+  type LoggerScopeId,
+} from '@docs-islands/utils/logger';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'pathe';
 import type { InlineConfig, Plugin } from 'vite';
 import { build as viteBuild } from 'vite';
+import { createLoggerScopeDefinesFromRegistry } from '../core/logger-scope';
+import { createLoggerScopeTakeoverPlugin } from '../core/vite-plugin-logger-scope';
+import { getVitePressGroupLogger } from '../logger';
 import type { UIFrameworkBuildAdapter } from './adapter';
 import { isOutputChunk, resolveSafeOutputPath } from './shared';
 
-const loggerInstance = createLogger({
-  main: '@docs-islands/vitepress',
-});
 const UI_FRAMEWORK_MPA_VITEPRESS_CLIENT_STUB_PLUGIN_NAME =
   'docs-islands:vitepress:ui-framework-mpa-vitepress-client-stub';
-const Logger = loggerInstance.getLoggerByGroup(
-  VITEPRESS_BUILD_LOG_GROUPS.frameworkMpaIntegration,
-);
 const elapsedSince = (startTimeMs: number) =>
   createElapsedLogOptions(startTimeMs, Date.now());
 
@@ -38,10 +37,15 @@ const buildPromiseByKey = new Map<
 export const buildUIFrameworkIntegrationInMPA = async (
   config: ConfigType,
   adapter: UIFrameworkBuildAdapter,
+  loggerScopeId: LoggerScopeId,
 ): Promise<{
   entryPoint: string;
   modulePreloads: string[];
 }> => {
+  const Logger = getVitePressGroupLogger(
+    VITEPRESS_BUILD_LOG_GROUPS.frameworkMpaIntegration,
+    loggerScopeId,
+  );
   const { base, cacheDir, assetsDir, srcDir, outDir, cleanUrls } = config;
   const buildKey = [
     adapter.framework,
@@ -136,7 +140,10 @@ export const inBrowser = true;
           minify: true,
           assetsInlineLimit: 4096,
         },
-        plugins: [vitepressTreeShakingPlugin],
+        plugins: [
+          createLoggerScopeTakeoverPlugin(loggerScopeId),
+          vitepressTreeShakingPlugin,
+        ],
         define: {
           'import.meta.env.DEV': 'false',
           'import.meta.hot': 'false',
@@ -146,6 +153,7 @@ export const inBrowser = true;
           'process.env.NODE_ENV': '"production"',
           __BASE__: JSON.stringify(base),
           __CLEAN_URLS__: JSON.stringify(cleanUrls),
+          ...createLoggerScopeDefinesFromRegistry(loggerScopeId),
         },
         resolve: {
           extensions: ['.ts', '.tsx', '.js', '.jsx'],

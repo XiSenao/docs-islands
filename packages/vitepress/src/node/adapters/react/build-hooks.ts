@@ -12,6 +12,7 @@ export function registerReactBuildHooks(
     context.renderController,
     {
       adapter: reactAdapter,
+      loggerScopeId: context.loggerScopeId,
       preloadFrameworkRuntimeOnEveryPage: true,
       siteDevtoolsEnabled: context.siteDevtools.enabled,
     },

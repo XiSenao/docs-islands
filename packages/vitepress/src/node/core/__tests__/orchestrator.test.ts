@@ -11,6 +11,7 @@ import {
   SITE_DEVTOOLS_OPTIONAL_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME,
   SITE_DEVTOOLS_SOURCE_PLUGIN_NAME,
 } from '../../constants/core/plugin-names';
+import { LOGGER_SCOPE_TAKEOVER_PLUGIN_NAME } from '../vite-plugin-logger-scope';
 
 vi.mock('@vitejs/plugin-react-swc', () => ({
   default: vi.fn(() => ({
@@ -108,6 +109,37 @@ describe('createDocsIslands', () => {
         vitepressConfig.vite?.plugins,
         REACT_RUNTIME_BUNDLING_PLUGIN_NAME,
       ),
+    );
+    expect(
+      findPluginByName(
+        vitepressConfig.vite?.plugins,
+        LOGGER_SCOPE_TAKEOVER_PLUGIN_NAME,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('keeps loggerScopeId stable per createDocsIslands instance and isolated across instances', async () => {
+    const { default: createDocsIslands } = await import('../orchestrator');
+
+    const firstIslands = createDocsIslands({
+      adapters: [react()],
+    });
+    const secondIslands = createDocsIslands({
+      adapters: [react()],
+    });
+    const firstConfigA: any = {};
+    const firstConfigB: any = {};
+    const secondConfig: any = {};
+
+    firstIslands.apply(firstConfigA);
+    firstIslands.apply(firstConfigB);
+    secondIslands.apply(secondConfig);
+
+    expect(firstConfigA.vite?.define.__DOCS_ISLANDS_LOGGER_SCOPE_ID__).toBe(
+      firstConfigB.vite?.define.__DOCS_ISLANDS_LOGGER_SCOPE_ID__,
+    );
+    expect(firstConfigA.vite?.define.__DOCS_ISLANDS_LOGGER_SCOPE_ID__).not.toBe(
+      secondConfig.vite?.define.__DOCS_ISLANDS_LOGGER_SCOPE_ID__,
     );
   });
 
