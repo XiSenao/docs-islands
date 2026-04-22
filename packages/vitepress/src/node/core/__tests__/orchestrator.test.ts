@@ -11,6 +11,7 @@ import {
   SITE_DEVTOOLS_OPTIONAL_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME,
   SITE_DEVTOOLS_SOURCE_PLUGIN_NAME,
 } from '../../constants/core/plugin-names';
+import { createLoggerScopeId } from '../logger-scope';
 import { LOGGER_SCOPE_TAKEOVER_PLUGIN_NAME } from '../vite-plugin-logger-scope';
 
 vi.mock('@vitejs/plugin-react-swc', () => ({
@@ -62,6 +63,37 @@ function findPluginIndexByName(
 }
 
 describe('createDocsIslands', () => {
+  it('creates readable collision-resistant logger scope ids', () => {
+    const startedAt = Date.now();
+    const firstScopeId = createLoggerScopeId();
+    const secondScopeId = createLoggerScopeId();
+    const finishedAt = Date.now();
+
+    expect(firstScopeId).toMatch(
+      /^docs-islands-logger-scope-[\da-z]+-[\da-f]{32}$/,
+    );
+    expect(secondScopeId).toMatch(
+      /^docs-islands-logger-scope-[\da-z]+-[\da-f]{32}$/,
+    );
+
+    const firstTimestamp = firstScopeId.split('-')[4];
+    const secondTimestamp = secondScopeId.split('-')[4];
+
+    expect(Number.parseInt(firstTimestamp!, 36)).toBeGreaterThanOrEqual(
+      startedAt,
+    );
+    expect(Number.parseInt(firstTimestamp!, 36)).toBeLessThanOrEqual(
+      finishedAt,
+    );
+    expect(Number.parseInt(secondTimestamp!, 36)).toBeGreaterThanOrEqual(
+      startedAt,
+    );
+    expect(Number.parseInt(secondTimestamp!, 36)).toBeLessThanOrEqual(
+      finishedAt,
+    );
+    expect(firstScopeId).not.toBe(secondScopeId);
+  });
+
   it('registers the React integration when applied', async () => {
     const { default: createDocsIslands } = await import('../orchestrator');
 

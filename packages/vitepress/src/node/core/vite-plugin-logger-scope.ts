@@ -9,6 +9,7 @@ const LOGGER_SCOPE_TAKEOVER_VIRTUAL_PREFIX =
   '\0docs-islands:logger-scope:takeover:';
 export const LOGGER_SCOPE_TAKEOVER_PLUGIN_NAME =
   'docs-islands:logger-scope:takeover';
+export const LOGGER_SCOPE_UNCONTROLLED_QUERY = 'docs-islands-uncontrolled';
 const CONTROLLED_LOGGER_SET_CONFIG_WARNING =
   'The current logger import is a controlled logger already bound to a docs-islands logger scope. ' +
   'setLoggerConfig(...) only affects the default compatibility scope, so this call is ignored in the current controlled context. ' +
@@ -33,6 +34,11 @@ const coreSharedLoggerPath = normalizePath(
 
 const normalizeResolvedId = (id: string): string =>
   normalizePath(id).replace(/[#?].*$/s, '');
+
+const hasUncontrolledLoggerQuery = (id: string): boolean =>
+  new RegExp(
+    String.raw`(?:\?|&)${LOGGER_SCOPE_UNCONTROLLED_QUERY}(?:&|$)`,
+  ).test(id);
 
 const getVirtualId = (surface: LoggerTakeoverSurface): string =>
   `${LOGGER_SCOPE_TAKEOVER_VIRTUAL_PREFIX}${surface}`;
@@ -195,54 +201,68 @@ export const createLoggerScopeTakeoverPlugin = (
 ): Plugin => ({
   name: LOGGER_SCOPE_TAKEOVER_PLUGIN_NAME,
   enforce: 'pre',
-  async resolveId(id, importer) {
-    const directSurface = (() => {
-      if (id === '@docs-islands/vitepress/logger' || id === '#shared/logger') {
-        return 'vitepress-shared' as const;
+  resolveId: {
+    order: 'pre',
+    async handler(id, importer) {
+      if (hasUncontrolledLoggerQuery(id)) {
+        return null;
       }
 
-      if (id === '@docs-islands/core/shared/logger') {
-        return 'core-shared' as const;
+      const directSurface = (() => {
+        if (
+          id === '@docs-islands/vitepress/logger' ||
+          id === '#shared/logger'
+        ) {
+          return 'vitepress-shared' as const;
+        }
+
+        if (id === '@docs-islands/core/shared/logger') {
+          return 'core-shared' as const;
+        }
+
+        if (id === '#shared/internal-logger') {
+          return 'vitepress-internal-light' as const;
+        }
+
+        return null;
+      })();
+
+      if (directSurface) {
+        return getVirtualId(directSurface);
       }
 
-      if (id === '#shared/internal-logger') {
-        return 'vitepress-internal-light' as const;
+      if (getSurfaceFromVirtualId(id)) {
+        return id;
+      }
+
+      const resolved = await this.resolve(id, importer, {
+        skipSelf: true,
+      });
+
+      if (!resolved) {
+        return null;
+      }
+
+      if (hasUncontrolledLoggerQuery(resolved.id)) {
+        return resolved.id;
+      }
+
+      const normalizedResolvedId = normalizeResolvedId(resolved.id);
+
+      if (normalizedResolvedId === vitepressSharedLoggerPath) {
+        return getVirtualId('vitepress-shared');
+      }
+
+      if (normalizedResolvedId === coreSharedLoggerPath) {
+        return getVirtualId('core-shared');
+      }
+
+      if (normalizedResolvedId === vitepressInternalLightLoggerPath) {
+        return getVirtualId('vitepress-internal-light');
       }
 
       return null;
-    })();
-
-    if (directSurface) {
-      return getVirtualId(directSurface);
-    }
-
-    if (getSurfaceFromVirtualId(id)) {
-      return id;
-    }
-
-    const resolved = await this.resolve(id, importer, {
-      skipSelf: true,
-    });
-
-    if (!resolved) {
-      return null;
-    }
-
-    const normalizedResolvedId = normalizeResolvedId(resolved.id);
-
-    if (normalizedResolvedId === vitepressSharedLoggerPath) {
-      return getVirtualId('vitepress-shared');
-    }
-
-    if (normalizedResolvedId === coreSharedLoggerPath) {
-      return getVirtualId('core-shared');
-    }
-
-    if (normalizedResolvedId === vitepressInternalLightLoggerPath) {
-      return getVirtualId('vitepress-internal-light');
-    }
-
-    return null;
+    },
   },
   load(id) {
     const surface = getSurfaceFromVirtualId(id);

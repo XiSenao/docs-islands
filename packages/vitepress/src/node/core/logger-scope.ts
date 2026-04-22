@@ -3,16 +3,13 @@ import {
   type LoggerConfig,
   type LoggerScopeId,
 } from '@docs-islands/utils/logger';
-
-let loggerScopeCounter = 0;
+import { randomUUID } from 'node:crypto';
 
 export const createLoggerScopeId = (): LoggerScopeId => {
-  loggerScopeCounter += 1;
+  const timestamp = Date.now().toString(36);
+  const entropy = randomUUID().replaceAll('-', '');
 
-  const sequence = loggerScopeCounter.toString(36);
-  const entropy = Math.random().toString(36).slice(2, 8);
-
-  return `docs-islands-logger-scope-${sequence}-${entropy}`;
+  return `docs-islands-logger-scope-${timestamp}-${entropy}`;
 };
 
 export const createLoggerScopeDefines = (

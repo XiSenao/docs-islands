@@ -2,6 +2,7 @@
 
 <script lang="react">
   import LoggingPresetCatalog from '../../components/react/LoggingPresetCatalog';
+  import LoggerScopePlayground from '../../components/react/LoggerScopePlayground';
 </script>
 
 `logging` 用来控制 `createDocsIslands()` 产生的包内日志，以及这个包公开暴露的 logger helper。它不会改变渲染逻辑，只决定 `@docs-islands/*` 在 Node 和浏览器里哪些消息可见。
@@ -143,6 +144,21 @@ logger.getLoggerByGroup('userland.hidden').info('suppressed userland info');
 - 如果要清空这份 fallback config，可以调用 `setLoggerConfig(null)` 或 `setLoggerConfig(undefined)`。
 
 也就是说，直接使用 logger 仍然兼容可用，但自动 scope 接管只会发生在 `createDocsIslands()` 建立的受控构建链里。如果当前导入已经是受控 logger，那么 `setLoggerConfig(...)` 会被忽略，并只提示一次该 logger 当前处于受控状态，同时告知你应该在 `createDocsIslands({ logging: ... })` 中修改 logger 配置。
+
+### 交互式 Scope Probe
+
+下面这个 playground 会直接在当前 docs 站里把两种行为都跑一遍：
+
+- 正常的 `@docs-islands/vitepress/logger` 导入，它会继续绑定到当前 `createDocsIslands()` 实例的受控 scope
+- 一个仅用于文档探针的 opt-out import，它会绕开 takeover，让同一页面里也能看到 fallback default-scope 路径
+
+这个 opt-out query 只用于当前文档演示，目的是让这个本身已经处于受控构建链的站点也能展示 standalone compatibility 行为。
+
+<LoggerScopePlayground
+  client:load
+  spa:sync-render
+  locale="zh"
+/>
 
 ::: warning 复用内建 `main/group` 的影响
 

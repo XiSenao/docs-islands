@@ -18,6 +18,14 @@ const { release, siteDevtools } = loadEnv();
 const { doubao_api_key } = siteDevtools;
 
 const base = `/${vitepressRenderingStrategiesPackageJson.name.replace('@', '')}/`;
+const docsLoggerProbePreset = {
+  rules: {
+    controlledVisible: {
+      group: 'docs.logger.controlled.visible',
+      main: '@docs-islands/vitepress-docs/logger-scope-playground',
+    },
+  },
+} as const;
 
 const vitepressConfig: UserConfig<DefaultTheme.Config> = defineConfig({
   base,
@@ -108,8 +116,14 @@ createDocsIslands({
   logging: {
     debug: true,
     levels: release ? ['warn', 'error'] : ['info', 'success', 'warn', 'error'],
-    plugins: loggerPresets,
+    plugins: {
+      ...loggerPresets,
+      docsLoggerProbe: docsLoggerProbePreset,
+    },
     rules: {
+      'docsLoggerProbe/controlledVisible': {
+        levels: ['info'],
+      },
       'siteDevtools/aiBuildReports': {
         levels: ['info', 'success', 'warn', 'error'],
       },
