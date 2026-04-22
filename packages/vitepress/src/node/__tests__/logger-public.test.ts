@@ -14,15 +14,35 @@ import {
 } from '@docs-islands/vitepress/logger';
 import presets, { hmr, runtime } from '@docs-islands/vitepress/logger/presets';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import type { Plugin } from 'vite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createLoggerScopeTakeoverPlugin } from '../core/vite-plugin-logger-scope';
+import {
+  createLoggerScopeTakeoverPlugin,
+  LOGGER_SCOPE_UNCONTROLLED_QUERY,
+} from '../core/vite-plugin-logger-scope';
 
 const TEST_CONTROLLED_LOGGER_SCOPE_ID = 'logger-public-controlled-scope';
 
 const normalizeConsoleCalls = (calls: readonly unknown[][]): string[] =>
   calls.map((args) => args.map(String).join(' '));
+
+const resolveWithPlugin = async (
+  plugin: Plugin,
+  context: object,
+  id: string,
+): Promise<unknown> => {
+  const resolveId = plugin.resolveId;
+
+  expect(resolveId).toBeDefined();
+
+  const resolveHandler =
+    typeof resolveId === 'function' ? resolveId : resolveId!.handler;
+
+  return resolveHandler.call(context as never, id);
+};
 
 const loadControlledLoggerWrapper = async (
   loggerScopeId: string,
@@ -35,7 +55,8 @@ const loadControlledLoggerWrapper = async (
   };
 }> => {
   const plugin = createLoggerScopeTakeoverPlugin(loggerScopeId);
-  const resolvedId = await plugin.resolveId!.call(
+  const resolvedId = await resolveWithPlugin(
+    plugin,
     {} as never,
     '@docs-islands/vitepress/logger',
   );
@@ -46,9 +67,7 @@ const loadControlledLoggerWrapper = async (
 
   expect(typeof source).toBe('string');
 
-  const wrapperDir = await mkdtemp(
-    path.join(process.cwd(), 'node_modules/.cache/logger-wrapper-test-'),
-  );
+  const wrapperDir = await mkdtemp(path.join(tmpdir(), 'logger-wrapper-test-'));
   const wrapperPath = path.join(wrapperDir, 'vitepress-logger-wrapper.mjs');
 
   await writeFile(wrapperPath, source as string, 'utf8');
@@ -356,6 +375,46 @@ describe('public vitepress logger api', () => {
     } finally {
       await controlledLogger.cleanup();
     }
+  });
+
+  it('skips scope takeover for docs-only uncontrolled public logger probes', async () => {
+    const plugin = createLoggerScopeTakeoverPlugin(
+      TEST_CONTROLLED_LOGGER_SCOPE_ID,
+    );
+    const uncontrolledImportId = `@docs-islands/vitepress/logger?${LOGGER_SCOPE_UNCONTROLLED_QUERY}`;
+    const unresolvedResult = await resolveWithPlugin(
+      plugin,
+      {
+        resolve: vi.fn(),
+      } as never,
+      uncontrolledImportId,
+    );
+
+    expect(unresolvedResult).toBeNull();
+
+    const passthroughId = `/virtual/logger.ts?${LOGGER_SCOPE_UNCONTROLLED_QUERY}`;
+    const resolvedResult = await resolveWithPlugin(
+      plugin,
+      {
+        resolve: vi.fn(async () => ({
+          id: passthroughId,
+        })),
+      } as never,
+      'virtual:docs-logger-probe',
+    );
+
+    expect(resolvedResult).toBe(passthroughId);
+  });
+
+  it('runs scope takeover resolution before other pre-order dev resolvers', () => {
+    const plugin = createLoggerScopeTakeoverPlugin(
+      TEST_CONTROLLED_LOGGER_SCOPE_ID,
+    );
+
+    expect(typeof plugin.resolveId).toBe('object');
+    expect(plugin.resolveId).toMatchObject({
+      order: 'pre',
+    });
   });
 
   it('re-exports formatDebugMessage for emitted runtime helpers', () => {

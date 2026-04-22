@@ -2,6 +2,7 @@
 
 <script lang="react">
   import LoggingPresetCatalog from '../../components/react/LoggingPresetCatalog';
+  import LoggerScopePlayground from '../../components/react/LoggerScopePlayground';
 </script>
 
 `logging` controls the package-owned logs emitted by `createDocsIslands()` and the public logger helpers exposed by this package. It does not change rendering; it only decides which `@docs-islands/*` messages stay visible in Node and in the browser.
@@ -143,6 +144,21 @@ If you import `createLogger` from `@docs-islands/vitepress/logger` but never ins
 - You can clear the fallback config again with `setLoggerConfig(null)` or `setLoggerConfig(undefined)`.
 
 In short: direct logger usage remains compatible, but automatic scope takeover only happens inside the controlled build path established by `createDocsIslands()`. If the current import is already scope-controlled, `setLoggerConfig(...)` is ignored and warns once that the logger is controlled, and the warning tells you to update the logger config through `createDocsIslands({ logging: ... })`.
+
+### Interactive Scope Probe
+
+The playground below runs both behaviors from inside this docs site:
+
+- A normal `@docs-islands/vitepress/logger` import that stays scope-controlled by the current `createDocsIslands()` instance
+- A docs-only opt-out probe import that bypasses takeover so the fallback default-scope path can still be observed on the same page
+
+The opt-out query is only used here so this already-controlled site can demonstrate the standalone compatibility behavior.
+
+<LoggerScopePlayground
+  client:load
+  spa:sync-render
+  locale="en"
+/>
 
 ::: warning Reusing Built-in `main/group`
 
