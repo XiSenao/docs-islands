@@ -11,15 +11,13 @@ import { RenderingFrameworkParserManager } from '../framework-parser';
 
 const mockError = vi.fn();
 
-vi.mock('#shared/logger', () => ({
-  createLogger: () => ({
-    getLoggerByGroup: () => ({
-      debug: vi.fn(),
-      error: mockError,
-      info: vi.fn(),
-      success: vi.fn(),
-      warn: vi.fn(),
-    }),
+vi.mock('../../logger', () => ({
+  getVitePressGroupLogger: () => ({
+    debug: vi.fn(),
+    error: mockError,
+    info: vi.fn(),
+    success: vi.fn(),
+    warn: vi.fn(),
   }),
 }));
 

@@ -8,7 +8,10 @@ import type {
   ImportSpecifier,
   StringLiteral,
 } from '@babel/types';
-import { createElapsedLogOptions } from '@docs-islands/utils/logger';
+import {
+  createElapsedLogOptions,
+  type LoggerScopeId,
+} from '@docs-islands/utils/logger';
 import { Parser } from 'htmlparser2';
 import MagicString, { type SourceMap } from 'magic-string';
 import MarkdownIt from 'markdown-it';
@@ -19,8 +22,8 @@ import {
   SPA_RENDER_SYNC_OFF,
   SPA_RENDER_SYNC_ON,
 } from '../shared/constants/render-strategy';
-import { createLogger } from '../shared/logger';
 import type { RenderDirective } from '../types/render';
+import { getCoreGroupLogger } from './logger';
 
 const componentTagExtractorMd = new MarkdownIt({ html: true });
 const tagNameRE = /^<\s*([A-Z][\dA-Za-z]*)/;
@@ -107,10 +110,6 @@ export const travelImports = (
   return importNames;
 };
 
-const loggerInstance = createLogger({
-  main: '@docs-islands/core',
-});
-
 export default function transformComponentTags(
   code: string,
   maybeComponentNames: string[],
@@ -121,14 +120,16 @@ export default function transformComponentTags(
     renderComponent: string;
     renderWithSpaSync: string;
   },
+  loggerScopeId?: LoggerScopeId,
 ): {
   code: string;
   renderIdToRenderDirectiveMap: Map<string, string[]>;
   map: SourceMap | null;
 } {
   const transformStartedAt = Date.now();
-  const logger = loggerInstance.getLoggerByGroup(
+  const logger = getCoreGroupLogger(
     CORE_TRANSFORM_LOG_GROUPS.transformComponentTags,
+    loggerScopeId,
   );
   const tokens = componentTagExtractorMd.parse(code, {});
   const s = new MagicString(code);

@@ -2,7 +2,7 @@ import picocolors from 'picocolors';
 import { resolveLoggerContext } from './config';
 import { BROWSER_STYLES, CONSOLE_METHOD_BY_KIND } from './constants/console';
 import { formatElapsedTime } from './elapsed';
-import type { LoggerLogOptions, LogKind } from './types';
+import type { LoggerLogOptions, LoggerScopeId, LogKind } from './types';
 
 interface PicocolorsType {
   blueBright: (str: string) => string;
@@ -89,19 +89,24 @@ export const emitLoggerMessage = ({
   main,
   message,
   options,
+  scopeId,
 }: {
   group: string;
   kind: LogKind;
   main: string;
   message: string;
   options?: LoggerLogOptions;
+  scopeId?: LoggerScopeId;
 }): void => {
-  const resolvedContext = resolveLoggerContext({
-    group,
-    kind,
-    main,
-    message,
-  });
+  const resolvedContext = resolveLoggerContext(
+    {
+      group,
+      kind,
+      main,
+      message,
+    },
+    scopeId,
+  );
 
   if (resolvedContext.suppress) {
     return;

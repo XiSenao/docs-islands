@@ -14,15 +14,13 @@ const { mockLoggerInfo, mockLoggerWarn } = vi.hoisted(() => ({
   mockLoggerWarn: vi.fn(),
 }));
 
-vi.mock('#shared/logger', () => ({
-  createLogger: () => ({
-    getLoggerByGroup: () => ({
-      debug: vi.fn(),
-      error: vi.fn(),
-      info: mockLoggerInfo,
-      success: vi.fn(),
-      warn: mockLoggerWarn,
-    }),
+vi.mock('../../logger', () => ({
+  getVitePressGroupLogger: () => ({
+    debug: vi.fn(),
+    error: vi.fn(),
+    info: mockLoggerInfo,
+    success: vi.fn(),
+    warn: mockLoggerWarn,
   }),
 }));
 

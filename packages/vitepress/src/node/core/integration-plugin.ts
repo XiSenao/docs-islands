@@ -1,5 +1,6 @@
 import type { ConfigType } from '#dep-types/utils';
 import { resolveConfig } from '#shared/config';
+import type { LoggerScopeId } from '@docs-islands/utils/logger';
 import type { PluginOption } from 'vite';
 import type { DefaultTheme, UserConfig } from 'vitepress';
 import {
@@ -19,6 +20,7 @@ import {
 
 export interface RenderingIntegrationPluginContext {
   frameworkParserManager: RenderingFrameworkParserManager;
+  loggerScopeId: LoggerScopeId;
   vitepressConfig: UserConfig<DefaultTheme.Config>;
   siteConfig: ConfigType;
   resolution: RenderingModuleResolution;
@@ -31,6 +33,7 @@ export interface RenderingIntegrationPlugin<
   applyUserConfig?: (vitepressConfig: UserConfig<DefaultTheme.Config>) => void;
   createContext: (context: RenderingIntegrationPluginContext) => TContext;
   frameworkParsers?: (context: TContext) => RenderingFrameworkParser[];
+  loggerScopeId: LoggerScopeId;
   vitePlugins: (context: TContext) => PluginOption[];
   registerBuildHooks?: (context: TContext) => void;
 }
@@ -80,13 +83,26 @@ function hasVitePluginNamed(
 
 function createRenderingIntegrationContext(
   vitepressConfig: UserConfig<DefaultTheme.Config>,
+  loggerScopeId: LoggerScopeId,
 ): RenderingIntegrationPluginContext {
-  return {
+  const context = {
     frameworkParserManager: new DefaultRenderingFrameworkParserManager(),
+    loggerScopeId,
     vitepressConfig,
     siteConfig: resolveConfig(vitepressConfig),
-    resolution: createRenderingModuleResolution(),
+    resolution: null as unknown as RenderingModuleResolution,
+  } satisfies Omit<RenderingIntegrationPluginContext, 'resolution'> & {
+    resolution: RenderingModuleResolution;
   };
+
+  context.frameworkParserManager = new DefaultRenderingFrameworkParserManager(
+    () => context.loggerScopeId,
+  );
+  context.resolution = createRenderingModuleResolution(
+    () => context.loggerScopeId,
+  );
+
+  return context;
 }
 
 const renderingIntegrationContextCache = new WeakMap<
@@ -96,15 +112,19 @@ const renderingIntegrationContextCache = new WeakMap<
 
 function getOrCreateRenderingIntegrationContext(
   vitepressConfig: UserConfig<DefaultTheme.Config>,
+  loggerScopeId: LoggerScopeId,
 ): RenderingIntegrationPluginContext {
   const cachedContext = renderingIntegrationContextCache.get(vitepressConfig);
 
-  if (cachedContext) {
+  if (cachedContext && cachedContext.loggerScopeId === loggerScopeId) {
     cachedContext.siteConfig = resolveConfig(vitepressConfig);
     return cachedContext;
   }
 
-  const nextContext = createRenderingIntegrationContext(vitepressConfig);
+  const nextContext = createRenderingIntegrationContext(
+    vitepressConfig,
+    loggerScopeId,
+  );
   renderingIntegrationContextCache.set(vitepressConfig, nextContext);
 
   return nextContext;
@@ -118,7 +138,10 @@ export function applyRenderingIntegrationPlugin<
 ): TContext {
   plugin.applyUserConfig?.(vitepressConfig);
 
-  const baseContext = getOrCreateRenderingIntegrationContext(vitepressConfig);
+  const baseContext = getOrCreateRenderingIntegrationContext(
+    vitepressConfig,
+    plugin.loggerScopeId,
+  );
   const context = plugin.createContext(baseContext);
 
   const viteConfig = ensureVitepressViteConfig(vitepressConfig);

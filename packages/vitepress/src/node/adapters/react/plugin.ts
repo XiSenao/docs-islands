@@ -35,12 +35,14 @@ export function createReactRenderingIntegrationPlugin(
     frameworkParsers(context) {
       return [createReactFrameworkParser(context)];
     },
+    loggerScopeId: resolvedUserConfig.loggerScopeId,
     registerBuildHooks(context) {
       registerReactBuildHooks(context);
     },
     vitePlugins(context) {
       const {
         frameworkParserManager,
+        loggerScopeId,
         renderController,
         resolution,
         siteConfig,
@@ -54,6 +56,7 @@ export function createReactRenderingIntegrationPlugin(
         createFrameworkMarkdownHmrPlugin({
           framework: REACT_FRAMEWORK,
           frameworkParserManager,
+          loggerScopeId,
           name: REACT_MARKDOWN_HMR_PLUGIN_NAME,
           renderController,
           resolution,

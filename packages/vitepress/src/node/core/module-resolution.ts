@@ -1,5 +1,4 @@
 import { VITEPRESS_RESOLVER_LOG_GROUPS } from '#shared/constants/log-groups/resolver';
-import { createLogger } from '#shared/logger';
 import {
   getPagePathByPathname,
   getPathnameByPagePath,
@@ -13,17 +12,17 @@ import {
   type DocsStaticRouteResolver,
   isInlinePageRequest as isDocsInlinePageRequest,
 } from '@docs-islands/core/node/module-resolution';
-import { formatDebugMessage } from '@docs-islands/utils/logger';
+import {
+  formatDebugMessage,
+  type LoggerScopeId,
+} from '@docs-islands/utils/logger';
 import { getProjectRoot } from '@docs-islands/utils/path';
 import { dirname, extname, isAbsolute, relative, resolve } from 'pathe';
 import type { Plugin } from 'vite';
 import { normalizePath } from 'vite';
 import type { DefaultTheme, SiteConfig } from 'vitepress';
 import { INLINE_PAGE_RESOLUTION_PLUGIN_NAME } from '../constants/core/plugin-names';
-
-const loggerInstance = createLogger({
-  main: '@docs-islands/vitepress',
-});
+import { getVitePressGroupLogger } from '../logger';
 
 export type RenderingViteResolveContext = DocsRuntimeResolveContext;
 
@@ -218,7 +217,9 @@ function createRenderingViteModuleResolver(
   return createDocsRuntimeModuleResolver(context);
 }
 
-function createRenderingModuleResolutionVitePlugin(): Plugin {
+function createRenderingModuleResolutionVitePlugin(
+  getLoggerScopeId?: () => LoggerScopeId,
+): Plugin {
   let resolver: RenderingStaticPageResolver | null = null;
 
   return {
@@ -241,20 +242,21 @@ function createRenderingModuleResolutionVitePlugin(): Plugin {
         const resolvedId = resolver.resolveId(id, importer);
 
         if (resolvedId) {
-          loggerInstance
-            .getLoggerByGroup(VITEPRESS_RESOLVER_LOG_GROUPS.inlinePage)
-            .debug(
-              formatDebugMessage({
-                context: 'inline page module resolution',
-                decision:
-                  'map inline page request to a concrete VitePress page module',
-                summary: {
-                  requestId: id.replace(/[&?]+__INLINE_PATH_RESOLVER__/, ''),
-                  resolvedId,
-                },
-                timingMs: 0,
-              }),
-            );
+          getVitePressGroupLogger(
+            VITEPRESS_RESOLVER_LOG_GROUPS.inlinePage,
+            getLoggerScopeId?.(),
+          ).debug(
+            formatDebugMessage({
+              context: 'inline page module resolution',
+              decision:
+                'map inline page request to a concrete VitePress page module',
+              summary: {
+                requestId: id.replace(/[&?]+__INLINE_PATH_RESOLVER__/, ''),
+                resolvedId,
+              },
+              timingMs: 0,
+            }),
+          );
         }
 
         return resolvedId;
@@ -273,12 +275,15 @@ function createRenderingModuleResolutionVitePlugin(): Plugin {
   };
 }
 
-export function createRenderingModuleResolution(): RenderingModuleResolution {
+export function createRenderingModuleResolution(
+  getLoggerScopeId?: () => LoggerScopeId,
+): RenderingModuleResolution {
   return {
     createInlinePageRequest,
     isInlinePageRequest,
     createRuntimeResolver: createRenderingViteModuleResolver,
     createStaticResolver: createRenderingStaticPageResolver,
-    createVitePlugin: createRenderingModuleResolutionVitePlugin,
+    createVitePlugin: () =>
+      createRenderingModuleResolutionVitePlugin(getLoggerScopeId),
   };
 }

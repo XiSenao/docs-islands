@@ -6,6 +6,8 @@
 
 `logging` 用来控制 `createDocsIslands()` 产生的包内日志，以及这个包公开暴露的 logger helper。它不会改变渲染逻辑，只决定 `@docs-islands/*` 在 Node 和浏览器里哪些消息可见。
 
+每个 `createDocsIslands()` 实例都会持有隔离的 logger scope。在受控构建链里，`@docs-islands/vitepress/logger` 的导入会自动绑定到当前实例，所以并行的多个 VitePress 实例或测试不会互相覆盖 logging 配置。绕过受控模块图的导入路径仍然会回退到默认兼容 scope。
+
 ## 什么时候用它
 
 当集成本身正常、但终端或浏览器控制台太吵时，可以用 `logging` 收窄输出范围，尤其适合按 docs-islands 内部子系统聚焦日志。接入初期通常只保留 `warn` 和 `error`；排查问题时，可以打开 `debug`，查看是哪几条规则放行了当前日志，以及 logger 已运行的相对耗时。
@@ -98,7 +100,7 @@ const logging = {
 
 ## 公开 Logger 用法
 
-`@docs-islands/vitepress/logger` 会暴露 `createLogger` 和 `LightGeneralLogger`。通过 `createLogger(...)` 创建出来的任意 logger 实例，仍然会读取同一份全局 logger 配置，所以用户侧日志依然受最终 `logging` 规则控制。
+`@docs-islands/vitepress/logger` 会暴露 `createLogger`、`formatDebugMessage` 和 `setLoggerConfig`。在受控构建链里，通过 `createLogger(...)` 创建出来的任意 logger 实例都会自动绑定到当前 docs-islands logger scope，所以用户侧日志依然受该 VitePress 实例最终解析出的 `logging` 规则控制。
 
 ```ts [.vitepress/config.ts]
 import { createDocsIslands } from '@docs-islands/vitepress';
@@ -128,7 +130,19 @@ logger.getLoggerByGroup('userland.metrics').info('visible userland info');
 logger.getLoggerByGroup('userland.hidden').info('suppressed userland info');
 ```
 
-在这个配置下，`userland.metrics` 会保留输出，而 `userland.hidden` 会被抑制。`LightGeneralLogger` 的可见性和 rule 匹配行为也是同一套逻辑。
+在这个配置下，`userland.metrics` 会保留输出，而 `userland.hidden` 会被抑制。
+
+### 不使用 `createDocsIslands()` 时直接调用 `createLogger`
+
+如果你直接从 `@docs-islands/vitepress/logger` 导入 `createLogger`，但没有安装 `createDocsIslands()`，logger 依然可以工作，不过它走的是 default scope 兼容路径。
+
+- 日志**不会**自动绑定到某个 docs-islands 实例，因此也不会自动继承该实例的 `logging` 规则。
+- 这种 fallback 模式下**不具备**多实例隔离语义。多个调用方会共享同一个 default scope。
+- 如果这个 default scope 没有注入任何 logger config，那么它会回退到根默认行为：`error`、`warn`、`info`、`success` 默认可见，而 `debug` 默认被抑制。
+- 在这种 fallback 模式下，`setLoggerConfig(...)` 会直接更新这个 default compatibility scope。
+- 如果要清空这份 fallback config，可以调用 `setLoggerConfig(null)` 或 `setLoggerConfig(undefined)`。
+
+也就是说，直接使用 logger 仍然兼容可用，但自动 scope 接管只会发生在 `createDocsIslands()` 建立的受控构建链里。如果当前导入已经是受控 logger，那么 `setLoggerConfig(...)` 会被忽略，并只提示一次该 logger 当前处于受控状态，同时告知你应该在 `createDocsIslands({ logging: ... })` 中修改 logger 配置。
 
 ::: warning 复用内建 `main/group` 的影响
 

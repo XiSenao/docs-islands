@@ -1,23 +1,24 @@
 import type { ConfigType } from '#dep-types/utils';
 import { VITEPRESS_HMR_LOG_GROUPS } from '#shared/constants/log-groups/hmr';
-import { createLogger } from '#shared/logger';
 import type { RenderController } from '@docs-islands/core/node/render-controller';
-import { createElapsedLogOptions } from '@docs-islands/utils/logger';
+import {
+  createElapsedLogOptions,
+  type LoggerScopeId,
+} from '@docs-islands/utils/logger';
 import { join } from 'pathe';
 import type { Plugin } from 'vite';
 import { normalizePath } from 'vite';
 import type { RenderingFrameworkParserManager } from '../core/framework-parser';
 import type { RenderingModuleResolution } from '../core/module-resolution';
+import { getVitePressGroupLogger } from '../logger';
 
-const loggerInstance = createLogger({
-  main: '@docs-islands/vitepress',
-});
 const elapsedSince = (startTimeMs: number) =>
   createElapsedLogOptions(startTimeMs, Date.now());
 
 export function createFrameworkMarkdownHmrPlugin({
   framework,
   frameworkParserManager,
+  loggerScopeId,
   name,
   renderController,
   resolution,
@@ -26,6 +27,7 @@ export function createFrameworkMarkdownHmrPlugin({
 }: {
   framework: string;
   frameworkParserManager: RenderingFrameworkParserManager;
+  loggerScopeId?: LoggerScopeId;
   name: string;
   renderController: RenderController;
   resolution: RenderingModuleResolution;
@@ -41,8 +43,9 @@ export function createFrameworkMarkdownHmrPlugin({
       async handler(ctx) {
         const updateStartedAt = Date.now();
         const { file, modules, server, read } = ctx;
-        const Logger = loggerInstance.getLoggerByGroup(
+        const Logger = getVitePressGroupLogger(
           VITEPRESS_HMR_LOG_GROUPS.markdownUpdate,
+          loggerScopeId,
         );
 
         if (!file.endsWith('.md')) {

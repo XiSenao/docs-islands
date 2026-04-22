@@ -1,12 +1,71 @@
-import { resetLoggerConfig, setLoggerConfig } from '@docs-islands/utils/logger';
+import {
+  DEFAULT_LOGGER_SCOPE_ID,
+  getLoggerConfigForScope,
+  resetLoggerConfig,
+  resetLoggerConfigForScope,
+  setLoggerConfigForScope,
+} from '@docs-islands/utils/logger';
 import * as vitepressPublicModule from '@docs-islands/vitepress';
 import * as publicLoggerModule from '@docs-islands/vitepress/logger';
 import {
   createLogger,
   formatDebugMessage,
+  setLoggerConfig,
 } from '@docs-islands/vitepress/logger';
 import presets, { hmr, runtime } from '@docs-islands/vitepress/logger/presets';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createLoggerScopeTakeoverPlugin } from '../core/vite-plugin-logger-scope';
+
+const TEST_CONTROLLED_LOGGER_SCOPE_ID = 'logger-public-controlled-scope';
+
+const normalizeConsoleCalls = (calls: readonly unknown[][]): string[] =>
+  calls.map((args) => args.map(String).join(' '));
+
+const loadControlledLoggerWrapper = async (
+  loggerScopeId: string,
+): Promise<{
+  cleanup: () => Promise<void>;
+  module: {
+    createLogger: typeof createLogger;
+    formatDebugMessage: typeof formatDebugMessage;
+    setLoggerConfig: typeof setLoggerConfig;
+  };
+}> => {
+  const plugin = createLoggerScopeTakeoverPlugin(loggerScopeId);
+  const resolvedId = await plugin.resolveId!.call(
+    {} as never,
+    '@docs-islands/vitepress/logger',
+  );
+
+  expect(typeof resolvedId).toBe('string');
+
+  const source = plugin.load!.call({} as never, resolvedId as string);
+
+  expect(typeof source).toBe('string');
+
+  const wrapperDir = await mkdtemp(
+    path.join(process.cwd(), 'node_modules/.cache/logger-wrapper-test-'),
+  );
+  const wrapperPath = path.join(wrapperDir, 'vitepress-logger-wrapper.mjs');
+
+  await writeFile(wrapperPath, source as string, 'utf8');
+
+  return {
+    cleanup: async () => {
+      await rm(wrapperDir, { force: true, recursive: true });
+    },
+    module: (await import(
+      `${pathToFileURL(wrapperPath).href}?scope=${loggerScopeId}`
+    )) as {
+      createLogger: typeof createLogger;
+      formatDebugMessage: typeof formatDebugMessage;
+      setLoggerConfig: typeof setLoggerConfig;
+    },
+  };
+};
 
 describe('public vitepress logger api', () => {
   beforeEach(() => {
@@ -15,19 +74,24 @@ describe('public vitepress logger api', () => {
 
   afterEach(() => {
     resetLoggerConfig();
+    resetLoggerConfigForScope(TEST_CONTROLLED_LOGGER_SCOPE_ID);
+    vi.restoreAllMocks();
   });
 
-  it('exposes the minimal public logger surface without accessor exports', () => {
+  it('exposes the public logger surface without accessor exports', () => {
     expect(publicLoggerModule).toHaveProperty('createLogger');
     expect(publicLoggerModule.createLogger).toBe(createLogger);
     expect(publicLoggerModule).toHaveProperty('formatDebugMessage');
     expect(publicLoggerModule.formatDebugMessage).toBe(formatDebugMessage);
+    expect(publicLoggerModule).toHaveProperty('setLoggerConfig');
+    expect(publicLoggerModule.setLoggerConfig).toBe(setLoggerConfig);
     expect(publicLoggerModule).not.toHaveProperty('emitRuntimeLog');
     expect(publicLoggerModule).not.toHaveProperty('LightGeneralLogger');
     expect(publicLoggerModule).not.toHaveProperty('ScopedLogger');
     expect(publicLoggerModule).not.toHaveProperty('default');
     expect(publicLoggerModule).not.toHaveProperty('getLoggerInstance');
     expect(publicLoggerModule).not.toHaveProperty('getVitePressLogger');
+    expect(publicLoggerModule).not.toHaveProperty('resetLoggerConfig');
     expect(vitepressPublicModule).not.toHaveProperty('getLoggerInstance');
     expect(vitepressPublicModule).not.toHaveProperty('getVitePressLogger');
   });
@@ -173,6 +237,125 @@ describe('public vitepress logger api', () => {
           message.includes('4.56ms'),
       ),
     ).toBe(true);
+  });
+
+  it('clears fallback config when public setLoggerConfig receives null', () => {
+    setLoggerConfig({
+      rules: [
+        {
+          group: 'consumer.only-visible-before-clear',
+          label: 'ConsumerOnlyVisibleBeforeClear',
+          levels: ['info'],
+        },
+      ],
+    });
+    setLoggerConfig(null);
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    createLogger({
+      main: '@docs-islands/vitepress',
+    })
+      .getLoggerByGroup('consumer.visible-after-clear')
+      .info('visible after clear', { elapsedTimeMs: 1.23 });
+
+    expect(getLoggerConfigForScope(DEFAULT_LOGGER_SCOPE_ID)).toBeUndefined();
+    expect(
+      normalizeConsoleCalls(logSpy.mock.calls).some((message) =>
+        message.includes('visible after clear'),
+      ),
+    ).toBe(true);
+  });
+
+  it('ignores public setLoggerConfig in controlled logger wrappers and warns once', async () => {
+    setLoggerConfigForScope(TEST_CONTROLLED_LOGGER_SCOPE_ID, {
+      rules: [
+        {
+          group: 'controlled.allowed',
+          label: 'ControlledAllowed',
+          levels: ['info'],
+          main: '@docs-islands/vitepress',
+        },
+      ],
+    });
+
+    const controlledLogger = await loadControlledLoggerWrapper(
+      TEST_CONTROLLED_LOGGER_SCOPE_ID,
+    );
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    try {
+      controlledLogger.module.setLoggerConfig({
+        rules: [
+          {
+            group: 'controlled.override',
+            label: 'ControlledOverride',
+            levels: ['info'],
+            main: '@docs-islands/vitepress',
+          },
+        ],
+      });
+      controlledLogger.module.setLoggerConfig({
+        rules: [
+          {
+            group: 'controlled.override',
+            label: 'ControlledOverride',
+            levels: ['info'],
+            main: '@docs-islands/vitepress',
+          },
+        ],
+      });
+
+      const logger = controlledLogger.module.createLogger({
+        main: '@docs-islands/vitepress',
+      });
+
+      logger
+        .getLoggerByGroup('controlled.allowed')
+        .info('visible controlled info', { elapsedTimeMs: 2.34 });
+      logger
+        .getLoggerByGroup('controlled.override')
+        .info('hidden controlled override info', { elapsedTimeMs: 3.45 });
+
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(String(warnSpy.mock.calls[0]?.[0])).toContain('controlled logger');
+      expect(String(warnSpy.mock.calls[0]?.[0])).toContain(
+        'docs-islands logger scope',
+      );
+      expect(String(warnSpy.mock.calls[0]?.[0])).toContain(
+        'default compatibility scope',
+      );
+      expect(String(warnSpy.mock.calls[0]?.[0])).toContain(
+        'ignored in the current controlled context',
+      );
+      expect(String(warnSpy.mock.calls[0]?.[0])).toContain(
+        'createDocsIslands({ logging: ... })',
+      );
+      expect(getLoggerConfigForScope(DEFAULT_LOGGER_SCOPE_ID)).toBeUndefined();
+      expect(getLoggerConfigForScope(TEST_CONTROLLED_LOGGER_SCOPE_ID)).toEqual({
+        rules: [
+          {
+            group: 'controlled.allowed',
+            label: 'ControlledAllowed',
+            levels: ['info'],
+            main: '@docs-islands/vitepress',
+          },
+        ],
+      });
+      expect(
+        normalizeConsoleCalls(logSpy.mock.calls).some((message) =>
+          message.includes('visible controlled info'),
+        ),
+      ).toBe(true);
+      expect(
+        normalizeConsoleCalls(logSpy.mock.calls).some((message) =>
+          message.includes('hidden controlled override info'),
+        ),
+      ).toBe(false);
+    } finally {
+      await controlledLogger.cleanup();
+    }
   });
 
   it('re-exports formatDebugMessage for emitted runtime helpers', () => {

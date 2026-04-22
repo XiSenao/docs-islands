@@ -2,6 +2,7 @@ import {
   lightGeneralLogger,
   type LightGeneralLoggerReturn,
   type LoggerLogOptions,
+  type LoggerScopeId,
   type LogKind,
 } from '@docs-islands/utils/logger';
 export {
@@ -18,6 +19,7 @@ export type BoundLightGeneralLogger = (
   message: string,
   group: string,
   options?: LoggerLogOptions,
+  scopeId?: LoggerScopeId,
 ) => LightGeneralLoggerReturn;
 
 export function createLightGeneralLogger(

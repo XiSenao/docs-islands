@@ -2,15 +2,25 @@ import { syncRuntimeDefinedLoggerConfig } from './config';
 import { emitLoggerMessage } from './console';
 import { INSTANT_LOG_OPTIONS } from './constants/levels';
 import { normalizeLoggerGroup, normalizeLoggerMain } from './normalize';
+import { normalizeLoggerScopeId } from './scope';
 import type {
   CreateLoggerOptions,
   LightGeneralLoggerReturn,
   LoggerLogOptions,
+  LoggerScopeId,
   LogKind,
 } from './types';
 
-const createScopedLoggerCacheKey = (main: string, group: string): string =>
-  JSON.stringify([main, group]);
+const createMainLoggerCacheKey = (
+  scopeId: LoggerScopeId,
+  main: string,
+): string => JSON.stringify([scopeId, main]);
+
+const createScopedLoggerCacheKey = (
+  scopeId: LoggerScopeId,
+  main: string,
+  group: string,
+): string => JSON.stringify([scopeId, main, group]);
 
 /**
  * Main logger class for both Node.js and browser environments
@@ -23,25 +33,32 @@ const createScopedLoggerCacheKey = (main: string, group: string): string =>
  */
 class Logger {
   readonly #main: string;
+  readonly #scopeId: LoggerScopeId;
   readonly #scopedLoggers = new Map<string, ScopedLogger>();
 
   /** Cache for main loggers. */
   static readonly #mainCacheMap = new Map<string, Logger>();
 
-  private constructor(main: string) {
+  private constructor(scopeId: LoggerScopeId, main: string) {
     this.#main = normalizeLoggerMain(main);
+    this.#scopeId = normalizeLoggerScopeId(scopeId);
   }
 
-  static getOrCreate(main: string): Logger {
+  static getOrCreate(main: string, scopeId?: LoggerScopeId): Logger {
     const normalizedMain = normalizeLoggerMain(main);
-    const cachedLogger = Logger.#mainCacheMap.get(normalizedMain);
+    const normalizedScopeId = normalizeLoggerScopeId(scopeId);
+    const cacheKey = createMainLoggerCacheKey(
+      normalizedScopeId,
+      normalizedMain,
+    );
+    const cachedLogger = Logger.#mainCacheMap.get(cacheKey);
 
     if (cachedLogger) {
       return cachedLogger;
     }
 
-    const logger = new Logger(normalizedMain);
-    Logger.#mainCacheMap.set(normalizedMain, logger);
+    const logger = new Logger(normalizedScopeId, normalizedMain);
+    Logger.#mainCacheMap.set(cacheKey, logger);
 
     return logger;
   }
@@ -53,7 +70,11 @@ class Logger {
    */
   getLoggerByGroup(group: string): ScopedLogger {
     const normalizedGroup = normalizeLoggerGroup(group);
-    const cacheKey = createScopedLoggerCacheKey(this.#main, normalizedGroup);
+    const cacheKey = createScopedLoggerCacheKey(
+      this.#scopeId,
+      this.#main,
+      normalizedGroup,
+    );
     const cachedLogger = this.#scopedLoggers.get(cacheKey);
 
     if (cachedLogger) {
@@ -63,6 +84,7 @@ class Logger {
     const logger = ScopedLogger.getOrCreate({
       group: normalizedGroup,
       main: this.#main,
+      scopeId: this.#scopeId,
     });
 
     this.#scopedLoggers.set(cacheKey, logger);
@@ -73,24 +95,30 @@ class Logger {
 export class ScopedLogger {
   readonly #group: string;
   readonly #main: string;
+  readonly #scopeId: LoggerScopeId;
 
   static readonly #scopedLoggerCacheMap = new Map<string, ScopedLogger>();
 
-  private constructor(main: string, group: string) {
+  private constructor(scopeId: LoggerScopeId, main: string, group: string) {
     this.#main = normalizeLoggerMain(main);
     this.#group = normalizeLoggerGroup(group);
+    this.#scopeId = normalizeLoggerScopeId(scopeId);
   }
 
   static getOrCreate({
     group,
     main,
+    scopeId,
   }: {
     group: string;
     main: string;
+    scopeId?: LoggerScopeId;
   }): ScopedLogger {
     const normalizedMain = normalizeLoggerMain(main);
     const normalizedGroup = normalizeLoggerGroup(group);
+    const normalizedScopeId = normalizeLoggerScopeId(scopeId);
     const cacheKey = createScopedLoggerCacheKey(
+      normalizedScopeId,
       normalizedMain,
       normalizedGroup,
     );
@@ -100,7 +128,11 @@ export class ScopedLogger {
       return cachedLogger;
     }
 
-    const scopedLogger = new ScopedLogger(normalizedMain, normalizedGroup);
+    const scopedLogger = new ScopedLogger(
+      normalizedScopeId,
+      normalizedMain,
+      normalizedGroup,
+    );
 
     ScopedLogger.#scopedLoggerCacheMap.set(cacheKey, scopedLogger);
     return scopedLogger;
@@ -153,6 +185,7 @@ export class ScopedLogger {
       main: this.#main,
       message,
       options,
+      scopeId: this.#scopeId,
     });
   }
 }
@@ -162,9 +195,14 @@ export default Logger;
 export type LoggerType = Logger;
 export type ScopedLoggerType = ScopedLogger;
 
-export function createLogger(options: CreateLoggerOptions): Logger {
-  syncRuntimeDefinedLoggerConfig();
-  return Logger.getOrCreate(options.main);
+export function createLogger(
+  options: CreateLoggerOptions,
+  scopeId?: LoggerScopeId,
+): Logger {
+  const normalizedScopeId = normalizeLoggerScopeId(scopeId);
+
+  syncRuntimeDefinedLoggerConfig(normalizedScopeId);
+  return Logger.getOrCreate(options.main, normalizedScopeId);
 }
 
 export function formatErrorMessage(error: unknown): string {
@@ -190,6 +228,7 @@ export function lightGeneralLogger(
   message: string,
   group: string,
   options?: LoggerLogOptions,
+  scopeId?: LoggerScopeId,
 ): LightGeneralLoggerReturn {
   if (typeof group !== 'string') {
     throw new TypeError(
@@ -199,12 +238,16 @@ export function lightGeneralLogger(
 
   const normalizedMain = normalizeLoggerMain(logMain);
   const normalizedGroup = normalizeLoggerGroup(group);
+  const normalizedScopeId = normalizeLoggerScopeId(scopeId);
 
   return {
     log: () => {
-      const logger = createLogger({
-        main: normalizedMain,
-      }).getLoggerByGroup(normalizedGroup);
+      const logger = createLogger(
+        {
+          main: normalizedMain,
+        },
+        normalizedScopeId,
+      ).getLoggerByGroup(normalizedGroup);
 
       if (type === 'debug') {
         logger.debug(message);

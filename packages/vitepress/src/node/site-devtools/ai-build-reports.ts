@@ -8,8 +8,10 @@ import type {
   SiteDevToolsAnalysisBuildReportsPageContext,
 } from '#dep-types/utils';
 import { VITEPRESS_SITE_DEVTOOLS_LOG_GROUPS } from '#shared/constants/log-groups/site-devtools';
-import { createLogger } from '#shared/logger';
-import { createElapsedLogOptions } from '@docs-islands/utils/logger';
+import {
+  createElapsedLogOptions,
+  type LoggerScopeId,
+} from '@docs-islands/utils/logger';
 import { join } from 'pathe';
 import {
   buildSiteDevToolsAiAnalysisPrompt,
@@ -23,6 +25,7 @@ import {
   type SiteDevToolsAiProvider,
   type SiteDevToolsAiSanitizeOptions,
 } from '../../shared/site-devtools-ai';
+import { getVitePressGroupLogger } from '../logger';
 import type { BuildReportCacheConfig } from './ai-build-report-cache';
 import {
   createBuildReportCacheIdentity,
@@ -60,22 +63,25 @@ import {
   type SiteDevToolsAiExecutionResult,
 } from './ai-server';
 
-const loggerInstance = createLogger({
-  main: '@docs-islands/vitepress',
-});
-const Logger = loggerInstance.getLoggerByGroup(
-  VITEPRESS_SITE_DEVTOOLS_LOG_GROUPS.aiBuildReports,
-);
 const elapsedSince = (startTimeMs: number) =>
   createElapsedLogOptions(startTimeMs, Date.now());
+
+const getAiBuildReportsLogger = (loggerScopeId?: LoggerScopeId) =>
+  getVitePressGroupLogger(
+    VITEPRESS_SITE_DEVTOOLS_LOG_GROUPS.aiBuildReports,
+    loggerScopeId,
+  );
 
 interface BuildReportDependencies {
   analyzeTarget?: (options: {
     config: SiteDevToolsAiConfig;
+    loggerScopeId?: LoggerScopeId;
     provider: SiteDevToolsAiProvider;
     target: SiteDevToolsAiAnalysisTarget;
   }) => Promise<SiteDevToolsAiExecutionResult>;
-  resolveCapabilities?: typeof resolveSiteDevToolsAiCapabilities;
+  resolveCapabilities?: (
+    config: SiteDevToolsAiConfig,
+  ) => ReturnType<typeof resolveSiteDevToolsAiCapabilities>;
 }
 
 interface BuildReportExecution {
@@ -443,6 +449,7 @@ const resolveBuildReportPagePlan = ({
   buildReportsConfig,
   cacheDir,
   executionPlan,
+  logger,
   pageContext,
   pageId,
   pageMetafile,
@@ -451,6 +458,7 @@ const resolveBuildReportPagePlan = ({
   buildReportsConfig: SiteDevToolsAnalysisBuildReportsConfig;
   cacheDir: string;
   executionPlan: BuildReportExecutionPlan;
+  logger: ReturnType<typeof getAiBuildReportsLogger>;
   pageContext?: SiteDevToolsAnalysisBuildReportsPageContext;
   pageId: string;
   pageMetafile: PageMetafile;
@@ -476,7 +484,7 @@ const resolveBuildReportPagePlan = ({
   }
 
   if (!pageContext) {
-    Logger.warn(
+    logger.warn(
       `Skipped build-time AI report for ${pageId}: siteDevtools.analysis.buildReports.resolvePage requires page context, but no page filePath was provided.`,
       elapsedSince(resolveStartedAt),
     );
@@ -493,7 +501,7 @@ const resolveBuildReportPagePlan = ({
       page: pageContext,
     });
   } catch (error) {
-    Logger.warn(
+    logger.warn(
       `Skipped build-time AI report for ${pageId}: siteDevtools.analysis.buildReports.resolvePage threw an error: ${error instanceof Error ? error.message : String(error)}`,
       elapsedSince(resolveStartedAt),
     );
@@ -512,7 +520,7 @@ const resolveBuildReportPagePlan = ({
     resolvedPageOverride.modelId ?? executionPlan.defaultExecutionId;
 
   if (!selectedExecutionId) {
-    Logger.warn(
+    logger.warn(
       `Skipped build-time AI report for ${pageId}: no default build report model is available, and resolvePage did not return modelId.`,
       elapsedSince(resolveStartedAt),
     );
@@ -523,7 +531,7 @@ const resolveBuildReportPagePlan = ({
     executionPlan.executionById.get(selectedExecutionId);
 
   if (!selectedExecution) {
-    Logger.warn(
+    logger.warn(
       resolvedPageOverride.modelId
         ? `Skipped build-time AI report for ${pageId}: resolvePage selected modelId "${resolvedPageOverride.modelId}", but no matching buildReports.models entry could be resolved.`
         : `Skipped build-time AI report for ${pageId}: the default build report model "${selectedExecutionId}" could not be resolved.`,
@@ -553,6 +561,7 @@ const createBuildReportPagePlans = ({
   buildReportsConfig,
   cacheDir,
   executionPlan,
+  logger,
   pageContexts,
   pageMetafiles,
   root,
@@ -560,6 +569,7 @@ const createBuildReportPagePlans = ({
   buildReportsConfig: SiteDevToolsAnalysisBuildReportsConfig;
   cacheDir: string;
   executionPlan: BuildReportExecutionPlan;
+  logger: ReturnType<typeof getAiBuildReportsLogger>;
   pageContexts?: Record<string, SiteDevToolsAnalysisBuildReportsPageContext>;
   pageMetafiles: Record<string, PageMetafile>;
   root?: string;
@@ -571,6 +581,7 @@ const createBuildReportPagePlans = ({
       buildReportsConfig,
       cacheDir,
       executionPlan,
+      logger,
       pageContext: pageContexts?.[pageId],
       pageId,
       pageMetafile,
@@ -753,6 +764,7 @@ export const generateSiteDevToolsAiBuildReports = async ({
   aiConfig,
   assetsDir,
   cacheDir,
+  loggerScopeId,
   outDir,
   pageContexts,
   pageMetafiles,
@@ -764,6 +776,7 @@ export const generateSiteDevToolsAiBuildReports = async ({
   assetsDir: string;
   cacheDir: string;
   dependencies?: BuildReportDependencies;
+  loggerScopeId?: LoggerScopeId;
   outDir: string;
   pageContexts?: Record<string, SiteDevToolsAnalysisBuildReportsPageContext>;
   pageMetafiles: Record<string, PageMetafile>;
@@ -772,6 +785,7 @@ export const generateSiteDevToolsAiBuildReports = async ({
 }): Promise<GenerateSiteDevToolsAiBuildReportsResult> => {
   const generationStartedAt = Date.now();
   const buildReportsConfig = aiConfig?.buildReports;
+  const Logger = getAiBuildReportsLogger(loggerScopeId);
 
   if (!buildReportsConfig) {
     return {
@@ -827,6 +841,7 @@ export const generateSiteDevToolsAiBuildReports = async ({
       executions,
       warningMessages: executionPlanWarningMessages,
     },
+    logger: Logger,
     pageContexts,
     pageMetafiles,
     root,
@@ -1032,6 +1047,7 @@ export const generateSiteDevToolsAiBuildReports = async ({
       const generatedAt = new Date().toISOString();
       const result = await analyzeTargetImpl({
         config: execution.config,
+        loggerScopeId,
         provider: execution.provider,
         target: sanitizedTarget,
       });

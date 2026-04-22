@@ -1,6 +1,9 @@
 import { VITEPRESS_RUNTIME_LOG_GROUPS } from '#shared/constants/log-groups/runtime';
 import { LightGeneralLogger } from '#shared/internal-logger';
-import { shouldSuppressLog } from '@docs-islands/utils/logger';
+import {
+  type LoggerScopeId,
+  shouldSuppressLog,
+} from '@docs-islands/utils/logger';
 
 type Environment = 'development' | 'production';
 type FailureStrategy = 'partial' | 'strict';
@@ -50,15 +53,34 @@ interface LoadStyleOptions {
 
 const MAIN_NAME = '@docs-islands/vitepress';
 
-function isCssLoadingDebugEnabled(): boolean {
-  return !shouldSuppressLog('debug', {
-    group: VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
-    main: MAIN_NAME,
-    message: 'runtime css loading diagnostics',
-  });
+const logCssLoading = (
+  type: 'error' | 'info' | 'success' | 'warn',
+  message: string,
+  loggerScopeId?: LoggerScopeId,
+) =>
+  LightGeneralLogger(
+    type,
+    message,
+    VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
+    undefined,
+    loggerScopeId,
+  ).log();
+
+function isCssLoadingDebugEnabled(loggerScopeId?: LoggerScopeId): boolean {
+  return !shouldSuppressLog(
+    'debug',
+    {
+      group: VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
+      main: MAIN_NAME,
+      message: 'runtime css loading diagnostics',
+    },
+    loggerScopeId,
+  );
 }
 
-function createCSSLoadingConfig(): CSSLoadingConfig {
+function createCSSLoadingConfig(
+  loggerScopeId?: LoggerScopeId,
+): CSSLoadingConfig {
   const developmentConfig = {
     timeout: 10_000,
     retryCount: 3,
@@ -83,7 +105,7 @@ function createCSSLoadingConfig(): CSSLoadingConfig {
     enableDuplicateDetection: true,
     failureStrategy: 'strict' as const,
   };
-  if (isCssLoadingDebugEnabled()) {
+  if (isCssLoadingDebugEnabled(loggerScopeId)) {
     return debugConfig;
   }
   if (__ENV__ === 'development') {
@@ -110,6 +132,7 @@ function createCSSLoadingConfig(): CSSLoadingConfig {
 async function loadHighPriorityStyles(
   highPriorityRenderStyles: string[],
   options: LoadStyleOptions = {},
+  loggerScopeId?: LoggerScopeId,
 ): Promise<StyleLoadResult> {
   const {
     timeout = 8000, // 8 seconds timeout.
@@ -154,11 +177,11 @@ async function loadHighPriorityStyles(
         performanceMetrics.totalLoadTime = endTime - startTime;
 
         if (enablePerformanceMonitoring) {
-          LightGeneralLogger(
+          logCssLoading(
             'warn',
             `CSS loading timeout after ${timeout}ms. Loaded: ${loadedCount}/${totalStyles}, Failed: ${failedCount}`,
-            VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
-          ).log();
+            loggerScopeId,
+          );
         }
 
         resolve({
@@ -184,26 +207,26 @@ async function loadHighPriorityStyles(
         performanceMetrics.totalLoadTime = endTime - startTime;
 
         if (enablePerformanceMonitoring) {
-          LightGeneralLogger(
+          logCssLoading(
             'success',
             `Success rate: ${loadedCount}/${totalStyles} (${((loadedCount / totalStyles) * 100).toFixed(1)}%)`,
-            VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
-          ).log();
+            loggerScopeId,
+          );
 
           if (performanceMetrics.duplicatesDetected > 0) {
-            LightGeneralLogger(
+            logCssLoading(
               'info',
               `Detected and skipped ${performanceMetrics.duplicatesDetected} duplicate CSS files`,
-              VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
-            ).log();
+              loggerScopeId,
+            );
           }
 
           if (performanceMetrics.retriesPerformed > 0) {
-            LightGeneralLogger(
+            logCssLoading(
               'info',
               `Performed ${performanceMetrics.retriesPerformed} retries`,
-              VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
-            ).log();
+              loggerScopeId,
+            );
           }
         }
 
@@ -250,11 +273,11 @@ async function loadHighPriorityStyles(
         loadResults.set(styleUrl, { success: true, loadTime, retries });
 
         if (enablePerformanceMonitoring && loadTime > 1000) {
-          LightGeneralLogger(
+          logCssLoading(
             'warn',
             `Slow CSS loading detected: ${styleUrl} took ${loadTime.toFixed(2)}ms`,
-            VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
-          ).log();
+            loggerScopeId,
+          );
         }
 
         checkCompletion();
@@ -263,11 +286,11 @@ async function loadHighPriorityStyles(
       const onError = (): void => {
         if (retries < retryCount) {
           performanceMetrics.retriesPerformed++;
-          LightGeneralLogger(
+          logCssLoading(
             'error',
             `CSS loading failed for ${styleUrl}, retrying (${retries + 1}/${retryCount})`,
-            VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
-          ).log();
+            loggerScopeId,
+          );
 
           // Remove the failed link element.
           if (link.parentNode) {
@@ -292,11 +315,11 @@ async function loadHighPriorityStyles(
           });
 
           if (enablePerformanceMonitoring) {
-            LightGeneralLogger(
+            logCssLoading(
               'error',
               `CSS loading failed permanently: ${styleUrl} after ${retries} retries`,
-              VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
-            ).log();
+              loggerScopeId,
+            );
           }
 
           checkCompletion();
@@ -321,34 +344,36 @@ declare const __ENV__: Environment;
 // TODO: Export CSS loading config to users.
 export default async function cssLoadingRuntime(
   highPriorityRenderStyles: string[],
+  loggerScopeId?: LoggerScopeId,
 ): Promise<StyleLoadResult> {
-  const cssLoadingConfig = createCSSLoadingConfig();
+  const cssLoadingConfig = createCSSLoadingConfig(loggerScopeId);
   const loadResult = await loadHighPriorityStyles(
     highPriorityRenderStyles,
     cssLoadingConfig,
+    loggerScopeId,
   );
 
-  if (isCssLoadingDebugEnabled()) {
+  if (isCssLoadingDebugEnabled(loggerScopeId)) {
     if (loadResult.timedOut) {
-      LightGeneralLogger(
+      logCssLoading(
         'error',
         `CSS loading timed out. Loaded: ${loadResult.loadedCount}/${loadResult.totalCount}`,
-        VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
-      ).log();
+        loggerScopeId,
+      );
     } else if (loadResult.failedCount > 0) {
-      LightGeneralLogger(
+      logCssLoading(
         'error',
         `Some CSS files failed to load: ${loadResult.failedCount}/${loadResult.totalCount} failed`,
-        VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
-      ).log();
+        loggerScopeId,
+      );
     }
 
     if (loadResult.metrics?.totalLoadTime) {
-      LightGeneralLogger(
+      logCssLoading(
         'success',
         `Total CSS loading time: ${loadResult.metrics.totalLoadTime.toFixed(2)}ms`,
-        VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
-      ).log();
+        loggerScopeId,
+      );
     }
   }
   return loadResult;

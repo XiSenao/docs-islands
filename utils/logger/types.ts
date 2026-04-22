@@ -9,6 +9,8 @@ export type ConsoleMethod = 'log' | 'warn' | 'error' | 'debug';
 /** User-facing allowlist for non-debug log APIs. */
 export type LoggerVisibilityLevel = 'error' | 'warn' | 'info' | 'success';
 
+export type LoggerScopeId = string;
+
 export interface LoggerRule {
   enabled?: boolean;
   group?: string;
@@ -76,4 +78,9 @@ export interface ResolvedLoggerContext {
 declare global {
   // Runtime logger config is injected by consumers such as @docs-islands/vitepress.
   var __DOCS_ISLANDS_LOGGER_CONFIG__: LoggerConfig | null | undefined;
+  var __DOCS_ISLANDS_LOGGER_CONFIG_REGISTRY__:
+    | Map<LoggerScopeId, LoggerConfig | undefined>
+    | undefined;
+
+  var __DOCS_ISLANDS_LOGGER_SCOPE_ID__: LoggerScopeId | undefined;
 }

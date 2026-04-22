@@ -3,9 +3,12 @@
  */
 import {
   createLogger,
+  getLoggerConfigForScope,
   lightGeneralLogger,
   resetLoggerConfig,
+  resetLoggerConfigForScope,
   setLoggerConfig,
+  setLoggerConfigForScope,
 } from '@docs-islands/utils/logger';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VITEPRESS_RUNTIME_LOG_GROUPS } from '../constants/log-groups/runtime';
@@ -146,6 +149,79 @@ describe('logger browser behavior', () => {
     expect(groupLogger).not.toBe(mainLogger);
     expect(otherGroupLogger).not.toBe(groupLogger);
     expect(sameGroupNameDifferentMain).not.toBe(groupLogger);
+  });
+
+  it('isolates browser logger caches and configs across scopes', () => {
+    const scopeA = 'browser-scope-a';
+    const scopeB = 'browser-scope-b';
+
+    setLoggerConfigForScope(scopeA, {
+      rules: [
+        {
+          group: VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender,
+          label: 'scope-a-only',
+          levels: ['info'],
+          main: '@docs-islands/vitepress',
+        },
+      ],
+    });
+    setLoggerConfigForScope(scopeB, {
+      rules: [
+        {
+          group: VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
+          label: 'scope-b-only',
+          levels: ['warn'],
+          main: '@docs-islands/vitepress',
+        },
+      ],
+    });
+
+    const scopeALogger = createLogger(
+      {
+        main: '@docs-islands/vitepress',
+      },
+      scopeA,
+    );
+    const scopeBLogger = createLogger(
+      {
+        main: '@docs-islands/vitepress',
+      },
+      scopeB,
+    );
+
+    expect(scopeALogger).not.toBe(scopeBLogger);
+    expect(
+      scopeALogger.getLoggerByGroup(
+        VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender,
+      ),
+    ).not.toBe(
+      scopeBLogger.getLoggerByGroup(
+        VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender,
+      ),
+    );
+    expect(getLoggerConfigForScope(scopeA)).toEqual({
+      rules: [
+        {
+          group: VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender,
+          label: 'scope-a-only',
+          levels: ['info'],
+          main: '@docs-islands/vitepress',
+        },
+      ],
+    });
+
+    resetLoggerConfigForScope(scopeA);
+    expect(getLoggerConfigForScope(scopeA)).toBeUndefined();
+    expect(getLoggerConfigForScope(scopeB)).toEqual({
+      rules: [
+        {
+          group: VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
+          label: 'scope-b-only',
+          levels: ['warn'],
+          main: '@docs-islands/vitepress',
+        },
+      ],
+    });
   });
 
   it('keeps lightGeneralLogger output on the plain message body', () => {

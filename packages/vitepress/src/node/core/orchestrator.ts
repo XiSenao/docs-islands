@@ -14,6 +14,7 @@ import type {
 import { applyDocsIslandsUserConfig } from './config';
 import { resolveCurrentDependencyResolutionBase } from './dependency-resolution';
 import { ensureVitepressViteConfig } from './integration-plugin';
+import { createLoggerScopeId } from './logger-scope';
 
 export interface DocsIslandsAdapter {
   apply: (
@@ -142,11 +143,13 @@ export default function createDocsIslands(
   options: DocsIslandsOptions,
 ): DocsIslands {
   const adapters = validateAdapters([...options.adapters]);
+  const loggerScopeId = createLoggerScopeId();
 
   return {
     apply(vitepressConfig) {
       const resolvedUserConfig = applyDocsIslandsUserConfig(
         vitepressConfig,
+        loggerScopeId,
         options,
       );
 

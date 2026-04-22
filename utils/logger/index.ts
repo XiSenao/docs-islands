@@ -1,7 +1,11 @@
 export {
+  getLoggerConfigForScope,
   resetLoggerConfig,
+  resetLoggerConfigForScope,
   setLoggerConfig,
+  setLoggerConfigForScope,
   shouldSuppressLog,
+  syncRuntimeDefinedLoggerConfig,
 } from './config';
 export { formatDebugMessage, sanitizeDebugSummary } from './debug-message';
 export { createElapsedLogOptions } from './elapsed';
@@ -15,6 +19,7 @@ export {
   type ScopedLoggerType,
 } from './factory';
 export { normalizeLoggerConfig } from './normalize';
+export { DEFAULT_LOGGER_SCOPE_ID, normalizeLoggerScopeId } from './scope';
 export type {
   CreateLoggerOptions,
   DebugMessageOptions,
@@ -24,5 +29,6 @@ export type {
   LoggerElapsedLogOptions,
   LoggerLogOptions,
   LoggerRule,
+  LoggerScopeId,
   LoggerVisibilityLevel,
 } from './types';
