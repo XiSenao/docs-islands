@@ -253,10 +253,10 @@ logger.warn('visible generic warning');
 
 ### 交互式 Scope Probe
 
-下面这个 playground 会直接在当前 docs 站里把两层能力都跑一遍：
+下面这个 playground 会直接在当前 docs 站里运行 VitePress logger facade：
 
-- 正常的 `@docs-islands/vitepress/logger` 导入，它会通过 runtime 注入使用当前 `createDocsIslands()` 实例的 logger scope。
-- 直接使用 `@docs-islands/logger` 的通用 runtime logger。
+- 正常的 `@docs-islands/vitepress/logger` 导入会通过 runtime 注入使用当前 `createDocsIslands()` 实例的 logger scope。
+- 框架无关的 `@docs-islands/logger` runtime 演示已经放在独立 logger 包页面中。
 
 <LoggerScopePlayground
   client:load

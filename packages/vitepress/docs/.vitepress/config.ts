@@ -21,7 +21,7 @@ const base = `/${vitepressRenderingStrategiesPackageJson.name.replace('@', '')}/
 const docsLoggerProbePreset = {
   rules: {
     controlledVisible: {
-      group: 'docs.logger.controlled.visible',
+      group: 'docs.logger.injected.visible',
       main: '@docs-islands/vitepress-docs/logger-scope-playground',
     },
   },

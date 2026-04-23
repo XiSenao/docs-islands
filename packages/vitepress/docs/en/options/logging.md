@@ -253,10 +253,10 @@ logger.warn('visible generic warning');
 
 ### Interactive Scope Probe
 
-The playground below runs both layers from inside this docs site:
+The playground below runs the VitePress logger facade from inside this docs site:
 
-- A normal `@docs-islands/vitepress/logger` import that uses the current `createDocsIslands()` logger scope through runtime injection.
-- A direct `@docs-islands/logger` import that uses the generic runtime logger package.
+- A normal `@docs-islands/vitepress/logger` import uses the current `createDocsIslands()` logger scope through runtime injection.
+- The framework-agnostic `@docs-islands/logger` runtime demo lives on the standalone logger package page.
 
 <LoggerScopePlayground
   client:load
