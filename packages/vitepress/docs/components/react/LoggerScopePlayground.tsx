@@ -1,11 +1,3 @@
-import {
-  createLogger as createGenericLogger,
-  setLoggerConfig as setGenericLoggerConfig,
-} from '@docs-islands/logger';
-import {
-  DEFAULT_LOGGER_SCOPE_ID,
-  getLoggerConfigForScope,
-} from '@docs-islands/logger/internal';
 import { createLogger as createControlledLogger } from '@docs-islands/vitepress/logger';
 import { useEffect, useRef, useState } from 'react';
 
@@ -42,10 +34,6 @@ interface LocaleCopy {
   controlledImportNote: string;
   controlledSetConfigBehavior: string;
   controlledTitle: string;
-  genericDescription: string;
-  genericImportNote: string;
-  genericSetConfigBehavior: string;
-  genericTitle: string;
   hiddenLabel: string;
   importPathLabel: string;
   intro: string;
@@ -67,12 +55,9 @@ interface LocaleCopy {
 const LOGGER_PROBE_MAIN =
   '@docs-islands/vitepress-docs/logger-scope-playground';
 const CONTROLLED_VISIBLE_GROUP = 'docs.logger.injected.visible';
+const CONTROLLED_HIDDEN_GROUP = 'docs.logger.injected.hidden';
 const CONTROLLED_VISIBLE_MESSAGE = 'injected scope visible info';
 const CONTROLLED_HIDDEN_MESSAGE = 'injected scope hidden info';
-const GENERIC_VISIBLE_GROUP = 'docs.logger.generic.visible';
-const GENERIC_HIDDEN_GROUP = 'docs.logger.generic.hidden';
-const GENERIC_VISIBLE_MESSAGE = 'generic logger visible info';
-const GENERIC_HIDDEN_MESSAGE = 'generic logger hidden info';
 const shouldForwardCapturedConsoleOutput =
   (import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV === true;
 
@@ -86,15 +71,10 @@ const copy: Record<Locale, LocaleCopy> = {
     controlledImportNote: '@docs-islands/vitepress/logger',
     controlledSetConfigBehavior: 'Managed by createDocsIslands({ logging })',
     controlledTitle: 'Injected scope import',
-    genericDescription:
-      'This card uses the framework-agnostic logger package. Its setLoggerConfig(...) call configures the generic runtime logger without using the VitePress injected-scope entry.',
-    genericImportNote: '@docs-islands/logger',
-    genericSetConfigBehavior: 'Applied to the generic logger package',
-    genericTitle: 'Generic logger package',
     hiddenLabel: 'Hidden message emitted',
     importPathLabel: 'Import path',
     intro:
-      'This playground runs two real logger probes on the page and captures their console output back into the UI. It is meant to validate the new logger-scope behavior from inside the docs site itself.',
+      'This playground runs a real VitePress logger probe on the page and captures its console output back into the UI. It is meant to validate the injected logger-scope behavior from inside the docs site itself.',
     kickerLabel: 'Scope validation',
     logLinesLabel: 'Captured console lines',
     setConfigLabel: 'setLoggerConfig(...) behavior',
@@ -103,7 +83,7 @@ const copy: Record<Locale, LocaleCopy> = {
     statusRunning: 'Running probe...',
     statusSuccess: 'Probe completed',
     subtitle:
-      'The VitePress import reads the current docs-islands logger scope from runtime injection, while the generic package owns direct runtime configuration.',
+      'The VitePress import reads the current docs-islands logger scope from runtime injection and follows the active createDocsIslands({ logging }) policy.',
     title: 'Logger scope playground',
     visibleLabel: 'Visible message emitted',
     warningLabel: 'Captured warning',
@@ -119,15 +99,10 @@ const copy: Record<Locale, LocaleCopy> = {
     controlledImportNote: '@docs-islands/vitepress/logger',
     controlledSetConfigBehavior: '由 createDocsIslands({ logging }) 管理',
     controlledTitle: '注入 scope 导入',
-    genericDescription:
-      '这个卡片使用框架无关的 logger 包。这里的 setLoggerConfig(...) 会配置通用 runtime logger，不经过 VitePress 注入 scope 入口。',
-    genericImportNote: '@docs-islands/logger',
-    genericSetConfigBehavior: '已应用到通用 logger 包',
-    genericTitle: '通用 logger 包',
     hiddenLabel: '隐藏消息是否输出',
     importPathLabel: '导入路径',
     intro:
-      '这个 playground 会在页面里实际运行两组 logger probe，并把对应的 console 输出回填到组件 UI，用来直接验证 logger scope 新行为。',
+      '这个 playground 会在页面里实际运行一组 VitePress logger probe，并把对应的 console 输出回填到组件 UI，用来直接验证注入 logger scope 的行为。',
     kickerLabel: 'Scope 验证',
     logLinesLabel: '捕获到的 console 输出',
     setConfigLabel: 'setLoggerConfig(...) 行为',
@@ -136,7 +111,7 @@ const copy: Record<Locale, LocaleCopy> = {
     statusRunning: '正在运行探针...',
     statusSuccess: '探针运行完成',
     subtitle:
-      'VitePress 导入会从 runtime 注入读取当前 docs-islands logger scope，而通用包负责直接 runtime 配置。',
+      'VitePress 导入会从 runtime 注入读取当前 docs-islands logger scope，并遵循当前 createDocsIslands({ logging }) 策略。',
     title: 'Logger scope playground',
     visibleLabel: '可见消息是否输出',
     warningLabel: '捕获到的 warning',
@@ -289,6 +264,11 @@ const createControlledProbe = (): ProbeOutcome => {
       .info(CONTROLLED_VISIBLE_MESSAGE, {
         elapsedTimeMs: 12.34,
       });
+    controlledLogger
+      .getLoggerByGroup(CONTROLLED_HIDDEN_GROUP)
+      .info(CONTROLLED_HIDDEN_MESSAGE, {
+        elapsedTimeMs: 23.45,
+      });
   });
 
   return {
@@ -301,61 +281,6 @@ const createControlledProbe = (): ProbeOutcome => {
     status: 'success',
     visibleLogged: logLines.some((line) =>
       line.includes(CONTROLLED_VISIBLE_MESSAGE),
-    ),
-    warningLine: findWarningLine(logLines),
-  };
-};
-
-const createGenericProbe = (): ProbeOutcome => {
-  const previousFallbackConfig = getLoggerConfigForScope(
-    DEFAULT_LOGGER_SCOPE_ID,
-  );
-
-  let logLines: string[] = [];
-
-  try {
-    logLines = captureConsole(() => {
-      setGenericLoggerConfig({
-        debug: true,
-        rules: [
-          {
-            group: GENERIC_VISIBLE_GROUP,
-            label: 'DocsGenericVisible',
-            levels: ['info'],
-            main: LOGGER_PROBE_MAIN,
-          },
-        ],
-      });
-
-      const genericLogger = createGenericLogger({
-        main: LOGGER_PROBE_MAIN,
-      });
-
-      genericLogger
-        .getLoggerByGroup(GENERIC_VISIBLE_GROUP)
-        .info(GENERIC_VISIBLE_MESSAGE, {
-          elapsedTimeMs: 34.56,
-        });
-      genericLogger
-        .getLoggerByGroup(GENERIC_HIDDEN_GROUP)
-        .info(GENERIC_HIDDEN_MESSAGE, {
-          elapsedTimeMs: 45.67,
-        });
-    });
-  } finally {
-    setGenericLoggerConfig(previousFallbackConfig);
-  }
-
-  return {
-    errorMessage: null,
-    hiddenLogged: logLines.some((line) =>
-      line.includes(GENERIC_HIDDEN_MESSAGE),
-    ),
-    importPath: '@docs-islands/logger',
-    logLines,
-    status: 'success',
-    visibleLogged: logLines.some((line) =>
-      line.includes(GENERIC_VISIBLE_MESSAGE),
     ),
     warningLine: findWarningLine(logLines),
   };
@@ -397,7 +322,6 @@ const getProbeStatusLabel = (
 function LoggerScopePlayground({ locale }: LoggerScopePlaygroundProps) {
   const localeCopy = copy[getLocale(locale)];
   const controlledImportNote = localeCopy.controlledImportNote;
-  const genericImportNote = localeCopy.genericImportNote;
   const [copyFeedback, setCopyFeedback] = useState<CopyFeedback | null>(null);
   const copyFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -411,16 +335,6 @@ function LoggerScopePlayground({ locale }: LoggerScopePlaygroundProps) {
     visibleLogged: false,
     warningLine: null,
   });
-  const [genericOutcome, setGenericOutcome] = useState<ProbeOutcome>({
-    errorMessage: null,
-    hiddenLogged: false,
-    importPath: genericImportNote,
-    logLines: [],
-    status: 'running',
-    visibleLogged: false,
-    warningLine: null,
-  });
-
   useEffect(() => {
     if (copyFeedbackTimerRef.current) {
       clearTimeout(copyFeedbackTimerRef.current);
@@ -457,18 +371,6 @@ function LoggerScopePlayground({ locale }: LoggerScopePlaygroundProps) {
           setControlledOutcome(createErrorOutcome(controlledImportNote, error));
         }
       }
-
-      try {
-        const nextGenericOutcome = createGenericProbe();
-
-        if (isMounted) {
-          setGenericOutcome(nextGenericOutcome);
-        }
-      } catch (error) {
-        if (isMounted) {
-          setGenericOutcome(createErrorOutcome(genericImportNote, error));
-        }
-      }
     };
 
     runProbes();
@@ -476,7 +378,7 @@ function LoggerScopePlayground({ locale }: LoggerScopePlaygroundProps) {
     return () => {
       isMounted = false;
     };
-  }, [controlledImportNote, genericImportNote]);
+  }, [controlledImportNote]);
 
   const handleCopy = async (value: string) => {
     const copied = await writeToClipboard(value);
@@ -487,7 +389,6 @@ function LoggerScopePlayground({ locale }: LoggerScopePlaygroundProps) {
   };
 
   const renderProbeCard = (
-    variant: 'controlled' | 'generic',
     title: string,
     description: string,
     expectedSetConfigBehavior: string,
@@ -495,7 +396,7 @@ function LoggerScopePlayground({ locale }: LoggerScopePlaygroundProps) {
   ) => (
     <article
       className="logger-scope-playground__card"
-      data-variant={variant}
+      data-variant="controlled"
       data-status={outcome.status}
     >
       <div className="logger-scope-playground__card-head">
@@ -549,7 +450,7 @@ function LoggerScopePlayground({ locale }: LoggerScopePlaygroundProps) {
           <dd>
             <span
               className="logger-scope-playground__value-pill"
-              data-tone={variant === 'controlled' ? 'warning' : 'success'}
+              data-tone="warning"
             >
               {expectedSetConfigBehavior}
             </span>
@@ -665,18 +566,10 @@ function LoggerScopePlayground({ locale }: LoggerScopePlaygroundProps) {
       </div>
       <div className="logger-scope-playground__grid">
         {renderProbeCard(
-          'controlled',
           localeCopy.controlledTitle,
           localeCopy.controlledDescription,
           localeCopy.controlledSetConfigBehavior,
           controlledOutcome,
-        )}
-        {renderProbeCard(
-          'generic',
-          localeCopy.genericTitle,
-          localeCopy.genericDescription,
-          localeCopy.genericSetConfigBehavior,
-          genericOutcome,
         )}
       </div>
     </section>

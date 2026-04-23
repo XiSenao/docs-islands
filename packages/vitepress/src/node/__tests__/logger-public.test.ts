@@ -1,7 +1,7 @@
 import {
   getLoggerConfigForScope,
-  resetLoggerConfigForScope,
   type LoggerConfig,
+  resetLoggerConfigForScope,
 } from '@docs-islands/logger/internal';
 import * as vitepressPublicModule from '@docs-islands/vitepress';
 import * as publicLoggerModule from '@docs-islands/vitepress/logger';
@@ -59,6 +59,7 @@ describe('public vitepress logger api', () => {
     globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__ = loggingConfig;
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const logger = createLogger({
       main: '@docs-islands/vitepress',
@@ -84,6 +85,29 @@ describe('public vitepress logger api', () => {
         message.includes('hidden runtime info'),
       ),
     ).toBe(false);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('warns once when the public logger facade runs without a createDocsIslands scope', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    createLogger({
+      main: '@docs-islands/vitepress-docs',
+    });
+    createLogger({
+      main: '@docs-islands/vitepress-docs',
+    });
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(String(warnSpy.mock.calls[0]?.[0])).toContain(
+      '@docs-islands/vitepress/logger is running without a logger scope injected by createDocsIslands().',
+    );
+    expect(String(warnSpy.mock.calls[0]?.[0])).toContain(
+      'generic @docs-islands/logger API',
+    );
+    expect(String(warnSpy.mock.calls[0]?.[0])).toContain(
+      'https://docs.senao.me/docs-islands/logger',
+    );
   });
 
   it('re-exports formatDebugMessage for emitted runtime helpers', () => {
