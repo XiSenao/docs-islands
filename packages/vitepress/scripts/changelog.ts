@@ -1,5 +1,5 @@
 import { createLogger } from '#shared/logger';
-import { createElapsedLogOptions } from '@docs-islands/utils/logger';
+import { createElapsedLogOptions } from '@docs-islands/logger/internal';
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';

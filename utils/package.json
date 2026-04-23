@@ -13,18 +13,18 @@
     "clean": "del-cli .eslintcache dist node_modules"
   },
   "dependencies": {
-    "picomatch": "catalog:prod",
     "tinyglobby": "catalog:prod"
   },
   "devDependencies": {
     "eslint": "catalog:lint",
+    "@types/picomatch": "catalog:dev",
     "@docs-islands/eslint-config": "workspace:*",
+    "@docs-islands/logger": "workspace:*",
     "typescript": "catalog:dev",
     "pathe": "catalog:dev",
     "is-in-ci": "catalog:dev",
     "zod": "catalog:dev",
     "del-cli": "catalog:dev",
-    "picocolors": "catalog:dev",
     "vite": "catalog:prod",
     "rolldown": "catalog:dev",
     "rolldown-plugin-dts": "catalog:dev"

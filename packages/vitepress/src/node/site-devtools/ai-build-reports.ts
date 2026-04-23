@@ -11,7 +11,7 @@ import { VITEPRESS_SITE_DEVTOOLS_LOG_GROUPS } from '#shared/constants/log-groups
 import {
   createElapsedLogOptions,
   type LoggerScopeId,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import { join } from 'pathe';
 import {
   buildSiteDevToolsAiAnalysisPrompt,

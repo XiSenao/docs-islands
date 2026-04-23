@@ -32,6 +32,7 @@
   "devDependencies": {
     "eslint": "catalog:lint",
     "@docs-islands/eslint-config": "workspace:*",
+    "@docs-islands/logger": "workspace:*",
     "typescript": "catalog:dev",
     "vue-tsc": "catalog:dev",
     "vitepress": "catalog:frameworks",

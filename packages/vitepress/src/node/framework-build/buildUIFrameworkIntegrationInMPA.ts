@@ -4,7 +4,7 @@ import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
 import {
   createElapsedLogOptions,
   type LoggerScopeId,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'pathe';
@@ -12,6 +12,7 @@ import type { InlineConfig, Plugin } from 'vite';
 import { build as viteBuild } from 'vite';
 import { createLoggerScopeDefinesFromRegistry } from '../core/logger-scope';
 import { createLoggerScopeTakeoverPlugin } from '../core/vite-plugin-logger-scope';
+import { createLoggerTreeShakingPlugin } from '../core/vite-plugin-logger-tree-shaking';
 import { getVitePressGroupLogger } from '../logger';
 import type { UIFrameworkBuildAdapter } from './adapter';
 import { isOutputChunk, resolveSafeOutputPath } from './shared';
@@ -142,6 +143,7 @@ export const inBrowser = true;
         },
         plugins: [
           createLoggerScopeTakeoverPlugin(loggerScopeId),
+          createLoggerTreeShakingPlugin(loggerScopeId),
           vitepressTreeShakingPlugin,
         ],
         define: {

@@ -13,9 +13,12 @@
  * Distributed as a bin via @docs-islands/utils.
  * Relies on pnpm setting npm_package_json to the calling package's package.json path.
  */
+import {
+  createElapsedLogOptions,
+  createLogger,
+} from '@docs-islands/logger/internal';
 import { execSync, spawn } from 'node:child_process';
 import path from 'node:path';
-import { createElapsedLogOptions, createLogger } from '../logger.js';
 
 const Log = createLogger({
   main: '@docs-islands/utils',

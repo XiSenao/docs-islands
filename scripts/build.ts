@@ -1,8 +1,8 @@
-import { loadEnv } from '@docs-islands/utils/env';
 import {
   createElapsedLogOptions,
   createLogger,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
+import { loadEnv } from '@docs-islands/utils/env';
 import { execSync, spawn } from 'node:child_process';
 import {
   BUILD_AUTO_DISCOVER_PLACEHOLDER,

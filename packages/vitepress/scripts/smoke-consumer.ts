@@ -1,6 +1,6 @@
 import { createLogger } from '#shared/logger';
+import { createElapsedLogOptions } from '@docs-islands/logger/internal';
 import { loadEnv } from '@docs-islands/utils';
-import { createElapsedLogOptions } from '@docs-islands/utils/logger';
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync, readFileSync } from 'node:fs';
@@ -240,7 +240,7 @@ async function writeConsumerFixtureFiles(fixtureDir: string): Promise<void> {
     path.join(fixtureDir, '.vitepress', 'config.ts'),
     `import { createDocsIslands } from '@docs-islands/vitepress';
 import { react } from '@docs-islands/vitepress/adapters/react';
-import { createLogger } from '@docs-islands/vitepress/logger';
+import { createLogger } from '@docs-islands/logger';
 import { defineConfig } from 'vitepress';
 
 const Logger = createLogger({

@@ -33,6 +33,7 @@ catalogs:
     '@types/estree': ^1.0.8
     '@types/markdown-it': ^14.1.2
     '@types/node': 20.19.0
+    '@types/picomatch': ^4.0.3
     '@types/react': ^18.2.0
     '@types/react-dom': ^18.2.0
     '@vitejs/plugin-react-swc': ^4.2.3
@@ -102,6 +103,7 @@ catalogs:
     cheerio: ^1.2.0
     picomatch: ^4.0.4
     tinyglobby: ^0.2.15
+    unplugin: ^2.3.10
     vite: ^5.4.21
     vue: ^3.5.28
   test:
@@ -135,6 +137,7 @@ overrides:
   '@swc/core': 1.13.5
   '@types/node': 20.19.0
   gray-matter>js-yaml: 3.14.2
+  lodash: 4.18.0
   minimatch@^10.0.0: ^10.2.3
   minimatch@^10.0.0>brace-expansion: 5.0.5
   minimatch@^3.0.0: ^3.1.4
@@ -144,7 +147,6 @@ overrides:
   picomatch@^2.0.0: 2.3.2
   picomatch@^4.0.0: 4.0.4
   undici-types: ^6.24.0
-  lodash: '4.18.0'
 
 patchedDependencies:
   '@vueuse/core': patches/@vueuse__core@12.8.2.patch

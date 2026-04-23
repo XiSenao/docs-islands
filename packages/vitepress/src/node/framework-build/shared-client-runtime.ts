@@ -2,7 +2,7 @@ import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
 import {
   createElapsedLogOptions,
   type LoggerScopeId,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';

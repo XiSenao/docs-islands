@@ -4,12 +4,41 @@ import type {
 } from '#dep-types/component';
 import type { ConfigType } from '#dep-types/utils';
 import { resolveConfig } from '#shared/config';
+import {
+  resetLoggerConfigForScope,
+  setLoggerConfigForScope,
+} from '@docs-islands/logger/internal';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'pathe';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { reactAdapter } from '../../adapters/react/adapter';
 import { bundleUIComponentsForBrowser } from '../bundleUIComponentsForBrowser';
+
+const TEST_LOGGER_SCOPE_ID = 'browser-bundle-logger-tree-shaking-scope';
+
+const collectJavaScriptFiles = (directory: string): string[] => {
+  if (!fs.existsSync(directory)) {
+    return [];
+  }
+
+  const files: string[] = [];
+
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = join(directory, entry.name);
+
+    if (entry.isDirectory()) {
+      files.push(...collectJavaScriptFiles(entryPath));
+      continue;
+    }
+
+    if (entry.name.endsWith('.js') || entry.name.endsWith('.mjs')) {
+      files.push(entryPath);
+    }
+  }
+
+  return files;
+};
 
 describe('bundleUIComponentsForBrowser', () => {
   const defaultConfig = resolveConfig({});
@@ -44,6 +73,10 @@ describe('bundleUIComponentsForBrowser', () => {
   const multiExportComponentPath = join(
     reactComponentSource,
     'MultiExportComponents.tsx',
+  );
+  const loggerProbeComponentPath = join(
+    reactComponentSource,
+    'LoggerProbe.tsx',
   );
 
   const clientComponents: ComponentBundleInfo[] = [
@@ -140,6 +173,10 @@ describe('bundleUIComponentsForBrowser', () => {
     if (fs.existsSync(config.outDir)) {
       fs.rmSync(config.outDir, { recursive: true, force: true });
     }
+  });
+
+  afterEach(() => {
+    resetLoggerConfigForScope(TEST_LOGGER_SCOPE_ID);
   });
 
   it('should correctly bundle browser assets and validate their contents', async () => {
@@ -313,7 +350,7 @@ describe('bundleUIComponentsForBrowser', () => {
       loaderScriptContent,
       'loaderScript should resolve the global component manager before registering components',
     ).to.include('__COMPONENT_MANAGER__');
-    expect(loaderScriptContent).not.toContain('@docs-islands/utils/logger');
+    expect(loaderScriptContent).not.toContain('@docs-islands/logger/internal');
 
     expect(
       loaderScriptContent,
@@ -408,5 +445,53 @@ describe('bundleUIComponentsForBrowser', () => {
     ).toBe(true);
     expect(loaderScriptContent).toContain('MultiExportAlpha');
     expect(loaderScriptContent).toContain('MultiExportBeta');
+  });
+
+  it('tree-shakes suppressed static logger literals from browser bundles', async () => {
+    setLoggerConfigForScope(TEST_LOGGER_SCOPE_ID, {
+      levels: ['warn', 'error'],
+    });
+
+    const clientComponents: ComponentBundleInfo[] = [
+      {
+        componentName: 'LoggerProbe',
+        componentPath: loggerProbeComponentPath,
+        importReference: {
+          importedName: 'default',
+          identifier: loggerProbeComponentPath,
+        },
+        pendingRenderIds: new Set(['logger-probe-render-id']),
+        renderDirectives: new Set(['client:load']),
+      },
+    ];
+    const usedSnippetContainer = new Map<string, UsedSnippetContainerType>([
+      [
+        'logger-probe-render-id',
+        {
+          props: new Map([['component-name', 'LoggerProbe']]),
+          renderId: 'logger-probe-render-id',
+          renderDirective: 'client:load',
+          renderComponent: 'LoggerProbe',
+          ssrHtml:
+            '<div class="logger-probe"><strong>LoggerProbe</strong></div>',
+          useSpaSyncRender: true,
+        },
+      ],
+    ]);
+
+    await bundleUIComponentsForBrowser(
+      config,
+      clientComponents,
+      usedSnippetContainer,
+      reactAdapter,
+      TEST_LOGGER_SCOPE_ID,
+    );
+
+    const bundledJavaScript = collectJavaScriptFiles(config.outDir)
+      .map((file) => fs.readFileSync(file, 'utf8'))
+      .join('\n');
+
+    expect(bundledJavaScript).not.toContain('tree-shaking hidden browser info');
+    expect(bundledJavaScript).toContain('tree-shaking visible browser warning');
   });
 });

@@ -20,7 +20,7 @@ import {
 import {
   createElapsedLogOptions,
   formatDebugMessage,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import type React from 'react';
 import type ReactDOM from 'react-dom/client';
 import { reactComponentManager } from './react-component-manager';

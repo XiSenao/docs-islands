@@ -1,9 +1,9 @@
 import { VITEPRESS_RUNTIME_LOG_GROUPS } from '#shared/constants/log-groups/runtime';
-import { LightGeneralLogger } from '#shared/internal-logger';
+import { createLogger } from '#shared/logger';
 import {
   type LoggerScopeId,
   shouldSuppressLog,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 
 type Environment = 'development' | 'production';
 type FailureStrategy = 'partial' | 'strict';
@@ -53,18 +53,19 @@ interface LoadStyleOptions {
 
 const MAIN_NAME = '@docs-islands/vitepress';
 
+const getCssLoadingLogger = (loggerScopeId?: LoggerScopeId) =>
+  createLogger(
+    {
+      main: MAIN_NAME,
+    },
+    loggerScopeId,
+  ).getLoggerByGroup(VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading);
+
 const logCssLoading = (
   type: 'error' | 'info' | 'success' | 'warn',
   message: string,
   loggerScopeId?: LoggerScopeId,
-) =>
-  LightGeneralLogger(
-    type,
-    message,
-    VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
-    undefined,
-    loggerScopeId,
-  ).log();
+) => getCssLoadingLogger(loggerScopeId)[type](message, { elapsedTimeMs: 0 });
 
 function isCssLoadingDebugEnabled(loggerScopeId?: LoggerScopeId): boolean {
   return !shouldSuppressLog(

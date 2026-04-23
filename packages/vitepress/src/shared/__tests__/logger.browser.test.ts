@@ -4,12 +4,11 @@
 import {
   createLogger,
   getLoggerConfigForScope,
-  lightGeneralLogger,
   resetLoggerConfig,
   resetLoggerConfigForScope,
   setLoggerConfig,
   setLoggerConfigForScope,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VITEPRESS_RUNTIME_LOG_GROUPS } from '../constants/log-groups/runtime';
 import {
@@ -224,29 +223,17 @@ describe('logger browser behavior', () => {
     });
   });
 
-  it('keeps lightGeneralLogger output on the plain message body', () => {
+  it('keeps instant scoped logger output on the plain message body', () => {
     const output = captureConsoleOutput();
 
-    lightGeneralLogger(
-      '@docs-islands/vitepress',
-      'warn',
-      'runtime warning',
-      VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager,
-    ).log();
+    createLogger({
+      main: '@docs-islands/vitepress',
+    })
+      .getLoggerByGroup(VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager)
+      .warn('runtime warning', { elapsedTimeMs: 0 });
 
     expect(output).toEqual([
       `@docs-islands/vitepress[${VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager}]: runtime warning`,
     ]);
-  });
-
-  it('requires a group for lightGeneralLogger', () => {
-    expect(() =>
-      lightGeneralLogger(
-        '@docs-islands/vitepress',
-        'warn',
-        'runtime warning',
-        undefined as never,
-      ),
-    ).toThrow(/lightGeneralLogger requires a logger group/);
   });
 });

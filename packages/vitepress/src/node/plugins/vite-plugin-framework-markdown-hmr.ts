@@ -4,7 +4,7 @@ import type { RenderController } from '@docs-islands/core/node/render-controller
 import {
   createElapsedLogOptions,
   type LoggerScopeId,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import { join } from 'pathe';
 import type { Plugin } from 'vite';
 import { normalizePath } from 'vite';

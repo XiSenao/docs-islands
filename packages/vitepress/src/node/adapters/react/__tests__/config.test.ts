@@ -5,7 +5,7 @@ import {
   resetLoggerConfig,
   resetLoggerConfigForScope,
   shouldSuppressLog,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VITEPRESS_HMR_LOG_GROUPS } from '../../../../shared/constants/log-groups/hmr';
 import { VITEPRESS_RUNTIME_LOG_GROUPS } from '../../../../shared/constants/log-groups/runtime';

@@ -20,12 +20,12 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '@docs-islands/core/shared/constants/render-strategy';
-import { querySelectorAllToArray } from '@docs-islands/utils/dom-iterable';
 import {
   createElapsedLogOptions,
   formatDebugMessage,
   formatErrorMessage,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
+import { querySelectorAllToArray } from '@docs-islands/utils/dom-iterable';
 import type React from 'react';
 import type ReactDOM from 'react-dom/client';
 import { createVitePressDevBridge } from '../../vitepress-dev-bridge';

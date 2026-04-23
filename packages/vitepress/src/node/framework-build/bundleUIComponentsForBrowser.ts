@@ -16,11 +16,11 @@ import type { ConfigType } from '#dep-types/utils';
 import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
 import { parse, type ParserPlugin } from '@babel/parser';
 import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/core/shared/constants/render-strategy';
-import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
 import {
   createElapsedLogOptions,
   type LoggerScopeId,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
+import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { basename, dirname, extname, join, relative } from 'pathe';
@@ -28,6 +28,7 @@ import type { InlineConfig } from 'vite';
 import { build } from 'vite';
 import { createLoggerScopeDefinesFromRegistry } from '../core/logger-scope';
 import { createLoggerScopeTakeoverPlugin } from '../core/vite-plugin-logger-scope';
+import { createLoggerTreeShakingPlugin } from '../core/vite-plugin-logger-tree-shaking';
 import { getVitePressGroupLogger } from '../logger';
 import type {
   UIFrameworkBuildAdapter,
@@ -1078,6 +1079,7 @@ export async function bundleUIComponentsForBrowser(
       },
       plugins: [
         createLoggerScopeTakeoverPlugin(loggerScopeId),
+        createLoggerTreeShakingPlugin(loggerScopeId),
         ...adapter.browserBundlerPlugins(),
       ],
       define: {

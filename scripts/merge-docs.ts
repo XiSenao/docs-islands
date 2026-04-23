@@ -1,8 +1,8 @@
-import { scanFiles } from '@docs-islands/utils/fs-utils';
 import {
   createElapsedLogOptions,
   createLogger,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
+import { scanFiles } from '@docs-islands/utils/fs-utils';
 import { existsSync, readFileSync } from 'node:fs';
 import { copyFile, mkdir, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';

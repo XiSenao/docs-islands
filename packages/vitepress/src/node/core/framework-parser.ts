@@ -8,7 +8,7 @@ import {
 import {
   createElapsedLogOptions,
   type LoggerScopeId,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import MagicString, { type SourceMap } from 'magic-string';
 import MarkdownIt from 'markdown-it';
 import type { Plugin } from 'vite';

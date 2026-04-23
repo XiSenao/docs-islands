@@ -23,7 +23,7 @@ describe('createReactClientLoaderModuleSource', () => {
     expect(code).toContain(
       "}).getLoggerByGroup('runtime.react.client-loader');",
     );
-    expect(code).not.toContain('@docs-islands/utils/logger');
+    expect(code).not.toContain('@docs-islands/logger/internal');
     expect(code).not.toContain('emitRuntimeLog');
     expect(code).not.toContain('__docs_islands_runtime_log__');
   });

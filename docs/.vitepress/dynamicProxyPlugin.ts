@@ -2,7 +2,7 @@ import {
   createElapsedLogOptions,
   createLogger,
   type ScopedLoggerType,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import httpProxy from 'http-proxy';
 import type { ChildProcess } from 'node:child_process';
 import { spawn } from 'node:child_process';

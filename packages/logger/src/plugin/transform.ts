@@ -1,0 +1,392 @@
+import { parse as parseBabel, type ParserPlugin } from '@babel/parser';
+import type { NodePath } from '@babel/traverse';
+import babelTraverse from '@babel/traverse';
+import * as t from '@babel/types';
+import { init, parse as parseImports } from 'es-module-lexer';
+import MagicString, { type SourceMap } from 'magic-string';
+import {
+  type LoggerScopeId,
+  type LogKind,
+  shouldSuppressLog,
+} from '../internal';
+
+export const LOGGER_TREE_SHAKING_PLUGIN_NAME =
+  'docs-islands:logger-tree-shaking';
+
+export const DEFAULT_LOGGER_MODULE_IDS = ['@docs-islands/logger'] as const;
+
+const LOG_METHODS = new Set<LogKind>([
+  'debug',
+  'error',
+  'info',
+  'success',
+  'warn',
+]);
+const babelParserPlugins: ParserPlugin[] = [
+  'jsx',
+  'typescript',
+  'importAttributes',
+  'decorators-legacy',
+  'topLevelAwait',
+];
+
+interface StaticLoggerBinding {
+  group: string;
+  main: string;
+}
+
+interface StaticLogCall {
+  group: string;
+  kind: LogKind;
+  main: string;
+  message: string;
+}
+
+export interface LoggerTreeShakingTransformOptions {
+  loggerModuleIds?: readonly string[];
+  loggerScopeId?: LoggerScopeId;
+}
+
+export interface LoggerTreeShakingTransformResult {
+  code: string;
+  map: SourceMap;
+}
+
+// @babel/traverse only exposes a CommonJS package.
+const traverse: typeof babelTraverse =
+  (
+    babelTraverse as typeof babelTraverse & {
+      default?: typeof babelTraverse;
+    }
+  ).default ?? babelTraverse;
+
+const isStaticStringLiteral = (
+  node: t.Node | null | undefined,
+): node is t.StringLiteral => t.isStringLiteral(node);
+
+const normalizeLoggerModuleIds = (
+  loggerModuleIds: readonly string[] | undefined,
+): Set<string> =>
+  new Set(
+    (loggerModuleIds && loggerModuleIds.length > 0
+      ? loggerModuleIds
+      : DEFAULT_LOGGER_MODULE_IDS
+    ).filter(Boolean),
+  );
+
+const getStaticPropertyName = (
+  property: t.ObjectMember | t.MemberExpression['property'],
+): string | null => {
+  if (t.isIdentifier(property)) {
+    return property.name;
+  }
+
+  if (t.isStringLiteral(property)) {
+    return property.value;
+  }
+
+  return null;
+};
+
+const isCreateLoggerImportSpecifier = (
+  specifier: t.ImportDeclaration['specifiers'][number],
+): specifier is t.ImportSpecifier => {
+  if (!t.isImportSpecifier(specifier)) {
+    return false;
+  }
+
+  return (
+    getStaticPropertyName(specifier.imported) === 'createLogger' &&
+    t.isIdentifier(specifier.local) &&
+    specifier.local.name === 'createLogger'
+  );
+};
+
+const hasPublicCreateLoggerImport = async (
+  code: string,
+  loggerModuleIds: Set<string>,
+): Promise<boolean> => {
+  if (
+    !code.includes('createLogger') ||
+    ![...loggerModuleIds].some((moduleId) => code.includes(moduleId))
+  ) {
+    return false;
+  }
+
+  await init;
+
+  try {
+    const [imports] = parseImports(code);
+
+    return imports.some((importSpecifier) => {
+      if (
+        !importSpecifier.n ||
+        !loggerModuleIds.has(importSpecifier.n) ||
+        importSpecifier.d !== -1
+      ) {
+        return false;
+      }
+
+      return code
+        .slice(importSpecifier.ss, importSpecifier.se)
+        .includes('createLogger');
+    });
+  } catch {
+    return false;
+  }
+};
+
+const readStaticMainFromCreateLoggerCall = (
+  callExpression: t.CallExpression,
+  path: NodePath,
+  createLoggerImportSpecifiers: WeakSet<t.ImportSpecifier>,
+): string | null => {
+  if (!t.isIdentifier(callExpression.callee)) {
+    return null;
+  }
+
+  const binding = path.scope.getBinding(callExpression.callee.name);
+
+  if (
+    !binding?.path.isImportSpecifier() ||
+    !createLoggerImportSpecifiers.has(binding.path.node)
+  ) {
+    return null;
+  }
+
+  const [options] = callExpression.arguments;
+
+  if (!t.isObjectExpression(options)) {
+    return null;
+  }
+
+  for (const property of options.properties) {
+    if (!t.isObjectProperty(property) || property.computed) {
+      continue;
+    }
+
+    if (
+      getStaticPropertyName(property.key) === 'main' &&
+      isStaticStringLiteral(property.value)
+    ) {
+      return property.value.value;
+    }
+  }
+
+  return null;
+};
+
+const readStaticLoggerBinding = (
+  init: t.Expression | null | undefined,
+  path: NodePath,
+  createLoggerImportSpecifiers: WeakSet<t.ImportSpecifier>,
+): StaticLoggerBinding | null => {
+  if (!t.isCallExpression(init)) {
+    return null;
+  }
+
+  const callee = init.callee;
+
+  if (
+    !t.isMemberExpression(callee) ||
+    callee.computed ||
+    !t.isIdentifier(callee.property) ||
+    callee.property.name !== 'getLoggerByGroup'
+  ) {
+    return null;
+  }
+
+  const [groupArgument] = init.arguments;
+
+  if (
+    !isStaticStringLiteral(groupArgument) ||
+    !t.isCallExpression(callee.object)
+  ) {
+    return null;
+  }
+
+  const main = readStaticMainFromCreateLoggerCall(
+    callee.object,
+    path,
+    createLoggerImportSpecifiers,
+  );
+
+  if (!main) {
+    return null;
+  }
+
+  return {
+    group: groupArgument.value,
+    main,
+  };
+};
+
+const readStaticLogCall = (
+  expression: t.Expression,
+  path: NodePath<t.ExpressionStatement>,
+  staticLoggerBindings: WeakMap<t.Identifier, StaticLoggerBinding>,
+): StaticLogCall | null => {
+  if (!t.isCallExpression(expression)) {
+    return null;
+  }
+
+  const callee = expression.callee;
+
+  if (
+    !t.isMemberExpression(callee) ||
+    callee.computed ||
+    !t.isIdentifier(callee.object) ||
+    !t.isIdentifier(callee.property) ||
+    !LOG_METHODS.has(callee.property.name as LogKind)
+  ) {
+    return null;
+  }
+
+  const [messageArgument] = expression.arguments;
+
+  if (!isStaticStringLiteral(messageArgument)) {
+    return null;
+  }
+
+  const binding = path.scope.getBinding(callee.object.name);
+
+  if (
+    !binding?.path.isVariableDeclarator() ||
+    binding.constantViolations.length > 0
+  ) {
+    return null;
+  }
+
+  const declarationId = binding.path.node.id;
+
+  if (!t.isIdentifier(declarationId)) {
+    return null;
+  }
+
+  const loggerBinding = staticLoggerBindings.get(declarationId);
+
+  if (!loggerBinding) {
+    return null;
+  }
+
+  return {
+    ...loggerBinding,
+    kind: callee.property.name as LogKind,
+    message: messageArgument.value,
+  };
+};
+
+export async function transformLoggerTreeShaking(
+  code: string,
+  id: string,
+  options: LoggerTreeShakingTransformOptions = {},
+): Promise<LoggerTreeShakingTransformResult | null> {
+  const loggerModuleIds = normalizeLoggerModuleIds(options.loggerModuleIds);
+
+  if (!(await hasPublicCreateLoggerImport(code, loggerModuleIds))) {
+    return null;
+  }
+
+  let ast: t.File;
+  try {
+    ast = parseBabel(code, {
+      allowReturnOutsideFunction: true,
+      plugins: babelParserPlugins,
+      sourceType: 'module',
+    });
+  } catch {
+    return null;
+  }
+  const createLoggerImportSpecifiers = new WeakSet<t.ImportSpecifier>();
+  const staticLoggerBindings = new WeakMap<t.Identifier, StaticLoggerBinding>();
+
+  traverse(ast, {
+    ImportDeclaration(path) {
+      if (!loggerModuleIds.has(path.node.source.value)) {
+        return;
+      }
+
+      for (const specifier of path.node.specifiers) {
+        if (isCreateLoggerImportSpecifier(specifier)) {
+          createLoggerImportSpecifiers.add(specifier);
+        }
+      }
+    },
+  });
+
+  traverse(ast, {
+    VariableDeclarator(path) {
+      if (
+        !t.isIdentifier(path.node.id) ||
+        !path.parentPath.isVariableDeclaration() ||
+        path.parentPath.node.kind !== 'const'
+      ) {
+        return;
+      }
+
+      const loggerBinding = readStaticLoggerBinding(
+        path.node.init,
+        path,
+        createLoggerImportSpecifiers,
+      );
+
+      if (loggerBinding) {
+        staticLoggerBindings.set(path.node.id, loggerBinding);
+      }
+    },
+  });
+
+  const transformedCode = new MagicString(code);
+  let removedLogCount = 0;
+
+  traverse(ast, {
+    ExpressionStatement(path) {
+      const staticLogCall = readStaticLogCall(
+        path.node.expression,
+        path,
+        staticLoggerBindings,
+      );
+
+      if (!staticLogCall) {
+        return;
+      }
+
+      if (
+        !shouldSuppressLog(
+          staticLogCall.kind,
+          {
+            group: staticLogCall.group,
+            main: staticLogCall.main,
+            message: staticLogCall.message,
+          },
+          options.loggerScopeId,
+        )
+      ) {
+        return;
+      }
+
+      if (
+        typeof path.node.start !== 'number' ||
+        typeof path.node.end !== 'number'
+      ) {
+        return;
+      }
+
+      transformedCode.remove(path.node.start, path.node.end);
+      removedLogCount += 1;
+    },
+  });
+
+  if (removedLogCount === 0) {
+    return null;
+  }
+
+  return {
+    code: transformedCode.toString(),
+    map: transformedCode.generateMap({
+      hires: true,
+      includeContent: true,
+      source: id,
+    }),
+  };
+}

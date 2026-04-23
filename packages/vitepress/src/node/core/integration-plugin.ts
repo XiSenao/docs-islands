@@ -1,6 +1,6 @@
 import type { ConfigType } from '#dep-types/utils';
 import { resolveConfig } from '#shared/config';
-import type { LoggerScopeId } from '@docs-islands/utils/logger';
+import type { LoggerScopeId } from '@docs-islands/logger/internal';
 import type { PluginOption } from 'vite';
 import type { DefaultTheme, UserConfig } from 'vitepress';
 import {

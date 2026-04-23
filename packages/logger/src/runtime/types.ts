@@ -43,10 +43,6 @@ export interface CreateLoggerOptions {
   main: string;
 }
 
-export interface LightGeneralLoggerReturn {
-  log: () => void;
-}
-
 export interface LoggerContext {
   group: string;
   kind: LogKind;

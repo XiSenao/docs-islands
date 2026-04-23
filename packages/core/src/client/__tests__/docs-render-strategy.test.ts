@@ -17,9 +17,9 @@ vi.mock('../../shared/logger', () => ({
   }),
 }));
 
-vi.mock('@docs-islands/utils/logger', async (importOriginal) => {
+vi.mock('@docs-islands/logger/internal', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@docs-islands/utils/logger')>();
+    await importOriginal<typeof import('@docs-islands/logger/internal')>();
 
   return {
     ...actual,

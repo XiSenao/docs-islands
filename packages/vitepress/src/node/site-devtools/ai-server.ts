@@ -7,7 +7,7 @@ import {
   createElapsedLogOptions,
   formatErrorMessage,
   type LoggerScopeId,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import { createHash } from 'node:crypto';
 import {
   buildSiteDevToolsAiAnalysisPrompt,

@@ -14,7 +14,6 @@ export {
   createLogger,
   default,
   formatErrorMessage,
-  lightGeneralLogger,
   type LoggerType,
   type ScopedLoggerType,
 } from './factory';
@@ -23,7 +22,6 @@ export { DEFAULT_LOGGER_SCOPE_ID, normalizeLoggerScopeId } from './scope';
 export type {
   CreateLoggerOptions,
   DebugMessageOptions,
-  LightGeneralLoggerReturn,
   LogKind,
   LoggerConfig,
   LoggerElapsedLogOptions,

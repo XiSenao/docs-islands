@@ -4,7 +4,7 @@ import {
   createPackageFromTarballData,
   type Problem,
 } from '@arethetypeswrong/core';
-import { createElapsedLogOptions } from '@docs-islands/utils/logger';
+import { createElapsedLogOptions } from '@docs-islands/logger/internal';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
