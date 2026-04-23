@@ -6,11 +6,11 @@ import type { RollupOutput } from '#dep-types/rollup';
 import type { ConfigType } from '#dep-types/utils';
 import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
 import { DIRNAME_VAR_NAME } from '@docs-islands/core/shared/constants/runtime';
-import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
 import {
   createElapsedLogOptions,
   type LoggerScopeId,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
+import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { join, resolve } from 'pathe';
@@ -18,6 +18,7 @@ import type { InlineConfig } from 'vite';
 import { build } from 'vite';
 import { createLoggerScopeDefinesFromRegistry } from '../core/logger-scope';
 import { createLoggerScopeTakeoverPlugin } from '../core/vite-plugin-logger-scope';
+import { createLoggerTreeShakingPlugin } from '../core/vite-plugin-logger-tree-shaking';
 import { getVitePressGroupLogger } from '../logger';
 import type { UIFrameworkBuildAdapter } from './adapter';
 import { createComponentEntryModules, isOutputChunk } from './shared';
@@ -100,6 +101,7 @@ export async function bundleUIComponentsForSSR(
       },
       plugins: [
         createLoggerScopeTakeoverPlugin(loggerScopeId),
+        createLoggerTreeShakingPlugin(loggerScopeId),
         ...adapter.ssrBundlerPlugins(),
       ],
       define: {

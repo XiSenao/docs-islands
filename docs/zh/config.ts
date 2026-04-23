@@ -11,6 +11,10 @@ const vitepressConfig: LocaleSpecificConfig<DefaultTheme.Config> & {
   themeConfig: {
     nav: [
       {
+        text: 'Logger',
+        link: '/zh/logger',
+      },
+      {
         text: 'VitePress',
         target: '_blank',
         link: '/vitepress/zh/',

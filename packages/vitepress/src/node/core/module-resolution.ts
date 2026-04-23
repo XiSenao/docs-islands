@@ -15,7 +15,7 @@ import {
 import {
   formatDebugMessage,
   type LoggerScopeId,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import { getProjectRoot } from '@docs-islands/utils/path';
 import { dirname, extname, isAbsolute, relative, resolve } from 'pathe';
 import type { Plugin } from 'vite';

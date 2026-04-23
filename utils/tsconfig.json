@@ -6,5 +6,6 @@
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "types": ["node"],
   },
-  "include": ["./", "./logger.d.ts"],
+  "include": ["./"],
+  "exclude": ["picomatch.d.ts"],
 }

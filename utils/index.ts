@@ -8,24 +8,24 @@
  *    this file will NOT be accessible to external consumers (the Rolldown build
  *    uses `index.ts` as its sole entry point).
  *
- * 2. **`env.ts` must NOT import `logger.ts`** — `rolldown.config.ts` runs
+ * 2. **`env.ts` must NOT import `@docs-islands/logger`** —
+ *    `rolldown.config.ts` runs
  *    `loadEnv()` **before** the build starts, so `env.ts` must stay free of
- *    logger/runtime dependencies that rely on the package build output.
+ *    logger/runtime dependencies that may depend on workspace build output.
  *    Use plain `console.*` for any log output within `env.ts`.
  *
- * 3. **All other modules must use `logger.ts` or scoped helpers for
- *    logging** — Apart from `env.ts`, modules in this package should use
- *    `createLogger({ main }).getLoggerByGroup(group)` instead of raw
- *    `console.*`, keeping logging behaviour consistent and centrally
- *    controlled.
+ * 3. **All other modules must use `@docs-islands/logger` or scoped helpers for
+ *    logging** — Apart from `env.ts`, modules in this package should use the
+ *    shared logger package instead of raw `console.*`, keeping logging
+ *    behaviour consistent and centrally controlled.
  *
  * 4. **`console` and `process.env` APIs are restricted to this package** — The
  *    shared ESLint config enforces `no-console: error` and `no-restricted-syntax`
- *    (for `process.env`) globally. Only `@docs-islands/utils` is exempted (via
- *    its local ESLint overrides) because it houses the `Logger` and `env`
- *    implementations. All other packages must use `Logger` for logging and
- *    `loadEnv`/`injectEnv` for environment access instead of calling
- *    `console.*` or `process.env` directly.
+ *    (for `process.env`) globally. `@docs-islands/utils` keeps local exemptions
+ *    for environment helpers and CLI wrappers. Logger runtime behaviour lives in
+ *    `@docs-islands/logger`; all other packages should use that package for
+ *    logging and `loadEnv`/`injectEnv` for environment access instead of
+ *    calling `console.*` or `process.env` directly.
  */
 
 export { isNodeLikeBuiltin } from './builtin';
@@ -39,33 +39,6 @@ export {
 } from './env';
 export { scanFiles } from './fs-utils';
 export { importWithError, pkgExists } from './general';
-export {
-  DEFAULT_LOGGER_SCOPE_ID,
-  ScopedLogger,
-  createLogger,
-  formatDebugMessage,
-  formatErrorMessage,
-  getLoggerConfigForScope,
-  lightGeneralLogger,
-  normalizeLoggerConfig,
-  normalizeLoggerScopeId,
-  resetLoggerConfig,
-  resetLoggerConfigForScope,
-  sanitizeDebugSummary,
-  setLoggerConfig,
-  setLoggerConfigForScope,
-  shouldSuppressLog,
-  syncRuntimeDefinedLoggerConfig,
-  type CreateLoggerOptions,
-  type DebugMessageOptions,
-  type LogKind,
-  type LoggerConfig,
-  type LoggerRule,
-  type LoggerScopeId,
-  type LoggerType,
-  type LoggerVisibilityLevel,
-  type ScopedLoggerType,
-} from './logger';
 export {
   findMonorepoRoot,
   findNearestPackageRoot,

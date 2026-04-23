@@ -82,7 +82,7 @@ const registerClientOnlyContainerTests = () => {
       const componentSelector = '[data-testid="hello-world"]';
       const buttonSelector = '[data-testid="counter-button"]';
 
-      await page.waitForSelector(clientOnlyContainer);
+      await page.waitForSelector(clientOnlyContainer, { state: 'attached' });
 
       // Wait for component rendering to complete (whether client-side or server-side rendering).
       const helloWorldComponent = page.locator(componentSelector);
@@ -123,7 +123,7 @@ const registerClientOnlyContainerTests = () => {
       const clientOnlyContainer = '[__render_directive__="client:only"]';
 
       // Wait for container and component loading.
-      await page.waitForSelector(clientOnlyContainer);
+      await page.waitForSelector(clientOnlyContainer, { state: 'attached' });
       await page.waitForTimeout(1500);
 
       // Debug-only lifecycle messages should stay hidden by default.

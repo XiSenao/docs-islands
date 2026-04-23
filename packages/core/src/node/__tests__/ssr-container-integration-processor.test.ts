@@ -111,4 +111,28 @@ describe('SSRContainerIntegrationProcessor', () => {
       'await __CSS_LOADING_RUNTIME__(["/assets/test.css"]);',
     );
   });
+
+  it('passes logger scope id to injected CSS loading runtime calls', () => {
+    const sourceCode = `
+      import { createVNode as _createVNode } from "vue";
+      const _component_TestComponent = () => _createVNode("div", {
+        "__render_id__": "12345678",
+        "__render_component__": "TestComponent",
+        "__render_directive__": "client:load",
+        "__spa_sync_render__": "true"
+      });
+    `;
+
+    const result = transformSSRContainerIntegrationCode(sourceCode, () => ({
+      clientRuntimeFileName: 'runtime.12345678.js',
+      loggerScopeId: 'scope-id',
+      ssrCssBundlePaths: new Set(['/assets/test.css']),
+      ssrHtml: '<div>SSR</div>',
+    }));
+
+    expect(result.transformCount).toBe(1);
+    expect(result.code).toContain(
+      'await __CSS_LOADING_RUNTIME__(["/assets/test.css"], "scope-id");',
+    );
+  });
 });

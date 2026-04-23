@@ -47,6 +47,7 @@ describe('auditPublishedPackageBoundaries', () => {
             './types/*': './types/*',
           },
           dependencies: {
+            '@docs-islands/logger': '^0.2.5',
             vite: '^5.0.0',
           },
           peerDependencies: {
@@ -63,8 +64,9 @@ describe('auditPublishedPackageBoundaries', () => {
 import { defineConfig } from 'vite';
 import { createLogger } from '@docs-islands/vitepress/logger';
 import loggerPresets from '@docs-islands/vitepress/logger/presets';
+import { loggerTreeShaking } from '@docs-islands/logger/plugin';
 
-export { path, defineConfig, loggerPresets, createLogger };
+export { path, defineConfig, loggerPresets, loggerTreeShaking, createLogger };
 `,
     );
     writeTextFile(
@@ -127,7 +129,7 @@ export default { hmr };
     writeTextFile(
       path.join(distDir, 'shared', 'runtime.js'),
       `import path from 'node:path';
-import { formatDebugMessage } from '@docs-islands/utils/logger';
+import { formatDebugMessage } from '@docs-islands/missing/logger';
 import secret from '@docs-islands/vitepress/private/runtime';
 
 export { path, formatDebugMessage, secret };
@@ -138,7 +140,7 @@ export { path, formatDebugMessage, secret };
 
     expect(violations).toHaveLength(3);
     expect(violations.map((violation) => violation.specifier)).toEqual([
-      '@docs-islands/utils/logger',
+      '@docs-islands/missing/logger',
       '@docs-islands/vitepress/private/runtime',
       'node:path',
     ]);

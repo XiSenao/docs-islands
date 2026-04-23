@@ -1,7 +1,7 @@
 import {
   createElapsedLogOptions,
   createLogger,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

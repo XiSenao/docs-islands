@@ -7,7 +7,7 @@
 
 `logging` controls the package-owned logs emitted by `createDocsIslands()` and the public logger helpers exposed by this package. It does not change rendering; it only decides which `@docs-islands/*` messages stay visible in Node and in the browser.
 
-Each `createDocsIslands()` instance owns an isolated logger scope. In controlled build paths, imports from `@docs-islands/vitepress/logger` are automatically bound to that instance, so parallel VitePress instances or test runs do not overwrite each other's logging config. Imports that bypass the controlled build graph still fall back to the default compatibility scope.
+Each `createDocsIslands()` instance owns an isolated logger scope. In controlled build paths, imports from `@docs-islands/vitepress/logger` are automatically bound to that instance, so parallel VitePress instances or test runs do not overwrite each other's logging config. Use `@docs-islands/logger` for framework-agnostic direct logger usage.
 
 ## When to Use It
 
@@ -101,7 +101,32 @@ The presets exported by `@docs-islands/vitepress/logger/presets` are predefined 
 
 ## Public Logger Usage
 
-`@docs-islands/vitepress/logger` exposes `createLogger`, `formatDebugMessage`, and `setLoggerConfig`. In controlled build paths, every logger instance created through `createLogger(...)` is automatically bound to the current docs-islands logger scope, so userland logs still follow the resolved `logging` rules for that VitePress instance.
+`@docs-islands/vitepress/logger` is the VitePress controlled logger API. It exposes `createLogger` and `formatDebugMessage`; generic direct runtime configuration lives in `@docs-islands/logger`.
+
+`logging` defines the runtime visibility policy. It decides whether a log is emitted at runtime, and in `debug` mode it also controls which rule labels and elapsed-time metadata are attached to visible logs.
+
+In controlled build paths, every logger instance created through `createLogger(...)` is automatically bound to the current docs-islands logger scope, so userland logs still follow the resolved `logging` rules for that VitePress instance.
+
+### Runtime Policy vs Build-Time Optimization
+
+The logger tree-shaking plugin is a build-time optimization layer. It reuses the resolved `logging` rules to prune statically analyzable logger calls during build.
+
+These two layers are related, but they are not the same thing:
+
+- `logging` always defines runtime behavior.
+- The tree-shaking plugin only handles the static subset it can prove safely.
+- If a log cannot be analyzed statically, it stays in the output and is still filtered by the runtime logger.
+
+So a runtime-suppressed log is not automatically a pruned log.
+
+| Dimension                                   | `logging`          | logger tree-shaking plugin           |
+| ------------------------------------------- | ------------------ | ------------------------------------ |
+| Stage                                       | Runtime            | Build                                |
+| Controls final console output               | Yes                | No, runtime stays canonical          |
+| Removes static message text from the bundle | No                 | Yes, for the supported static subset |
+| Reuses the resolved `logging` rules         | Yes                | Yes                                  |
+| Coverage                                    | Full runtime model | Static, provable subset only         |
+| Fallback when analysis is not possible      | Runtime matching   | Keep the call and defer to runtime   |
 
 ```ts [.vitepress/config.ts]
 import { createDocsIslands } from '@docs-islands/vitepress';
@@ -109,7 +134,10 @@ import { createLogger } from '@docs-islands/vitepress/logger';
 
 const logger = createLogger({
   main: '@acme/custom-docs',
-});
+}).getLoggerByGroup('userland.metrics');
+const hiddenLogger = createLogger({
+  main: '@acme/custom-docs',
+}).getLoggerByGroup('userland.hidden');
 
 const islands = createDocsIslands({
   logging: {
@@ -127,32 +155,108 @@ const islands = createDocsIslands({
 
 islands.apply(vitepressConfig);
 
-logger.getLoggerByGroup('userland.metrics').info('visible userland info');
-logger.getLoggerByGroup('userland.hidden').info('suppressed userland info');
+logger.info('visible userland info');
+hiddenLogger.info('suppressed userland info');
 ```
 
 With this setup, `userland.metrics` stays visible, while `userland.hidden` is suppressed. If you later change `createLogger({ main: ... })`, update your rules to match that `main` or remove the `main` filter.
 
-### Using `createLogger` Without `createDocsIslands()`
+### Logger Tree-Shaking Plugin
 
-If you import `createLogger` from `@docs-islands/vitepress/logger` but never install `createDocsIslands()`, the logger still works through the default-scope compatibility path.
+In controlled `createDocsIslands()` builds, docs-islands already installs the logger tree-shaking transform automatically.
 
-- Logs are **not** automatically bound to a docs-islands instance, so they do not inherit instance-local `logging` rules.
-- Multi-instance isolation does **not** apply in this fallback mode. Multiple callers share the same default scope.
-- If no logger config was injected into that default scope, logging falls back to the root defaults: `error`, `warn`, `info`, and `success` stay visible, while `debug` stays suppressed.
-- In this fallback mode, `setLoggerConfig(...)` updates that default compatibility scope directly.
-- You can clear the fallback config again with `setLoggerConfig(null)` or `setLoggerConfig(undefined)`.
+If you only want the public logger in a VitePress site and still want production pruning, install the public plugin explicitly:
 
-In short: direct logger usage remains compatible, but automatic scope takeover only happens inside the controlled build path established by `createDocsIslands()`. If the current import is already scope-controlled, `setLoggerConfig(...)` is ignored and warns once that the logger is controlled, and the warning tells you to update the logger config through `createDocsIslands({ logging: ... })`.
+```ts [.vitepress/config.ts]
+import { defineConfig } from 'vitepress';
+import { loggerTreeShaking } from '@docs-islands/logger/plugin';
+
+export default defineConfig({
+  vite: {
+    plugins: [
+      loggerTreeShaking.vite({
+        logging: {
+          levels: ['warn', 'error'],
+        },
+      }),
+    ],
+  },
+});
+```
+
+If `logging` is omitted, the plugin falls back to the default logger visibility policy, which still prunes statically analyzable `debug` logs. If you want dynamic logs outside controlled builds to follow the same policy, configure the runtime logger separately as well.
+
+### Production Tree-Shaking
+
+When the tree-shaking transform is active, a static user-authored log that is provably suppressed by the resolved `logging` rules is removed from the generated JavaScript, so its static message text does not stay in the bundle.
+
+Use this direct shape when you want pruning coverage:
+
+```ts
+import { createLogger } from '@docs-islands/vitepress/logger';
+
+const logger = createLogger({
+  main: '@acme/custom-docs',
+}).getLoggerByGroup('userland.metrics');
+
+logger.info('static metric ready');
+logger.success('static metric uploaded');
+logger.warn('static metric delayed');
+logger.error('static metric failed');
+logger.debug('static metric details');
+```
+
+The optimizer only analyzes this constrained static form:
+
+- `createLogger` must be a named import from `@docs-islands/vitepress/logger`.
+- `main`, `getLoggerByGroup(...)`, and the log message must all be string literals.
+- The log call must be a standalone statement such as `logger.info('message')`.
+
+| Pattern                                                                     | Included in pruning |
+| --------------------------------------------------------------------------- | ------------------- |
+| `const logger = createLogger({ main: 'x' }).getLoggerByGroup('y')`          | Yes                 |
+| `logger.info('msg')` / `warn` / `error` / `success` / `debug`               | Yes                 |
+| Template strings, concatenation, variables, dynamic `main`, dynamic `group` | No                  |
+| Aliasing, destructuring, reassignment, dynamic method access                | No                  |
+| Non-standalone expressions such as `const result = logger.info('msg')`      | No                  |
+
+Dynamic logs still work, but they are intentionally left for runtime filtering:
+
+```ts
+logger.info(`metric ${name}`);
+logger.info(`metric ${name}`);
+logger.info(message);
+createLogger({ main }).getLoggerByGroup(group).info('dynamic binding');
+```
+
+Those forms remain compatible, but docs-islands does not guarantee that their message text disappears from production output. Pruning coverage is a static subset of runtime logging coverage, not a replacement for it.
+
+### Generic Logger Usage
+
+For direct logger usage outside VitePress controlled builds, import from the framework-agnostic package:
+
+```ts
+import { createLogger, setLoggerConfig } from '@docs-islands/logger';
+
+setLoggerConfig({
+  levels: ['warn', 'error'],
+});
+
+const logger = createLogger({
+  main: '@acme/custom-docs',
+}).getLoggerByGroup('userland.metrics');
+
+logger.warn('visible generic warning');
+```
+
+`@docs-islands/vitepress/logger` should not be used as a generic logger entry. It is reserved for the controlled VitePress graph established by `createDocsIslands()`.
 
 ### Interactive Scope Probe
 
-The playground below runs both behaviors from inside this docs site:
+The playground below runs both layers from inside this docs site:
 
-- A normal `@docs-islands/vitepress/logger` import that stays scope-controlled by the current `createDocsIslands()` instance
-- A docs-only opt-out probe import that bypasses takeover so the fallback default-scope path can still be observed on the same page
-
-The opt-out query is only used here so this already-controlled site can demonstrate the standalone compatibility behavior.
+- A normal `@docs-islands/vitepress/logger` import that stays scope-controlled by the current `createDocsIslands()` instance.
+- A direct `@docs-islands/logger` import that uses the generic runtime logger package.
 
 <LoggerScopePlayground
   client:load

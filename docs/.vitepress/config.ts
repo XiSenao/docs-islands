@@ -1,3 +1,4 @@
+import { loggerTreeShaking } from '@docs-islands/logger/plugin';
 import { loadEnv } from '@docs-islands/utils';
 import type { DefaultTheme, UserConfig } from 'vitepress';
 import { defineConfig } from 'vitepress';
@@ -54,6 +55,7 @@ const vitepressConfig: UserConfig<DefaultTheme.Config> = defineConfig({
   },
   vite: {
     plugins: [
+      loggerTreeShaking.vite(),
       dynamicProxyPlugin(),
       groupIconVitePlugin(),
       release &&

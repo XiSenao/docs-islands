@@ -1,11 +1,9 @@
 import { syncRuntimeDefinedLoggerConfig } from './config';
 import { emitLoggerMessage } from './console';
-import { INSTANT_LOG_OPTIONS } from './constants/levels';
 import { normalizeLoggerGroup, normalizeLoggerMain } from './normalize';
 import { normalizeLoggerScopeId } from './scope';
 import type {
   CreateLoggerOptions,
-  LightGeneralLoggerReturn,
   LoggerLogOptions,
   LoggerScopeId,
   LogKind,
@@ -212,49 +210,4 @@ export function formatErrorMessage(error: unknown): string {
   } catch {
     return 'Unknown error';
   }
-}
-
-/**
- * Lightweight logger function for immediate runtime logging.
- *
- * @param logMain - Log subject
- * @param type - The type of log message
- * @param message - The message to log
- * @param group - Logger group identifier
- */
-export function lightGeneralLogger(
-  logMain: string,
-  type: LogKind,
-  message: string,
-  group: string,
-  options?: LoggerLogOptions,
-  scopeId?: LoggerScopeId,
-): LightGeneralLoggerReturn {
-  if (typeof group !== 'string') {
-    throw new TypeError(
-      'lightGeneralLogger requires a logger group. Pass createLogger({ main }).getLoggerByGroup(group) or provide the group argument.',
-    );
-  }
-
-  const normalizedMain = normalizeLoggerMain(logMain);
-  const normalizedGroup = normalizeLoggerGroup(group);
-  const normalizedScopeId = normalizeLoggerScopeId(scopeId);
-
-  return {
-    log: () => {
-      const logger = createLogger(
-        {
-          main: normalizedMain,
-        },
-        normalizedScopeId,
-      ).getLoggerByGroup(normalizedGroup);
-
-      if (type === 'debug') {
-        logger.debug(message);
-        return;
-      }
-
-      logger[type](message, options ?? INSTANT_LOG_OPTIONS);
-    },
-  };
 }

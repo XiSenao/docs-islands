@@ -41,7 +41,7 @@ describe('ReactRenderController', () => {
       `}).getLoggerByGroup('${VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender}');`,
     );
     expect(code).not.toContain('getLoggerInstance()');
-    expect(code).not.toContain('@docs-islands/utils/logger');
+    expect(code).not.toContain('@docs-islands/logger/internal');
     expect(code).not.toContain('emitRuntimeLog');
     expect(code).toContain('const __MAX_RENDER_ATTEMPTS__ = 10;');
     expect(code).toContain('function __queueRenderRetry__()');

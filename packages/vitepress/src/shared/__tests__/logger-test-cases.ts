@@ -1,4 +1,4 @@
-import type { LoggerConfig, LogKind } from '@docs-islands/utils/logger';
+import type { LoggerConfig, LogKind } from '@docs-islands/logger/internal';
 
 export const LOGGER_SPEC_CASE_COUNT = 31;
 export const LOGGER_SPEC_ELAPSED = '42.00ms';

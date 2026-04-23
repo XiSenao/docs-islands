@@ -1,4 +1,5 @@
-import picomatch from 'picomatch';
+// @ts-expect-error -- picomatch v4 does not ship TypeScript declarations.
+import rawPicomatch from 'picomatch';
 import { DEFAULT_RESOLVED_LEVELS, LOG_KIND_TO_LEVEL } from './constants/levels';
 import {
   normalizeLoggerConfig,
@@ -19,6 +20,10 @@ import type {
 } from './types';
 
 const GLOB_PATTERN_RE = /[!()*+?[\]{}]/;
+
+const picomatch = rawPicomatch as unknown as (
+  pattern: string | readonly string[],
+) => (value: string) => boolean;
 
 const activeLoggerConfigRegistry = new Map<
   LoggerScopeId,
@@ -316,7 +321,7 @@ export function resetLoggerConfigForScope(scopeId: LoggerScopeId): void {
 }
 
 /**
- * Updates the logger config for the default compatibility scope.
+ * Updates the logger config for the default logger scope.
  *
  * This is primarily useful for direct logger usage outside any
  * scope-controlled runtime such as `createDocsIslands()`.

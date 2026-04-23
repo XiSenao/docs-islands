@@ -2,7 +2,7 @@ import {
   getLoggerConfigForScope,
   type LoggerConfig,
   type LoggerScopeId,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import { randomUUID } from 'node:crypto';
 
 export const createLoggerScopeId = (): LoggerScopeId => {

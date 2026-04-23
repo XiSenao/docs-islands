@@ -7,7 +7,7 @@
 
 `logging` 用来控制 `createDocsIslands()` 产生的包内日志，以及这个包公开暴露的 logger helper。它不会改变渲染逻辑，只决定 `@docs-islands/*` 在 Node 和浏览器里哪些消息可见。
 
-每个 `createDocsIslands()` 实例都会持有隔离的 logger scope。在受控构建链里，`@docs-islands/vitepress/logger` 的导入会自动绑定到当前实例，所以并行的多个 VitePress 实例或测试不会互相覆盖 logging 配置。绕过受控模块图的导入路径仍然会回退到默认兼容 scope。
+每个 `createDocsIslands()` 实例都会持有隔离的 logger scope。在受控构建链里，`@docs-islands/vitepress/logger` 的导入会自动绑定到当前实例，所以并行的多个 VitePress 实例或测试不会互相覆盖 logging 配置。框架无关的直接 logger 用法请使用 `@docs-islands/logger`。
 
 ## 什么时候用它
 
@@ -101,7 +101,32 @@ const logging = {
 
 ## 公开 Logger 用法
 
-`@docs-islands/vitepress/logger` 会暴露 `createLogger`、`formatDebugMessage` 和 `setLoggerConfig`。在受控构建链里，通过 `createLogger(...)` 创建出来的任意 logger 实例都会自动绑定到当前 docs-islands logger scope，所以用户侧日志依然受该 VitePress 实例最终解析出的 `logging` 规则控制。
+`@docs-islands/vitepress/logger` 是 VitePress 受控 logger API。它只暴露 `createLogger` 与 `formatDebugMessage`；通用的直接 runtime 配置能力位于 `@docs-islands/logger`。
+
+`logging` 定义的是 logger 的运行时可见性策略。它决定日志在运行时是否输出；在 `debug` 模式下，也会决定可见日志附带哪些规则标签和相对耗时信息。
+
+在受控构建链里，通过 `createLogger(...)` 创建出来的任意 logger 实例都会自动绑定到当前 docs-islands logger scope，所以用户侧日志依然受该 VitePress 实例最终解析出的 `logging` 规则控制。
+
+### Runtime Policy 与 Build-Time Optimization
+
+logger tree-shaking plugin 是一个编译期优化层。它会在构建阶段复用已经解析好的 `logging` 规则，对静态可判定的 logger 调用做裁剪。
+
+这两层相关，但不是同一个概念：
+
+- `logging` 始终定义运行时行为。
+- tree-shaking plugin 只处理它能安全静态证明的子集。
+- 无法静态分析的日志会继续保留在产物中，并交给 runtime logger 决定是否输出。
+
+所以，“运行时会被 suppress” 不等于 “一定会被编译期删除”。
+
+| 维度                            | `logging`      | logger tree-shaking plugin |
+| ------------------------------- | -------------- | -------------------------- |
+| 生效阶段                        | 运行时         | 编译期                     |
+| 是否决定最终控制台输出          | 是             | 否，runtime 语义仍然是基准 |
+| 是否移除 bundle 中的静态文案    | 否             | 是，但仅限受支持的静态子集 |
+| 是否复用已解析的 `logging` 规则 | 是             | 是                         |
+| 覆盖范围                        | 完整运行时模型 | 静态可判定子集             |
+| 无法分析时的退化行为            | 正常运行时匹配 | 保留调用并交给 runtime     |
 
 ```ts [.vitepress/config.ts]
 import { createDocsIslands } from '@docs-islands/vitepress';
@@ -109,7 +134,10 @@ import { createLogger } from '@docs-islands/vitepress/logger';
 
 const logger = createLogger({
   main: '@acme/custom-docs',
-});
+}).getLoggerByGroup('userland.metrics');
+const hiddenLogger = createLogger({
+  main: '@acme/custom-docs',
+}).getLoggerByGroup('userland.hidden');
 
 const islands = createDocsIslands({
   logging: {
@@ -127,32 +155,108 @@ const islands = createDocsIslands({
 
 islands.apply(vitepressConfig);
 
-logger.getLoggerByGroup('userland.metrics').info('visible userland info');
-logger.getLoggerByGroup('userland.hidden').info('suppressed userland info');
+logger.info('visible userland info');
+hiddenLogger.info('suppressed userland info');
 ```
 
 在这个配置下，`userland.metrics` 会保留输出，而 `userland.hidden` 会被抑制。
 
-### 不使用 `createDocsIslands()` 时直接调用 `createLogger`
+### Logger Tree-Shaking Plugin
 
-如果你直接从 `@docs-islands/vitepress/logger` 导入 `createLogger`，但没有安装 `createDocsIslands()`，logger 依然可以工作，不过它走的是 default scope 兼容路径。
+在受控的 `createDocsIslands()` 构建链里，docs-islands 已经会自动安装 logger tree-shaking transform。
 
-- 日志**不会**自动绑定到某个 docs-islands 实例，因此也不会自动继承该实例的 `logging` 规则。
-- 这种 fallback 模式下**不具备**多实例隔离语义。多个调用方会共享同一个 default scope。
-- 如果这个 default scope 没有注入任何 logger config，那么它会回退到根默认行为：`error`、`warn`、`info`、`success` 默认可见，而 `debug` 默认被抑制。
-- 在这种 fallback 模式下，`setLoggerConfig(...)` 会直接更新这个 default compatibility scope。
-- 如果要清空这份 fallback config，可以调用 `setLoggerConfig(null)` 或 `setLoggerConfig(undefined)`。
+如果你只是想在 VitePress 站点里使用公开 logger，同时又希望拿到生产环境裁剪能力，可以显式安装公开 plugin：
 
-也就是说，直接使用 logger 仍然兼容可用，但自动 scope 接管只会发生在 `createDocsIslands()` 建立的受控构建链里。如果当前导入已经是受控 logger，那么 `setLoggerConfig(...)` 会被忽略，并只提示一次该 logger 当前处于受控状态，同时告知你应该在 `createDocsIslands({ logging: ... })` 中修改 logger 配置。
+```ts [.vitepress/config.ts]
+import { defineConfig } from 'vitepress';
+import { loggerTreeShaking } from '@docs-islands/logger/plugin';
+
+export default defineConfig({
+  vite: {
+    plugins: [
+      loggerTreeShaking.vite({
+        logging: {
+          levels: ['warn', 'error'],
+        },
+      }),
+    ],
+  },
+});
+```
+
+如果省略 `logging`，plugin 会回退到默认 logger 可见性策略，这仍然会裁剪静态可判定的 `debug` 日志。如果你还希望受控链路之外的动态日志也遵循同一套策略，则需要额外配置 runtime logger。
+
+### 生产环境 Tree-Shaking
+
+当 tree-shaking transform 生效时，只要某条用户静态日志能够被证明会被已解析的 `logging` 规则抑制，这条日志语句就会从生成的 JavaScript 中移除，因此它的静态 message 文案也不会进入最终 bundle。
+
+如果你希望获得 pruning coverage，推荐使用下面这种直接写法：
+
+```ts
+import { createLogger } from '@docs-islands/vitepress/logger';
+
+const logger = createLogger({
+  main: '@acme/custom-docs',
+}).getLoggerByGroup('userland.metrics');
+
+logger.info('static metric ready');
+logger.success('static metric uploaded');
+logger.warn('static metric delayed');
+logger.error('static metric failed');
+logger.debug('static metric details');
+```
+
+优化器只分析这个受约束的静态形态：
+
+- `createLogger` 必须是从 `@docs-islands/vitepress/logger` 命名导入的函数。
+- `main`、`getLoggerByGroup(...)` 和日志 message 都必须是字符串字面量。
+- 日志调用必须是独立语句，例如 `logger.info('message')`。
+
+| 形态                                                               | 是否参与 pruning |
+| ------------------------------------------------------------------ | ---------------- |
+| `const logger = createLogger({ main: 'x' }).getLoggerByGroup('y')` | 是               |
+| `logger.info('msg')` / `warn` / `error` / `success` / `debug`      | 是               |
+| 模板字符串、字符串拼接、变量 message、动态 `main`、动态 `group`    | 否               |
+| alias、destructuring、reassignment、动态 method 访问               | 否               |
+| `const result = logger.info('msg')` 这类非独立表达式               | 否               |
+
+动态日志仍然可用，但会刻意保留给运行时过滤：
+
+```ts
+logger.info(`metric ${name}`);
+logger.info(`metric ${name}`);
+logger.info(message);
+createLogger({ main }).getLoggerByGroup(group).info('dynamic binding');
+```
+
+这些写法依然兼容可运行，但 docs-islands 不保证它们的 message 文案会从生产产物中消失。pruning coverage 只是 runtime logging coverage 的静态可判定子集，不是它的替代品。
+
+### 通用 Logger 用法
+
+如果需要在 VitePress 受控构建链之外直接使用 logger，请从框架无关的包导入：
+
+```ts
+import { createLogger, setLoggerConfig } from '@docs-islands/logger';
+
+setLoggerConfig({
+  levels: ['warn', 'error'],
+});
+
+const logger = createLogger({
+  main: '@acme/custom-docs',
+}).getLoggerByGroup('userland.metrics');
+
+logger.warn('visible generic warning');
+```
+
+不要再把 `@docs-islands/vitepress/logger` 当作通用 logger 入口使用。它只服务于 `createDocsIslands()` 建立的 VitePress 受控模块图。
 
 ### 交互式 Scope Probe
 
-下面这个 playground 会直接在当前 docs 站里把两种行为都跑一遍：
+下面这个 playground 会直接在当前 docs 站里把两层能力都跑一遍：
 
-- 正常的 `@docs-islands/vitepress/logger` 导入，它会继续绑定到当前 `createDocsIslands()` 实例的受控 scope
-- 一个仅用于文档探针的 opt-out import，它会绕开 takeover，让同一页面里也能看到 fallback default-scope 路径
-
-这个 opt-out query 只用于当前文档演示，目的是让这个本身已经处于受控构建链的站点也能展示 standalone compatibility 行为。
+- 正常的 `@docs-islands/vitepress/logger` 导入，它会继续绑定到当前 `createDocsIslands()` 实例的受控 scope。
+- 直接使用 `@docs-islands/logger` 的通用 runtime logger。
 
 <LoggerScopePlayground
   client:load

@@ -6,11 +6,11 @@ import type {
 } from '#dep-types/utils';
 import { VITEPRESS_CONFIG_LOG_GROUPS } from '#shared/constants/log-groups/config';
 import { createLogger } from '#shared/logger';
-import type { LoggerScopeId } from '@docs-islands/utils/logger';
+import type { LoggerScopeId } from '@docs-islands/logger/internal';
 import {
   createElapsedLogOptions,
   setLoggerConfigForScope,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import type { DefaultTheme, UserConfig } from 'vitepress';
 import { ensureVitepressViteConfig } from './integration-plugin';
 import { createLoggerScopeDefines } from './logger-scope';
@@ -20,6 +20,10 @@ import {
   createLoggerScopeTakeoverPlugin,
   LOGGER_SCOPE_TAKEOVER_PLUGIN_NAME,
 } from './vite-plugin-logger-scope';
+import {
+  createLoggerTreeShakingPlugin,
+  LOGGER_TREE_SHAKING_PLUGIN_NAME,
+} from './vite-plugin-logger-tree-shaking';
 
 const getConfigLogger = (scopeId: LoggerScopeId) =>
   createLogger(
@@ -216,6 +220,14 @@ export function applyDocsIslandsViteBaseConfig(
   ) {
     viteConfig.plugins!.push(
       createLoggerScopeTakeoverPlugin(options.loggerScopeId),
+    );
+  }
+
+  if (
+    !hasVitePluginNamed(viteConfig.plugins, LOGGER_TREE_SHAKING_PLUGIN_NAME)
+  ) {
+    viteConfig.plugins!.push(
+      createLoggerTreeShakingPlugin(options.loggerScopeId),
     );
   }
 

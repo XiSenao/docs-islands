@@ -5,13 +5,12 @@ import {
   createLogger,
   formatDebugMessage,
   getLoggerConfigForScope,
-  lightGeneralLogger,
   resetLoggerConfig,
   resetLoggerConfigForScope,
   sanitizeDebugSummary,
   setLoggerConfig,
   setLoggerConfigForScope,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -275,15 +274,18 @@ describe('logger node behavior', () => {
     });
   });
 
-  it('requires a group for lightGeneralLogger', () => {
-    expect(() =>
-      lightGeneralLogger(
-        '@docs-islands/vitepress',
-        'warn',
-        'runtime warning',
-        undefined as never,
-      ),
-    ).toThrow(/lightGeneralLogger requires a logger group/);
+  it('keeps instant scoped logger output on the plain message body', () => {
+    const output = captureConsoleOutput();
+
+    createLogger({
+      main: '@docs-islands/vitepress',
+    })
+      .getLoggerByGroup(VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager)
+      .warn('runtime warning', { elapsedTimeMs: 0 });
+
+    expect(output).toEqual([
+      `@docs-islands/vitepress[${VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager}]: runtime warning`,
+    ]);
   });
 
   it('formats debug messages with context decision sanitized summary and timing', () => {
@@ -355,8 +357,7 @@ describe('logger node behavior', () => {
       path.join(repoRoot, segment),
     );
     const loggerImplementationFiles = new Set([
-      path.join(repoRoot, 'utils', 'logger.ts'),
-      path.join(repoRoot, 'utils', 'logger', 'factory.ts'),
+      path.join(repoRoot, 'packages', 'logger', 'src', 'runtime', 'factory.ts'),
     ]);
     const offenders = targetRoots
       .flatMap((targetRoot) => collectSourceFiles(targetRoot))

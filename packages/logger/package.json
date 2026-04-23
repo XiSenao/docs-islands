@@ -1,0 +1,73 @@
+{
+  "name": "@docs-islands/logger",
+  "version": "0.2.5",
+  "type": "module",
+  "license": "MIT",
+  "author": "Senao Xi",
+  "description": "Shared runtime logger and compile-time pruning plugin for docs-islands packages",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/XiSenao/docs-islands.git",
+    "directory": "packages/logger"
+  },
+  "bugs": {
+    "url": "https://github.com/XiSenao/docs-islands/issues"
+  },
+  "homepage": "https://docs.senao.me/docs-islands",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "lint": "eslint . --config ./eslint.config.mjs --fix --cache --cache-location ./node_modules/.cache/eslint/",
+    "typecheck": "tsc --noEmit",
+    "build": "rolldown --config rolldown.config.ts",
+    "build:watch": "rolldown --config rolldown.config.ts --watch",
+    "test": "vitest run",
+    "clean": "del-cli .eslintcache dist coverage node_modules"
+  },
+  "dependencies": {
+    "@babel/parser": "catalog:dev",
+    "@babel/traverse": "catalog:dev",
+    "@babel/types": "catalog:dev",
+    "es-module-lexer": "catalog:dev",
+    "magic-string": "catalog:dev",
+    "picocolors": "catalog:dev",
+    "picomatch": "catalog:prod",
+    "unplugin": "catalog:prod"
+  },
+  "devDependencies": {
+    "@docs-islands/eslint-config": "workspace:*",
+    "@types/babel__traverse": "catalog:dev",
+    "@types/node": "catalog:dev",
+    "del-cli": "catalog:dev",
+    "eslint": "catalog:lint",
+    "jsdom": "catalog:test",
+    "rolldown": "catalog:dev",
+    "rolldown-plugin-dts": "catalog:dev",
+    "typescript": "catalog:dev",
+    "vitest": "catalog:test"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./internal": {
+      "types": "./dist/internal.d.ts",
+      "import": "./dist/internal.js"
+    },
+    "./plugin": {
+      "types": "./dist/plugin/index.d.ts",
+      "import": "./dist/plugin/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/index.d.ts",
+  "sideEffects": false
+}

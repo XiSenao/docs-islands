@@ -27,9 +27,6 @@ async function getModuleEntries(): Promise<string[]> {
 const modules = await getModuleEntries();
 
 const moduleConfig: RolldownOptions = defineConfig({
-  // Public subpath proxies such as `logger.ts` must be explicit JS entries,
-  // otherwise Rolldown can inline their re-exports into `index.js` and skip
-  // emitting the proxy module that package exports resolve to.
   input: [...modules, './bin/link-guard.ts'],
   platform: 'neutral',
   preserveEntrySignatures: 'strict',

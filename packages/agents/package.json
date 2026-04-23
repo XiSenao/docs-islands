@@ -8,6 +8,7 @@
     "clean": "del-cli node_modules"
   },
   "devDependencies": {
+    "@docs-islands/logger": "workspace:*",
     "@docs-islands/utils": "workspace:*",
     "del-cli": "catalog:dev"
   }

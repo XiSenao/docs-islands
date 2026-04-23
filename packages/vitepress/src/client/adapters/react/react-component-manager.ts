@@ -12,7 +12,7 @@ import {
   createElapsedLogOptions,
   formatDebugMessage,
   formatErrorMessage,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import type React from 'react';
 import { getCleanPathname } from '../../../shared/runtime';
 
