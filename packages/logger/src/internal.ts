@@ -29,6 +29,8 @@ export {
 export {
   DEFAULT_LOGGER_SCOPE_ID,
   normalizeLoggerScopeId,
+  readRuntimeLoggerScopeId,
+  resolveLoggerScopeId,
 } from './runtime/scope';
 export type {
   CreateLoggerOptions,

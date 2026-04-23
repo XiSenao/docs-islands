@@ -18,7 +18,12 @@ export {
   type ScopedLoggerType,
 } from './factory';
 export { normalizeLoggerConfig } from './normalize';
-export { DEFAULT_LOGGER_SCOPE_ID, normalizeLoggerScopeId } from './scope';
+export {
+  DEFAULT_LOGGER_SCOPE_ID,
+  normalizeLoggerScopeId,
+  readRuntimeLoggerScopeId,
+  resolveLoggerScopeId,
+} from './scope';
 export type {
   CreateLoggerOptions,
   DebugMessageOptions,

@@ -13,7 +13,10 @@ import {
 export const LOGGER_TREE_SHAKING_PLUGIN_NAME =
   'docs-islands:logger-tree-shaking';
 
-export const DEFAULT_LOGGER_MODULE_IDS = ['@docs-islands/logger'] as const;
+export const DEFAULT_LOGGER_MODULE_IDS = [
+  '@docs-islands/logger',
+  '@docs-islands/logger/internal',
+] as const;
 
 const LOG_METHODS = new Set<LogKind>([
   'debug',

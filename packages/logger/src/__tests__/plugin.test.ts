@@ -56,6 +56,32 @@ logger.warn('visible static warning');
     expect(result?.code).toContain("logger.warn('visible static warning')");
   });
 
+  it('removes suppressed static literal logs from @docs-islands/logger/internal imports', async () => {
+    setLoggerConfigForScope(TEST_SCOPE_ID, {
+      levels: ['warn', 'error'],
+    });
+
+    const result = await transformLoggerTreeShaking(
+      `
+import { createLogger } from '@docs-islands/logger/internal';
+
+const logger = createLogger({ main: '@acme/docs' }).getLoggerByGroup('userland.metrics');
+
+logger.info('hidden internal static info');
+logger.warn('visible internal static warning');
+      `,
+      TEST_MODULE_ID,
+      {
+        loggerScopeId: TEST_SCOPE_ID,
+      },
+    );
+
+    expect(result?.code).not.toContain('hidden internal static info');
+    expect(result?.code).toContain(
+      "logger.warn('visible internal static warning')",
+    );
+  });
+
   it('keeps unsupported static shapes unchanged', async () => {
     setLoggerConfigForScope(TEST_SCOPE_ID, {
       levels: ['error'],

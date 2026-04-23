@@ -5,16 +5,23 @@ import { describe, expect, it, vi } from 'vitest';
 import { RENDER_STRATEGY_CONSTANTS } from '../../shared/constants/render-strategy';
 import transformComponentTags, { travelImports } from '../transform';
 
-vi.mock('../../shared/logger', () => ({
-  createLogger: () => ({
-    getLoggerByGroup: () => ({
-      warn: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      success: vi.fn(),
+vi.mock('@docs-islands/logger/internal', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@docs-islands/logger/internal')>();
+
+  return {
+    ...actual,
+    createLogger: () => ({
+      getLoggerByGroup: () => ({
+        debug: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        success: vi.fn(),
+        warn: vi.fn(),
+      }),
     }),
-  }),
-}));
+  };
+});
 
 const attrNames = {
   renderId: RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),

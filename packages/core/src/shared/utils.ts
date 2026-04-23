@@ -1,4 +1,7 @@
-import { createElapsedLogOptions } from '@docs-islands/logger/internal';
+import {
+  createElapsedLogOptions,
+  createLogger,
+} from '@docs-islands/logger/internal';
 import type { RenderDirective } from '../types/render';
 import { CORE_RUNTIME_LOG_GROUPS } from './constants/log-groups/runtime';
 import {
@@ -6,7 +9,6 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from './constants/render-strategy';
-import { createLogger } from './logger';
 
 const loggerInstance = createLogger({
   main: '@docs-islands/core',

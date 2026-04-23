@@ -7,7 +7,12 @@ import {
   normalizeLoggerLevelsArray,
   normalizeLoggerMain,
 } from './normalize';
-import { DEFAULT_LOGGER_SCOPE_ID, normalizeLoggerScopeId } from './scope';
+import {
+  DEFAULT_LOGGER_SCOPE_ID,
+  normalizeLoggerScopeId,
+  readRuntimeLoggerScopeId,
+  resolveLoggerScopeId,
+} from './scope';
 import type {
   LoggerConfig,
   LoggerContext,
@@ -99,21 +104,26 @@ const getLoggerConfigRegistry = (): Map<
   LoggerConfig | undefined
 > => (globalThis.__DOCS_ISLANDS_LOGGER_CONFIG_REGISTRY__ ??= new Map());
 
+const canReadRuntimeDefinedLoggerConfigForScope = (
+  normalizedScopeId: LoggerScopeId,
+): boolean => {
+  const runtimeScopeId = readRuntimeLoggerScopeId();
+
+  if (normalizedScopeId === DEFAULT_LOGGER_SCOPE_ID) {
+    return (
+      runtimeScopeId === undefined || runtimeScopeId === DEFAULT_LOGGER_SCOPE_ID
+    );
+  }
+
+  return runtimeScopeId === normalizedScopeId;
+};
+
 const readRuntimeDefinedLoggerConfig = (
   scopeId?: LoggerScopeId,
 ): LoggerConfig | null | undefined => {
-  const normalizedScopeId = normalizeLoggerScopeId(scopeId);
+  const normalizedScopeId = resolveLoggerScopeId(scopeId);
 
-  if (normalizedScopeId === DEFAULT_LOGGER_SCOPE_ID) {
-    return typeof __DOCS_ISLANDS_LOGGER_CONFIG__ === 'undefined'
-      ? undefined
-      : __DOCS_ISLANDS_LOGGER_CONFIG__;
-  }
-
-  if (
-    typeof __DOCS_ISLANDS_LOGGER_SCOPE_ID__ === 'undefined' ||
-    __DOCS_ISLANDS_LOGGER_SCOPE_ID__ !== normalizedScopeId
-  ) {
+  if (!canReadRuntimeDefinedLoggerConfigForScope(normalizedScopeId)) {
     return undefined;
   }
 
@@ -141,7 +151,7 @@ const applyLoggerConfigForScope = (
 };
 
 const hasLoggerConfigForScope = (scopeId?: LoggerScopeId): boolean => {
-  const normalizedScopeId = normalizeLoggerScopeId(scopeId);
+  const normalizedScopeId = resolveLoggerScopeId(scopeId);
   const registry = getLoggerConfigRegistry();
 
   if (registry.has(normalizedScopeId)) {
@@ -150,6 +160,7 @@ const hasLoggerConfigForScope = (scopeId?: LoggerScopeId): boolean => {
 
   return (
     normalizedScopeId === DEFAULT_LOGGER_SCOPE_ID &&
+    canReadRuntimeDefinedLoggerConfigForScope(normalizedScopeId) &&
     globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__ !== undefined
   );
 };
@@ -157,7 +168,7 @@ const hasLoggerConfigForScope = (scopeId?: LoggerScopeId): boolean => {
 export const syncRuntimeDefinedLoggerConfig = (
   scopeId?: LoggerScopeId,
 ): void => {
-  const normalizedScopeId = normalizeLoggerScopeId(scopeId);
+  const normalizedScopeId = resolveLoggerScopeId(scopeId);
 
   if (syncedRuntimeDefinedLoggerScopes.has(normalizedScopeId)) {
     return;
@@ -182,7 +193,7 @@ export const syncRuntimeDefinedLoggerConfig = (
 const getNormalizedActiveLoggerConfig = (
   scopeId?: LoggerScopeId,
 ): NormalizedLoggerConfig | null => {
-  const normalizedScopeId = normalizeLoggerScopeId(scopeId);
+  const normalizedScopeId = resolveLoggerScopeId(scopeId);
 
   syncRuntimeDefinedLoggerConfig(normalizedScopeId);
 
@@ -292,6 +303,10 @@ export function getLoggerConfigForScope(
   }
 
   if (normalizedScopeId === DEFAULT_LOGGER_SCOPE_ID) {
+    if (!canReadRuntimeDefinedLoggerConfigForScope(normalizedScopeId)) {
+      return undefined;
+    }
+
     return normalizeLoggerConfig(globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__);
   }
 
@@ -324,7 +339,7 @@ export function resetLoggerConfigForScope(scopeId: LoggerScopeId): void {
  * Updates the logger config for the default logger scope.
  *
  * This is primarily useful for direct logger usage outside any
- * scope-controlled runtime such as `createDocsIslands()`.
+ * runtime with an injected logger scope such as `createDocsIslands()`.
  *
  * Pass `null` or `undefined` to clear the default-scope config.
  */

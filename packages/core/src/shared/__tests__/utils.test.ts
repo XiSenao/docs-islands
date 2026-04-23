@@ -5,13 +5,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RENDER_STRATEGY_CONSTANTS } from '../constants/render-strategy';
 import { validateLegalRenderElements } from '../utils';
 
-vi.mock('../logger', () => ({
-  createLogger: () => ({
-    getLoggerByGroup: () => ({
-      warn: vi.fn(),
+vi.mock('@docs-islands/logger/internal', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@docs-islands/logger/internal')>();
+
+  return {
+    ...actual,
+    createLogger: () => ({
+      getLoggerByGroup: () => ({
+        debug: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        success: vi.fn(),
+        warn: vi.fn(),
+      }),
     }),
-  }),
-}));
+  };
+});
 
 describe('core shared utils', () => {
   let mockElement: Element;

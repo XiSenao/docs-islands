@@ -1,7 +1,7 @@
 import { syncRuntimeDefinedLoggerConfig } from './config';
 import { emitLoggerMessage } from './console';
 import { normalizeLoggerGroup, normalizeLoggerMain } from './normalize';
-import { normalizeLoggerScopeId } from './scope';
+import { normalizeLoggerScopeId, resolveLoggerScopeId } from './scope';
 import type {
   CreateLoggerOptions,
   LoggerLogOptions,
@@ -197,7 +197,7 @@ export function createLogger(
   options: CreateLoggerOptions,
   scopeId?: LoggerScopeId,
 ): Logger {
-  const normalizedScopeId = normalizeLoggerScopeId(scopeId);
+  const normalizedScopeId = resolveLoggerScopeId(scopeId);
 
   syncRuntimeDefinedLoggerConfig(normalizedScopeId);
   return Logger.getOrCreate(options.main, normalizedScopeId);

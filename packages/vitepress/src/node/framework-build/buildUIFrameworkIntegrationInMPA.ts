@@ -11,7 +11,6 @@ import { dirname, join, resolve } from 'pathe';
 import type { InlineConfig, Plugin } from 'vite';
 import { build as viteBuild } from 'vite';
 import { createLoggerScopeDefinesFromRegistry } from '../core/logger-scope';
-import { createLoggerScopeTakeoverPlugin } from '../core/vite-plugin-logger-scope';
 import { createLoggerTreeShakingPlugin } from '../core/vite-plugin-logger-tree-shaking';
 import { getVitePressGroupLogger } from '../logger';
 import type { UIFrameworkBuildAdapter } from './adapter';
@@ -142,7 +141,6 @@ export const inBrowser = true;
           assetsInlineLimit: 4096,
         },
         plugins: [
-          createLoggerScopeTakeoverPlugin(loggerScopeId),
           createLoggerTreeShakingPlugin(loggerScopeId),
           vitepressTreeShakingPlugin,
         ],

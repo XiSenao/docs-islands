@@ -1,9 +1,9 @@
 import {
   createElapsedLogOptions,
+  createLogger,
   formatErrorMessage,
 } from '@docs-islands/logger/internal';
 import { getFrameworkRenderStrategyLogGroup } from '../shared/constants/log-groups/runtime';
-import { createLogger } from '../shared/logger';
 import type {
   DocsRendererAdapter,
   DocsRenderMode,
