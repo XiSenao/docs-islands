@@ -1,11 +1,11 @@
 import {
   createElapsedLogOptions,
+  createLogger,
   formatErrorMessage,
 } from '@docs-islands/logger/internal';
 import { getFrameworkComponentManagerLogGroup } from '../shared/constants/log-groups/runtime';
 import { PAGE_METAFILE_META_NAMES } from '../shared/constants/page-metafile';
 import { RENDER_STRATEGY_CONSTANTS } from '../shared/constants/render-strategy';
-import { createLogger } from '../shared/logger';
 import type {
   DocsComponentManagerHooks,
   DocsComponentManagerInitializeOptions,

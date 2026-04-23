@@ -7,23 +7,21 @@ import { RENDER_STRATEGY_CONSTANTS } from '../../shared/constants/render-strateg
 import type { DocsInjectComponent } from '../../types/client';
 import { DocsComponentManager } from '../docs-component-manager';
 
-vi.mock('../../shared/logger', () => ({
-  createLogger: () => ({
-    getLoggerByGroup: () => ({
-      error: vi.fn(),
-      info: vi.fn(),
-      success: vi.fn(),
-      warn: vi.fn(),
-    }),
-  }),
-}));
-
 vi.mock('@docs-islands/logger/internal', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@docs-islands/logger/internal')>();
 
   return {
     ...actual,
+    createLogger: () => ({
+      getLoggerByGroup: () => ({
+        debug: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        success: vi.fn(),
+        warn: vi.fn(),
+      }),
+    }),
     formatErrorMessage: (error: unknown) =>
       error instanceof Error ? error.message : String(error),
   };

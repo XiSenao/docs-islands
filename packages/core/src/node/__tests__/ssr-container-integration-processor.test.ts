@@ -5,16 +5,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExtractedProps } from '../ssr-container-integration-processor';
 import { transformSSRContainerIntegrationCode } from '../ssr-container-integration-processor';
 
-vi.mock('../shared/logger', () => ({
-  createLogger: () => ({
-    getLoggerByGroup: () => ({
-      error: vi.fn(),
-      info: vi.fn(),
-      success: vi.fn(),
-      warn: vi.fn(),
+vi.mock('@docs-islands/logger/internal', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@docs-islands/logger/internal')>();
+
+  return {
+    ...actual,
+    createLogger: () => ({
+      getLoggerByGroup: () => ({
+        debug: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        success: vi.fn(),
+        warn: vi.fn(),
+      }),
     }),
-  }),
-}));
+  };
+});
 
 describe('SSRContainerIntegrationProcessor', () => {
   let mockCallback: (props: ExtractedProps) => {

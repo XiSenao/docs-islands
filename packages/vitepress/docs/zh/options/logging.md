@@ -7,7 +7,7 @@
 
 `logging` 用来控制 `createDocsIslands()` 产生的包内日志，以及这个包公开暴露的 logger helper。它不会改变渲染逻辑，只决定 `@docs-islands/*` 在 Node 和浏览器里哪些消息可见。
 
-每个 `createDocsIslands()` 实例都会持有隔离的 logger scope。在受控构建链里，`@docs-islands/vitepress/logger` 的导入会自动绑定到当前实例，所以并行的多个 VitePress 实例或测试不会互相覆盖 logging 配置。框架无关的直接 logger 用法请使用 `@docs-islands/logger`。
+每个 `createDocsIslands()` 实例都会持有隔离的 logger scope。VitePress 会把这个 scope 注入到构建图中，通用的 `@docs-islands/logger` runtime 会在没有显式 scope 时读取它，所以并行的多个 VitePress 实例或测试不会互相覆盖 logging 配置。框架无关的直接 logger 用法请使用 `@docs-islands/logger`。
 
 ## 什么时候用它
 
@@ -101,11 +101,11 @@ const logging = {
 
 ## 公开 Logger 用法
 
-`@docs-islands/vitepress/logger` 是 VitePress 受控 logger API。它只暴露 `createLogger` 与 `formatDebugMessage`；通用的直接 runtime 配置能力位于 `@docs-islands/logger`。
+`@docs-islands/vitepress/logger` 是 VitePress logger facade。它只暴露 `createLogger` 与 `formatDebugMessage`；通用的直接 runtime 配置能力位于 `@docs-islands/logger`。
 
 `logging` 定义的是 logger 的运行时可见性策略。它决定日志在运行时是否输出；在 `debug` 模式下，也会决定可见日志附带哪些规则标签和相对耗时信息。
 
-在受控构建链里，通过 `createLogger(...)` 创建出来的任意 logger 实例都会自动绑定到当前 docs-islands logger scope，所以用户侧日志依然受该 VitePress 实例最终解析出的 `logging` 规则控制。
+在 VitePress 构建链里，通过 `createLogger(...)` 创建 logger 且没有显式传入 scope 时，会从注入的 runtime define 解析当前 docs-islands logger scope，所以用户侧日志依然受该 VitePress 实例最终解析出的 `logging` 规则控制。
 
 ### Runtime Policy 与 Build-Time Optimization
 
@@ -163,7 +163,7 @@ hiddenLogger.info('suppressed userland info');
 
 ### Logger Tree-Shaking Plugin
 
-在受控的 `createDocsIslands()` 构建链里，docs-islands 已经会自动安装 logger tree-shaking transform。
+在 `createDocsIslands()` 管理的构建链里，docs-islands 已经会自动安装 logger tree-shaking transform。
 
 如果你只是想在 VitePress 站点里使用公开 logger，同时又希望拿到生产环境裁剪能力，可以显式安装公开 plugin：
 
@@ -184,7 +184,7 @@ export default defineConfig({
 });
 ```
 
-如果省略 `logging`，plugin 会回退到默认 logger 可见性策略，这仍然会裁剪静态可判定的 `debug` 日志。如果你还希望受控链路之外的动态日志也遵循同一套策略，则需要额外配置 runtime logger。
+如果省略 `logging`，plugin 会回退到默认 logger 可见性策略，这仍然会裁剪静态可判定的 `debug` 日志。如果你还希望 `createDocsIslands()` 模块图之外的动态日志也遵循同一套策略，则需要额外配置 runtime logger。
 
 ### 生产环境 Tree-Shaking
 
@@ -233,7 +233,7 @@ createLogger({ main }).getLoggerByGroup(group).info('dynamic binding');
 
 ### 通用 Logger 用法
 
-如果需要在 VitePress 受控构建链之外直接使用 logger，请从框架无关的包导入：
+如果需要在 VitePress 管理的构建链之外直接使用 logger，请从框架无关的包导入：
 
 ```ts
 import { createLogger, setLoggerConfig } from '@docs-islands/logger';
@@ -249,13 +249,13 @@ const logger = createLogger({
 logger.warn('visible generic warning');
 ```
 
-不要再把 `@docs-islands/vitepress/logger` 当作通用 logger 入口使用。它只服务于 `createDocsIslands()` 建立的 VitePress 受控模块图。
+不要再把 `@docs-islands/vitepress/logger` 当作通用 logger 入口使用。它只服务于 `createDocsIslands()` 建立的 VitePress 构建模块图。
 
 ### 交互式 Scope Probe
 
 下面这个 playground 会直接在当前 docs 站里把两层能力都跑一遍：
 
-- 正常的 `@docs-islands/vitepress/logger` 导入，它会继续绑定到当前 `createDocsIslands()` 实例的受控 scope。
+- 正常的 `@docs-islands/vitepress/logger` 导入，它会通过 runtime 注入使用当前 `createDocsIslands()` 实例的 logger scope。
 - 直接使用 `@docs-islands/logger` 的通用 runtime logger。
 
 <LoggerScopePlayground

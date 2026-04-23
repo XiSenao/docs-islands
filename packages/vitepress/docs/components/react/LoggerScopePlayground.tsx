@@ -66,9 +66,9 @@ interface LocaleCopy {
 
 const LOGGER_PROBE_MAIN =
   '@docs-islands/vitepress-docs/logger-scope-playground';
-const CONTROLLED_VISIBLE_GROUP = 'docs.logger.controlled.visible';
-const CONTROLLED_VISIBLE_MESSAGE = 'controlled scope visible info';
-const CONTROLLED_HIDDEN_MESSAGE = 'controlled scope hidden info';
+const CONTROLLED_VISIBLE_GROUP = 'docs.logger.injected.visible';
+const CONTROLLED_VISIBLE_MESSAGE = 'injected scope visible info';
+const CONTROLLED_HIDDEN_MESSAGE = 'injected scope hidden info';
 const GENERIC_VISIBLE_GROUP = 'docs.logger.generic.visible';
 const GENERIC_HIDDEN_GROUP = 'docs.logger.generic.hidden';
 const GENERIC_VISIBLE_MESSAGE = 'generic logger visible info';
@@ -82,12 +82,12 @@ const copy: Record<Locale, LocaleCopy> = {
     copyFailureLabel: 'Copy failed',
     copySuccessLabel: 'Copied to clipboard',
     controlledDescription:
-      'This card uses the VitePress logger import inside the docs-islands build graph. The import is bound by createDocsIslands() and does not expose generic runtime configuration.',
+      'This card uses the VitePress logger import inside the docs-islands build graph. The logger runtime reads the scope injected by createDocsIslands() and does not expose generic runtime configuration.',
     controlledImportNote: '@docs-islands/vitepress/logger',
     controlledSetConfigBehavior: 'Managed by createDocsIslands({ logging })',
-    controlledTitle: 'Controlled scope import',
+    controlledTitle: 'Injected scope import',
     genericDescription:
-      'This card uses the framework-agnostic logger package. Its setLoggerConfig(...) call configures the generic runtime logger without going through the VitePress controlled entry.',
+      'This card uses the framework-agnostic logger package. Its setLoggerConfig(...) call configures the generic runtime logger without using the VitePress injected-scope entry.',
     genericImportNote: '@docs-islands/logger',
     genericSetConfigBehavior: 'Applied to the generic logger package',
     genericTitle: 'Generic logger package',
@@ -103,7 +103,7 @@ const copy: Record<Locale, LocaleCopy> = {
     statusRunning: 'Running probe...',
     statusSuccess: 'Probe completed',
     subtitle:
-      'The VitePress import stays bound to the current docs-islands logger scope, while the generic package owns direct runtime configuration.',
+      'The VitePress import reads the current docs-islands logger scope from runtime injection, while the generic package owns direct runtime configuration.',
     title: 'Logger scope playground',
     visibleLabel: 'Visible message emitted',
     warningLabel: 'Captured warning',
@@ -115,12 +115,12 @@ const copy: Record<Locale, LocaleCopy> = {
     copyFailureLabel: '复制失败',
     copySuccessLabel: '已复制到剪贴板',
     controlledDescription:
-      '这个卡片使用 docs-islands 构建图中的 VitePress logger 导入。该入口由 createDocsIslands() 绑定，不再暴露通用 runtime 配置能力。',
+      '这个卡片使用 docs-islands 构建图中的 VitePress logger 导入。logger runtime 会读取 createDocsIslands() 注入的 scope，不再暴露通用 runtime 配置能力。',
     controlledImportNote: '@docs-islands/vitepress/logger',
     controlledSetConfigBehavior: '由 createDocsIslands({ logging }) 管理',
-    controlledTitle: '受控 scope 导入',
+    controlledTitle: '注入 scope 导入',
     genericDescription:
-      '这个卡片使用框架无关的 logger 包。这里的 setLoggerConfig(...) 会配置通用 runtime logger，不经过 VitePress 受控入口。',
+      '这个卡片使用框架无关的 logger 包。这里的 setLoggerConfig(...) 会配置通用 runtime logger，不经过 VitePress 注入 scope 入口。',
     genericImportNote: '@docs-islands/logger',
     genericSetConfigBehavior: '已应用到通用 logger 包',
     genericTitle: '通用 logger 包',
@@ -136,7 +136,7 @@ const copy: Record<Locale, LocaleCopy> = {
     statusRunning: '正在运行探针...',
     statusSuccess: '探针运行完成',
     subtitle:
-      'VitePress 导入会继续绑定到当前 docs-islands logger scope，而通用包负责直接 runtime 配置。',
+      'VitePress 导入会从 runtime 注入读取当前 docs-islands logger scope，而通用包负责直接 runtime 配置。',
     title: 'Logger scope playground',
     visibleLabel: '可见消息是否输出',
     warningLabel: '捕获到的 warning',
@@ -276,7 +276,7 @@ const captureConsole = (action: () => void): string[] => {
 };
 
 const findWarningLine = (lines: string[]): string | null =>
-  lines.find((line) => line.includes('controlled logger')) ?? null;
+  lines.find((line) => line.includes('injected scope logger')) ?? null;
 
 const createControlledProbe = (): ProbeOutcome => {
   const controlledLogger = createControlledLogger({

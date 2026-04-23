@@ -7,7 +7,7 @@
 
 `logging` controls the package-owned logs emitted by `createDocsIslands()` and the public logger helpers exposed by this package. It does not change rendering; it only decides which `@docs-islands/*` messages stay visible in Node and in the browser.
 
-Each `createDocsIslands()` instance owns an isolated logger scope. In controlled build paths, imports from `@docs-islands/vitepress/logger` are automatically bound to that instance, so parallel VitePress instances or test runs do not overwrite each other's logging config. Use `@docs-islands/logger` for framework-agnostic direct logger usage.
+Each `createDocsIslands()` instance owns an isolated logger scope. VitePress injects that scope into the build graph, and the shared `@docs-islands/logger` runtime reads it when no explicit scope is passed. Parallel VitePress instances or test runs therefore do not overwrite each other's logging config. Use `@docs-islands/logger` for framework-agnostic direct logger usage.
 
 ## When to Use It
 
@@ -101,11 +101,11 @@ The presets exported by `@docs-islands/vitepress/logger/presets` are predefined 
 
 ## Public Logger Usage
 
-`@docs-islands/vitepress/logger` is the VitePress controlled logger API. It exposes `createLogger` and `formatDebugMessage`; generic direct runtime configuration lives in `@docs-islands/logger`.
+`@docs-islands/vitepress/logger` is the VitePress logger facade. It exposes `createLogger` and `formatDebugMessage`; generic direct runtime configuration lives in `@docs-islands/logger`.
 
 `logging` defines the runtime visibility policy. It decides whether a log is emitted at runtime, and in `debug` mode it also controls which rule labels and elapsed-time metadata are attached to visible logs.
 
-In controlled build paths, every logger instance created through `createLogger(...)` is automatically bound to the current docs-islands logger scope, so userland logs still follow the resolved `logging` rules for that VitePress instance.
+In VitePress build paths, `createLogger(...)` resolves the current docs-islands logger scope from the injected runtime defines when no explicit scope is passed, so userland logs still follow the resolved `logging` rules for that VitePress instance.
 
 ### Runtime Policy vs Build-Time Optimization
 
@@ -163,7 +163,7 @@ With this setup, `userland.metrics` stays visible, while `userland.hidden` is su
 
 ### Logger Tree-Shaking Plugin
 
-In controlled `createDocsIslands()` builds, docs-islands already installs the logger tree-shaking transform automatically.
+In `createDocsIslands()` managed builds, docs-islands already installs the logger tree-shaking transform automatically.
 
 If you only want the public logger in a VitePress site and still want production pruning, install the public plugin explicitly:
 
@@ -184,7 +184,7 @@ export default defineConfig({
 });
 ```
 
-If `logging` is omitted, the plugin falls back to the default logger visibility policy, which still prunes statically analyzable `debug` logs. If you want dynamic logs outside controlled builds to follow the same policy, configure the runtime logger separately as well.
+If `logging` is omitted, the plugin falls back to the default logger visibility policy, which still prunes statically analyzable `debug` logs. If you want dynamic logs outside the `createDocsIslands()` graph to follow the same policy, configure the runtime logger separately as well.
 
 ### Production Tree-Shaking
 
@@ -233,7 +233,7 @@ Those forms remain compatible, but docs-islands does not guarantee that their me
 
 ### Generic Logger Usage
 
-For direct logger usage outside VitePress controlled builds, import from the framework-agnostic package:
+For direct logger usage outside VitePress managed builds, import from the framework-agnostic package:
 
 ```ts
 import { createLogger, setLoggerConfig } from '@docs-islands/logger';
@@ -249,13 +249,13 @@ const logger = createLogger({
 logger.warn('visible generic warning');
 ```
 
-`@docs-islands/vitepress/logger` should not be used as a generic logger entry. It is reserved for the controlled VitePress graph established by `createDocsIslands()`.
+`@docs-islands/vitepress/logger` should not be used as a generic logger entry. It is reserved for the VitePress build graph established by `createDocsIslands()`.
 
 ### Interactive Scope Probe
 
 The playground below runs both layers from inside this docs site:
 
-- A normal `@docs-islands/vitepress/logger` import that stays scope-controlled by the current `createDocsIslands()` instance.
+- A normal `@docs-islands/vitepress/logger` import that uses the current `createDocsIslands()` logger scope through runtime injection.
 - A direct `@docs-islands/logger` import that uses the generic runtime logger package.
 
 <LoggerScopePlayground

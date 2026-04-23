@@ -12,7 +12,6 @@ import {
   SITE_DEVTOOLS_SOURCE_PLUGIN_NAME,
 } from '../../constants/core/plugin-names';
 import { createLoggerScopeId } from '../logger-scope';
-import { LOGGER_SCOPE_TAKEOVER_PLUGIN_NAME } from '../vite-plugin-logger-scope';
 
 vi.mock('@vitejs/plugin-react-swc', () => ({
   default: vi.fn(() => ({
@@ -142,12 +141,6 @@ describe('createDocsIslands', () => {
         REACT_RUNTIME_BUNDLING_PLUGIN_NAME,
       ),
     );
-    expect(
-      findPluginByName(
-        vitepressConfig.vite?.plugins,
-        LOGGER_SCOPE_TAKEOVER_PLUGIN_NAME,
-      ),
-    ).toBeTruthy();
   });
 
   it('keeps loggerScopeId stable per createDocsIslands instance and isolated across instances', async () => {

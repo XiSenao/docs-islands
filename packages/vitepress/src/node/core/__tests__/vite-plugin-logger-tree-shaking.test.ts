@@ -77,6 +77,25 @@ logger.warn('visible static warning');
     expect(code).toContain("logger.warn('visible static warning')");
   });
 
+  it('removes suppressed static literal logs from the logger internal entry', async () => {
+    const code = await transformCode(
+      `
+import { createLogger } from '@docs-islands/logger/internal';
+
+const logger = createLogger({ main: '@docs-islands/core' }).getLoggerByGroup('runtime.render.strategy');
+
+logger.info('hidden core runtime info');
+logger.warn('visible core runtime warning');
+      `,
+      {
+        levels: ['warn', 'error'],
+      },
+    );
+
+    expect(code).not.toContain('hidden core runtime info');
+    expect(code).toContain("logger.warn('visible core runtime warning')");
+  });
+
   it('removes debug logs with the default production visibility', async () => {
     const code = await transformCode(`
 import { createLogger } from '@docs-islands/vitepress/logger';

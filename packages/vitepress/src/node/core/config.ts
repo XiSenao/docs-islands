@@ -17,10 +17,6 @@ import { createLoggerScopeDefines } from './logger-scope';
 import type { LoggerConfig } from './logging-config';
 import { resolveLoggingConfig } from './logging-config';
 import {
-  createLoggerScopeTakeoverPlugin,
-  LOGGER_SCOPE_TAKEOVER_PLUGIN_NAME,
-} from './vite-plugin-logger-scope';
-import {
   createLoggerTreeShakingPlugin,
   LOGGER_TREE_SHAKING_PLUGIN_NAME,
 } from './vite-plugin-logger-tree-shaking';
@@ -214,14 +210,6 @@ export function applyDocsIslandsViteBaseConfig(
     viteConfig.define,
     createLoggerScopeDefines(options.loggerScopeId, options.logging),
   );
-
-  if (
-    !hasVitePluginNamed(viteConfig.plugins, LOGGER_SCOPE_TAKEOVER_PLUGIN_NAME)
-  ) {
-    viteConfig.plugins!.push(
-      createLoggerScopeTakeoverPlugin(options.loggerScopeId),
-    );
-  }
 
   if (
     !hasVitePluginNamed(viteConfig.plugins, LOGGER_TREE_SHAKING_PLUGIN_NAME)

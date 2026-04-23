@@ -1,7 +1,7 @@
 import {
   getLoggerConfigForScope,
   resetLoggerConfigForScope,
-  setLoggerConfigForScope,
+  type LoggerConfig,
 } from '@docs-islands/logger/internal';
 import * as vitepressPublicModule from '@docs-islands/vitepress';
 import * as publicLoggerModule from '@docs-islands/vitepress/logger';
@@ -10,82 +10,22 @@ import {
   formatDebugMessage,
 } from '@docs-islands/vitepress/logger';
 import presets, { hmr, runtime } from '@docs-islands/vitepress/logger/presets';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-import type { Plugin } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createLoggerScopeTakeoverPlugin } from '../core/vite-plugin-logger-scope';
 
-const TEST_CONTROLLED_LOGGER_SCOPE_ID = 'logger-public-controlled-scope';
+const TEST_RUNTIME_LOGGER_SCOPE_ID = 'logger-public-runtime-scope';
 
 const normalizeConsoleCalls = (calls: readonly unknown[][]): string[] =>
   calls.map((args) => args.map(String).join(' '));
 
-const resolveWithPlugin = async (
-  plugin: Plugin,
-  context: object,
-  id: string,
-): Promise<unknown> => {
-  const resolveId = plugin.resolveId;
-
-  expect(resolveId).toBeDefined();
-
-  const resolveHandler =
-    typeof resolveId === 'function' ? resolveId : resolveId!.handler;
-
-  return resolveHandler.call(context as never, id);
-};
-
-const loadControlledLoggerWrapper = async (
-  loggerScopeId: string,
-): Promise<{
-  cleanup: () => Promise<void>;
-  module: {
-    createLogger: typeof createLogger;
-    formatDebugMessage: typeof formatDebugMessage;
-  };
-}> => {
-  const plugin = createLoggerScopeTakeoverPlugin(loggerScopeId);
-  const resolvedId = await resolveWithPlugin(
-    plugin,
-    {} as never,
-    '@docs-islands/vitepress/logger',
-  );
-
-  expect(typeof resolvedId).toBe('string');
-
-  const source = plugin.load!.call({} as never, resolvedId as string);
-
-  expect(typeof source).toBe('string');
-  expect(source).not.toContain('setLoggerConfig');
-
-  const wrapperDir = await mkdtemp(path.join(tmpdir(), 'logger-wrapper-test-'));
-  const wrapperPath = path.join(wrapperDir, 'vitepress-logger-wrapper.mjs');
-
-  await writeFile(wrapperPath, source as string, 'utf8');
-
-  return {
-    cleanup: async () => {
-      await rm(wrapperDir, { force: true, recursive: true });
-    },
-    module: (await import(
-      `${pathToFileURL(wrapperPath).href}?scope=${loggerScopeId}`
-    )) as {
-      createLogger: typeof createLogger;
-      formatDebugMessage: typeof formatDebugMessage;
-    },
-  };
-};
-
 afterEach(() => {
-  resetLoggerConfigForScope(TEST_CONTROLLED_LOGGER_SCOPE_ID);
+  resetLoggerConfigForScope(TEST_RUNTIME_LOGGER_SCOPE_ID);
+  globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__ = undefined;
+  globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__ = undefined;
   vi.restoreAllMocks();
 });
 
 describe('public vitepress logger api', () => {
-  it('exposes only the controlled runtime logger surface', () => {
+  it('exposes only the public runtime logger surface', () => {
     expect(publicLoggerModule).toHaveProperty('createLogger');
     expect(publicLoggerModule.createLogger).toBe(createLogger);
     expect(publicLoggerModule).toHaveProperty('formatDebugMessage');
@@ -103,69 +43,47 @@ describe('public vitepress logger api', () => {
     expect(vitepressPublicModule).not.toHaveProperty('getVitePressLogger');
   });
 
-  it('binds controlled logger wrappers to the docs-islands scope', async () => {
-    setLoggerConfigForScope(TEST_CONTROLLED_LOGGER_SCOPE_ID, {
+  it('binds the public logger facade to the runtime-defined docs-islands scope', () => {
+    const loggingConfig = {
       rules: [
         {
-          group: 'controlled.allowed',
-          label: 'ControlledAllowed',
+          group: 'runtime.allowed',
+          label: 'RuntimeAllowed',
           levels: ['info'],
           main: '@docs-islands/vitepress',
         },
       ],
-    });
+    } satisfies LoggerConfig;
 
-    const controlledLogger = await loadControlledLoggerWrapper(
-      TEST_CONTROLLED_LOGGER_SCOPE_ID,
-    );
+    globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__ = TEST_RUNTIME_LOGGER_SCOPE_ID;
+    globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__ = loggingConfig;
+
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    try {
-      const logger = controlledLogger.module.createLogger({
-        main: '@docs-islands/vitepress',
-      });
-
-      logger
-        .getLoggerByGroup('controlled.allowed')
-        .info('visible controlled info', { elapsedTimeMs: 2.34 });
-      logger
-        .getLoggerByGroup('controlled.hidden')
-        .info('hidden controlled info', { elapsedTimeMs: 3.45 });
-
-      expect(getLoggerConfigForScope(TEST_CONTROLLED_LOGGER_SCOPE_ID)).toEqual({
-        rules: [
-          {
-            group: 'controlled.allowed',
-            label: 'ControlledAllowed',
-            levels: ['info'],
-            main: '@docs-islands/vitepress',
-          },
-        ],
-      });
-      expect(
-        normalizeConsoleCalls(logSpy.mock.calls).some((message) =>
-          message.includes('visible controlled info'),
-        ),
-      ).toBe(true);
-      expect(
-        normalizeConsoleCalls(logSpy.mock.calls).some((message) =>
-          message.includes('hidden controlled info'),
-        ),
-      ).toBe(false);
-    } finally {
-      await controlledLogger.cleanup();
-    }
-  });
-
-  it('runs scope takeover resolution before other pre-order dev resolvers', () => {
-    const plugin = createLoggerScopeTakeoverPlugin(
-      TEST_CONTROLLED_LOGGER_SCOPE_ID,
-    );
-
-    expect(typeof plugin.resolveId).toBe('object');
-    expect(plugin.resolveId).toMatchObject({
-      order: 'pre',
+    const logger = createLogger({
+      main: '@docs-islands/vitepress',
     });
+
+    logger
+      .getLoggerByGroup('runtime.allowed')
+      .info('visible runtime info', { elapsedTimeMs: 2.34 });
+    logger
+      .getLoggerByGroup('runtime.hidden')
+      .info('hidden runtime info', { elapsedTimeMs: 3.45 });
+
+    expect(getLoggerConfigForScope(TEST_RUNTIME_LOGGER_SCOPE_ID)).toEqual(
+      loggingConfig,
+    );
+    expect(
+      normalizeConsoleCalls(logSpy.mock.calls).some((message) =>
+        message.includes('visible runtime info'),
+      ),
+    ).toBe(true);
+    expect(
+      normalizeConsoleCalls(logSpy.mock.calls).some((message) =>
+        message.includes('hidden runtime info'),
+      ),
+    ).toBe(false);
   });
 
   it('re-exports formatDebugMessage for emitted runtime helpers', () => {

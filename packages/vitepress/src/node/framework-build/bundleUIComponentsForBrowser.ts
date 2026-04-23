@@ -27,7 +27,6 @@ import { basename, dirname, extname, join, relative } from 'pathe';
 import type { InlineConfig } from 'vite';
 import { build } from 'vite';
 import { createLoggerScopeDefinesFromRegistry } from '../core/logger-scope';
-import { createLoggerScopeTakeoverPlugin } from '../core/vite-plugin-logger-scope';
 import { createLoggerTreeShakingPlugin } from '../core/vite-plugin-logger-tree-shaking';
 import { getVitePressGroupLogger } from '../logger';
 import type {
@@ -1078,7 +1077,6 @@ export async function bundleUIComponentsForBrowser(
         cssCodeSplit: true,
       },
       plugins: [
-        createLoggerScopeTakeoverPlugin(loggerScopeId),
         createLoggerTreeShakingPlugin(loggerScopeId),
         ...adapter.browserBundlerPlugins(),
       ],

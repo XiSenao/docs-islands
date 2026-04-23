@@ -8,6 +8,7 @@ import type { Plugin } from 'vite';
 
 export const VITEPRESS_LOGGER_TREE_SHAKING_MODULE_IDS = [
   '@docs-islands/logger',
+  '@docs-islands/logger/internal',
   '@docs-islands/vitepress/logger',
 ] as const;
 

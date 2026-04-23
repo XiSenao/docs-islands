@@ -85,7 +85,6 @@
     "./node/transform": "./src/node/transform.ts",
     "./shared/constants/*": "./src/shared/constants/*.ts",
     "./shared/constants/log-groups/*": "./src/shared/constants/log-groups/*.ts",
-    "./shared/logger": "./src/shared/logger.ts",
     "./shared/path": "./src/shared/path.ts",
     "./shared/runtime": "./src/shared/runtime.ts",
     "./shared/utils": "./src/shared/utils.ts",
