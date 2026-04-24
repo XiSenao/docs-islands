@@ -147,6 +147,40 @@ function hasVitePluginNamed(
   return false;
 }
 
+const LOGGER_SCOPE_DEFINE_KEYS = [
+  '__DOCS_ISLANDS_LOGGER_SCOPE_ID__',
+  'globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__',
+] as const;
+
+export function assertCanApplyDocsIslandsLoggerScope(
+  vitepressConfig: UserConfig<DefaultTheme.Config>,
+  loggerScopeId: LoggerScopeId,
+): void {
+  const define = vitepressConfig.vite?.define;
+
+  if (!define) {
+    return;
+  }
+
+  const currentLoggerScopeId = JSON.stringify(loggerScopeId);
+
+  for (const defineKey of LOGGER_SCOPE_DEFINE_KEYS) {
+    const existingDefineValue = define[defineKey];
+
+    if (
+      existingDefineValue === undefined ||
+      existingDefineValue === currentLoggerScopeId
+    ) {
+      continue;
+    }
+
+    throw new Error(
+      'createDocsIslands() has already been applied to this VitePress config with a different logger scope. ' +
+        'Use a single createDocsIslands({ adapters: [...] }) call for one VitePress config instead of applying multiple createDocsIslands() instances.',
+    );
+  }
+}
+
 export function warnIfUnsupportedNodeVersion(
   loggerScopeId: LoggerScopeId,
 ): void {
@@ -195,6 +229,8 @@ export function applyDocsIslandsViteBaseConfig(
   siteConfig: ConfigType,
   options: DocsIslandsResolvedUserConfig,
 ): void {
+  assertCanApplyDocsIslandsLoggerScope(vitepressConfig, options.loggerScopeId);
+
   const viteConfig = ensureVitepressViteConfig(vitepressConfig);
 
   if (!viteConfig.define) {
