@@ -29,6 +29,7 @@ afterEach(() => {
   resetLoggerConfig();
   resetLoggerConfigForScope(TEST_SCOPE_ID);
   resetLoggerConfigForScope(OTHER_SCOPE_ID);
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -105,56 +106,34 @@ describe('runtime logger', () => {
     ).toBe(true);
   });
 
-  it('uses the runtime-defined scope for implicit logger creation', () => {
-    globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__ = TEST_SCOPE_ID;
-    globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__ = {
-      rules: [
-        {
-          group: 'runtime.visible',
-          label: 'RuntimeVisible',
-          levels: ['info'],
-          main: '@acme/logger',
-        },
-      ],
-    };
+  it('keeps runtime-defined scopes isolated from implicit default-scope loggers', () => {
+    vi.stubGlobal('__DOCS_ISLANDS_LOGGER_SCOPE_ID__', TEST_SCOPE_ID);
+    setLoggerConfig({
+      levels: ['error'],
+    });
+    setLoggerConfigForScope(TEST_SCOPE_ID, {
+      levels: ['info'],
+    });
 
     const output = captureConsoleLog();
 
-    const logger = createLogger({
+    createLogger({
       main: '@acme/logger',
-    });
+    })
+      .getLoggerByGroup('runtime.default')
+      .info('hidden default info', { elapsedTimeMs: 1 });
 
-    logger.getLoggerByGroup('runtime.visible').info('visible runtime info', {
-      elapsedTimeMs: 1,
-    });
-    logger.getLoggerByGroup('runtime.hidden').info('hidden runtime info', {
-      elapsedTimeMs: 2,
-    });
-
-    expect(getLoggerConfigForScope(TEST_SCOPE_ID)).toEqual({
-      rules: [
-        {
-          group: 'runtime.visible',
-          label: 'RuntimeVisible',
-          levels: ['info'],
-          main: '@acme/logger',
-        },
-      ],
-    });
     expect(
-      output.some((message) => message.includes('visible runtime info')),
-    ).toBe(true);
-    expect(
-      output.some((message) => message.includes('hidden runtime info')),
+      output.some((message) => message.includes('hidden default info')),
     ).toBe(false);
   });
 
-  it('lets an explicit scope override the runtime-defined scope', () => {
-    globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__ = TEST_SCOPE_ID;
-    globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__ = {
+  it('keeps implicit loggers on the default scope even when a runtime scope is present', () => {
+    vi.stubGlobal('__DOCS_ISLANDS_LOGGER_SCOPE_ID__', TEST_SCOPE_ID);
+    setLoggerConfig({
       levels: ['error'],
-    };
-    setLoggerConfigForScope(OTHER_SCOPE_ID, {
+    });
+    setLoggerConfigForScope(TEST_SCOPE_ID, {
       levels: ['info'],
     });
 
@@ -170,11 +149,14 @@ describe('runtime logger', () => {
       {
         main: '@acme/logger',
       },
-      OTHER_SCOPE_ID,
+      TEST_SCOPE_ID,
     )
       .getLoggerByGroup('runtime.explicit')
       .info('visible explicit info', { elapsedTimeMs: 2 });
 
+    expect(getLoggerConfigForScope(TEST_SCOPE_ID)).toEqual({
+      levels: ['info'],
+    });
     expect(
       output.some((message) => message.includes('hidden implicit info')),
     ).toBe(false);

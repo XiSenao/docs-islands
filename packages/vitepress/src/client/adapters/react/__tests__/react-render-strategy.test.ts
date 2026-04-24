@@ -6,17 +6,24 @@ import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/core/shared/constants/r
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReactRenderStrategy } from '../react-render-strategy';
 
-// Mock dependencies.
-vi.mock('#shared/logger', () => ({
-  createLogger: () => ({
-    getLoggerByGroup: () => ({
-      warn: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      success: vi.fn(),
+vi.mock('@docs-islands/utils/logger', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@docs-islands/utils/logger')>();
+
+  return {
+    ...actual,
+    createLogger: () => ({
+      getLoggerByGroup: () => ({
+        error: vi.fn(),
+        info: vi.fn(),
+        success: vi.fn(),
+        warn: vi.fn(),
+      }),
     }),
-  }),
-}));
+    formatErrorMessage: (error: unknown) =>
+      error instanceof Error ? error.message : String(error),
+  };
+});
 
 vi.mock('../../../../shared/runtime', () => ({
   getCleanPathname: vi.fn(() => '/test-page'),

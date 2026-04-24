@@ -2,6 +2,13 @@ import type { LoggerScopeId } from './types';
 
 export const DEFAULT_LOGGER_SCOPE_ID = '__default__';
 
+type DocsIslandsGlobal = typeof globalThis & {
+  __DOCS_ISLANDS_LOGGER_SCOPE_ID__?: LoggerScopeId | undefined;
+};
+
+const readGlobalRuntimeLoggerScopeId = (): LoggerScopeId | undefined =>
+  (globalThis as DocsIslandsGlobal).__DOCS_ISLANDS_LOGGER_SCOPE_ID__;
+
 export const normalizeLoggerScopeId = (
   scopeId?: LoggerScopeId,
 ): LoggerScopeId => {
@@ -17,7 +24,7 @@ export const normalizeLoggerScopeId = (
 export const readRuntimeLoggerScopeId = (): LoggerScopeId | undefined => {
   const runtimeScopeId =
     typeof __DOCS_ISLANDS_LOGGER_SCOPE_ID__ === 'undefined'
-      ? undefined
+      ? readGlobalRuntimeLoggerScopeId()
       : __DOCS_ISLANDS_LOGGER_SCOPE_ID__;
 
   if (typeof runtimeScopeId !== 'string') {
@@ -34,5 +41,5 @@ export const resolveLoggerScopeId = (
     return normalizeLoggerScopeId(scopeId);
   }
 
-  return readRuntimeLoggerScopeId() ?? DEFAULT_LOGGER_SCOPE_ID;
+  return DEFAULT_LOGGER_SCOPE_ID;
 };

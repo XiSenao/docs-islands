@@ -11,7 +11,10 @@ import type {
   DocsIslandsResolvedUserConfig,
   DocsIslandsSharedOptions,
 } from './config';
-import { applyDocsIslandsUserConfig } from './config';
+import {
+  applyDocsIslandsUserConfig,
+  applyDocsIslandsViteBaseConfig,
+} from './config';
 import { resolveCurrentDependencyResolutionBase } from './dependency-resolution';
 import { ensureVitepressViteConfig } from './integration-plugin';
 import { createLoggerScopeId } from './logger-scope';
@@ -151,6 +154,11 @@ export default function createDocsIslands(
         vitepressConfig,
         loggerScopeId,
         options,
+      );
+      applyDocsIslandsViteBaseConfig(
+        vitepressConfig,
+        resolveConfig(vitepressConfig),
+        resolvedUserConfig,
       );
 
       for (const adapter of adapters) {

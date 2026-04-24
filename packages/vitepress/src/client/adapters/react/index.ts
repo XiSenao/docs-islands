@@ -12,7 +12,6 @@ import {
   type SiteDevToolsHmrUpdateType,
   updateSiteDevToolsHmrMetric,
 } from '#shared/internal/devtools';
-import { createLogger } from '#shared/logger';
 import { validateLegalRenderElements } from '#shared/utils';
 import { createDocsClientIntegration } from '@docs-islands/core/client';
 import {
@@ -20,14 +19,16 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '@docs-islands/core/shared/constants/render-strategy';
+import { querySelectorAllToArray } from '@docs-islands/utils/dom-iterable';
 import {
   createElapsedLogOptions,
+  createLogger,
   formatDebugMessage,
   formatErrorMessage,
-} from '@docs-islands/logger/internal';
-import { querySelectorAllToArray } from '@docs-islands/utils/dom-iterable';
+} from '@docs-islands/utils/logger';
 import type React from 'react';
 import type ReactDOM from 'react-dom/client';
+import '../../../shared/runtime/logger-scope-bridge';
 import { createVitePressDevBridge } from '../../vitepress-dev-bridge';
 import { createVitePressLifecycleAdapter } from '../../vitepress-lifecycle-adapter';
 import { reactComponentManager } from './react-component-manager';

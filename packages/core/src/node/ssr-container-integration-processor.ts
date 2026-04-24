@@ -7,7 +7,7 @@ import {
   createElapsedLogOptions,
   formatErrorMessage,
   type LoggerScopeId,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/utils/logger';
 import { CORE_TRANSFORM_LOG_GROUPS } from '../shared/constants/log-groups/transform';
 import {
   RENDER_STRATEGY_ATTRS,
@@ -23,14 +23,12 @@ export type ExtractedProps = Record<string, ExtractedValue>;
 
 export type SSRContainerIntegrationCallback = (props: ExtractedProps) => {
   clientRuntimeFileName: string;
-  loggerScopeId?: LoggerScopeId;
   ssrCssBundlePaths?: Set<string>;
   ssrHtml?: string;
 };
 
 interface TransformationRecord {
   clientRuntimeFileName: string;
-  loggerScopeId?: LoggerScopeId;
   path: NodePath<t.CallExpression>;
   ssrCssBundlePaths?: Set<string>;
   ssrHtml?: string;
@@ -195,10 +193,6 @@ class SSRContainerIntegrationProcessor {
         ast,
         extraInjectCssPaths,
         extraClientRuntimeFileName,
-        this.transformations.find(
-          (transformation) =>
-            transformation.clientRuntimeFileName === extraClientRuntimeFileName,
-        )?.loggerScopeId,
       );
     }
   }
@@ -299,7 +293,6 @@ class SSRContainerIntegrationProcessor {
 
       return {
         clientRuntimeFileName: injectedContent.clientRuntimeFileName,
-        loggerScopeId: injectedContent.loggerScopeId,
         path,
         ssrCssBundlePaths: injectedContent.ssrCssBundlePaths,
         ssrHtml: injectedContent.ssrHtml,
@@ -435,12 +428,11 @@ class SSRContainerIntegrationProcessor {
     ast: t.Node,
     ssrCssBundlePaths: Set<string>,
     clientRuntimeFileName: string,
-    loggerScopeId?: LoggerScopeId,
   ): void {
     const cssInjectionStartedAt = getProcessorNow();
     const Logger = getCoreGroupLogger(
       CORE_TRANSFORM_LOG_GROUPS.ssrCssInjection,
-      loggerScopeId ?? this.loggerScopeId,
+      this.loggerScopeId,
     );
 
     if (!ssrCssBundlePaths || ssrCssBundlePaths.size === 0) {
@@ -522,10 +514,7 @@ class SSRContainerIntegrationProcessor {
           elapsedSince(cssInjectionStartedAt),
         );
       } else {
-        const awaitStatement = this.createCSSRuntimeCall(
-          validCssPaths,
-          loggerScopeId ?? this.loggerScopeId,
-        );
+        const awaitStatement = this.createCSSRuntimeCall(validCssPaths);
         const insertPosition = this.findAwaitInsertPosition(validProgramNode);
 
         validProgramNode.body.splice(insertPosition, 0, awaitStatement);
@@ -580,21 +569,14 @@ class SSRContainerIntegrationProcessor {
     );
   }
 
-  private createCSSRuntimeCall(
-    cssPathsArray: string[],
-    loggerScopeId?: LoggerScopeId,
-  ): t.ExpressionStatement {
+  private createCSSRuntimeCall(cssPathsArray: string[]): t.ExpressionStatement {
     const cssPathsArrayExpression = t.arrayExpression(
       cssPathsArray.map((path) => t.stringLiteral(path)),
     );
-    const callArguments: t.Expression[] = [cssPathsArrayExpression];
-
-    if (loggerScopeId) {
-      callArguments.push(t.stringLiteral(loggerScopeId));
-    }
-
     const awaitExpression = t.awaitExpression(
-      t.callExpression(t.identifier('__CSS_LOADING_RUNTIME__'), callArguments),
+      t.callExpression(t.identifier('__CSS_LOADING_RUNTIME__'), [
+        cssPathsArrayExpression,
+      ]),
     );
 
     return t.expressionStatement(awaitExpression);

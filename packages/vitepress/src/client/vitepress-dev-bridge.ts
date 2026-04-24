@@ -1,7 +1,6 @@
 import type { SSRUpdateData, SSRUpdateRenderData } from '#dep-types/ssr';
 import { VITEPRESS_RUNTIME_LOG_GROUPS } from '#shared/constants/log-groups/runtime';
 import { REACT_HMR_EVENT_NAMES } from '#shared/constants/react-hmr';
-import { createLogger } from '#shared/logger';
 import type {
   DocsClientIntegrationContext,
   DocsDevBridge,
@@ -14,9 +13,10 @@ import {
 } from '@docs-islands/core/client';
 import {
   createElapsedLogOptions,
+  createLogger,
   formatDebugMessage,
   formatErrorMessage,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/utils/logger';
 
 const loggerInstance = createLogger({
   main: '@docs-islands/vitepress',

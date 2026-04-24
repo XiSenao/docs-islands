@@ -2,7 +2,7 @@ import {
   createElapsedLogOptions,
   createLogger,
   formatErrorMessage,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/utils/logger';
 import { getFrameworkComponentManagerLogGroup } from '../shared/constants/log-groups/runtime';
 import { PAGE_METAFILE_META_NAMES } from '../shared/constants/page-metafile';
 import { RENDER_STRATEGY_CONSTANTS } from '../shared/constants/render-strategy';

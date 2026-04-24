@@ -5,13 +5,19 @@ import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/core/shared/constants/r
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { validateLegalRenderElements } from '../utils';
 
-vi.mock('#shared/logger', () => ({
-  createLogger: () => ({
-    getLoggerByGroup: () => ({
-      warn: vi.fn(),
+vi.mock('@docs-islands/utils/logger', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@docs-islands/utils/logger')>();
+
+  return {
+    ...actual,
+    createLogger: () => ({
+      getLoggerByGroup: () => ({
+        warn: vi.fn(),
+      }),
     }),
-  }),
-}));
+  };
+});
 
 describe('Shared Utils - validateLegalRenderElements Simple', () => {
   let mockElement: Element;

@@ -105,7 +105,7 @@ The presets exported by `@docs-islands/vitepress/logger/presets` are predefined 
 
 `logging` defines the runtime visibility policy. It decides whether a log is emitted at runtime, and in `debug` mode it also controls which rule labels and elapsed-time metadata are attached to visible logs.
 
-In VitePress build paths, `createLogger(...)` resolves the current docs-islands logger scope from the injected runtime defines when no explicit scope is passed, so userland logs still follow the resolved `logging` rules for that VitePress instance.
+`@docs-islands/logger` stays framework-agnostic. Inside docs-islands, `@docs-islands/utils/logger` bridges the bundler-injected `__DOCS_ISLANDS_LOGGER_SCOPE_ID__` to the base logger, and `@docs-islands/vitepress/logger.createLogger(...)` only works when that injected scope is present.
 
 ### Runtime Policy vs Build-Time Optimization
 

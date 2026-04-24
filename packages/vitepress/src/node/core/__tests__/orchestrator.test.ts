@@ -12,6 +12,7 @@ import {
   SITE_DEVTOOLS_SOURCE_PLUGIN_NAME,
 } from '../../constants/core/plugin-names';
 import { createLoggerScopeId } from '../logger-scope';
+import { LOGGER_TREE_SHAKING_PLUGIN_NAME } from '../vite-plugin-logger-tree-shaking';
 
 vi.mock('@vitejs/plugin-react-swc', () => ({
   default: vi.fn(() => ({
@@ -141,6 +142,44 @@ describe('createDocsIslands', () => {
         REACT_RUNTIME_BUNDLING_PLUGIN_NAME,
       ),
     );
+  });
+
+  it('applies shared Vite logger config before adapter hooks run', async () => {
+    const { default: createDocsIslands } = await import('../orchestrator');
+    const defineSnapshots: Record<string, string>[] = [];
+    const vitepressConfig: any = {
+      base: '/docs/',
+      cleanUrls: true,
+    };
+
+    createDocsIslands({
+      adapters: [
+        {
+          apply(config) {
+            defineSnapshots.push({ ...config.vite?.define });
+          },
+          framework: 'noop',
+        },
+      ],
+      logging: {
+        levels: ['warn', 'error'],
+      },
+    }).apply(vitepressConfig);
+
+    expect(defineSnapshots).toHaveLength(1);
+    expect(defineSnapshots[0]!).toMatchObject({
+      __BASE__: JSON.stringify('/docs/'),
+      __CLEAN_URLS__: JSON.stringify(true),
+      __DOCS_ISLANDS_LOGGER_CONFIG__: JSON.stringify({
+        levels: ['warn', 'error'],
+      }),
+    });
+    expect(
+      findPluginByName(
+        vitepressConfig.vite?.plugins,
+        LOGGER_TREE_SHAKING_PLUGIN_NAME,
+      ),
+    ).toBeTruthy();
   });
 
   it('keeps loggerScopeId stable per createDocsIslands instance and isolated across instances', async () => {

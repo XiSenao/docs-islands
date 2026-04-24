@@ -5,14 +5,14 @@ import {
   dispatchSiteDevToolsPageMetafileEvent,
   getSiteDevToolsNow,
 } from '#shared/internal/devtools';
-import { createLogger } from '#shared/logger';
 import { DocsComponentManager } from '@docs-islands/core/client';
 import type { DocsComponentManagerInitializeOptions } from '@docs-islands/core/types/client';
 import {
   createElapsedLogOptions,
+  createLogger,
   formatDebugMessage,
   formatErrorMessage,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/utils/logger';
 import type React from 'react';
 import { getCleanPathname } from '../../../shared/runtime';
 

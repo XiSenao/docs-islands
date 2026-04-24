@@ -1,20 +1,16 @@
 import type {
   CreateLoggerOptions,
-  LoggerScopeId,
   LoggerType,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/utils/logger';
 import {
-  createLogger as createBaseLogger,
-  readRuntimeLoggerScopeId,
-} from '@docs-islands/logger/internal';
+  createLogger as createScopedLogger,
+  tryReadInjectedLoggerScopeId,
+} from '@docs-islands/utils/logger';
 
 const GENERIC_LOGGER_DOCS_URL = 'https://docs.senao.me/docs-islands/logger';
 
-export function createLogger(
-  options: CreateLoggerOptions,
-  scopeId?: LoggerScopeId,
-): LoggerType {
-  if (scopeId === undefined && readRuntimeLoggerScopeId() === undefined) {
+export function createLogger(options: CreateLoggerOptions): LoggerType {
+  if (tryReadInjectedLoggerScopeId() === undefined) {
     throw new Error(
       [
         '@docs-islands/vitepress/logger is running without a logger scope injected by createDocsIslands().',
@@ -24,7 +20,7 @@ export function createLogger(
     );
   }
 
-  return createBaseLogger(options, scopeId);
+  return createScopedLogger(options);
 }
 
-export { formatDebugMessage } from '@docs-islands/logger/internal';
+export { formatDebugMessage } from '@docs-islands/utils/logger';

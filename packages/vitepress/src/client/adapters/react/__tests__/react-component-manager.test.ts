@@ -7,17 +7,6 @@ import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/core/shared/constants/r
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReactComponentManager } from '../react-component-manager';
 
-vi.mock('#shared/logger', () => ({
-  createLogger: () => ({
-    getLoggerByGroup: () => ({
-      error: vi.fn(),
-      info: vi.fn(),
-      success: vi.fn(),
-      warn: vi.fn(),
-    }),
-  }),
-}));
-
 vi.mock('#shared/internal/devtools', async (importOriginal) => {
   const actual =
     await importOriginal<
@@ -45,12 +34,20 @@ vi.mock('#shared/internal/devtools', async (importOriginal) => {
   };
 });
 
-vi.mock('@docs-islands/logger/internal', async (importOriginal) => {
+vi.mock('@docs-islands/utils/logger', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@docs-islands/logger/internal')>();
+    await importOriginal<typeof import('@docs-islands/utils/logger')>();
 
   return {
     ...actual,
+    createLogger: () => ({
+      getLoggerByGroup: () => ({
+        error: vi.fn(),
+        info: vi.fn(),
+        success: vi.fn(),
+        warn: vi.fn(),
+      }),
+    }),
     formatErrorMessage: (error: unknown) =>
       error instanceof Error ? error.message : String(error),
   };

@@ -6,7 +6,6 @@ import {
   createSiteDevToolsLogger,
   getSiteDevToolsNow,
 } from '#shared/internal/devtools';
-import { createLogger } from '#shared/logger';
 import { validateLegalRenderElements } from '#shared/utils';
 import {
   collectComponentProps,
@@ -19,8 +18,9 @@ import {
 } from '@docs-islands/core/shared/constants/render-strategy';
 import {
   createElapsedLogOptions,
+  createLogger,
   formatDebugMessage,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/utils/logger';
 import type React from 'react';
 import type ReactDOM from 'react-dom/client';
 import { reactComponentManager } from './react-component-manager';

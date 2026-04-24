@@ -11,7 +11,7 @@ import type {
 import {
   createElapsedLogOptions,
   type LoggerScopeId,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/utils/logger';
 import { Parser } from 'htmlparser2';
 import MagicString, { type SourceMap } from 'magic-string';
 import MarkdownIt from 'markdown-it';

@@ -15,14 +15,18 @@
  */
 import {
   createElapsedLogOptions,
-  createLogger,
-} from '@docs-islands/logger/internal';
+  createLoggerWithScopeId,
+  DEFAULT_LOGGER_SCOPE_ID,
+} from '@docs-islands/utils/logger';
 import { execSync, spawn } from 'node:child_process';
 import path from 'node:path';
 
-const Log = createLogger({
-  main: '@docs-islands/utils',
-}).getLoggerByGroup('task.link.guard');
+const Log = createLoggerWithScopeId(
+  {
+    main: '@docs-islands/utils',
+  },
+  DEFAULT_LOGGER_SCOPE_ID,
+).getLoggerByGroup('task.link.guard');
 const scriptStartedAt = Date.now();
 const elapsedSince = (startTimeMs: number) =>
   createElapsedLogOptions(startTimeMs, Date.now());

@@ -4,7 +4,7 @@
 import {
   resetLoggerConfigForScope,
   setLoggerConfigForScope,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/utils/logger';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VITEPRESS_RUNTIME_LOG_GROUPS } from '../constants/log-groups/runtime';
 import cssLoadingRuntime from '../runtime/css-loading';
@@ -30,6 +30,7 @@ const captureConsoleOutput = (): string[] => {
 
 afterEach(() => {
   document.head.innerHTML = '';
+  globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__ = undefined;
   resetLoggerConfigForScope(TEST_LOGGER_SCOPE_ID);
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -38,6 +39,7 @@ afterEach(() => {
 describe('cssLoadingRuntime', () => {
   it('logs duplicate CSS loading diagnostics through the scoped vitepress logger', async () => {
     vi.stubGlobal('__ENV__', 'development');
+    globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__ = TEST_LOGGER_SCOPE_ID;
     setLoggerConfigForScope(TEST_LOGGER_SCOPE_ID, {
       rules: [
         {
@@ -55,10 +57,7 @@ describe('cssLoadingRuntime', () => {
     link.href = '/style.css';
     document.head.append(link);
 
-    const result = await cssLoadingRuntime(
-      ['/style.css'],
-      TEST_LOGGER_SCOPE_ID,
-    );
+    const result = await cssLoadingRuntime(['/style.css']);
 
     expect(result).toMatchObject({
       failedCount: 0,
