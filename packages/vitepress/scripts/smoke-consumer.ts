@@ -1,6 +1,9 @@
-import { createLogger } from '#shared/logger';
-import { createElapsedLogOptions } from '@docs-islands/logger/internal';
 import { loadEnv } from '@docs-islands/utils';
+import {
+  createElapsedLogOptions,
+  createLoggerWithScopeId,
+  DEFAULT_LOGGER_SCOPE_ID,
+} from '@docs-islands/utils/logger';
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync, readFileSync } from 'node:fs';
@@ -12,9 +15,12 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-chromium';
 import { packDistTarball } from './package-artifacts';
 
-const loggerInstance = createLogger({
-  main: '@docs-islands/vitepress',
-});
+const loggerInstance = createLoggerWithScopeId(
+  {
+    main: '@docs-islands/vitepress',
+  },
+  DEFAULT_LOGGER_SCOPE_ID,
+);
 const Logger = loggerInstance.getLoggerByGroup('task.consumer-smoke');
 const elapsedSince = (startTimeMs: number) =>
   createElapsedLogOptions(startTimeMs, Date.now());

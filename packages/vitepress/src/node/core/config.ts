@@ -5,13 +5,13 @@ import type {
   SiteDevToolsUserConfig,
 } from '#dep-types/utils';
 import { VITEPRESS_CONFIG_LOG_GROUPS } from '#shared/constants/log-groups/config';
-import { createLogger } from '#shared/logger';
-import type { LoggerScopeId } from '@docs-islands/logger/internal';
 import {
   createElapsedLogOptions,
+  type LoggerScopeId,
   setLoggerConfigForScope,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/utils/logger';
 import type { DefaultTheme, UserConfig } from 'vitepress';
+import { createVitePressLogger } from '../logger';
 import { ensureVitepressViteConfig } from './integration-plugin';
 import { createLoggerScopeDefines } from './logger-scope';
 import type { LoggerConfig } from './logging-config';
@@ -22,12 +22,9 @@ import {
 } from './vite-plugin-logger-tree-shaking';
 
 const getConfigLogger = (scopeId: LoggerScopeId) =>
-  createLogger(
-    {
-      main: '@docs-islands/vitepress',
-    },
-    scopeId,
-  ).getLoggerByGroup(VITEPRESS_CONFIG_LOG_GROUPS.nodeVersion);
+  createVitePressLogger(scopeId).getLoggerByGroup(
+    VITEPRESS_CONFIG_LOG_GROUPS.nodeVersion,
+  );
 
 export interface DocsIslandsSharedOptions {
   logging?: LoggingUserConfig;

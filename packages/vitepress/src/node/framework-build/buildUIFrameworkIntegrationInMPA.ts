@@ -78,9 +78,19 @@ export const buildUIFrameworkIntegrationInMPA = async (
        * - The `index-chunk` module statically imports the `entry-chunk` module.
        */
       const tempEntryContent = `
-import { ${adapter.clientEntryImportName()} } from '${adapter.clientEntryModule()}';
+if (typeof __DOCS_ISLANDS_LOGGER_SCOPE_ID__ !== 'undefined') {
+  globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__ = __DOCS_ISLANDS_LOGGER_SCOPE_ID__;
+}
 
-${adapter.clientEntryImportName()}();
+if (typeof __DOCS_ISLANDS_LOGGER_CONFIG__ !== 'undefined') {
+  globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__ = __DOCS_ISLANDS_LOGGER_CONFIG__;
+}
+
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  void import('${adapter.clientEntryModule()}').then(({ ${adapter.clientEntryImportName()} }) => {
+    ${adapter.clientEntryImportName()}();
+  });
+}
 `;
 
       fs.writeFileSync(tempEntryPath, tempEntryContent, 'utf8');

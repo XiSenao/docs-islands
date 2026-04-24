@@ -105,7 +105,7 @@ const logging = {
 
 `logging` 定义的是 logger 的运行时可见性策略。它决定日志在运行时是否输出；在 `debug` 模式下，也会决定可见日志附带哪些规则标签和相对耗时信息。
 
-在 VitePress 构建链里，通过 `createLogger(...)` 创建 logger 且没有显式传入 scope 时，会从注入的 runtime define 解析当前 docs-islands logger scope，所以用户侧日志依然受该 VitePress 实例最终解析出的 `logging` 规则控制。
+`@docs-islands/logger` 保持 framework-agnostic。docs-islands 内部通过 `@docs-islands/utils/logger` 把 bundler 注入的 `__DOCS_ISLANDS_LOGGER_SCOPE_ID__` 显式桥接给底层 logger，而 `@docs-islands/vitepress/logger.createLogger(...)` 只有在该注入 scope 存在时才可用。
 
 ### Runtime Policy 与 Build-Time Optimization
 

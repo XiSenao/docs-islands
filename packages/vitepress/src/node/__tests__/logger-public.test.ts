@@ -88,25 +88,13 @@ describe('public vitepress logger api', () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it('warns once when the public logger facade runs without a createDocsIslands scope', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    createLogger({
-      main: '@docs-islands/vitepress-docs',
-    });
-    createLogger({
-      main: '@docs-islands/vitepress-docs',
-    });
-
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(String(warnSpy.mock.calls[0]?.[0])).toContain(
+  it('throws when the public logger facade runs without a createDocsIslands scope', () => {
+    expect(() =>
+      createLogger({
+        main: '@docs-islands/vitepress-docs',
+      }),
+    ).toThrowError(
       '@docs-islands/vitepress/logger is running without a logger scope injected by createDocsIslands().',
-    );
-    expect(String(warnSpy.mock.calls[0]?.[0])).toContain(
-      'generic @docs-islands/logger API',
-    );
-    expect(String(warnSpy.mock.calls[0]?.[0])).toContain(
-      'https://docs.senao.me/docs-islands/logger',
     );
   });
 

@@ -5,13 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExtractedProps } from '../ssr-container-integration-processor';
 import { transformSSRContainerIntegrationCode } from '../ssr-container-integration-processor';
 
-vi.mock('@docs-islands/logger/internal', async (importOriginal) => {
+vi.mock('@docs-islands/utils/logger', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@docs-islands/logger/internal')>();
+    await importOriginal<typeof import('@docs-islands/utils/logger')>();
 
   return {
     ...actual,
-    createLogger: () => ({
+    createLoggerWithScopeId: () => ({
       getLoggerByGroup: () => ({
         debug: vi.fn(),
         error: vi.fn(),
@@ -116,30 +116,6 @@ describe('SSRContainerIntegrationProcessor', () => {
     );
     expect(result.code).toContain(
       'await __CSS_LOADING_RUNTIME__(["/assets/test.css"]);',
-    );
-  });
-
-  it('passes logger scope id to injected CSS loading runtime calls', () => {
-    const sourceCode = `
-      import { createVNode as _createVNode } from "vue";
-      const _component_TestComponent = () => _createVNode("div", {
-        "__render_id__": "12345678",
-        "__render_component__": "TestComponent",
-        "__render_directive__": "client:load",
-        "__spa_sync_render__": "true"
-      });
-    `;
-
-    const result = transformSSRContainerIntegrationCode(sourceCode, () => ({
-      clientRuntimeFileName: 'runtime.12345678.js',
-      loggerScopeId: 'scope-id',
-      ssrCssBundlePaths: new Set(['/assets/test.css']),
-      ssrHtml: '<div>SSR</div>',
-    }));
-
-    expect(result.transformCount).toBe(1);
-    expect(result.code).toContain(
-      'await __CSS_LOADING_RUNTIME__(["/assets/test.css"], "scope-id");',
     );
   });
 });

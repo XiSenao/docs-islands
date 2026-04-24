@@ -100,6 +100,13 @@ Repository: git+https://github.com/XiSenao/docs-islands.git
 
 ---------------------------------------
 
+## @docs-islands/utils
+
+License: MIT
+By: Senao Xi
+
+---------------------------------------
+
 ## @jridgewell/gen-mapping, @jridgewell/remapping, @jridgewell/sourcemap-codec, @jridgewell/trace-mapping
 
 License: MIT

@@ -16,17 +16,25 @@ export const createLoggerScopeDefines = (
   loggerScopeId: LoggerScopeId,
   logging?: LoggerConfig,
 ): Record<
-  '__DOCS_ISLANDS_LOGGER_CONFIG__' | '__DOCS_ISLANDS_LOGGER_SCOPE_ID__',
+  | '__DOCS_ISLANDS_LOGGER_CONFIG__'
+  | '__DOCS_ISLANDS_LOGGER_SCOPE_ID__'
+  | 'globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__'
+  | 'globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__',
   string
 > => ({
   __DOCS_ISLANDS_LOGGER_CONFIG__: JSON.stringify(logging ?? null),
   __DOCS_ISLANDS_LOGGER_SCOPE_ID__: JSON.stringify(loggerScopeId),
+  'globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__': JSON.stringify(logging ?? null),
+  'globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__': JSON.stringify(loggerScopeId),
 });
 
 export const createLoggerScopeDefinesFromRegistry = (
   loggerScopeId: LoggerScopeId,
 ): Record<
-  '__DOCS_ISLANDS_LOGGER_CONFIG__' | '__DOCS_ISLANDS_LOGGER_SCOPE_ID__',
+  | '__DOCS_ISLANDS_LOGGER_CONFIG__'
+  | '__DOCS_ISLANDS_LOGGER_SCOPE_ID__'
+  | 'globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__'
+  | 'globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__',
   string
 > =>
   createLoggerScopeDefines(

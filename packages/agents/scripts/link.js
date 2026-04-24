@@ -1,7 +1,8 @@
 import {
+  DEFAULT_LOGGER_SCOPE_ID,
   createElapsedLogOptions,
-  createLogger,
-} from '@docs-islands/logger/internal';
+  createLoggerWithScopeId,
+} from '@docs-islands/utils/logger';
 import { execSync } from 'node:child_process';
 import {
   existsSync,
@@ -16,9 +17,12 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const logger = createLogger({
-  main: '@docs-islands/agents',
-}).getLoggerByGroup('task.link');
+const logger = createLoggerWithScopeId(
+  {
+    main: '@docs-islands/agents',
+  },
+  DEFAULT_LOGGER_SCOPE_ID,
+).getLoggerByGroup('task.link');
 const scriptStartedAt = Date.now();
 const elapsedSince = (startTimeMs) =>
   createElapsedLogOptions(startTimeMs, Date.now());

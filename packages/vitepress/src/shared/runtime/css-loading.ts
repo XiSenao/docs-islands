@@ -1,9 +1,6 @@
 import { VITEPRESS_RUNTIME_LOG_GROUPS } from '#shared/constants/log-groups/runtime';
-import { createLogger } from '#shared/logger';
-import {
-  type LoggerScopeId,
-  shouldSuppressLog,
-} from '@docs-islands/logger/internal';
+import { createLogger, shouldSuppressLog } from '@docs-islands/utils/logger';
+import './logger-scope-bridge';
 
 type Environment = 'development' | 'production';
 type FailureStrategy = 'partial' | 'strict';
@@ -53,35 +50,25 @@ interface LoadStyleOptions {
 
 const MAIN_NAME = '@docs-islands/vitepress';
 
-const getCssLoadingLogger = (loggerScopeId?: LoggerScopeId) =>
-  createLogger(
-    {
-      main: MAIN_NAME,
-    },
-    loggerScopeId,
-  ).getLoggerByGroup(VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading);
+const getCssLoadingLogger = () =>
+  createLogger({
+    main: MAIN_NAME,
+  }).getLoggerByGroup(VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading);
 
 const logCssLoading = (
   type: 'error' | 'info' | 'success' | 'warn',
   message: string,
-  loggerScopeId?: LoggerScopeId,
-) => getCssLoadingLogger(loggerScopeId)[type](message, { elapsedTimeMs: 0 });
+): void => getCssLoadingLogger()[type](message, { elapsedTimeMs: 0 });
 
-function isCssLoadingDebugEnabled(loggerScopeId?: LoggerScopeId): boolean {
-  return !shouldSuppressLog(
-    'debug',
-    {
-      group: VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
-      main: MAIN_NAME,
-      message: 'runtime css loading diagnostics',
-    },
-    loggerScopeId,
-  );
+function isCssLoadingDebugEnabled(): boolean {
+  return !shouldSuppressLog('debug', {
+    group: VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
+    main: MAIN_NAME,
+    message: 'runtime css loading diagnostics',
+  });
 }
 
-function createCSSLoadingConfig(
-  loggerScopeId?: LoggerScopeId,
-): CSSLoadingConfig {
+function createCSSLoadingConfig(): CSSLoadingConfig {
   const developmentConfig = {
     timeout: 10_000,
     retryCount: 3,
@@ -106,7 +93,7 @@ function createCSSLoadingConfig(
     enableDuplicateDetection: true,
     failureStrategy: 'strict' as const,
   };
-  if (isCssLoadingDebugEnabled(loggerScopeId)) {
+  if (isCssLoadingDebugEnabled()) {
     return debugConfig;
   }
   if (__ENV__ === 'development') {
@@ -133,7 +120,6 @@ function createCSSLoadingConfig(
 async function loadHighPriorityStyles(
   highPriorityRenderStyles: string[],
   options: LoadStyleOptions = {},
-  loggerScopeId?: LoggerScopeId,
 ): Promise<StyleLoadResult> {
   const {
     timeout = 8000, // 8 seconds timeout.
@@ -181,7 +167,6 @@ async function loadHighPriorityStyles(
           logCssLoading(
             'warn',
             `CSS loading timeout after ${timeout}ms. Loaded: ${loadedCount}/${totalStyles}, Failed: ${failedCount}`,
-            loggerScopeId,
           );
         }
 
@@ -211,14 +196,12 @@ async function loadHighPriorityStyles(
           logCssLoading(
             'success',
             `Success rate: ${loadedCount}/${totalStyles} (${((loadedCount / totalStyles) * 100).toFixed(1)}%)`,
-            loggerScopeId,
           );
 
           if (performanceMetrics.duplicatesDetected > 0) {
             logCssLoading(
               'info',
               `Detected and skipped ${performanceMetrics.duplicatesDetected} duplicate CSS files`,
-              loggerScopeId,
             );
           }
 
@@ -226,7 +209,6 @@ async function loadHighPriorityStyles(
             logCssLoading(
               'info',
               `Performed ${performanceMetrics.retriesPerformed} retries`,
-              loggerScopeId,
             );
           }
         }
@@ -277,7 +259,6 @@ async function loadHighPriorityStyles(
           logCssLoading(
             'warn',
             `Slow CSS loading detected: ${styleUrl} took ${loadTime.toFixed(2)}ms`,
-            loggerScopeId,
           );
         }
 
@@ -290,7 +271,6 @@ async function loadHighPriorityStyles(
           logCssLoading(
             'error',
             `CSS loading failed for ${styleUrl}, retrying (${retries + 1}/${retryCount})`,
-            loggerScopeId,
           );
 
           // Remove the failed link element.
@@ -319,7 +299,6 @@ async function loadHighPriorityStyles(
             logCssLoading(
               'error',
               `CSS loading failed permanently: ${styleUrl} after ${retries} retries`,
-              loggerScopeId,
             );
           }
 
@@ -345,27 +324,23 @@ declare const __ENV__: Environment;
 // TODO: Export CSS loading config to users.
 export default async function cssLoadingRuntime(
   highPriorityRenderStyles: string[],
-  loggerScopeId?: LoggerScopeId,
 ): Promise<StyleLoadResult> {
-  const cssLoadingConfig = createCSSLoadingConfig(loggerScopeId);
+  const cssLoadingConfig = createCSSLoadingConfig();
   const loadResult = await loadHighPriorityStyles(
     highPriorityRenderStyles,
     cssLoadingConfig,
-    loggerScopeId,
   );
 
-  if (isCssLoadingDebugEnabled(loggerScopeId)) {
+  if (isCssLoadingDebugEnabled()) {
     if (loadResult.timedOut) {
       logCssLoading(
         'error',
         `CSS loading timed out. Loaded: ${loadResult.loadedCount}/${loadResult.totalCount}`,
-        loggerScopeId,
       );
     } else if (loadResult.failedCount > 0) {
       logCssLoading(
         'error',
         `Some CSS files failed to load: ${loadResult.failedCount}/${loadResult.totalCount} failed`,
-        loggerScopeId,
       );
     }
 
@@ -373,7 +348,6 @@ export default async function cssLoadingRuntime(
       logCssLoading(
         'success',
         `Total CSS loading time: ${loadResult.metrics.totalLoadTime.toFixed(2)}ms`,
-        loggerScopeId,
       );
     }
   }

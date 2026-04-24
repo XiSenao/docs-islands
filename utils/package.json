@@ -1,25 +1,32 @@
 {
   "name": "@docs-islands/utils",
-  "private": true,
+  "version": "0.2.5",
   "type": "module",
+  "license": "MIT",
+  "author": "Senao Xi",
+  "description": "Shared runtime and build utilities for docs-islands packages",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "link-guard": "./bin/link-guard-stub.mjs"
   },
   "scripts": {
     "build": "rolldown --config rolldown.config.ts",
     "build:watch": "rolldown --config rolldown.config.ts --watch",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
     "clean": "del-cli .eslintcache dist node_modules"
   },
   "dependencies": {
+    "@docs-islands/logger": "workspace:*",
     "tinyglobby": "catalog:prod"
   },
   "devDependencies": {
     "eslint": "catalog:lint",
     "@types/picomatch": "catalog:dev",
     "@docs-islands/eslint-config": "workspace:*",
-    "@docs-islands/logger": "workspace:*",
     "typescript": "catalog:dev",
     "pathe": "catalog:dev",
     "is-in-ci": "catalog:dev",
@@ -27,7 +34,8 @@
     "del-cli": "catalog:dev",
     "vite": "catalog:prod",
     "rolldown": "catalog:dev",
-    "rolldown-plugin-dts": "catalog:dev"
+    "rolldown-plugin-dts": "catalog:dev",
+    "vitest": "catalog:test"
   },
   "exports": {
     ".": {

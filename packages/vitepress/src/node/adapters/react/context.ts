@@ -1,7 +1,4 @@
-import {
-  applyDocsIslandsViteBaseConfig,
-  type DocsIslandsResolvedUserConfig,
-} from '../../core/config';
+import type { DocsIslandsResolvedUserConfig } from '../../core/config';
 import type { RenderingIntegrationPluginContext } from '../../core/integration-plugin';
 import {
   createSiteDevToolsCapability,
@@ -19,14 +16,6 @@ export function createReactIntegrationContext(
   baseContext: RenderingIntegrationPluginContext,
   resolvedUserConfig: DocsIslandsResolvedUserConfig,
 ): ReactIntegrationPluginContext {
-  const { siteConfig, vitepressConfig } = baseContext;
-
-  applyDocsIslandsViteBaseConfig(
-    vitepressConfig,
-    siteConfig,
-    resolvedUserConfig,
-  );
-
   const siteDevtools = createSiteDevToolsCapability(
     resolvedUserConfig.siteDevtoolsEnabled,
   );

@@ -67,6 +67,7 @@
   },
   "dependencies": {
     "@docs-islands/logger": "workspace:*",
+    "@docs-islands/utils": "workspace:*",
     "cheerio": "catalog:prod",
     "vite": "catalog:prod"
   },
@@ -79,7 +80,6 @@
     "@docs-islands/core": "workspace:*",
     "@docs-islands/eslint-config": "workspace:*",
     "@docs-islands/plugin-license": "workspace:*",
-    "@docs-islands/utils": "workspace:*",
     "@publint/pack": "catalog:lint",
     "@types/babel__generator": "catalog:dev",
     "@types/babel__traverse": "catalog:dev",

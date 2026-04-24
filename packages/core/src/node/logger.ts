@@ -1,18 +1,19 @@
 import {
-  createLogger,
+  createLoggerWithScopeId,
+  DEFAULT_LOGGER_SCOPE_ID,
   type LoggerScopeId,
   type LoggerType,
   type ScopedLoggerType,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/utils/logger';
 
 const MAIN_NAME = '@docs-islands/core';
 
 export const createCoreLogger = (scopeId?: LoggerScopeId): LoggerType =>
-  createLogger(
+  createLoggerWithScopeId(
     {
       main: MAIN_NAME,
     },
-    scopeId,
+    scopeId ?? DEFAULT_LOGGER_SCOPE_ID,
   );
 
 export const getCoreGroupLogger = (

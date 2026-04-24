@@ -7,9 +7,11 @@
     "link": "FORCE_COLOR=1 node scripts/link.js",
     "clean": "del-cli node_modules"
   },
+  "dependencies": {
+    "@docs-islands/utils": "workspace:*"
+  },
   "devDependencies": {
     "@docs-islands/logger": "workspace:*",
-    "@docs-islands/utils": "workspace:*",
     "del-cli": "catalog:dev"
   }
 }

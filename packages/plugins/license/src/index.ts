@@ -1,7 +1,8 @@
 import {
   createElapsedLogOptions,
-  createLogger,
-} from '@docs-islands/logger/internal';
+  createLoggerWithScopeId,
+  DEFAULT_LOGGER_SCOPE_ID,
+} from '@docs-islands/utils/logger';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,9 +14,12 @@ type LoadPlugin = Plugin['load'];
 type GetHandler<T> = T extends { handler: infer H } ? H : T;
 type PluginContext = ThisParameterType<GetHandler<NonNullable<LoadPlugin>>>;
 
-const LicenseLogger = createLogger({
-  main: '@docs-islands/plugin-license',
-}).getLoggerByGroup('plugin.license');
+const LicenseLogger = createLoggerWithScopeId(
+  {
+    main: '@docs-islands/plugin-license',
+  },
+  DEFAULT_LOGGER_SCOPE_ID,
+).getLoggerByGroup('plugin.license');
 
 // Keep in sync with github ci workflow: https://github.com/XiSenao/docs-islands/blob/main/.github/workflows/dependency-review.yml
 const ALLOWED_LICENSES = new Set([

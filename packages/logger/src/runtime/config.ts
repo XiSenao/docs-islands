@@ -99,10 +99,38 @@ const cloneLevels = (
   levels: ReadonlySet<LoggerVisibilityLevel>,
 ): Set<LoggerVisibilityLevel> => new Set(levels);
 
+type DocsIslandsGlobal = typeof globalThis & {
+  __DOCS_ISLANDS_LOGGER_CONFIG__?: LoggerConfig | null | undefined;
+  __DOCS_ISLANDS_LOGGER_CONFIG_REGISTRY__?: Map<
+    LoggerScopeId,
+    LoggerConfig | undefined
+  >;
+};
+
+const getDocsIslandsGlobal = (): DocsIslandsGlobal =>
+  globalThis as DocsIslandsGlobal;
+
 const getLoggerConfigRegistry = (): Map<
   LoggerScopeId,
   LoggerConfig | undefined
-> => (globalThis.__DOCS_ISLANDS_LOGGER_CONFIG_REGISTRY__ ??= new Map());
+> => {
+  const docsIslandsGlobal = getDocsIslandsGlobal();
+  docsIslandsGlobal.__DOCS_ISLANDS_LOGGER_CONFIG_REGISTRY__ ??= new Map();
+  return docsIslandsGlobal.__DOCS_ISLANDS_LOGGER_CONFIG_REGISTRY__;
+};
+
+const readDefaultRuntimeLoggerConfig = (): LoggerConfig | null | undefined =>
+  getDocsIslandsGlobal().__DOCS_ISLANDS_LOGGER_CONFIG__;
+
+const setDefaultRuntimeLoggerConfig = (
+  config: LoggerConfig | null | undefined,
+): void => {
+  getDocsIslandsGlobal().__DOCS_ISLANDS_LOGGER_CONFIG__ = config;
+};
+
+const clearDefaultRuntimeLoggerConfig = (): void => {
+  delete getDocsIslandsGlobal().__DOCS_ISLANDS_LOGGER_CONFIG__;
+};
 
 const canReadRuntimeDefinedLoggerConfigForScope = (
   normalizedScopeId: LoggerScopeId,
@@ -128,7 +156,7 @@ const readRuntimeDefinedLoggerConfig = (
   }
 
   return typeof __DOCS_ISLANDS_LOGGER_CONFIG__ === 'undefined'
-    ? undefined
+    ? readDefaultRuntimeLoggerConfig()
     : __DOCS_ISLANDS_LOGGER_CONFIG__;
 };
 
@@ -146,7 +174,7 @@ const applyLoggerConfigForScope = (
   getLoggerConfigRegistry().set(normalizedScopeId, normalizedConfig);
 
   if (normalizedScopeId === DEFAULT_LOGGER_SCOPE_ID) {
-    globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__ = normalizedConfig;
+    setDefaultRuntimeLoggerConfig(normalizedConfig);
   }
 };
 
@@ -161,7 +189,7 @@ const hasLoggerConfigForScope = (scopeId?: LoggerScopeId): boolean => {
   return (
     normalizedScopeId === DEFAULT_LOGGER_SCOPE_ID &&
     canReadRuntimeDefinedLoggerConfigForScope(normalizedScopeId) &&
-    globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__ !== undefined
+    readDefaultRuntimeLoggerConfig() !== undefined
   );
 };
 
@@ -307,7 +335,7 @@ export function getLoggerConfigForScope(
       return undefined;
     }
 
-    return normalizeLoggerConfig(globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__);
+    return normalizeLoggerConfig(readDefaultRuntimeLoggerConfig());
   }
 
   return undefined;
@@ -331,7 +359,7 @@ export function resetLoggerConfigForScope(scopeId: LoggerScopeId): void {
   getLoggerConfigRegistry().delete(normalizedScopeId);
 
   if (normalizedScopeId === DEFAULT_LOGGER_SCOPE_ID) {
-    delete globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__;
+    clearDefaultRuntimeLoggerConfig();
   }
 }
 
