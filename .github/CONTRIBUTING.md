@@ -195,6 +195,51 @@ Tip: To switch documentation back to the built package (default), run:
 pnpm docs:link:prod
 ```
 
+## Releasing Public Packages
+
+Public npm releases are now coordinated from the repository root.
+
+- Preview the available release targets and choose interactively:
+
+  ```bash
+  pnpm release
+  ```
+
+  Use the arrow keys plus `Space` to select one or more packages, or choose `all public packages` for a batch release.
+
+- Generate changelogs from the root for one or more public packages:
+
+  ```bash
+  pnpm changelog logger --type patch
+  pnpm changelog --package logger --type patch
+  pnpm changelog --package logger,vitepress --type prerelease --preid beta
+  ```
+
+- Run a non-mutating preview for a specific package:
+
+  ```bash
+  pnpm release logger --type patch --dry-run --yes
+  pnpm release --package logger --type patch --dry-run --yes
+  pnpm release --package vitepress --type prerelease --preid beta --dry-run --yes
+  ```
+
+- Package-local compatibility commands still work:
+
+  ```bash
+  pnpm --filter @docs-islands/logger release --type patch --dry-run --yes
+  pnpm --filter @docs-islands/vitepress changelog --type patch
+  ```
+
+Current public release targets:
+
+- `logger` -> `@docs-islands/logger`
+- `vitepress` -> `@docs-islands/vitepress`
+
+Each public package now uses package-scoped git tags:
+
+- `logger/v<version>`
+- `vitepress/v<version>`
+
 ## License
 
 By contributing to Docs Islands, you agree that your contributions will be licensed under the [MIT License](https://github.com/XiSenao/docs-islands/blob/main/LICENSE).
