@@ -207,6 +207,33 @@ describe('createDocsIslands', () => {
     );
   });
 
+  it('throws when another createDocsIslands instance is applied to the same config', async () => {
+    const { default: createDocsIslands } = await import('../orchestrator');
+    const vitepressConfig: any = {};
+
+    createDocsIslands({
+      adapters: [
+        {
+          apply() {},
+          framework: 'first',
+        },
+      ],
+    }).apply(vitepressConfig);
+
+    expect(() =>
+      createDocsIslands({
+        adapters: [
+          {
+            apply() {},
+            framework: 'second',
+          },
+        ],
+      }).apply(vitepressConfig),
+    ).toThrow(
+      'createDocsIslands() has already been applied to this VitePress config with a different logger scope.',
+    );
+  });
+
   it('registers site-devtools orchestration in core when enabled', async () => {
     const { default: createDocsIslands } = await import('../orchestrator');
 
