@@ -1,6 +1,6 @@
 {
   "name": "@docs-islands/logger",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "type": "module",
   "license": "MIT",
   "author": "Senao Xi",
@@ -48,8 +48,6 @@
     "@babel/parser": "catalog:dev",
     "@babel/traverse": "catalog:dev",
     "@babel/types": "catalog:dev",
-    "es-module-lexer": "catalog:dev",
-    "magic-string": "catalog:dev",
     "picocolors": "catalog:dev",
     "picomatch": "catalog:prod",
     "unplugin": "catalog:prod"
@@ -62,6 +60,9 @@
     "@types/babel__traverse": "catalog:dev",
     "@types/node": "catalog:dev",
     "@docs-islands/utils": "workspace:*",
+    "@docs-islands/plugin-license": "workspace:*",
+    "es-module-lexer": "catalog:dev",
+    "magic-string": "catalog:dev",
     "del-cli": "catalog:dev",
     "eslint": "catalog:lint",
     "jsdom": "catalog:test",
