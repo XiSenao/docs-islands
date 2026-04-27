@@ -1,4 +1,4 @@
-import { injectEnvs, loadEnv } from '@docs-islands/utils';
+import { injectEnvs, loadEnv } from '@docs-islands/utils/env';
 import getPort from 'get-port';
 import fs from 'node:fs';
 import type { Server } from 'node:net';

@@ -1,5 +1,6 @@
 import licensePlugin from '@docs-islands/plugin-license';
-import { loadEnv, scanFiles } from '@docs-islands/utils';
+import { loadEnv } from '@docs-islands/utils/env';
+import { scanFiles } from '@docs-islands/utils/fs-utils';
 import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, resolve } from 'node:url';
@@ -8,24 +9,35 @@ import { dts } from 'rolldown-plugin-dts';
 import pkg from './package.json' with { type: 'json' };
 import generatePackageJson from './packagePlugin';
 
-const { config, env } = loadEnv();
+const { config, debug } = loadEnv();
 const { sourcemap, minify } = config;
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
-const getExternalDeps = () => {
-  return [
-    /^#types\//,
-    'react-dom/client',
-    'vitepress/client',
-    ...Object.keys(pkg.dependencies || {}),
-    ...Object.keys(pkg.peerDependencies || {}),
-    // @ts-expect-error No type checking is needed here.
-    ...Object.keys(pkg.optionalDependencies ?? {}),
-  ];
-};
-
-const externalDeps = getExternalDeps();
+const packageExternalDeps = [
+  ...Object.keys(pkg.dependencies || {}),
+  ...Object.keys(pkg.peerDependencies || {}),
+  // @ts-expect-error No type checking is needed here.
+  ...Object.keys(pkg.optionalDependencies ?? {}),
+];
+const directExternalDeps = [
+  '@docs-islands/utils/logger',
+  'react-dom/client',
+  'vitepress/client',
+];
+const isPackageImport = (source: string, packageName: string): boolean =>
+  source === packageName || source.startsWith(`${packageName}/`);
+const isExternalDependency = (source: string): boolean =>
+  /^#types\//.test(source) ||
+  directExternalDeps.includes(source) ||
+  packageExternalDeps.some((packageName) =>
+    isPackageImport(source, packageName),
+  );
+const dtsExternalDeps = [
+  /^#types\//,
+  ...directExternalDeps,
+  ...packageExternalDeps,
+];
 let hasCleanedDist = false;
 
 const nodePlugins: RolldownOptions['plugins'] = [
@@ -109,7 +121,7 @@ const getSharedOptions = (platform: 'node' | 'browser') => {
   const chunkFileExt = platform === 'node' ? 'js' : 'mjs';
   return defineConfig({
     platform,
-    external: externalDeps,
+    external: isExternalDependency,
     resolve: {
       alias: {
         '#types': fileURLToPath(new URL('types', import.meta.url)),
@@ -166,6 +178,7 @@ const nodeConfig = defineConfig({
 
 const nodeDtsConfig = defineConfig({
   ...sharedNodeOptions,
+  external: dtsExternalDeps,
   input: {
     index: resolve(__dirname, 'src/node/index.ts'),
     'adapters/react': resolve(__dirname, 'src/node/adapters/react/index.ts'),
@@ -193,6 +206,7 @@ const clientConfig = defineConfig({
 
 const clientDtsConfig = defineConfig({
   ...sharedBrowserOptions,
+  external: dtsExternalDeps,
   input: {
     index: resolve(__dirname, 'src/client/index.ts'),
     'adapters/react': resolve(__dirname, 'src/client/adapters/react/index.ts'),
@@ -211,6 +225,7 @@ const clientDtsConfig = defineConfig({
 
 const clientRuntimeConfig = defineConfig({
   ...sharedBrowserOptions,
+  external: dtsExternalDeps,
   input: {
     'internal/client-runtime': resolve(
       __dirname,
@@ -220,7 +235,7 @@ const clientRuntimeConfig = defineConfig({
   transform: {
     target: 'es2020',
     define: {
-      __ENV__: JSON.stringify(env),
+      __DEBUG__: JSON.stringify(debug),
     },
   },
   plugins: [
@@ -252,6 +267,17 @@ const clientRuntimeConfig = defineConfig({
     manualChunks: undefined,
     sourcemap: sourcemap ? 'inline' : false,
     entryFileNames: 'shared/[name].js',
+    ...(minify && {
+      minify: {
+        compress: true,
+        mangle: false,
+        // Do not minify whitespace for ES lib output since that would remove
+        // pure annotations and break tree-shaking
+        codegen: {
+          removeWhitespace: false,
+        },
+      },
+    }),
   },
 });
 
@@ -272,6 +298,7 @@ const utilsConfig = defineConfig({
 
 const utilsConfigDtsConfig = defineConfig({
   ...sharedBrowserOptions,
+  external: dtsExternalDeps,
   input: {
     logger: resolve(__dirname, 'src/shared/logger.ts'),
     'logger/presets': resolve(__dirname, 'src/shared/logger/presets.ts'),
@@ -308,6 +335,7 @@ const internalUtilsConfig = defineConfig({
 
 const internalUtilsDtsConfig = defineConfig({
   ...sharedBrowserOptions,
+  external: dtsExternalDeps,
   input: {
     'internal/devtools': resolve(__dirname, 'src/shared/internal/devtools.ts'),
   },

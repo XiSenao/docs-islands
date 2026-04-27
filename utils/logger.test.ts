@@ -13,6 +13,10 @@ import {
 
 const TEST_SCOPE_ID = 'utils-logger-test-scope';
 
+type LoggerScopeGlobal = typeof globalThis & {
+  __DOCS_ISLANDS_LOGGER_SCOPE_ID__?: string | undefined;
+};
+
 const captureConsoleLog = (): string[] => {
   const output: string[] = [];
 
@@ -24,7 +28,8 @@ const captureConsoleLog = (): string[] => {
 };
 
 afterEach(() => {
-  globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__ = undefined;
+  (globalThis as LoggerScopeGlobal).__DOCS_ISLANDS_LOGGER_SCOPE_ID__ =
+    undefined;
   resetLoggerConfig();
   resetLoggerConfigForScope(TEST_SCOPE_ID);
   resetLoggerConfigForScope(DEFAULT_LOGGER_SCOPE_ID);
@@ -33,7 +38,8 @@ afterEach(() => {
 
 describe('@docs-islands/utils/logger', () => {
   it('binds createLogger to the injected logger scope', () => {
-    globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__ = TEST_SCOPE_ID;
+    (globalThis as LoggerScopeGlobal).__DOCS_ISLANDS_LOGGER_SCOPE_ID__ =
+      TEST_SCOPE_ID;
     setLoggerConfigForScope(TEST_SCOPE_ID, {
       levels: ['info'],
     });

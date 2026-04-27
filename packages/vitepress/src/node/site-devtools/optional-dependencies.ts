@@ -1,4 +1,4 @@
-import { pkgExists } from '@docs-islands/utils';
+import { pkgExists } from '@docs-islands/utils/general';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

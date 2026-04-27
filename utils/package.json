@@ -1,5 +1,6 @@
 {
   "name": "@docs-islands/utils",
+  "private": true,
   "version": "0.2.5",
   "type": "module",
   "license": "MIT",
@@ -38,14 +39,13 @@
     "vitest": "catalog:test"
   },
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./*": {
-      "types": "./dist/*.d.ts",
-      "import": "./dist/*.js"
-    },
+    "./builtin": "./dist/builtin.js",
+    "./dom-iterable": "./dist/dom-iterable.js",
+    "./env": "./dist/env.js",
+    "./fs-utils": "./dist/fs-utils.js",
+    "./general": "./dist/general.js",
+    "./logger": "./dist/logger.js",
+    "./path": "./dist/path.js",
     "./package.json": "./package.json"
   },
   "sideEffects": false

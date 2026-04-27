@@ -1,4 +1,4 @@
-import { loadEnv } from '@docs-islands/utils';
+import { loadEnv } from '@docs-islands/utils/env';
 import vue from '@vitejs/plugin-vue';
 import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';

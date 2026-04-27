@@ -47,7 +47,7 @@ vi.mock('../../../logger', () => ({
 
 afterEach(() => {
   vi.restoreAllMocks();
-  vi.doUnmock('@docs-islands/utils');
+  vi.doUnmock('@docs-islands/utils/general');
   delete (globalThis as { VITEPRESS_CONFIG?: unknown }).VITEPRESS_CONFIG;
   vi.resetModules();
 });
@@ -159,9 +159,9 @@ async function applyReactDocsIslands(
 
 describe('createDocsIslands + react adapter', () => {
   it('throws a clear error when React peer dependencies are missing', async () => {
-    vi.doMock('@docs-islands/utils', async (importOriginal) => {
+    vi.doMock('@docs-islands/utils/general', async (importOriginal) => {
       const actual =
-        await importOriginal<typeof import('@docs-islands/utils')>();
+        await importOriginal<typeof import('@docs-islands/utils/general')>();
 
       return {
         ...actual,
@@ -193,9 +193,9 @@ describe('createDocsIslands + react adapter', () => {
   });
 
   it('installs site-devtools fallback aliases when optional enhancement dependencies are missing', async () => {
-    vi.doMock('@docs-islands/utils', async (importOriginal) => {
+    vi.doMock('@docs-islands/utils/general', async (importOriginal) => {
       const actual =
-        await importOriginal<typeof import('@docs-islands/utils')>();
+        await importOriginal<typeof import('@docs-islands/utils/general')>();
 
       return {
         ...actual,
@@ -296,16 +296,16 @@ describe('createDocsIslands + react adapter', () => {
   });
 
   it('uses the VitePress root as the dependency search base when it is available', async () => {
-    vi.doMock('@docs-islands/utils', async (importOriginal) => {
+    vi.doMock('@docs-islands/utils/general', async (importOriginal) => {
       const actual =
-        await importOriginal<typeof import('@docs-islands/utils')>();
+        await importOriginal<typeof import('@docs-islands/utils/general')>();
 
       return {
         ...actual,
         pkgExists: vi.fn(() => true),
       };
     });
-    const { pkgExists } = await import('@docs-islands/utils');
+    const { pkgExists } = await import('@docs-islands/utils/general');
     const workspaceRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), 'vitepress-react-root-search-'),
     );
