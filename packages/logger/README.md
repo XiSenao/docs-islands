@@ -4,7 +4,7 @@
   <a href="https://npmjs.com/package/@docs-islands/logger"><img src="https://img.shields.io/npm/v/@docs-islands/logger.svg" alt="npm package"></a>
   <a href="https://nodejs.org/en/about/previous-releases"><img src="https://img.shields.io/node/v/@docs-islands/logger.svg" alt="node compatibility"></a>
   <a href="https://github.com/XiSenao/docs-islands/actions/workflows/ci.yml"><img src="https://github.com/XiSenao/docs-islands/actions/workflows/ci.yml/badge.svg?branch=main" alt="build status"></a>
-  <a href="https://github.com/XiSenao/docs-islands/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/@docs-islands/logger.svg" alt="license"></a>
+  <a href="https://github.com/XiSenao/docs-islands/blob/main/packages/logger/LICENSE.md"><img src="https://img.shields.io/npm/l/@docs-islands/logger.svg" alt="license"></a>
 </p>
 
 English | [简体中文](./README.zh-CN.md)

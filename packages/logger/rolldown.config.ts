@@ -1,6 +1,6 @@
 import licensePlugin from '@docs-islands/plugin-license';
 import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
-import { rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, resolve } from 'node:url';
 import { defineConfig, type RolldownOptions } from 'rolldown';
@@ -52,6 +52,32 @@ const neutralConfig: RolldownOptions = defineConfig({
       '@docs-islands/logger',
     ),
     packagePlugin(),
+    {
+      name: 'rolldown-plugin-copy-readme',
+      generateBundle: {
+        order: 'post',
+        async handler() {
+          this.emitFile({
+            type: 'asset',
+            source: await readFile(resolve(__dirname, 'README.md'), 'utf8'),
+            fileName: 'README.md',
+          });
+          this.emitFile({
+            type: 'asset',
+            source: await readFile(
+              resolve(__dirname, 'README.zh-CN.md'),
+              'utf8',
+            ),
+            fileName: 'README.zh-CN.md',
+          });
+          this.emitFile({
+            type: 'asset',
+            source: await readFile(resolve(__dirname, 'LICENSE.md'), 'utf8'),
+            fileName: 'LICENSE.md',
+          });
+        },
+      },
+    },
   ],
   output: {
     dir: 'dist',
