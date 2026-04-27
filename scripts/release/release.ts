@@ -112,7 +112,7 @@ function buildVitepressProject(
   });
 }
 
-function verifyVitepressDistVersion(plan: ReleasePlan): void {
+function verifyDistVersion(plan: ReleasePlan): void {
   const distPackageJsonPath = path.join(plan.config.publishDir, 'package.json');
   if (!existsSync(distPackageJsonPath)) {
     throw new Error(
@@ -142,6 +142,8 @@ function runPackageReleaseChecks(
     }
     if (!options.skipBuild) {
       getPackageScriptRunner(config, 'build');
+      verifyDistVersion(plan);
+      getPackageScriptRunner(config, 'lint:package');
       runCommand(getNpmCommand(), ['pack', '--dry-run'], {
         cwd: config.publishDir,
         stdio: 'inherit',
@@ -160,7 +162,7 @@ function runPackageReleaseChecks(
 
   if (!options.skipBuild) {
     buildVitepressProject(config);
-    verifyVitepressDistVersion(plan);
+    verifyDistVersion(plan);
     getPackageScriptRunner(config, 'lint:package');
     getPackageScriptRunner(config, 'smoke:consumer');
     runCommand(getNpmCommand(), ['pack', '--dry-run'], {

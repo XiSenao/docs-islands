@@ -32,6 +32,7 @@ const NODE_BUILTIN_SPECIFIERS = new Set(
       : [specifier, `node:${specifier}`],
   ),
 );
+const IGNORED_EXTERNAL_PACKAGE_ROOTS = new Set<string>(['@docs-islands/utils']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -204,6 +205,7 @@ export async function auditPublishedPackageBoundaries(
     ...Object.keys(manifest.dependencies ?? {}),
     ...Object.keys(manifest.peerDependencies ?? {}),
     ...Object.keys(manifest.optionalDependencies ?? {}),
+    ...IGNORED_EXTERNAL_PACKAGE_ROOTS,
   ]);
   const selfSpecifiers = collectSelfSpecifierMatchers(
     manifest.name,
