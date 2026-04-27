@@ -1,7 +1,10 @@
-import { syncRuntimeDefinedLoggerConfig } from './config';
+import {
+  syncRuntimeDefinedLoggerConfig,
+  warnIfUncontrolledDefaultLoggerConfigMissing,
+} from './config';
 import { emitLoggerMessage } from './console';
 import { normalizeLoggerGroup, normalizeLoggerMain } from './normalize';
-import { normalizeLoggerScopeId, resolveLoggerScopeId } from './scope';
+import { DEFAULT_LOGGER_SCOPE_ID, normalizeLoggerScopeId } from './scope';
 import type {
   CreateLoggerOptions,
   LoggerLogOptions,
@@ -140,7 +143,7 @@ export class ScopedLogger {
    * Logs an informational message.
    * @param message - The message to log
    */
-  public info(message: string, options: LoggerLogOptions): void {
+  public info(message: string, options?: LoggerLogOptions): void {
     this.#log('info', message, options);
   }
 
@@ -148,7 +151,7 @@ export class ScopedLogger {
    * Logs a success message.
    * @param message - The message to log
    */
-  public success(message: string, options: LoggerLogOptions): void {
+  public success(message: string, options?: LoggerLogOptions): void {
     this.#log('success', message, options);
   }
 
@@ -156,7 +159,7 @@ export class ScopedLogger {
    * Logs a warning message.
    * @param message - The message to log
    */
-  public warn(message: string, options: LoggerLogOptions): void {
+  public warn(message: string, options?: LoggerLogOptions): void {
     this.#log('warn', message, options);
   }
 
@@ -164,7 +167,7 @@ export class ScopedLogger {
    * Logs an error message.
    * @param message - The message to log
    */
-  public error(message: string, options: LoggerLogOptions): void {
+  public error(message: string, options?: LoggerLogOptions): void {
     this.#log('error', message, options);
   }
 
@@ -193,14 +196,26 @@ export default Logger;
 export type LoggerType = Logger;
 export type ScopedLoggerType = ScopedLogger;
 
-export function createLogger(
+const createLoggerForScope = (
   options: CreateLoggerOptions,
-  scopeId?: LoggerScopeId,
-): Logger {
-  const normalizedScopeId = resolveLoggerScopeId(scopeId);
+  scopeId: LoggerScopeId,
+): Logger => {
+  const normalizedScopeId = normalizeLoggerScopeId(scopeId);
 
   syncRuntimeDefinedLoggerConfig(normalizedScopeId);
+  warnIfUncontrolledDefaultLoggerConfigMissing(normalizedScopeId);
   return Logger.getOrCreate(options.main, normalizedScopeId);
+};
+
+export function createLogger(options: CreateLoggerOptions): Logger {
+  return createLoggerForScope(options, DEFAULT_LOGGER_SCOPE_ID);
+}
+
+export function createLoggerWithScopeId(
+  options: CreateLoggerOptions,
+  scopeId: LoggerScopeId,
+): Logger {
+  return createLoggerForScope(options, scopeId);
 }
 
 export function formatErrorMessage(error: unknown): string {

@@ -1,33 +1,109 @@
+import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
+import { rm } from 'node:fs/promises';
+import { fileURLToPath, resolve } from 'node:url';
 import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
+import pkg from './package.json' with { type: 'json' };
+import packagePlugin from './packagePlugin';
 
 const sourcemap = process.env.DOCS_ISLANDS_SOURCEMAP === 'true';
 const minify = process.env.DOCS_ISLANDS_MINIFY === 'true';
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+let hasCleanedDist = false;
 
-const sharedOptions = defineConfig({
+const externalDeps = [
+  ...Object.keys(pkg.dependencies || {}),
+  ...Object.keys(pkg.peerDependencies || {}),
+  // @ts-expect-error No type checking is needed here.
+  ...Object.keys(pkg.optionalDependencies ?? {}),
+];
+const isExternalDependency = (id: string): boolean =>
+  externalDeps.some((dep) => id === dep || id.startsWith(`${dep}/`));
+
+const neutralConfig: RolldownOptions = defineConfig({
   input: {
     index: 'src/index.ts',
     internal: 'src/internal.ts',
-    'plugin/index': 'src/plugin/index.ts',
+    runtime: 'src/runtime.ts',
   },
   platform: 'neutral',
   preserveEntrySignatures: 'strict',
-  external: [/^[\w@][^:]/],
+  external: isExternalDependency,
+  plugins: [
+    {
+      name: 'rolldown-plugin-clean-dist',
+      async buildStart() {
+        if (hasCleanedDist) {
+          return;
+        }
+
+        hasCleanedDist = true;
+        await rm(resolve(__dirname, 'dist'), {
+          force: true,
+          recursive: true,
+        });
+      },
+    },
+    packagePlugin(),
+  ],
   output: {
     dir: 'dist',
     entryFileNames: '[name].js',
     chunkFileNames: 'chunks/dep-[hash].js',
     exports: 'named',
     format: 'esm',
-    preserveModules: true,
     sourcemap,
+    ...(minify && {
+      minify: {
+        compress: true,
+        mangle: false,
+        codegen: {
+          removeWhitespace: false,
+        },
+      },
+    }),
   },
 });
 
-const codeConfig: RolldownOptions = defineConfig({
-  ...sharedOptions,
+const pluginConfig = defineConfig({
+  input: {
+    'plugin/index': 'src/plugin/index.ts',
+  },
+  platform: 'node',
+  preserveEntrySignatures: 'strict',
+  external: (id) => {
+    if (
+      isNodeLikeBuiltin(id) ||
+      isExternalDependency(id) ||
+      id.endsWith('.node')
+    ) {
+      return true;
+    }
+    return false;
+  },
+  plugins: [
+    {
+      name: 'rolldown-plugin-clean-dist',
+      async buildStart() {
+        if (hasCleanedDist) {
+          return;
+        }
+
+        hasCleanedDist = true;
+        await rm(resolve(__dirname, 'dist'), {
+          force: true,
+          recursive: true,
+        });
+      },
+    },
+  ],
   output: {
-    ...sharedOptions.output,
+    dir: 'dist',
+    entryFileNames: '[name].js',
+    chunkFileNames: 'chunks/dep-[hash].js',
+    exports: 'named',
+    format: 'esm',
+    sourcemap,
     ...(minify && {
       minify: {
         compress: true,
@@ -41,7 +117,13 @@ const codeConfig: RolldownOptions = defineConfig({
 });
 
 const dtsConfig: RolldownOptions = defineConfig({
-  ...sharedOptions,
+  input: {
+    index: 'src/index.ts',
+    internal: 'src/internal.ts',
+    runtime: 'src/runtime.ts',
+    'plugin/index': 'src/plugin/index.ts',
+  },
+  external: isExternalDependency,
   plugins: [
     dts({
       emitDtsOnly: true,
@@ -50,6 +132,10 @@ const dtsConfig: RolldownOptions = defineConfig({
   ],
 });
 
-const rolldownConfig: RolldownOptions[] = [codeConfig, dtsConfig];
+const rolldownConfig: RolldownOptions[] = [
+  neutralConfig,
+  pluginConfig,
+  dtsConfig,
+];
 
 export default rolldownConfig;

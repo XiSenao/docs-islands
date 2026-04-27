@@ -3,6 +3,7 @@
  */
 import { createLogger, setLoggerConfig } from '@docs-islands/logger';
 import {
+  createLoggerWithScopeId,
   getLoggerConfigForScope,
   resetLoggerConfig,
   resetLoggerConfigForScope,
@@ -24,16 +25,30 @@ const captureConsoleLog = (): string[] => {
 };
 
 afterEach(() => {
-  globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__ = undefined;
-  globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__ = undefined;
+  vi.unstubAllGlobals();
   resetLoggerConfig();
   resetLoggerConfigForScope(TEST_SCOPE_ID);
   resetLoggerConfigForScope(OTHER_SCOPE_ID);
-  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
 describe('runtime logger', () => {
+  it('warns once when default-scope direct usage has no runtime config', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    createLogger({
+      main: '@acme/logger',
+    });
+    createLogger({
+      main: '@acme/logger-other',
+    });
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0]?.[0]).toContain(
+      'loggerPlugin.vite({ config }) or setLoggerConfig',
+    );
+  });
+
   it('applies generic root setLoggerConfig to default-scope loggers', () => {
     const output = captureConsoleLog();
 
@@ -67,6 +82,70 @@ describe('runtime logger', () => {
     );
   });
 
+  it('lets later generic root setLoggerConfig calls override earlier config', () => {
+    setLoggerConfig({
+      levels: ['error'],
+    });
+    setLoggerConfig({
+      levels: ['info'],
+    });
+
+    const output = captureConsoleLog();
+
+    createLogger({
+      main: '@acme/logger',
+    })
+      .getLoggerByGroup('generic.override')
+      .info('visible overridden info', { elapsedTimeMs: 1.23 });
+
+    expect(
+      output.some((message) => message.includes('visible overridden info')),
+    ).toBe(true);
+  });
+
+  it('rejects generic root setLoggerConfig in controlled runtimes', () => {
+    vi.stubGlobal('__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__', true);
+
+    expect(() =>
+      setLoggerConfig({
+        levels: ['info'],
+      }),
+    ).toThrow(
+      '@docs-islands/logger is controlled by loggerPlugin.vite({ config }).',
+    );
+  });
+
+  it('uses injected controlled config without emitting uncontrolled warnings', () => {
+    vi.stubGlobal('__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__', true);
+    vi.stubGlobal('__DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__', {
+      levels: ['error'],
+    });
+
+    const output = captureConsoleLog();
+    const errorOutput: string[] = [];
+    vi.spyOn(console, 'error').mockImplementation((message) => {
+      errorOutput.push(String(message));
+    });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const logger = createLogger({
+      main: '@acme/logger',
+    }).getLoggerByGroup('controlled.runtime');
+
+    logger.info('hidden controlled info', { elapsedTimeMs: 1 });
+    logger.error('visible controlled error', { elapsedTimeMs: 2 });
+
+    expect(
+      output.some((message) => message.includes('hidden controlled info')),
+    ).toBe(false);
+    expect(
+      errorOutput.some((message) =>
+        message.includes('visible controlled error'),
+      ),
+    ).toBe(true);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
   it('keeps internal scoped configs isolated from the default scope', () => {
     setLoggerConfig({
       levels: ['error'],
@@ -87,7 +166,7 @@ describe('runtime logger', () => {
       .getLoggerByGroup('scope.default')
       .info('hidden default info', { elapsedTimeMs: 1 });
 
-    const scopedLogger = createLogger(
+    const scopedLogger = createLoggerWithScopeId(
       {
         main: '@acme/logger',
       },
@@ -106,62 +185,39 @@ describe('runtime logger', () => {
     ).toBe(true);
   });
 
-  it('keeps runtime-defined scopes isolated from implicit default-scope loggers', () => {
-    vi.stubGlobal('__DOCS_ISLANDS_LOGGER_SCOPE_ID__', TEST_SCOPE_ID);
-    setLoggerConfig({
-      levels: ['error'],
-    });
+  it('keeps multiple explicit scope configs isolated in the same runtime', () => {
     setLoggerConfigForScope(TEST_SCOPE_ID, {
       levels: ['info'],
+    });
+    setLoggerConfigForScope(OTHER_SCOPE_ID, {
+      levels: ['warn'],
     });
 
     const output = captureConsoleLog();
 
-    createLogger({
-      main: '@acme/logger',
-    })
-      .getLoggerByGroup('runtime.default')
-      .info('hidden default info', { elapsedTimeMs: 1 });
-
-    expect(
-      output.some((message) => message.includes('hidden default info')),
-    ).toBe(false);
-  });
-
-  it('keeps implicit loggers on the default scope even when a runtime scope is present', () => {
-    vi.stubGlobal('__DOCS_ISLANDS_LOGGER_SCOPE_ID__', TEST_SCOPE_ID);
-    setLoggerConfig({
-      levels: ['error'],
-    });
-    setLoggerConfigForScope(TEST_SCOPE_ID, {
-      levels: ['info'],
-    });
-
-    const output = captureConsoleLog();
-
-    createLogger({
-      main: '@acme/logger',
-    })
-      .getLoggerByGroup('runtime.implicit')
-      .info('hidden implicit info', { elapsedTimeMs: 1 });
-
-    createLogger(
+    createLoggerWithScopeId(
       {
         main: '@acme/logger',
       },
       TEST_SCOPE_ID,
     )
-      .getLoggerByGroup('runtime.explicit')
-      .info('visible explicit info', { elapsedTimeMs: 2 });
+      .getLoggerByGroup('runtime.scope-a')
+      .info('visible scope-a info', { elapsedTimeMs: 1 });
 
-    expect(getLoggerConfigForScope(TEST_SCOPE_ID)).toEqual({
-      levels: ['info'],
-    });
+    createLoggerWithScopeId(
+      {
+        main: '@acme/logger',
+      },
+      OTHER_SCOPE_ID,
+    )
+      .getLoggerByGroup('runtime.scope-b')
+      .info('hidden scope-b info', { elapsedTimeMs: 2 });
+
     expect(
-      output.some((message) => message.includes('hidden implicit info')),
-    ).toBe(false);
-    expect(
-      output.some((message) => message.includes('visible explicit info')),
+      output.some((message) => message.includes('visible scope-a info')),
     ).toBe(true);
+    expect(
+      output.some((message) => message.includes('hidden scope-b info')),
+    ).toBe(false);
   });
 });

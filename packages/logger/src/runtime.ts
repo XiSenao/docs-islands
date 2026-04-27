@@ -1,11 +1,4 @@
 export {
-  DEFAULT_LOGGER_MODULE_ID,
-  LOGGER_TREE_SHAKING_PLUGIN_NAME,
-  transformLoggerTreeShaking,
-  type LoggerTreeShakingTransformOptions,
-  type LoggerTreeShakingTransformResult,
-} from './plugin/transform';
-export {
   getLoggerConfigForScope,
   isLoggerControlled,
   resetLoggerConfig,
@@ -15,12 +8,12 @@ export {
   setLoggerConfigForScope,
   shouldSuppressLog,
   syncRuntimeDefinedLoggerConfig,
-} from './runtime/config';
+} from './runtime/config.js';
 export {
   formatDebugMessage,
   sanitizeDebugSummary,
-} from './runtime/debug-message';
-export { createElapsedLogOptions, formatElapsedTime } from './runtime/elapsed';
+} from './runtime/debug-message.js';
+export { createElapsedLogOptions } from './runtime/elapsed.js';
 export {
   ScopedLogger,
   createLogger,
@@ -28,20 +21,20 @@ export {
   formatErrorMessage,
   type LoggerType,
   type ScopedLoggerType,
-} from './runtime/factory';
+} from './runtime/factory.js';
 export {
   normalizeLoggerConfig,
   normalizeLoggerGroup,
   normalizeLoggerLevelsArray,
   normalizeLoggerMain,
-} from './runtime/normalize';
+} from './runtime/normalize.js';
 export {
   DEFAULT_LOGGER_SCOPE_ID,
   createLoggerScopeId,
   normalizeLoggerScopeId,
   readRuntimeLoggerScopeId,
   resolveLoggerScopeId,
-} from './runtime/scope';
+} from './runtime/scope.js';
 export type {
   CreateLoggerOptions,
   DebugMessageOptions,
@@ -56,4 +49,4 @@ export type {
   NormalizedLoggerConfig,
   NormalizedLoggerRule,
   ResolvedLoggerContext,
-} from './runtime/types';
+} from './runtime/types.js';
