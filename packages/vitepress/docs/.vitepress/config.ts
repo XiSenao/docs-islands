@@ -1,4 +1,4 @@
-import { loadEnv } from '@docs-islands/utils';
+import { loadEnv } from '@docs-islands/utils/env';
 import { createDocsIslands } from '@docs-islands/vitepress';
 import { react } from '@docs-islands/vitepress/adapters/react';
 import loggerPresets from '@docs-islands/vitepress/logger/presets';
@@ -194,7 +194,7 @@ createDocsIslands({
             modelId: 'doubao-pro',
             cache: {
               dir: `.vitepress/site-devtools-reports/${cacheDir}`,
-              strategy: isInCi ? 'fallback' : 'exact',
+              strategy: 'fallback',
             },
           };
         },

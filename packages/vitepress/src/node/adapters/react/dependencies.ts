@@ -1,4 +1,4 @@
-import { importWithError, pkgExists } from '@docs-islands/utils';
+import { importWithError, pkgExists } from '@docs-islands/utils/general';
 import type { Plugin, PluginOption } from 'vite';
 import { REACT_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME } from '../../constants/adapters/react/plugin-names';
 import { resolveCurrentDependencyResolutionBase } from '../../core/dependency-resolution';

@@ -1,4 +1,4 @@
-import { loadEnv } from '@docs-islands/utils';
+import { loadEnv } from '@docs-islands/utils/env';
 import {
   createElapsedLogOptions,
   createLoggerWithScopeId,

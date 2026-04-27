@@ -1,4 +1,4 @@
-import { loadEnv } from '@docs-islands/utils';
+import { loadEnv } from '@docs-islands/utils/env';
 import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import type { DefaultTheme, LocaleSpecificConfig } from 'vitepress';

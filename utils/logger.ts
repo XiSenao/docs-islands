@@ -1,12 +1,12 @@
 import {
-  createLogger as createBaseLogger,
+  createLoggerWithScopeId as createBaseLoggerWithScopeId,
   type CreateLoggerOptions,
   type LoggerScopeId,
   type LoggerType,
   type LogKind,
   normalizeLoggerScopeId,
   shouldSuppressLog as shouldSuppressBaseLog,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger/runtime';
 
 const INTERNAL_SCOPE_ERROR =
   '@docs-islands/utils/logger.createLogger() requires a bundler-injected __DOCS_ISLANDS_LOGGER_SCOPE_ID__. Use createLoggerWithScopeId(...) for explicit Node/build logger scopes.';
@@ -47,14 +47,14 @@ export const readInjectedLoggerScopeId = (): LoggerScopeId => {
 };
 
 export function createLogger(options: CreateLoggerOptions): LoggerType {
-  return createBaseLogger(options, readInjectedLoggerScopeId());
+  return createBaseLoggerWithScopeId(options, readInjectedLoggerScopeId());
 }
 
 export function createLoggerWithScopeId(
   options: CreateLoggerOptions,
   scopeId: LoggerScopeId,
 ): LoggerType {
-  return createBaseLogger(options, normalizeLoggerScopeId(scopeId));
+  return createBaseLoggerWithScopeId(options, normalizeLoggerScopeId(scopeId));
 }
 
 export function shouldSuppressLog(
@@ -91,7 +91,7 @@ export {
   setLoggerConfig,
   setLoggerConfigForScope,
   syncRuntimeDefinedLoggerConfig,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger/runtime';
 
 export type {
   CreateLoggerOptions,
@@ -105,4 +105,4 @@ export type {
   LoggerVisibilityLevel,
   LogKind,
   ScopedLoggerType,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger/runtime';
