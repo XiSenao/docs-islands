@@ -1,5 +1,7 @@
+import licensePlugin from '@docs-islands/plugin-license';
 import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
 import { rm } from 'node:fs/promises';
+import path from 'node:path';
 import { fileURLToPath, resolve } from 'node:url';
 import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
@@ -44,6 +46,11 @@ const neutralConfig: RolldownOptions = defineConfig({
         });
       },
     },
+    licensePlugin(
+      path.resolve(__dirname, 'LICENSE.md'),
+      '@docs-islands/logger license',
+      '@docs-islands/logger',
+    ),
     packagePlugin(),
   ],
   output: {

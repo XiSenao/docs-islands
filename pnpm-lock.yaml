@@ -656,12 +656,6 @@ importers:
       '@babel/types':
         specifier: catalog:dev
         version: 7.29.0
-      es-module-lexer:
-        specifier: catalog:dev
-        version: 2.0.0
-      magic-string:
-        specifier: catalog:dev
-        version: 0.30.21
       picocolors:
         specifier: catalog:dev
         version: 1.1.1
@@ -678,6 +672,9 @@ importers:
       '@docs-islands/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
+      '@docs-islands/plugin-license':
+        specifier: workspace:*
+        version: link:../plugins/license
       '@docs-islands/utils':
         specifier: workspace:*
         version: link:../../utils
@@ -696,12 +693,18 @@ importers:
       del-cli:
         specifier: catalog:dev
         version: 7.0.0
+      es-module-lexer:
+        specifier: catalog:dev
+        version: 2.0.0
       eslint:
         specifier: catalog:lint
         version: 9.39.2
       jsdom:
         specifier: catalog:test
         version: 28.0.0
+      magic-string:
+        specifier: catalog:dev
+        version: 0.30.21
       publint:
         specifier: catalog:lint
         version: 0.3.17
