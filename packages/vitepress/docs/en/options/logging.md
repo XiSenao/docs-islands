@@ -105,7 +105,7 @@ The presets exported by `@docs-islands/vitepress/logger/presets` are predefined 
 
 `logging` defines the runtime visibility policy. It decides whether a log is emitted at runtime, and in `debug` mode it also controls which rule labels and elapsed-time metadata are attached to visible logs.
 
-`@docs-islands/logger` stays framework-agnostic. Inside docs-islands, `@docs-islands/utils/logger` bridges the bundler-injected `__DOCS_ISLANDS_LOGGER_SCOPE_ID__` to the base logger, and `@docs-islands/vitepress/logger.createLogger(...)` only works when that injected scope is present.
+`@docs-islands/logger` stays framework-agnostic. In managed VitePress builds, `createDocsIslands()` resolves `@docs-islands/vitepress/logger` to a scope-bound virtual module, so each integration instance uses its own logger registry entry.
 
 ### Runtime Policy vs Build-Time Optimization
 
@@ -163,19 +163,19 @@ With this setup, `userland.metrics` stays visible, while `userland.hidden` is su
 
 ### Logger Tree-Shaking Plugin
 
-In `createDocsIslands()` managed builds, docs-islands already installs the logger tree-shaking transform automatically.
+In `createDocsIslands()` managed builds, docs-islands already installs the logger tree-shaking transform automatically. This automatic VitePress transform only targets `@docs-islands/vitepress/logger` imports in the managed VitePress module graph, including user component browser/SSR bundles and Vite-bundled runtime modules such as the unified loader. It does not prune `@docs-islands/logger` or `@docs-islands/logger/internal` imports.
 
-If you only want the public logger in a VitePress site and still want production pruning, install the public plugin explicitly:
+If you use the framework-agnostic `@docs-islands/logger` entry in a VitePress site and still want production pruning for that generic logger, install the public plugin explicitly:
 
 ```ts [.vitepress/config.ts]
 import { defineConfig } from 'vitepress';
-import { loggerTreeShaking } from '@docs-islands/logger/plugin';
+import { loggerPlugin } from '@docs-islands/logger/plugin';
 
 export default defineConfig({
   vite: {
     plugins: [
-      loggerTreeShaking.vite({
-        logging: {
+      loggerPlugin.vite({
+        config: {
           levels: ['warn', 'error'],
         },
       }),
@@ -184,7 +184,7 @@ export default defineConfig({
 });
 ```
 
-If `logging` is omitted, the plugin falls back to the default logger visibility policy, which still prunes statically analyzable `debug` logs. If you want dynamic logs outside the `createDocsIslands()` graph to follow the same policy, configure the runtime logger separately as well.
+`loggerPlugin` controls the generic logger runtime config and enables tree-shaking by default. If `config` is omitted, the plugin uses the default logger visibility policy, which still prunes statically analyzable `debug` logs. Use `treeshake: false` when you want runtime control without build-time pruning.
 
 ### Production Tree-Shaking
 
@@ -206,7 +206,7 @@ logger.error('static metric failed');
 logger.debug('static metric details');
 ```
 
-The optimizer only analyzes this constrained static form:
+The VitePress optimizer only analyzes this constrained static form:
 
 - `createLogger` must be a named import from `@docs-islands/vitepress/logger`.
 - `main`, `getLoggerByGroup(...)`, and the log message must all be string literals.

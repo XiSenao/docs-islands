@@ -226,10 +226,6 @@ const copy: Record<Locale, LocaleCopy> = {
             purpose:
               'Tracks the core-side React render strategy resolution flow.',
           },
-          cssLoading: {
-            purpose:
-              'Tracks runtime CSS preload and CSS load-state management.',
-          },
           reactClientLoader: {
             purpose:
               'Tracks browser-side loading of React client entry modules.',
@@ -427,9 +423,6 @@ const copy: Record<Locale, LocaleCopy> = {
           },
           coreReactRenderStrategy: {
             purpose: '用于跟踪 core 层 React render strategy 的解析流程。',
-          },
-          cssLoading: {
-            purpose: '用于跟踪运行时 CSS 预加载与加载状态管理。',
           },
           reactClientLoader: {
             purpose: '用于跟踪浏览器端 React client 入口模块的加载。',
