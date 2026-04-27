@@ -1,6 +1,6 @@
 {
   "cacheIdentity": {
-    "promptHash": "eb4ceb9b20abd64c0714135790e5339dd5df096dc093fab17799eb3e6cbaf2c3",
+    "promptHash": "047fd6c4d81c7deee05b1da30fb77de756e2e09d1510ff71b8142b59fe26ab96",
     "provider": "doubao",
     "providerConfig": {
       "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
@@ -11,22 +11,22 @@
       "temperature": 0.2
     }
   },
-  "cacheKey": "8d9ea085e141d88b388a1c62525bd74778db5f1a748fabfbbc177002312daa47",
+  "cacheKey": "208680007911d06a384fcb09f51d6a2200f37049bf821053c8bf44791cdc4afe",
   "report": {
     "detail": "Using https://ark.cn-beijing.volces.com/api/v3/chat/completions · provider Doubao CN",
-    "generatedAt": "2026-04-21T13:05:12.163Z",
+    "generatedAt": "2026-04-27T09:17:35.295Z",
     "model": "doubao-seed-2-0-pro-260215",
-    "prompt": "## Task\nAnalyze the current docs-islands / VitePress page-build snapshot for this page.\nPrioritize build diagnosis over descriptive inventory. Focus first on dominant page cost drivers, SPA route-transition blocking paths, and the directives that materially change current-page behavior before spending time on secondary components.\nTreat `includeChunks` and `includeModules` as independent switches, and do not invent details that are not shown.\n\nAnalysis priorities:\n1. Identify the dominant deduped page-level cost drivers that are visible in the page bundle summary, top page resources, and top page modules.\n2. Identify the main SPA route-transition blocking path from the visible `spa:sync-render` side effects, including blocking CSS, embedded HTML, and render-order implications.\n3. Distinguish which directives materially affect this page now versus which directives are only present in the page inventory.\n4. Use component sections for local composition attribution and notable outliers, not for exhaustive repetition.\n5. Call out what cannot be proven from this snapshot and which additional artifact view would close the gap.\n\nMeta-rules:\n- Scope discipline: Always keep deduped page-level cost, per-component local composition, and `spa:sync-render` transition-side cost separate. Do not sum per-component totals to estimate page cost. A component with `Total: 0 B` or `Bundle Mode: No dedicated client component bundle emitted` can still contribute transition-side cost through `spa:sync-render` embedded HTML or blocking CSS. Page-level runtime or loader cost can appear in the page cost snapshot even when it does not appear in a component-local chunk list.\n- Evidence discipline: Separate observed facts from inferences. Use wording such as `visible in the snapshot`, `suggests`, or `cannot be confirmed from this snapshot` when appropriate. Keep inference confidence proportional to the evidence. Identify shared/runtime overhead only when the snapshot supports it; do not classify something as shared/runtime overhead from naming alone. For render-order implications, describe only ordering effects that are explicitly visible from the listed render order, patch sizes, and blocking CSS data.\n- Diagnosis discipline: Prioritize dominant drivers and blocking paths over exhaustive inventory. Do not restate the full snapshot component-by-component. Focus on the smallest set of components, chunks, modules, and directives that explains most of the page cost, transition blocking, or build interpretation.\n- Directive discipline: Explain only directive effects that materially affect this page now. Prioritize visible effects on deduped page cost, hydration timing, presence or absence of SSR HTML, `spa:sync-render` participation, blocking CSS, and route-transition stability. Do not fall back to generic framework explanations when the snapshot does not show a current-page consequence.\n- Optimization discipline: Order ideas by expected impact and confidence. Prefer a few high-signal opportunities over a long generic list. Tie every idea to visible evidence, name the component, directive, chunk, module, or `spa:sync-render` behavior it targets, and explain the expected tradeoff.\n\n## Output\nRespond in Markdown using these sections:\n- Summary\n- Dominant Page Cost Drivers\n- Rendering Strategy Breakdown\n- Component Composition Highlights\n- spa:sync-render Transition Impact\n- Optimization Opportunities\n- Evidence Gaps / Unknowns\n\nSection guidance:\n- Summary: Lead with the most important diagnosis. State explicitly whether page cost is concentrated in a few dominant resources/modules or spread across many smaller items, and whether SPA transition overhead is concentrated in a few `spa:sync-render` renders or broadly distributed.\n- Dominant Page Cost Drivers: Use the deduped page-level view first. Call out shared/runtime overhead versus component-specific payload when the snapshot supports that distinction.\n- Rendering Strategy Breakdown: Explain which directives materially affect current-page runtime or SPA transition behavior, and which directives are merely present.\n- Component Composition Highlights: Focus on the highest-impact or most diagnostic components. Keep lower-impact components brief instead of repeating every item evenly.\n- spa:sync-render Transition Impact: Report the exact visible fields when present: enabled component count, enabled render count, HTML patch target, total embedded HTML, blocking CSS files and total size, whether the CSS loading runtime is required, the biggest contributors to patch size, the components that add blocking CSS, and any render-order implications visible in the snapshot.\n- Optimization Opportunities: Order ideas by expected impact and confidence. Prefer a few high-signal opportunities over a long generic list. Tie every idea to visible evidence. For each idea, name the component, directive, chunk, module, or `spa:sync-render` behavior it targets, and explain the expected tradeoff.\n- Evidence Gaps / Unknowns: Categorize gaps as `Need chunk report`, `Need module report`, `Need page comparison`, or `Need directive config evidence`, and explain why that evidence is needed.\n\nKeep the analysis grounded in the visible snapshot. If evidence is missing, say exactly which additional page, chunk, module, comparison, or directive-config view would help.\n\n## Current Page Snapshot\n\nCurrent Page:\n- Panel: Page Build\n- Title: /zh/options/logging\n- Path: /zh/options/logging\n- Components: 1\n- Render Instances: 1\n- Used Directives: client:load\n- Chunk Resources: 4\n- Module Sources: 8\n- Composition Detail: component -> chunks -> modules\n\nGlossary:\n- Share: Rendered-byte share within the current visible list.\n- Source: Resolved source or source-asset size when the original file is available.\n- Delta: Rendered-size change relative to the resolved source size.\n\nCurrent Page Rendered React Components:\n1. LoggingPresetCatalog\n   source path: components/react/LoggingPresetCatalog.tsx\n   render directives: `client:load`\n   Total: 35.3 KB\n   JS: 23.0 KB\n   CSS: 12.3 KB\n   Asset: 0 B\n   Render Instances: 1\n   spa:sync-render Renders: 1\n   Build Chunks (2 shown):\n   1. LoggingPresetCatalog.BKXeqTK3.js\n      path: /docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js\n      type: JS\n      size: 23.0 KB\n      share: 65.2%\n      source modules: 7\n      Chunk Modules:\n         1. LoggingPresetCatalog.tsx\n            module id: /components/react/LoggingPresetCatalog.tsx\n            rendered size: 27.0 KB\n            share: 77.1%\n            source: Source 30.2 KB\n            delta: Delta -10.6%\n         2. presets.js\n            module id: /dist/shared/logger/presets.js\n            rendered size: 7.0 KB\n            share: 19.8%\n            source: Source 7.1 KB\n            delta: Delta -1.7%\n         3. react-jsx-runtime.production.min.js\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js\n            rendered size: 914 B\n            share: 2.5%\n            source: Source 859 B\n            delta: Delta +6.4%\n         4. jsx-runtime.js\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js\n            rendered size: 103 B\n            share: 0.3%\n            source: Source 214 B\n            delta: Delta -51.9%\n         5. react-jsx-runtime.production.min.js?commonjs-exports\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports\n            rendered size: 40 B\n         6. jsx-runtime.js?commonjs-module\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module\n            rendered size: 31 B\n         7. react.cjs\n            module id: react.cjs\n            rendered size: 26 B\n   2. LoggingPresetCatalog.BYZKw_ZV.css\n      path: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css\n      type: CSS\n      size: 12.3 KB\n      share: 34.8%\n      source modules: 1\n      Chunk Modules:\n         1. logging-preset-catalog.css\n            module id: /components/react/css/logging-preset-catalog.css\n            rendered size: 12.3 KB\n            share: 100.0%\n            source: Source 14.5 KB\n            delta: Delta -15.2%\n\nPage Build Cost Snapshot:\nBundle Summary:\n- Total: 174.4 KB\n- JS: 162.1 KB\n- CSS: 12.3 KB\n\nTop Page Resources (4 shown):\n1. LoggingPresetCatalog.BKXeqTK3.js\n   path: /docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js\n   type: JS\n   size: 23.0 KB\n   share: 13.2%\n   source modules: 7\n2. LoggingPresetCatalog.BYZKw_ZV.css\n   path: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css\n   type: CSS\n   size: 12.3 KB\n   share: 7.0%\n   source modules: 1\n3. zh_options_logging.md.BtNlvcVH.js\n   path: /docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js\n   type: JS\n   size: 105.6 KB\n   share: 60.6%\n   source modules: 0\n4. unified-loader.CKvk6nCI.js\n   path: /docs-islands/vitepress/assets/unified-loader.CKvk6nCI.js\n   type: JS\n   size: 33.5 KB\n   share: 19.2%\n   source modules: 0\n\nTop Page Modules (8 shown):\n1. LoggingPresetCatalog.tsx\n   module id: /components/react/LoggingPresetCatalog.tsx\n   rendered size: 27.0 KB\n   share: 57.1%\n   source: Source 30.2 KB\n   delta: Delta -10.6%\n2. logging-preset-catalog.css\n   module id: /components/react/css/logging-preset-catalog.css\n   rendered size: 12.3 KB\n   share: 25.9%\n   source: Source 14.5 KB\n   delta: Delta -15.2%\n3. presets.js\n   module id: /dist/shared/logger/presets.js\n   rendered size: 7.0 KB\n   share: 14.7%\n   source: Source 7.1 KB\n   delta: Delta -1.7%\n4. react-jsx-runtime.production.min.js\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js\n   rendered size: 914 B\n   share: 1.9%\n   source: Source 859 B\n   delta: Delta +6.4%\n5. jsx-runtime.js\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js\n   rendered size: 103 B\n   share: 0.2%\n   source: Source 214 B\n   delta: Delta -51.9%\n6. react-jsx-runtime.production.min.js?commonjs-exports\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports\n   rendered size: 40 B\n7. jsx-runtime.js?commonjs-module\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module\n   rendered size: 31 B\n8. react.cjs\n   module id: react.cjs\n   rendered size: 26 B\n\nCurrent Page Rendering Strategy Context:\n1. `client:load`\n   description: Build-time pre-render plus eager client hydration after the page runtime is ready.\n   impacts:\n   - Useful for components that should become interactive immediately.\n   - Adds early JavaScript execution and hydration cost during page load or SPA navigation.\n   - `spa:sync-render` is opt-in and can reduce flicker during SPA route transitions at the cost of synchronous work.\n\nspa:sync-render Artifact Context:\n- `client:only` does not support `spa:sync-render`.\n- `client:load` and `client:visible` only use `spa:sync-render` when explicitly enabled.\n- `ssr:only` defaults to `spa:sync-render` unless it is explicitly disabled.\n- When enabled, pre-rendered HTML is patched into the page client chunk used for SPA route transitions.\n- Blocking CSS required by those renders can delay the page content until the CSS is loaded.\n- Enabled Components: 1\n- Enabled Renders: 1\n- HTML Patch Target: /docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js\n- Embedded HTML: 57.9 KB\n- Blocking CSS: 1 file(s) · 12.3 KB\n- Blocking CSS Files: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)\n- CSS Loading Runtime: Required\n- Loader Script: /docs-islands/vitepress/assets/unified-loader.CKvk6nCI.js\n\nspa:sync-render Components (1 shown):\n1. LoggingPresetCatalog\n   render ids: 8987f003\n   render directives: `client:load`\n   HTML Patch Target: /docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js\n   Embedded HTML Patch: 57.9 KB\n   Blocking CSS: 1 file(s) · 12.3 KB\n   Blocking CSS Files: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)\n   CSS Loading Runtime: Required\n   spa:sync-render Side Effect: injects 57.9 KB of pre-rendered HTML into /docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB).\n\nRender Order and Side Effects:\n1. LoggingPresetCatalog\n   render id: 8987f003\n   source path: components/react/LoggingPresetCatalog.tsx\n   render directive: `client:load`\n   spa:sync-render: Enabled\n   HTML Patch Target: /docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js\n   Embedded HTML Patch: 57.9 KB\n   Blocking CSS: 1 file(s) · 12.3 KB\n   Blocking CSS Files: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)\n   CSS Loading Runtime: Required\n   spa:sync-render Side Effect: injects 57.9 KB of pre-rendered HTML into /docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB).",
+    "prompt": "## Task\nAnalyze the current docs-islands / VitePress page-build snapshot for this page.\nPrioritize build diagnosis over descriptive inventory. Focus first on dominant page cost drivers, SPA route-transition blocking paths, and the directives that materially change current-page behavior before spending time on secondary components.\nTreat `includeChunks` and `includeModules` as independent switches, and do not invent details that are not shown.\n\nAnalysis priorities:\n1. Identify the dominant deduped page-level cost drivers that are visible in the page bundle summary, top page resources, and top page modules.\n2. Identify the main SPA route-transition blocking path from the visible `spa:sync-render` side effects, including blocking CSS, embedded HTML, and render-order implications.\n3. Distinguish which directives materially affect this page now versus which directives are only present in the page inventory.\n4. Use component sections for local composition attribution and notable outliers, not for exhaustive repetition.\n5. Call out what cannot be proven from this snapshot and which additional artifact view would close the gap.\n\nMeta-rules:\n- Scope discipline: Always keep deduped page-level cost, per-component local composition, and `spa:sync-render` transition-side cost separate. Do not sum per-component totals to estimate page cost. A component with `Total: 0 B` or `Bundle Mode: No dedicated client component bundle emitted` can still contribute transition-side cost through `spa:sync-render` embedded HTML or blocking CSS. Page-level runtime or loader cost can appear in the page cost snapshot even when it does not appear in a component-local chunk list.\n- Evidence discipline: Separate observed facts from inferences. Use wording such as `visible in the snapshot`, `suggests`, or `cannot be confirmed from this snapshot` when appropriate. Keep inference confidence proportional to the evidence. Identify shared/runtime overhead only when the snapshot supports it; do not classify something as shared/runtime overhead from naming alone. For render-order implications, describe only ordering effects that are explicitly visible from the listed render order, patch sizes, and blocking CSS data.\n- Diagnosis discipline: Prioritize dominant drivers and blocking paths over exhaustive inventory. Do not restate the full snapshot component-by-component. Focus on the smallest set of components, chunks, modules, and directives that explains most of the page cost, transition blocking, or build interpretation.\n- Directive discipline: Explain only directive effects that materially affect this page now. Prioritize visible effects on deduped page cost, hydration timing, presence or absence of SSR HTML, `spa:sync-render` participation, blocking CSS, and route-transition stability. Do not fall back to generic framework explanations when the snapshot does not show a current-page consequence.\n- Optimization discipline: Order ideas by expected impact and confidence. Prefer a few high-signal opportunities over a long generic list. Tie every idea to visible evidence, name the component, directive, chunk, module, or `spa:sync-render` behavior it targets, and explain the expected tradeoff.\n\n## Output\nRespond in Markdown using these sections:\n- Summary\n- Dominant Page Cost Drivers\n- Rendering Strategy Breakdown\n- Component Composition Highlights\n- spa:sync-render Transition Impact\n- Optimization Opportunities\n- Evidence Gaps / Unknowns\n\nSection guidance:\n- Summary: Lead with the most important diagnosis. State explicitly whether page cost is concentrated in a few dominant resources/modules or spread across many smaller items, and whether SPA transition overhead is concentrated in a few `spa:sync-render` renders or broadly distributed.\n- Dominant Page Cost Drivers: Use the deduped page-level view first. Call out shared/runtime overhead versus component-specific payload when the snapshot supports that distinction.\n- Rendering Strategy Breakdown: Explain which directives materially affect current-page runtime or SPA transition behavior, and which directives are merely present.\n- Component Composition Highlights: Focus on the highest-impact or most diagnostic components. Keep lower-impact components brief instead of repeating every item evenly.\n- spa:sync-render Transition Impact: Report the exact visible fields when present: enabled component count, enabled render count, HTML patch target, total embedded HTML, blocking CSS files and total size, whether the CSS loading runtime is required, the biggest contributors to patch size, the components that add blocking CSS, and any render-order implications visible in the snapshot.\n- Optimization Opportunities: Order ideas by expected impact and confidence. Prefer a few high-signal opportunities over a long generic list. Tie every idea to visible evidence. For each idea, name the component, directive, chunk, module, or `spa:sync-render` behavior it targets, and explain the expected tradeoff.\n- Evidence Gaps / Unknowns: Categorize gaps as `Need chunk report`, `Need module report`, `Need page comparison`, or `Need directive config evidence`, and explain why that evidence is needed.\n\nKeep the analysis grounded in the visible snapshot. If evidence is missing, say exactly which additional page, chunk, module, comparison, or directive-config view would help.\n\n## Current Page Snapshot\n\nCurrent Page:\n- Panel: Page Build\n- Title: /zh/options/logging\n- Path: /zh/options/logging\n- Components: 2\n- Render Instances: 2\n- Used Directives: client:load\n- Chunk Resources: 7\n- Module Sources: 29\n- Composition Detail: component -> chunks -> modules\n\nGlossary:\n- Share: Rendered-byte share within the current visible list.\n- Source: Resolved source or source-asset size when the original file is available.\n- Delta: Rendered-size change relative to the resolved source size.\n\nCurrent Page Rendered React Components:\n1. LoggingPresetCatalog\n   source path: components/react/LoggingPresetCatalog.tsx\n   render directives: `client:load`\n   Total: 35.5 KB\n   JS: 23.2 KB\n   CSS: 12.3 KB\n   Asset: 0 B\n   Render Instances: 1\n   spa:sync-render Renders: 1\n   Build Chunks (3 shown):\n   1. jsx-runtime.BVsBYW55.js\n      path: /docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js\n      type: JS\n      size: 900 B\n      share: 2.5%\n      source modules: 5\n      Chunk Modules:\n         1. react-jsx-runtime.production.min.js\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js\n            rendered size: 914 B\n            share: 82.0%\n            source: Source 859 B\n            delta: Delta +6.4%\n         2. jsx-runtime.js\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js\n            rendered size: 103 B\n            share: 9.2%\n            source: Source 214 B\n            delta: Delta -51.9%\n         3. react-jsx-runtime.production.min.js?commonjs-exports\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports\n            rendered size: 40 B\n         4. jsx-runtime.js?commonjs-module\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module\n            rendered size: 31 B\n         5. react.cjs\n            module id: react.cjs\n            rendered size: 26 B\n   2. LoggingPresetCatalog.CCvblj9p.js\n      path: /docs-islands/vitepress/assets/LoggingPresetCatalog.CCvblj9p.js\n      type: JS\n      size: 22.3 KB\n      share: 62.9%\n      source modules: 2\n      Chunk Modules:\n         1. LoggingPresetCatalog.tsx\n            module id: /components/react/LoggingPresetCatalog.tsx\n            rendered size: 27.4 KB\n            share: 80.0%\n            source: Source 30.7 KB\n            delta: Delta -10.8%\n         2. presets.js\n            module id: /dist/shared/logger/presets.js\n            rendered size: 6.8 KB\n            share: 20.0%\n            source: Source 7.0 KB\n            delta: Delta -2.2%\n   3. LoggingPresetCatalog.BYZKw_ZV.css\n      path: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css\n      type: CSS\n      size: 12.3 KB\n      share: 34.6%\n      source modules: 1\n      Chunk Modules:\n         1. logging-preset-catalog.css\n            module id: /components/react/css/logging-preset-catalog.css\n            rendered size: 12.3 KB\n            share: 100.0%\n            source: Source 14.5 KB\n            delta: Delta -15.3%\n2. LoggerScopePlayground\n   source path: components/react/LoggerScopePlayground.tsx\n   render directives: `client:load`\n   Total: 55.1 KB\n   JS: 43.4 KB\n   CSS: 11.7 KB\n   Asset: 0 B\n   Render Instances: 1\n   spa:sync-render Renders: 1\n   Build Chunks (3 shown):\n   1. LoggerScopePlayground.DjnlUvs6.js\n      path: /docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js\n      type: JS\n      size: 42.5 KB\n      share: 77.1%\n      source modules: 20\n      Chunk Modules:\n         1. parse.js\n            module id: /node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/parse.js\n            rendered size: 32.9 KB\n            share: 34.2%\n            source: Source 32.9 KB\n            delta: Delta +0.0%\n         2. LoggerScopePlayground.tsx\n            module id: /components/react/LoggerScopePlayground.tsx\n            rendered size: 16.9 KB\n            share: 17.6%\n            source: Source 17.8 KB\n            delta: Delta -4.9%\n         3. picomatch.js\n            module id: /node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/picomatch.js\n            rendered size: 9.8 KB\n            share: 10.2%\n            source: Source 9.9 KB\n            delta: Delta -0.1%\n         4. scan.js\n            module id: /node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/scan.js\n            rendered size: 8.9 KB\n            share: 9.3%\n            source: Source 9.0 KB\n            delta: Delta -0.3%\n         5. config.ts\n            module id: /logger/src/runtime/config.ts\n            rendered size: 6.9 KB\n            share: 7.2%\n            source: Source 10.8 KB\n            delta: Delta -36.1%\n         6. constants.js\n            module id: /node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/constants.js\n            rendered size: 4.5 KB\n            share: 4.6%\n            source: Source 4.4 KB\n            delta: Delta +0.2%\n         7. factory.ts\n            module id: /logger/src/runtime/factory.ts\n            rendered size: 4.0 KB\n            share: 4.1%\n            source: Source 5.8 KB\n            delta: Delta -32.4%\n         8. normalize.ts\n            module id: /logger/src/runtime/normalize.ts\n            rendered size: 3.6 KB\n            share: 3.7%\n            source: Source 4.3 KB\n            delta: Delta -16.6%\n         9. console.ts\n            module id: /logger/src/runtime/console.ts\n            rendered size: 2.2 KB\n            share: 2.3%\n            source: Source 3.2 KB\n            delta: Delta -31.9%\n         10. utils.js\n            module id: /node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/utils.js\n            rendered size: 2.0 KB\n            share: 2.1%\n            source: Source 1.9 KB\n            delta: Delta +4.9%\n         11. docs-islands:vitepress-logger:docs-islands-logger-scope-mogzheiv-8fe7855722a64e9683b3d2a86943e46f\n            module id: docs-islands:vitepress-logger:docs-islands-logger-scope-mogzheiv-8fe7855722a64e9683b3d2a86943e46f\n            rendered size: 2.0 KB\n         12. picocolors.browser.js\n            module id: /node_modules/.pnpm/picocolors@1.1.1/node_modules/picocolors/picocolors.browser.js\n            rendered size: 766 B\n            share: 0.8%\n            source: Source 598 B\n            delta: Delta +28.1%\n         13. index.js\n            module id: /node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/index.js\n            rendered size: 515 B\n            share: 0.5%\n            source: Source 479 B\n            delta: Delta +7.5%\n         14. scope.ts\n            module id: /logger/src/runtime/scope.ts\n            rendered size: 437 B\n            share: 0.4%\n            source: Source 1.1 KB\n            delta: Delta -62.1%\n         15. console.ts\n            module id: /logger/src/runtime/constants/console.ts\n            rendered size: 421 B\n            share: 0.4%\n            source: Source 635 B\n            delta: Delta -33.7%\n         16. levels.ts\n            module id: /logger/src/runtime/constants/levels.ts\n            rendered size: 237 B\n            share: 0.2%\n            source: Source 436 B\n            delta: Delta -45.6%\n         17. elapsed.ts\n            module id: /logger/src/runtime/elapsed.ts\n            rendered size: 209 B\n            share: 0.2%\n            source: Source 844 B\n            delta: Delta -75.2%\n         18. commonjsHelpers.js\n            module id: commonjsHelpers.js\n            rendered size: 140 B\n   2. jsx-runtime.BVsBYW55.js\n      path: /docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js\n      type: JS\n      size: 900 B\n      share: 1.6%\n      source modules: 5\n      Chunk Modules:\n         1. react-jsx-runtime.production.min.js\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js\n            rendered size: 914 B\n            share: 82.0%\n            source: Source 859 B\n            delta: Delta +6.4%\n         2. jsx-runtime.js\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js\n            rendered size: 103 B\n            share: 9.2%\n            source: Source 214 B\n            delta: Delta -51.9%\n         3. react-jsx-runtime.production.min.js?commonjs-exports\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports\n            rendered size: 40 B\n         4. jsx-runtime.js?commonjs-module\n            module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module\n            rendered size: 31 B\n         5. react.cjs\n            module id: react.cjs\n            rendered size: 26 B\n   3. LoggerScopePlayground.DK8r_C72.css\n      path: /docs-islands/vitepress/assets/LoggerScopePlayground.DK8r_C72.css\n      type: CSS\n      size: 11.7 KB\n      share: 21.3%\n      source modules: 1\n      Chunk Modules:\n         1. logger-scope-playground.css\n            module id: /components/react/css/logger-scope-playground.css\n            rendered size: 11.7 KB\n            share: 100.0%\n            source: Source 13.9 KB\n            delta: Delta -15.6%\n\nPage Build Cost Snapshot:\nBundle Summary:\n- Total: 249.3 KB\n- JS: 225.3 KB\n- CSS: 24.0 KB\n\nTop Page Resources (7 shown):\n1. LoggerScopePlayground.DjnlUvs6.js\n   path: /docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js\n   type: JS\n   size: 42.5 KB\n   share: 17.0%\n   source modules: 20\n2. jsx-runtime.BVsBYW55.js\n   path: /docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js\n   type: JS\n   size: 900 B\n   share: 0.4%\n   source modules: 5\n3. LoggingPresetCatalog.CCvblj9p.js\n   path: /docs-islands/vitepress/assets/LoggingPresetCatalog.CCvblj9p.js\n   type: JS\n   size: 22.3 KB\n   share: 8.9%\n   source modules: 2\n4. LoggingPresetCatalog.BYZKw_ZV.css\n   path: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css\n   type: CSS\n   size: 12.3 KB\n   share: 4.9%\n   source modules: 1\n5. LoggerScopePlayground.DK8r_C72.css\n   path: /docs-islands/vitepress/assets/LoggerScopePlayground.DK8r_C72.css\n   type: CSS\n   size: 11.7 KB\n   share: 4.7%\n   source modules: 1\n6. zh_options_logging.md.DzOiPp8s.js\n   path: /docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js\n   type: JS\n   size: 123.5 KB\n   share: 49.5%\n   source modules: 0\n7. unified-loader.KwuFnQRS.js\n   path: /docs-islands/vitepress/assets/unified-loader.KwuFnQRS.js\n   type: JS\n   size: 36.1 KB\n   share: 14.5%\n   source modules: 0\n\nTop Page Modules (18 shown):\n1. parse.js\n   module id: /node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/parse.js\n   rendered size: 32.9 KB\n   share: 21.4%\n   source: Source 32.9 KB\n   delta: Delta +0.0%\n2. LoggingPresetCatalog.tsx\n   module id: /components/react/LoggingPresetCatalog.tsx\n   rendered size: 27.4 KB\n   share: 17.8%\n   source: Source 30.7 KB\n   delta: Delta -10.8%\n3. LoggerScopePlayground.tsx\n   module id: /components/react/LoggerScopePlayground.tsx\n   rendered size: 16.9 KB\n   share: 11.0%\n   source: Source 17.8 KB\n   delta: Delta -4.9%\n4. logging-preset-catalog.css\n   module id: /components/react/css/logging-preset-catalog.css\n   rendered size: 12.3 KB\n   share: 8.0%\n   source: Source 14.5 KB\n   delta: Delta -15.3%\n5. logger-scope-playground.css\n   module id: /components/react/css/logger-scope-playground.css\n   rendered size: 11.7 KB\n   share: 7.6%\n   source: Source 13.9 KB\n   delta: Delta -15.6%\n6. picomatch.js\n   module id: /node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/picomatch.js\n   rendered size: 9.8 KB\n   share: 6.4%\n   source: Source 9.9 KB\n   delta: Delta -0.1%\n7. scan.js\n   module id: /node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/scan.js\n   rendered size: 8.9 KB\n   share: 5.8%\n   source: Source 9.0 KB\n   delta: Delta -0.3%\n8. config.ts\n   module id: /logger/src/runtime/config.ts\n   rendered size: 6.9 KB\n   share: 4.5%\n   source: Source 10.8 KB\n   delta: Delta -36.1%\n9. presets.js\n   module id: /dist/shared/logger/presets.js\n   rendered size: 6.8 KB\n   share: 4.4%\n   source: Source 7.0 KB\n   delta: Delta -2.2%\n10. constants.js\n   module id: /node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/constants.js\n   rendered size: 4.5 KB\n   share: 2.9%\n   source: Source 4.4 KB\n   delta: Delta +0.2%\n11. factory.ts\n   module id: /logger/src/runtime/factory.ts\n   rendered size: 4.0 KB\n   share: 2.6%\n   source: Source 5.8 KB\n   delta: Delta -32.4%\n12. normalize.ts\n   module id: /logger/src/runtime/normalize.ts\n   rendered size: 3.6 KB\n   share: 2.3%\n   source: Source 4.3 KB\n   delta: Delta -16.6%\n13. console.ts\n   module id: /logger/src/runtime/console.ts\n   rendered size: 2.2 KB\n   share: 1.4%\n   source: Source 3.2 KB\n   delta: Delta -31.9%\n14. utils.js\n   module id: /node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/utils.js\n   rendered size: 2.0 KB\n   share: 1.3%\n   source: Source 1.9 KB\n   delta: Delta +4.9%\n15. docs-islands:vitepress-logger:docs-islands-logger-scope-mogzheiv-8fe7855722a64e9683b3d2a86943e46f\n   module id: docs-islands:vitepress-logger:docs-islands-logger-scope-mogzheiv-8fe7855722a64e9683b3d2a86943e46f\n   rendered size: 2.0 KB\n16. react-jsx-runtime.production.min.js\n   module id: /node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js\n   rendered size: 914 B\n   share: 0.6%\n   source: Source 859 B\n   delta: Delta +6.4%\n17. picocolors.browser.js\n   module id: /node_modules/.pnpm/picocolors@1.1.1/node_modules/picocolors/picocolors.browser.js\n   rendered size: 766 B\n   share: 0.5%\n   source: Source 598 B\n   delta: Delta +28.1%\n18. index.js\n   module id: /node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/index.js\n   rendered size: 515 B\n   share: 0.3%\n   source: Source 479 B\n   delta: Delta +7.5%\n\nCurrent Page Rendering Strategy Context:\n1. `client:load`\n   description: Build-time pre-render plus eager client hydration after the page runtime is ready.\n   impacts:\n   - Useful for components that should become interactive immediately.\n   - Adds early JavaScript execution and hydration cost during page load or SPA navigation.\n   - `spa:sync-render` is opt-in and can reduce flicker during SPA route transitions at the cost of synchronous work.\n\nspa:sync-render Artifact Context:\n- `client:only` does not support `spa:sync-render`.\n- `client:load` and `client:visible` only use `spa:sync-render` when explicitly enabled.\n- `ssr:only` defaults to `spa:sync-render` unless it is explicitly disabled.\n- When enabled, pre-rendered HTML is patched into the page client chunk used for SPA route transitions.\n- Blocking CSS required by those renders can delay the page content until the CSS is loaded.\n- Enabled Components: 2\n- Enabled Renders: 2\n- HTML Patch Target: /docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js\n- Embedded HTML: 57.0 KB\n- Blocking CSS: 2 file(s) · 24.0 KB\n- Blocking CSS Files: /docs-islands/vitepress/assets/LoggerScopePlayground.DK8r_C72.css (11.7 KB), /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)\n- CSS Loading Runtime: Required\n- Loader Script: /docs-islands/vitepress/assets/unified-loader.KwuFnQRS.js\n\nspa:sync-render Components (2 shown):\n1. LoggerScopePlayground\n   render ids: fad15a4e\n   render directives: `client:load`\n   HTML Patch Target: /docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js\n   Embedded HTML Patch: 0 B\n   Blocking CSS: 1 file(s) · 11.7 KB\n   Blocking CSS Files: /docs-islands/vitepress/assets/LoggerScopePlayground.DK8r_C72.css (11.7 KB)\n   CSS Loading Runtime: Required\n   spa:sync-render Side Effect: injects 0 B of pre-rendered HTML into /docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/LoggerScopePlayground.DK8r_C72.css (11.7 KB).\n2. LoggingPresetCatalog\n   render ids: 8987f003\n   render directives: `client:load`\n   HTML Patch Target: /docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js\n   Embedded HTML Patch: 57.0 KB\n   Blocking CSS: 1 file(s) · 12.3 KB\n   Blocking CSS Files: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)\n   CSS Loading Runtime: Required\n   spa:sync-render Side Effect: injects 57.0 KB of pre-rendered HTML into /docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB).\n\nRender Order and Side Effects:\n1. LoggingPresetCatalog\n   render id: 8987f003\n   source path: components/react/LoggingPresetCatalog.tsx\n   render directive: `client:load`\n   spa:sync-render: Enabled\n   HTML Patch Target: /docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js\n   Embedded HTML Patch: 57.0 KB\n   Blocking CSS: 1 file(s) · 12.3 KB\n   Blocking CSS Files: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)\n   CSS Loading Runtime: Required\n   spa:sync-render Side Effect: injects 57.0 KB of pre-rendered HTML into /docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB).\n2. LoggerScopePlayground\n   render id: fad15a4e\n   source path: components/react/LoggerScopePlayground.tsx\n   render directive: `client:load`\n   spa:sync-render: Enabled\n   HTML Patch Target: /docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js\n   Embedded HTML Patch: 0 B\n   Blocking CSS: 1 file(s) · 11.7 KB\n   Blocking CSS Files: /docs-islands/vitepress/assets/LoggerScopePlayground.DK8r_C72.css (11.7 KB)\n   CSS Loading Runtime: Required\n   spa:sync-render Side Effect: injects 0 B of pre-rendered HTML into /docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/LoggerScopePlayground.DK8r_C72.css (11.7 KB).",
     "provider": "doubao",
     "providerId": "cn",
     "providerLabel": "Doubao CN",
     "reportId": "doubao-pro",
     "reportLabel": "Doubao Pro",
-    "result": "# Analysis of /zh/options/logging Page Build Snapshot\n---\n## Summary\nPage cost is highly concentrated in 4 dominant resources that make up 100% of the 174.4KB total bundle weight. SPA route transition overhead is entirely isolated to the single `LoggingPresetCatalog` component, which is the only client component on the page and has `spa:sync-render` explicitly enabled.\n---\n## Dominant Page Cost Drivers\nAll observed cost drivers are deduped at the page level:\n1. **Route chunk (60.6% of total, 105.6KB)**: `zh_options_logging.md.BtNlvcVH.js` is the single largest resource, 57.9KB (54.8% of its size) is embedded pre-rendered HTML for `spa:sync-render` functionality.\n2. **Unified CSS loader (19.2% of total, 33.5KB)**: Required runtime to load blocking CSS for `spa:sync-render` transitions.\n3. **`LoggingPresetCatalog` component assets (20.2% of total, 35.3KB)**: 23KB JS chunk + 12.3KB CSS chunk. The JS chunk includes 7KB of shared logger preset data, with React JSX runtime contributing <1KB of negligible overhead.\n---\n## Rendering Strategy Breakdown\nOnly the `client:load` directive is used on this page, with material active effects:\n1. Eager hydration of `LoggingPresetCatalog` runs immediately after page runtime initialization, adding early JS execution cost on initial load and SPA transitions.\n2. Explicit opt-in to `spa:sync-render` for this component enables the transition-blocking embedded HTML and CSS loading behavior documented below.\nNo other directives are present in the page inventory.\n---\n## Component Composition Highlights\nOnly one client component is rendered on the page:\n### `LoggingPresetCatalog`\n- Makes up 100% of client component cost, with 19.8% of its JS chunk size coming from shared `presets.js` logger data rather than component logic.\n- Has fully self-contained CSS with no shared CSS dependencies observed in the snapshot.\n- React runtime overhead is minimal (~1KB total) with no sign of duplicated framework code in its chunk.\n---\n## spa:sync-render Transition Impact\nExact observed fields from the snapshot:\n- Enabled component count: 1, Enabled render count: 1\n- HTML patch target: `/docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js`\n- Total embedded HTML: 57.9KB\n- Blocking CSS: 1 file, 12.3KB (`LoggingPresetCatalog.BYZKw_ZV.css`)\n- CSS loading runtime: Required, uses the 33.5KB `unified-loader.CKvk6nCI.js`\n- 100% of patch size and blocking CSS cost comes from `LoggingPresetCatalog`\n- Render order implication: During SPA transitions, page content will not render until both the route chunk (with embedded HTML) is downloaded and the blocking CSS file is loaded.\n---\n## Optimization Opportunities\nOrdered by expected impact and confidence:\n1. **Disable `spa:sync-render` for `LoggingPresetCatalog` (if transition flicker is acceptable)**\n   - Tied to evidence: Eliminates 57.9KB of embedded HTML from the route chunk, removes the 12.3KB blocking CSS requirement, and eliminates the need for the 33.5KB unified CSS loader, cutting total page weight by up to ~103.7KB (59% of total current size).\n   - Tradeoff: May cause brief visual flicker during SPA transitions when the component hydrates, with no impact to initial SSR render or final functionality.\n2. **Split shared `presets.js` into a cross-page cached chunk**\n   - Tied to evidence: The 7KB `presets.js` makes up 19.8% of the component JS chunk size.\n   - Tradeoff: Adds 1 extra network request on initial load if the shared chunk is not already cached, but reduces redundant payload across all pages that use the same logger preset data.\n3. **Switch `client:load` to `client:visible` if the component is below the fold**\n   - Tied to evidence: `client:load` runs eager hydration immediately, adding unnecessary execution cost if the component is not in the initial viewport.\n   - Tradeoff: Delays hydration until the component enters the viewport, reducing initial load/transition JS cost but making the component non-interactive until it is scrolled into view.\n---\n## Evidence Gaps / Unknowns\n| Gap Category | Gap Description | Rationale |\n|--------------|-----------------|-----------|\n| Need chunk report | Breakdown of `zh_options_logging.md.BtNlvcVH.js` content outside the 57.9KB embedded HTML | We can only account for 54.8% of the route chunk size, the remaining 47.7KB of content is unaccounted for. |\n| Need directive config evidence | Explicit `spa:sync-render` enable flag for `LoggingPresetCatalog` | The snapshot states `client:load` only uses `spa:sync-render` when explicitly enabled, but we cannot confirm if the current enablement is intentional or accidental. |\n| Need page comparison | Usage of `presets.js` across other site pages | We cannot confirm if splitting `presets.js` to a shared chunk provides net site-wide benefit without knowing if it is reused elsewhere. |\n| Need chunk report | `unified-loader.CKvk6nCI.js` module breakdown | We only know it is required for `spa:sync-render` CSS loading, but cannot confirm if it contains unused functionality for this page, or if it is shared across other routes. |\n| Need module report | React runtime bundling across all site client components | We see React JSX runtime bundled in the `LoggingPresetCatalog` chunk, but cannot confirm if it is duplicated across other client components, which would justify deduping to a shared framework chunk. |",
+    "result": "# Analysis of /zh/options/logging Page Build\n---\n## Summary\nPage total bundle weight is 249.3 KB, with cost highly concentrated in 4 dominant resources (the route chunk, unified loader, `LoggerScopePlayground` JS, and `LoggingPresetCatalog` JS) that make up 90% of total page weight. SPA transition blocking overhead is fully concentrated on the two `client:load` components enabled for `spa:sync-render`, with 57 KB of embedded HTML, 24 KB of blocking CSS, and a required 36.1 KB CSS loading runtime. The single largest module-level cost driver is the third-party `picomatch` library used exclusively by `LoggerScopePlayground`.\n\n---\n## Dominant Page Cost Drivers\n### Page-Level Shared Cost (visible in snapshot)\n1. **Route chunk (`zh_options_logging.md.DzOiPp8s.js`)**: 123.5 KB (49.5% of total page weight), includes 57 KB of embedded `spa:sync-render` HTML from `LoggingPresetCatalog` (composition of remaining 66.5 KB is unknown)\n2. **Unified CSS loader (`unified-loader.KwuFnQRS.js`)**: 36.1 KB (14.5% of total weight), required for `spa:sync-render` blocking CSS handling\n3. **Shared react JSX runtime chunk**: 900 B, negligible overhead, properly deduped across both components\n\n### Component-Specific Cost (deduped, visible in snapshot)\n1. **`LoggerScopePlayground`**: 55.1 KB total (22% of page weight)\n   - 42.5 KB JS, 77% of which comes from the `picomatch` library (the single largest module on the page at 32.9 KB)\n   - 11.7 KB component-specific CSS\n2. **`LoggingPresetCatalog`**: 35.5 KB total (14% of page weight)\n   - 22.3 KB JS, 20% of which comes from shared logger presets\n   - 12.3 KB component-specific CSS\n\n---\n## Rendering Strategy Breakdown\nThe only directive used on this page is `client:load`, with material effects confirmed in the snapshot:\n1. Both components are pre-rendered at build time, and eagerly hydrated immediately after page/SPA route load\n2. `spa:sync-render` is explicitly enabled for both components (opt-in required for `client:load` per artifact context), leading to:\n   - Embedded pre-rendered HTML in the route chunk\n   - Component CSS marked as blocking for SPA transitions\n   - Required CSS loading runtime added to the page bundle\n\nNo other directives are present in the page inventory.\n\n---\n## Component Composition Highlights\n### High-Impact Components\n1. **`LoggerScopePlayground`**: Outlier for third-party dependency bloat. 80% of its JS weight comes from the `picomatch` glob matching library, which is not used by any other component on the page.\n2. **`LoggingPresetCatalog`**: Sole contributor of embedded `spa:sync-render` HTML (57 KB, 46% of the route chunk size). No embedded HTML is added by `LoggerScopePlayground` despite it being enabled for `spa:sync-render`.\n\n---\n## spa:sync-render Transition Impact\nExact visible fields:\n- Enabled components: 2, enabled renders: 2\n- HTML patch target: `zh_options_logging.md.DzOiPp8s.js`\n- Total embedded HTML: 57 KB (100% from `LoggingPresetCatalog`)\n- Blocking CSS: 2 files, 24 KB total (12.3 KB from `LoggingPresetCatalog`, 11.7 KB from `LoggerScopePlayground`)\n- CSS loading runtime: Required, uses 36.1 KB `unified-loader.KwuFnQRS.js`\n\n### Blocking Path & Render Order Implications\nDuring SPA route transitions to this page:\n1. The route chunk must first load and parse, including the 57 KB embedded HTML payload\n2. The unified loader will block all page content rendering until **both CSS files are fully loaded**, even though `LoggerScopePlayground` contributes no embedded HTML to the sync render\n3. Render order is fixed as `LoggingPresetCatalog` first, then `LoggerScopePlayground`, but no content renders until all blocking resources are ready.\n\n---\n## Optimization Opportunities\nOrdered by expected impact and confidence:\n1. **Remove/replace `picomatch` in `LoggerScopePlayground`**\n   - Evidence: `picomatch` modules make up ~80% of `LoggerScopePlayground` JS weight, and 13% of total page JS\n   - Expected impact: Cut ~33 KB of page JS payload\n   - Tradeoff: If glob matching is required for the playground, replace with a <2 KB alternative or implement only the narrow subset of matching logic needed for the docs use case.\n2. **Disable `spa:sync-render` for `LoggerScopePlayground`**\n   - Evidence: It contributes 0 KB of embedded HTML, but adds 11.7 KB of blocking CSS to the transition critical path\n   - Expected impact: Removes 11.7 KB of blocking CSS, cuts transition render blocking time, and removes it from the sync render dependency list. If both sync renders are disabled, the 36.1 KB unified loader can also be removed.\n   - Tradeoff: May cause minor, low-visibility flicker of the playground component during SPA transitions, no impact on initial SSR page load.\n3. **Evaluate disabling `spa:sync-render` for `LoggingPresetCatalog`**\n   - Evidence: It contributes all 57 KB of embedded HTML (46% of the route chunk size) and 12.3 KB of blocking CSS\n   - Expected impact: Cuts route chunk size by 57 KB, removes 12.3 KB of blocking CSS, eliminates the need for the unified loader entirely if both sync renders are disabled\n   - Tradeoff: May cause minor flicker of the preset catalog during SPA transitions, no impact on initial SSR page load.\n\n---\n## Evidence Gaps / Unknowns\n1. **Need chunk report for `zh_options_logging.md.DzOiPp8s.js`**: 49.5% of total page weight is in this chunk, and only 57 KB of its 123.5 KB size is accounted for as embedded HTML. A chunk module report is needed to identify other potential cost drivers in this asset.\n2. **Need module report for `unified-loader.KwuFnQRS.js`**: Confirm if this loader is exclusively used for `spa:sync-render` CSS blocking, or if it has other dependencies that would keep it in the bundle even if sync render is disabled.\n3. **Need directive config evidence**: Confirm if `spa:sync-render` was explicitly enabled for these two components, or if it is enabled by default for all `client:load` components in the build config, to prioritize build-wide vs component-specific fixes.\n4. **Need page comparison to non-sync-render baseline**: To quantify the exact performance impact of disabling `spa:sync-render` on transition TTI and render timing.",
     "target": {
       "artifactKind": "page-build",
       "artifactLabel": "/zh/options/logging",
-      "bytes": 178535,
+      "bytes": 255260,
       "content": "Build overview for /zh/options/logging",
       "context": {
         "artifactHeaderItems": [
@@ -36,11 +36,11 @@
           },
           {
             "label": "Components",
-            "value": "1"
+            "value": "2"
           },
           {
             "label": "Render Instances",
-            "value": "1"
+            "value": "2"
           },
           {
             "label": "Used Directives",
@@ -48,11 +48,11 @@
           },
           {
             "label": "Chunk Resources",
-            "value": "4"
+            "value": "7"
           },
           {
             "label": "Module Sources",
-            "value": "8"
+            "value": "29"
           },
           {
             "label": "Composition Detail",
@@ -62,127 +62,238 @@
         "bundleSummaryItems": [
           {
             "label": "Total",
-            "value": "174.4 KB"
+            "value": "249.3 KB"
           },
           {
             "label": "JS",
-            "value": "162.1 KB"
+            "value": "225.3 KB"
           },
           {
             "label": "CSS",
-            "value": "12.3 KB"
+            "value": "24.0 KB"
           }
         ],
         "chunkResourceItems": [
           {
-            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
-            "label": "LoggingPresetCatalog.BKXeqTK3.js",
-            "moduleCount": 7,
-            "share": "13.2%",
-            "size": "23.0 KB",
+            "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+            "label": "LoggerScopePlayground.DjnlUvs6.js",
+            "moduleCount": 20,
+            "share": "17.0%",
+            "size": "42.5 KB",
+            "type": "js"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
+            "label": "jsx-runtime.BVsBYW55.js",
+            "moduleCount": 5,
+            "share": "0.4%",
+            "size": "900 B",
+            "type": "js"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.CCvblj9p.js",
+            "label": "LoggingPresetCatalog.CCvblj9p.js",
+            "moduleCount": 2,
+            "share": "8.9%",
+            "size": "22.3 KB",
             "type": "js"
           },
           {
             "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css",
             "label": "LoggingPresetCatalog.BYZKw_ZV.css",
             "moduleCount": 1,
-            "share": "7.0%",
+            "share": "4.9%",
             "size": "12.3 KB",
             "type": "css"
           },
           {
-            "file": "/docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js",
-            "label": "zh_options_logging.md.BtNlvcVH.js",
+            "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DK8r_C72.css",
+            "label": "LoggerScopePlayground.DK8r_C72.css",
+            "moduleCount": 1,
+            "share": "4.7%",
+            "size": "11.7 KB",
+            "type": "css"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js",
+            "label": "zh_options_logging.md.DzOiPp8s.js",
             "moduleCount": 0,
-            "share": "60.6%",
-            "size": "105.6 KB",
+            "share": "49.5%",
+            "size": "123.5 KB",
             "type": "js"
           },
           {
-            "file": "/docs-islands/vitepress/assets/unified-loader.CKvk6nCI.js",
-            "label": "unified-loader.CKvk6nCI.js",
+            "file": "/docs-islands/vitepress/assets/unified-loader.KwuFnQRS.js",
+            "label": "unified-loader.KwuFnQRS.js",
             "moduleCount": 0,
-            "share": "19.2%",
-            "size": "33.5 KB",
+            "share": "14.5%",
+            "size": "36.1 KB",
             "type": "js"
           }
         ],
-        "componentName": "LoggingPresetCatalog",
         "moduleItems": [
           {
-            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+            "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+            "id": "/node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/parse.js",
+            "label": "parse.js",
+            "renderedSize": "32.9 KB",
+            "share": "21.4%",
+            "sizeDelta": "Delta +0.0%",
+            "sourceInfo": "Source 32.9 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.CCvblj9p.js",
             "id": "/components/react/LoggingPresetCatalog.tsx",
             "label": "LoggingPresetCatalog.tsx",
-            "renderedSize": "27.0 KB",
-            "share": "57.1%",
-            "sizeDelta": "Delta -10.6%",
-            "sourceInfo": "Source 30.2 KB"
+            "renderedSize": "27.4 KB",
+            "share": "17.8%",
+            "sizeDelta": "Delta -10.8%",
+            "sourceInfo": "Source 30.7 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+            "id": "/components/react/LoggerScopePlayground.tsx",
+            "label": "LoggerScopePlayground.tsx",
+            "renderedSize": "16.9 KB",
+            "share": "11.0%",
+            "sizeDelta": "Delta -4.9%",
+            "sourceInfo": "Source 17.8 KB"
           },
           {
             "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css",
             "id": "/components/react/css/logging-preset-catalog.css",
             "label": "logging-preset-catalog.css",
             "renderedSize": "12.3 KB",
-            "share": "25.9%",
-            "sizeDelta": "Delta -15.2%",
+            "share": "8.0%",
+            "sizeDelta": "Delta -15.3%",
             "sourceInfo": "Source 14.5 KB"
           },
           {
-            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
-            "id": "/dist/shared/logger/presets.js",
-            "label": "presets.js",
-            "renderedSize": "7.0 KB",
-            "share": "14.7%",
-            "sizeDelta": "Delta -1.7%",
-            "sourceInfo": "Source 7.1 KB"
+            "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DK8r_C72.css",
+            "id": "/components/react/css/logger-scope-playground.css",
+            "label": "logger-scope-playground.css",
+            "renderedSize": "11.7 KB",
+            "share": "7.6%",
+            "sizeDelta": "Delta -15.6%",
+            "sourceInfo": "Source 13.9 KB"
           },
           {
-            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+            "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+            "id": "/node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/picomatch.js",
+            "label": "picomatch.js",
+            "renderedSize": "9.8 KB",
+            "share": "6.4%",
+            "sizeDelta": "Delta -0.1%",
+            "sourceInfo": "Source 9.9 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+            "id": "/node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/scan.js",
+            "label": "scan.js",
+            "renderedSize": "8.9 KB",
+            "share": "5.8%",
+            "sizeDelta": "Delta -0.3%",
+            "sourceInfo": "Source 9.0 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+            "id": "/logger/src/runtime/config.ts",
+            "label": "config.ts",
+            "renderedSize": "6.9 KB",
+            "share": "4.5%",
+            "sizeDelta": "Delta -36.1%",
+            "sourceInfo": "Source 10.8 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.CCvblj9p.js",
+            "id": "/dist/shared/logger/presets.js",
+            "label": "presets.js",
+            "renderedSize": "6.8 KB",
+            "share": "4.4%",
+            "sizeDelta": "Delta -2.2%",
+            "sourceInfo": "Source 7.0 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+            "id": "/node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/constants.js",
+            "label": "constants.js",
+            "renderedSize": "4.5 KB",
+            "share": "2.9%",
+            "sizeDelta": "Delta +0.2%",
+            "sourceInfo": "Source 4.4 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+            "id": "/logger/src/runtime/factory.ts",
+            "label": "factory.ts",
+            "renderedSize": "4.0 KB",
+            "share": "2.6%",
+            "sizeDelta": "Delta -32.4%",
+            "sourceInfo": "Source 5.8 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+            "id": "/logger/src/runtime/normalize.ts",
+            "label": "normalize.ts",
+            "renderedSize": "3.6 KB",
+            "share": "2.3%",
+            "sizeDelta": "Delta -16.6%",
+            "sourceInfo": "Source 4.3 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+            "id": "/logger/src/runtime/console.ts",
+            "label": "console.ts",
+            "renderedSize": "2.2 KB",
+            "share": "1.4%",
+            "sizeDelta": "Delta -31.9%",
+            "sourceInfo": "Source 3.2 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+            "id": "/node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/utils.js",
+            "label": "utils.js",
+            "renderedSize": "2.0 KB",
+            "share": "1.3%",
+            "sizeDelta": "Delta +4.9%",
+            "sourceInfo": "Source 1.9 KB"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+            "id": "\u0000docs-islands:vitepress-logger:docs-islands-logger-scope-mogzheiv-8fe7855722a64e9683b3d2a86943e46f",
+            "isVirtual": true,
+            "label": "\u0000docs-islands:vitepress-logger:docs-islands-logger-scope-mogzheiv-8fe7855722a64e9683b3d2a86943e46f",
+            "renderedSize": "2.0 KB",
+            "share": "1.3%",
+            "sourceInfo": "Source n/a",
+            "statusLabel": "generated virtual module"
+          },
+          {
+            "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
             "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js",
             "label": "react-jsx-runtime.production.min.js",
             "renderedSize": "914 B",
-            "share": "1.9%",
+            "share": "0.6%",
             "sizeDelta": "Delta +6.4%",
             "sourceInfo": "Source 859 B"
           },
           {
-            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
-            "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js",
-            "label": "jsx-runtime.js",
-            "renderedSize": "103 B",
-            "share": "0.2%",
-            "sizeDelta": "Delta -51.9%",
-            "sourceInfo": "Source 214 B"
+            "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+            "id": "/node_modules/.pnpm/picocolors@1.1.1/node_modules/picocolors/picocolors.browser.js",
+            "label": "picocolors.browser.js",
+            "renderedSize": "766 B",
+            "share": "0.5%",
+            "sizeDelta": "Delta +28.1%",
+            "sourceInfo": "Source 598 B"
           },
           {
-            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
-            "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports",
-            "isVirtual": true,
-            "label": "react-jsx-runtime.production.min.js?commonjs-exports",
-            "renderedSize": "40 B",
-            "share": "0.1%",
-            "sourceInfo": "Source n/a",
-            "statusLabel": "generated virtual module"
-          },
-          {
-            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
-            "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module",
-            "isVirtual": true,
-            "label": "jsx-runtime.js?commonjs-module",
-            "renderedSize": "31 B",
-            "share": "0.1%",
-            "sourceInfo": "Source n/a",
-            "statusLabel": "generated virtual module"
-          },
-          {
-            "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
-            "id": "\u0000react.cjs",
-            "isVirtual": true,
-            "label": "\u0000react.cjs",
-            "renderedSize": "26 B",
-            "share": "0.1%",
-            "sourceInfo": "Source n/a",
-            "statusLabel": "generated virtual module"
+            "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+            "id": "/node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/index.js",
+            "label": "index.js",
+            "renderedSize": "515 B",
+            "share": "0.3%",
+            "sizeDelta": "Delta +7.5%",
+            "sourceInfo": "Source 479 B"
           }
         ],
         "pageComponentItems": [
@@ -190,78 +301,88 @@
             "sourcePath": "components/react/LoggingPresetCatalog.tsx",
             "chunkItems": [
               {
-                "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
-                "label": "LoggingPresetCatalog.BKXeqTK3.js",
-                "moduleCount": 7,
-                "share": "65.2%",
-                "size": "23.0 KB",
+                "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
+                "label": "jsx-runtime.BVsBYW55.js",
+                "moduleCount": 5,
+                "share": "2.5%",
+                "size": "900 B",
                 "type": "js",
                 "modules": [
                   {
-                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
-                    "id": "/components/react/LoggingPresetCatalog.tsx",
-                    "label": "LoggingPresetCatalog.tsx",
-                    "renderedSize": "27.0 KB",
-                    "share": "77.1%",
-                    "sizeDelta": "Delta -10.6%",
-                    "sourceInfo": "Source 30.2 KB"
-                  },
-                  {
-                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
-                    "id": "/dist/shared/logger/presets.js",
-                    "label": "presets.js",
-                    "renderedSize": "7.0 KB",
-                    "share": "19.8%",
-                    "sizeDelta": "Delta -1.7%",
-                    "sourceInfo": "Source 7.1 KB"
-                  },
-                  {
-                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+                    "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
                     "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js",
                     "label": "react-jsx-runtime.production.min.js",
                     "renderedSize": "914 B",
-                    "share": "2.5%",
+                    "share": "82.0%",
                     "sizeDelta": "Delta +6.4%",
                     "sourceInfo": "Source 859 B"
                   },
                   {
-                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+                    "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
                     "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js",
                     "label": "jsx-runtime.js",
                     "renderedSize": "103 B",
-                    "share": "0.3%",
+                    "share": "9.2%",
                     "sizeDelta": "Delta -51.9%",
                     "sourceInfo": "Source 214 B"
                   },
                   {
-                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+                    "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
                     "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports",
                     "isVirtual": true,
                     "label": "react-jsx-runtime.production.min.js?commonjs-exports",
                     "renderedSize": "40 B",
-                    "share": "0.1%",
+                    "share": "3.6%",
                     "sourceInfo": "Source n/a",
                     "statusLabel": "generated virtual module"
                   },
                   {
-                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+                    "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
                     "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module",
                     "isVirtual": true,
                     "label": "jsx-runtime.js?commonjs-module",
                     "renderedSize": "31 B",
-                    "share": "0.1%",
+                    "share": "2.8%",
                     "sourceInfo": "Source n/a",
                     "statusLabel": "generated virtual module"
                   },
                   {
-                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BKXeqTK3.js",
+                    "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
                     "id": "\u0000react.cjs",
                     "isVirtual": true,
                     "label": "\u0000react.cjs",
                     "renderedSize": "26 B",
-                    "share": "0.1%",
+                    "share": "2.3%",
                     "sourceInfo": "Source n/a",
                     "statusLabel": "generated virtual module"
+                  }
+                ]
+              },
+              {
+                "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.CCvblj9p.js",
+                "label": "LoggingPresetCatalog.CCvblj9p.js",
+                "moduleCount": 2,
+                "share": "62.9%",
+                "size": "22.3 KB",
+                "type": "js",
+                "modules": [
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.CCvblj9p.js",
+                    "id": "/components/react/LoggingPresetCatalog.tsx",
+                    "label": "LoggingPresetCatalog.tsx",
+                    "renderedSize": "27.4 KB",
+                    "share": "80.0%",
+                    "sizeDelta": "Delta -10.8%",
+                    "sourceInfo": "Source 30.7 KB"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.CCvblj9p.js",
+                    "id": "/dist/shared/logger/presets.js",
+                    "label": "presets.js",
+                    "renderedSize": "6.8 KB",
+                    "share": "20.0%",
+                    "sizeDelta": "Delta -2.2%",
+                    "sourceInfo": "Source 7.0 KB"
                   }
                 ]
               },
@@ -269,7 +390,7 @@
                 "file": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css",
                 "label": "LoggingPresetCatalog.BYZKw_ZV.css",
                 "moduleCount": 1,
-                "share": "34.8%",
+                "share": "34.6%",
                 "size": "12.3 KB",
                 "type": "css",
                 "modules": [
@@ -279,7 +400,7 @@
                     "label": "logging-preset-catalog.css",
                     "renderedSize": "12.3 KB",
                     "share": "100.0%",
-                    "sizeDelta": "Delta -15.2%",
+                    "sizeDelta": "Delta -15.3%",
                     "sourceInfo": "Source 14.5 KB"
                   }
                 ]
@@ -290,15 +411,299 @@
             "summaryItems": [
               {
                 "label": "Total",
-                "value": "35.3 KB"
+                "value": "35.5 KB"
               },
               {
                 "label": "JS",
-                "value": "23.0 KB"
+                "value": "23.2 KB"
               },
               {
                 "label": "CSS",
                 "value": "12.3 KB"
+              },
+              {
+                "label": "Asset",
+                "value": "0 B"
+              },
+              {
+                "label": "Render Instances",
+                "value": "1"
+              },
+              {
+                "label": "spa:sync-render Renders",
+                "value": "1"
+              }
+            ]
+          },
+          {
+            "sourcePath": "components/react/LoggerScopePlayground.tsx",
+            "chunkItems": [
+              {
+                "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                "label": "LoggerScopePlayground.DjnlUvs6.js",
+                "moduleCount": 20,
+                "share": "77.1%",
+                "size": "42.5 KB",
+                "type": "js",
+                "modules": [
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "/node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/parse.js",
+                    "label": "parse.js",
+                    "renderedSize": "32.9 KB",
+                    "share": "34.2%",
+                    "sizeDelta": "Delta +0.0%",
+                    "sourceInfo": "Source 32.9 KB"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "/components/react/LoggerScopePlayground.tsx",
+                    "label": "LoggerScopePlayground.tsx",
+                    "renderedSize": "16.9 KB",
+                    "share": "17.6%",
+                    "sizeDelta": "Delta -4.9%",
+                    "sourceInfo": "Source 17.8 KB"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "/node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/picomatch.js",
+                    "label": "picomatch.js",
+                    "renderedSize": "9.8 KB",
+                    "share": "10.2%",
+                    "sizeDelta": "Delta -0.1%",
+                    "sourceInfo": "Source 9.9 KB"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "/node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/scan.js",
+                    "label": "scan.js",
+                    "renderedSize": "8.9 KB",
+                    "share": "9.3%",
+                    "sizeDelta": "Delta -0.3%",
+                    "sourceInfo": "Source 9.0 KB"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "/logger/src/runtime/config.ts",
+                    "label": "config.ts",
+                    "renderedSize": "6.9 KB",
+                    "share": "7.2%",
+                    "sizeDelta": "Delta -36.1%",
+                    "sourceInfo": "Source 10.8 KB"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "/node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/constants.js",
+                    "label": "constants.js",
+                    "renderedSize": "4.5 KB",
+                    "share": "4.6%",
+                    "sizeDelta": "Delta +0.2%",
+                    "sourceInfo": "Source 4.4 KB"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "/logger/src/runtime/factory.ts",
+                    "label": "factory.ts",
+                    "renderedSize": "4.0 KB",
+                    "share": "4.1%",
+                    "sizeDelta": "Delta -32.4%",
+                    "sourceInfo": "Source 5.8 KB"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "/logger/src/runtime/normalize.ts",
+                    "label": "normalize.ts",
+                    "renderedSize": "3.6 KB",
+                    "share": "3.7%",
+                    "sizeDelta": "Delta -16.6%",
+                    "sourceInfo": "Source 4.3 KB"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "/logger/src/runtime/console.ts",
+                    "label": "console.ts",
+                    "renderedSize": "2.2 KB",
+                    "share": "2.3%",
+                    "sizeDelta": "Delta -31.9%",
+                    "sourceInfo": "Source 3.2 KB"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "/node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/lib/utils.js",
+                    "label": "utils.js",
+                    "renderedSize": "2.0 KB",
+                    "share": "2.1%",
+                    "sizeDelta": "Delta +4.9%",
+                    "sourceInfo": "Source 1.9 KB"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "\u0000docs-islands:vitepress-logger:docs-islands-logger-scope-mogzheiv-8fe7855722a64e9683b3d2a86943e46f",
+                    "isVirtual": true,
+                    "label": "\u0000docs-islands:vitepress-logger:docs-islands-logger-scope-mogzheiv-8fe7855722a64e9683b3d2a86943e46f",
+                    "renderedSize": "2.0 KB",
+                    "share": "2.1%",
+                    "sourceInfo": "Source n/a",
+                    "statusLabel": "generated virtual module"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "/node_modules/.pnpm/picocolors@1.1.1/node_modules/picocolors/picocolors.browser.js",
+                    "label": "picocolors.browser.js",
+                    "renderedSize": "766 B",
+                    "share": "0.8%",
+                    "sizeDelta": "Delta +28.1%",
+                    "sourceInfo": "Source 598 B"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "/node_modules/.pnpm/picomatch@4.0.4/node_modules/picomatch/index.js",
+                    "label": "index.js",
+                    "renderedSize": "515 B",
+                    "share": "0.5%",
+                    "sizeDelta": "Delta +7.5%",
+                    "sourceInfo": "Source 479 B"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "/logger/src/runtime/scope.ts",
+                    "label": "scope.ts",
+                    "renderedSize": "437 B",
+                    "share": "0.4%",
+                    "sizeDelta": "Delta -62.1%",
+                    "sourceInfo": "Source 1.1 KB"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "/logger/src/runtime/constants/console.ts",
+                    "label": "console.ts",
+                    "renderedSize": "421 B",
+                    "share": "0.4%",
+                    "sizeDelta": "Delta -33.7%",
+                    "sourceInfo": "Source 635 B"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "/logger/src/runtime/constants/levels.ts",
+                    "label": "levels.ts",
+                    "renderedSize": "237 B",
+                    "share": "0.2%",
+                    "sizeDelta": "Delta -45.6%",
+                    "sourceInfo": "Source 436 B"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "/logger/src/runtime/elapsed.ts",
+                    "label": "elapsed.ts",
+                    "renderedSize": "209 B",
+                    "share": "0.2%",
+                    "sizeDelta": "Delta -75.2%",
+                    "sourceInfo": "Source 844 B"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DjnlUvs6.js",
+                    "id": "\u0000commonjsHelpers.js",
+                    "isVirtual": true,
+                    "label": "\u0000commonjsHelpers.js",
+                    "renderedSize": "140 B",
+                    "share": "0.1%",
+                    "sourceInfo": "Source n/a",
+                    "statusLabel": "generated virtual module"
+                  }
+                ]
+              },
+              {
+                "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
+                "label": "jsx-runtime.BVsBYW55.js",
+                "moduleCount": 5,
+                "share": "1.6%",
+                "size": "900 B",
+                "type": "js",
+                "modules": [
+                  {
+                    "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
+                    "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js",
+                    "label": "react-jsx-runtime.production.min.js",
+                    "renderedSize": "914 B",
+                    "share": "82.0%",
+                    "sizeDelta": "Delta +6.4%",
+                    "sourceInfo": "Source 859 B"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
+                    "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js",
+                    "label": "jsx-runtime.js",
+                    "renderedSize": "103 B",
+                    "share": "9.2%",
+                    "sizeDelta": "Delta -51.9%",
+                    "sourceInfo": "Source 214 B"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
+                    "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react-jsx-runtime.production.min.js?commonjs-exports",
+                    "isVirtual": true,
+                    "label": "react-jsx-runtime.production.min.js?commonjs-exports",
+                    "renderedSize": "40 B",
+                    "share": "3.6%",
+                    "sourceInfo": "Source n/a",
+                    "statusLabel": "generated virtual module"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
+                    "id": "/node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-runtime.js?commonjs-module",
+                    "isVirtual": true,
+                    "label": "jsx-runtime.js?commonjs-module",
+                    "renderedSize": "31 B",
+                    "share": "2.8%",
+                    "sourceInfo": "Source n/a",
+                    "statusLabel": "generated virtual module"
+                  },
+                  {
+                    "file": "/docs-islands/vitepress/assets/chunks/jsx-runtime.BVsBYW55.js",
+                    "id": "\u0000react.cjs",
+                    "isVirtual": true,
+                    "label": "\u0000react.cjs",
+                    "renderedSize": "26 B",
+                    "share": "2.3%",
+                    "sourceInfo": "Source n/a",
+                    "statusLabel": "generated virtual module"
+                  }
+                ]
+              },
+              {
+                "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DK8r_C72.css",
+                "label": "LoggerScopePlayground.DK8r_C72.css",
+                "moduleCount": 1,
+                "share": "21.3%",
+                "size": "11.7 KB",
+                "type": "css",
+                "modules": [
+                  {
+                    "file": "/docs-islands/vitepress/assets/LoggerScopePlayground.DK8r_C72.css",
+                    "id": "/components/react/css/logger-scope-playground.css",
+                    "label": "logger-scope-playground.css",
+                    "renderedSize": "11.7 KB",
+                    "share": "100.0%",
+                    "sizeDelta": "Delta -15.6%",
+                    "sourceInfo": "Source 13.9 KB"
+                  }
+                ]
+              }
+            ],
+            "componentName": "LoggerScopePlayground",
+            "renderDirectives": ["client:load"],
+            "summaryItems": [
+              {
+                "label": "Total",
+                "value": "55.1 KB"
+              },
+              {
+                "label": "JS",
+                "value": "43.4 KB"
+              },
+              {
+                "label": "CSS",
+                "value": "11.7 KB"
               },
               {
                 "label": "Asset",
@@ -325,11 +730,11 @@
             "summaryItems": [
               {
                 "label": "HTML Patch Target",
-                "value": "/docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js"
+                "value": "/docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js"
               },
               {
                 "label": "Embedded HTML Patch",
-                "value": "57.9 KB"
+                "value": "57.0 KB"
               },
               {
                 "label": "Blocking CSS",
@@ -345,7 +750,41 @@
               },
               {
                 "label": "spa:sync-render Side Effect",
-                "value": "injects 57.9 KB of pre-rendered HTML into /docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)."
+                "value": "injects 57.0 KB of pre-rendered HTML into /docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)."
+              }
+            ],
+            "useSpaSyncRender": true
+          },
+          {
+            "componentName": "LoggerScopePlayground",
+            "renderDirective": "client:load",
+            "renderId": "fad15a4e",
+            "sequence": 2,
+            "sourcePath": "components/react/LoggerScopePlayground.tsx",
+            "summaryItems": [
+              {
+                "label": "HTML Patch Target",
+                "value": "/docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js"
+              },
+              {
+                "label": "Embedded HTML Patch",
+                "value": "0 B"
+              },
+              {
+                "label": "Blocking CSS",
+                "value": "1 file(s) · 11.7 KB"
+              },
+              {
+                "label": "Blocking CSS Files",
+                "value": "/docs-islands/vitepress/assets/LoggerScopePlayground.DK8r_C72.css (11.7 KB)"
+              },
+              {
+                "label": "CSS Loading Runtime",
+                "value": "Required"
+              },
+              {
+                "label": "spa:sync-render Side Effect",
+                "value": "injects 0 B of pre-rendered HTML into /docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/LoggerScopePlayground.DK8r_C72.css (11.7 KB)."
               }
             ],
             "useSpaSyncRender": true
@@ -353,17 +792,48 @@
         ],
         "pageSpaSyncComponentItems": [
           {
+            "componentName": "LoggerScopePlayground",
+            "renderDirectives": ["client:load"],
+            "renderIds": ["fad15a4e"],
+            "summaryItems": [
+              {
+                "label": "HTML Patch Target",
+                "value": "/docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js"
+              },
+              {
+                "label": "Embedded HTML Patch",
+                "value": "0 B"
+              },
+              {
+                "label": "Blocking CSS",
+                "value": "1 file(s) · 11.7 KB"
+              },
+              {
+                "label": "Blocking CSS Files",
+                "value": "/docs-islands/vitepress/assets/LoggerScopePlayground.DK8r_C72.css (11.7 KB)"
+              },
+              {
+                "label": "CSS Loading Runtime",
+                "value": "Required"
+              },
+              {
+                "label": "spa:sync-render Side Effect",
+                "value": "injects 0 B of pre-rendered HTML into /docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/LoggerScopePlayground.DK8r_C72.css (11.7 KB)."
+              }
+            ]
+          },
+          {
             "componentName": "LoggingPresetCatalog",
             "renderDirectives": ["client:load"],
             "renderIds": ["8987f003"],
             "summaryItems": [
               {
                 "label": "HTML Patch Target",
-                "value": "/docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js"
+                "value": "/docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js"
               },
               {
                 "label": "Embedded HTML Patch",
-                "value": "57.9 KB"
+                "value": "57.0 KB"
               },
               {
                 "label": "Blocking CSS",
@@ -379,7 +849,7 @@
               },
               {
                 "label": "spa:sync-render Side Effect",
-                "value": "injects 57.9 KB of pre-rendered HTML into /docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)."
+                "value": "injects 57.0 KB of pre-rendered HTML into /docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js and waits for 1 blocking CSS file(s) before the page content can render during SPA route transitions: /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)."
               }
             ]
           }
@@ -387,27 +857,27 @@
         "pageSpaSyncSummaryItems": [
           {
             "label": "Enabled Components",
-            "value": "1"
+            "value": "2"
           },
           {
             "label": "Enabled Renders",
-            "value": "1"
+            "value": "2"
           },
           {
             "label": "HTML Patch Target",
-            "value": "/docs-islands/vitepress/assets/zh_options_logging.md.BtNlvcVH.js"
+            "value": "/docs-islands/vitepress/assets/zh_options_logging.md.DzOiPp8s.js"
           },
           {
             "label": "Embedded HTML",
-            "value": "57.9 KB"
+            "value": "57.0 KB"
           },
           {
             "label": "Blocking CSS",
-            "value": "1 file(s) · 12.3 KB"
+            "value": "2 file(s) · 24.0 KB"
           },
           {
             "label": "Blocking CSS Files",
-            "value": "/docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)"
+            "value": "/docs-islands/vitepress/assets/LoggerScopePlayground.DK8r_C72.css (11.7 KB), /docs-islands/vitepress/assets/LoggingPresetCatalog.BYZKw_ZV.css (12.3 KB)"
           },
           {
             "label": "CSS Loading Runtime",
@@ -415,7 +885,7 @@
           },
           {
             "label": "Loader Script",
-            "value": "/docs-islands/vitepress/assets/unified-loader.CKvk6nCI.js"
+            "value": "/docs-islands/vitepress/assets/unified-loader.KwuFnQRS.js"
           }
         ],
         "pageId": "/zh/options/logging",
