@@ -4,19 +4,13 @@ import babelTraverse from '@babel/traverse';
 import * as t from '@babel/types';
 import { init, parse as parseImports } from 'es-module-lexer';
 import MagicString, { type SourceMap } from 'magic-string';
-import {
-  type LoggerScopeId,
-  type LogKind,
-  shouldSuppressLog,
-} from '../internal';
+import { shouldSuppressLog } from '../runtime/config';
+import type { LoggerScopeId, LogKind } from '../runtime/types';
 
 export const LOGGER_TREE_SHAKING_PLUGIN_NAME =
   'docs-islands:logger-tree-shaking';
 
-export const DEFAULT_LOGGER_MODULE_IDS = [
-  '@docs-islands/logger',
-  '@docs-islands/logger/internal',
-] as const;
+export const DEFAULT_LOGGER_MODULE_ID = '@docs-islands/logger';
 
 const LOG_METHODS = new Set<LogKind>([
   'debug',
@@ -46,8 +40,8 @@ interface StaticLogCall {
 }
 
 export interface LoggerTreeShakingTransformOptions {
-  loggerModuleIds?: readonly string[];
-  loggerScopeId?: LoggerScopeId;
+  loggerModuleId: string;
+  loggerScopeId: LoggerScopeId;
 }
 
 export interface LoggerTreeShakingTransformResult {
@@ -67,15 +61,21 @@ const isStaticStringLiteral = (
   node: t.Node | null | undefined,
 ): node is t.StringLiteral => t.isStringLiteral(node);
 
-const normalizeLoggerModuleIds = (
-  loggerModuleIds: readonly string[] | undefined,
-): Set<string> =>
-  new Set(
-    (loggerModuleIds && loggerModuleIds.length > 0
-      ? loggerModuleIds
-      : DEFAULT_LOGGER_MODULE_IDS
-    ).filter(Boolean),
-  );
+const normalizeLoggerModuleId = (loggerModuleId: string): string => {
+  if (typeof loggerModuleId !== 'string') {
+    throw new TypeError(
+      'logger tree-shaking requires explicit loggerModuleId.',
+    );
+  }
+
+  const normalizedLoggerModuleId = loggerModuleId.trim();
+
+  if (normalizedLoggerModuleId.length === 0) {
+    throw new Error('logger tree-shaking requires a non-empty loggerModuleId.');
+  }
+
+  return normalizedLoggerModuleId;
+};
 
 const getStaticPropertyName = (
   property: t.ObjectMember | t.MemberExpression['property'],
@@ -107,12 +107,9 @@ const isCreateLoggerImportSpecifier = (
 
 const hasPublicCreateLoggerImport = async (
   code: string,
-  loggerModuleIds: Set<string>,
+  loggerModuleId: string,
 ): Promise<boolean> => {
-  if (
-    !code.includes('createLogger') ||
-    ![...loggerModuleIds].some((moduleId) => code.includes(moduleId))
-  ) {
+  if (!code.includes('createLogger') || !code.includes(loggerModuleId)) {
     return false;
   }
 
@@ -124,7 +121,7 @@ const hasPublicCreateLoggerImport = async (
     return imports.some((importSpecifier) => {
       if (
         !importSpecifier.n ||
-        !loggerModuleIds.has(importSpecifier.n) ||
+        importSpecifier.n !== loggerModuleId ||
         importSpecifier.d !== -1
       ) {
         return false;
@@ -282,11 +279,11 @@ const readStaticLogCall = (
 export async function transformLoggerTreeShaking(
   code: string,
   id: string,
-  options: LoggerTreeShakingTransformOptions = {},
+  options: LoggerTreeShakingTransformOptions,
 ): Promise<LoggerTreeShakingTransformResult | null> {
-  const loggerModuleIds = normalizeLoggerModuleIds(options.loggerModuleIds);
+  const loggerModuleId = normalizeLoggerModuleId(options.loggerModuleId);
 
-  if (!(await hasPublicCreateLoggerImport(code, loggerModuleIds))) {
+  if (!(await hasPublicCreateLoggerImport(code, loggerModuleId))) {
     return null;
   }
 
@@ -305,7 +302,7 @@ export async function transformLoggerTreeShaking(
 
   traverse(ast, {
     ImportDeclaration(path) {
-      if (!loggerModuleIds.has(path.node.source.value)) {
+      if (path.node.source.value !== loggerModuleId) {
         return;
       }
 

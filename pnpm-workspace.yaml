@@ -9,6 +9,7 @@ packages:
 
 allowBuilds:
   '@swc/core': true
+  core-js: true
   esbuild: true
   playwright-chromium: true
 
@@ -27,6 +28,9 @@ catalogs:
     '@babel/parser': ^7.29.0
     '@babel/traverse': ^7.29.0
     '@babel/types': ^7.29.0
+    '@farmfe/core': 2.0.0-beta.10
+    '@rspack/core': ^1.6.0
+    '@rollup/plugin-replace': ^6.0.3
     '@types/babel__generator': ^7.27.0
     '@types/babel__traverse': ^7.20.7
     '@types/eslint-plugin-jsx-a11y': ^6.10.1
@@ -41,6 +45,7 @@ catalogs:
     cac: ^6.7.14
     concurrently: ^9.2.1
     del-cli: ^7.0.0
+    esbuild: ^0.27.3
     es-module-lexer: ^2.0.0
     htmlparser2: ^10.0.0
     husky: ^9.1.7
@@ -53,6 +58,7 @@ catalogs:
     prompts: ^2.4.2
     react: ^18.2.0
     react-dom: ^18.2.0
+    rollup: ^4.59.0
     rolldown: 1.0.0-rc.4
     rolldown-plugin-dts: ^0.23.1
     rollup-plugin-license: ^3.6.0
@@ -63,6 +69,7 @@ catalogs:
     vue-router: 4.6.4
     vue-tsc: ~3.2.4
     wait-on: ^9.0.3
+    webpack: ^5.102.1
     zod: ^4.3.6
   docs-dev:
     '@nolebase/vitepress-plugin-enhanced-mark': ^2.18.2
@@ -105,7 +112,7 @@ catalogs:
     cheerio: ^1.2.0
     picomatch: ^4.0.4
     tinyglobby: ^0.2.15
-    unplugin: ^2.3.10
+    unplugin: ^3.0.0
     vite: ^5.4.21
     vue: ^3.5.28
   test:

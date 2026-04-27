@@ -2,12 +2,19 @@ import type { LoggerScopeId } from './types';
 
 export const DEFAULT_LOGGER_SCOPE_ID = '__default__';
 
-type DocsIslandsGlobal = typeof globalThis & {
-  __DOCS_ISLANDS_LOGGER_SCOPE_ID__?: LoggerScopeId | undefined;
-};
+export const createLoggerScopeId = (): LoggerScopeId => {
+  const timestamp = Date.now().toString(36);
+  const entropy =
+    typeof globalThis.crypto?.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID().replaceAll('-', '')
+      : Array.from({ length: 4 }, () =>
+          Math.floor(Math.random() * 0xff_ff_ff_ff)
+            .toString(16)
+            .padStart(8, '0'),
+        ).join('');
 
-const readGlobalRuntimeLoggerScopeId = (): LoggerScopeId | undefined =>
-  (globalThis as DocsIslandsGlobal).__DOCS_ISLANDS_LOGGER_SCOPE_ID__;
+  return `docs-islands-logger-scope-${timestamp}-${entropy}`;
+};
 
 export const normalizeLoggerScopeId = (
   scopeId?: LoggerScopeId,
@@ -22,16 +29,7 @@ export const normalizeLoggerScopeId = (
 };
 
 export const readRuntimeLoggerScopeId = (): LoggerScopeId | undefined => {
-  const runtimeScopeId =
-    typeof __DOCS_ISLANDS_LOGGER_SCOPE_ID__ === 'undefined'
-      ? readGlobalRuntimeLoggerScopeId()
-      : __DOCS_ISLANDS_LOGGER_SCOPE_ID__;
-
-  if (typeof runtimeScopeId !== 'string') {
-    return undefined;
-  }
-
-  return normalizeLoggerScopeId(runtimeScopeId);
+  return undefined;
 };
 
 export const resolveLoggerScopeId = (

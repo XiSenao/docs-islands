@@ -1,0 +1,17 @@
+{
+  "name": "@docs-islands/logger-playground",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@docs-islands/logger": "../dist"
+  },
+  "devDependencies": {
+    "@farmfe/core": "catalog:dev",
+    "@rspack/core": "catalog:dev",
+    "esbuild": "catalog:dev",
+    "rolldown": "catalog:dev",
+    "rollup": "catalog:dev",
+    "vite": "catalog:prod",
+    "webpack": "catalog:dev"
+  }
+}
