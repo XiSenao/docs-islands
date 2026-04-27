@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'pathe';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { reactAdapter } from '../../adapters/react/adapter';
+import type { UIFrameworkBuildAdapter } from '../adapter';
 import { bundleUIComponentsForBrowser } from '../bundleUIComponentsForBrowser';
 
 const TEST_LOGGER_SCOPE_ID = 'browser-bundle-logger-tree-shaking-scope';
@@ -493,5 +494,75 @@ describe('bundleUIComponentsForBrowser', () => {
 
     expect(bundledJavaScript).not.toContain('tree-shaking hidden browser info');
     expect(bundledJavaScript).toContain('tree-shaking visible browser warning');
+  });
+
+  it('tree-shakes suppressed static logger literals from Vite-bundled runtime modules', async () => {
+    setLoggerConfigForScope(TEST_LOGGER_SCOPE_ID, {
+      levels: ['warn', 'error'],
+    });
+
+    const runtimeLoggerAdapter: UIFrameworkBuildAdapter = {
+      browserBundlerPlugins: () => reactAdapter.browserBundlerPlugins(),
+      buildModulePreloadPaths: (options) =>
+        reactAdapter.buildModulePreloadPaths(options),
+      clientEntryImportName: () => reactAdapter.clientEntryImportName(),
+      clientEntryModule: () => reactAdapter.clientEntryModule(),
+      createClientLoaderModuleSource: () => `
+import { createLogger } from '@docs-islands/vitepress/logger';
+
+const logger = createLogger({ main: '@acme/runtime-module' }).getLoggerByGroup('userland.runtime-module');
+
+logger.info('tree-shaking hidden runtime module info');
+logger.warn('tree-shaking visible runtime module warning');
+      `,
+      framework: reactAdapter.framework,
+      renderToString: (...args) => reactAdapter.renderToString(...args),
+      ssrBundlerPlugins: () => reactAdapter.ssrBundlerPlugins(),
+    };
+    const clientComponents: ComponentBundleInfo[] = [
+      {
+        componentName: 'MultiExportAlpha',
+        componentPath: multiExportComponentPath,
+        importReference: {
+          importedName: 'MultiExportAlpha',
+          identifier: multiExportComponentPath,
+        },
+        pendingRenderIds: new Set(['runtime-module-render-id']),
+        renderDirectives: new Set(['client:load']),
+      },
+    ];
+    const usedSnippetContainer = new Map<string, UsedSnippetContainerType>([
+      [
+        'runtime-module-render-id',
+        {
+          props: new Map([['component-name', 'MultiExportAlpha']]),
+          renderId: 'runtime-module-render-id',
+          renderDirective: 'client:load',
+          renderComponent: 'MultiExportAlpha',
+          ssrHtml:
+            '<div class="multi-export-card"><strong>MultiExportAlpha</strong><span>MultiExportAlpha</span></div>',
+          useSpaSyncRender: true,
+        },
+      ],
+    ]);
+
+    const { loaderScript } = await bundleUIComponentsForBrowser(
+      config,
+      clientComponents,
+      usedSnippetContainer,
+      runtimeLoggerAdapter,
+      TEST_LOGGER_SCOPE_ID,
+    );
+    const loaderScriptContent = fs.readFileSync(
+      join(config.outDir, loaderScript),
+      'utf8',
+    );
+
+    expect(loaderScriptContent).not.toContain(
+      'tree-shaking hidden runtime module info',
+    );
+    expect(loaderScriptContent).toContain(
+      'tree-shaking visible runtime module warning',
+    );
   });
 });

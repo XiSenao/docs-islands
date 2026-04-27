@@ -7,10 +7,7 @@ import type {
   DocsInjectComponent,
   DocsRuntimeManagerLike,
 } from '@docs-islands/core/types/client';
-import type {
-  LoggerConfig,
-  LoggerScopeId,
-} from '@docs-islands/logger/internal';
+import type { LoggerConfig, LoggerScopeId } from '@docs-islands/logger/runtime';
 import type * as ReactDOMClient from 'react-dom/client';
 import type { DefaultTheme, SiteConfig } from 'vitepress';
 
@@ -36,8 +33,6 @@ declare global {
   // Define-time global constant injected via bundler `define`.
   const __BASE__: string | undefined;
   const __CLEAN_URLS__: boolean | undefined;
-  var __DOCS_ISLANDS_LOGGER_CONFIG__: LoggerConfig | null | undefined;
-  var __DOCS_ISLANDS_LOGGER_SCOPE_ID__: LoggerScopeId | undefined;
   var __DOCS_ISLANDS_LOGGER_CONFIG_REGISTRY__:
     | Map<LoggerScopeId, LoggerConfig | undefined>
     | undefined;

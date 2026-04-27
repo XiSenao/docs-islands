@@ -4,12 +4,41 @@ import type {
 } from '#dep-types/component';
 import type { ConfigType } from '#dep-types/utils';
 import { resolveConfig } from '#shared/config';
+import {
+  resetLoggerConfigForScope,
+  setLoggerConfigForScope,
+} from '@docs-islands/logger/internal';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'pathe';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { reactAdapter } from '../../adapters/react/adapter';
 import { bundleUIComponentsForSSR } from '../bundleUIComponentsForSSR';
+
+const TEST_LOGGER_SCOPE_ID = 'ssr-bundle-logger-tree-shaking-scope';
+
+const collectJavaScriptFiles = (directory: string): string[] => {
+  if (!fs.existsSync(directory)) {
+    return [];
+  }
+
+  const files: string[] = [];
+
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = join(directory, entry.name);
+
+    if (entry.isDirectory()) {
+      files.push(...collectJavaScriptFiles(entryPath));
+      continue;
+    }
+
+    if (entry.name.endsWith('.js') || entry.name.endsWith('.mjs')) {
+      files.push(entryPath);
+    }
+  }
+
+  return files;
+};
 
 describe('bundleUIComponentsForSSR', () => {
   const defaultConfig = resolveConfig({});
@@ -52,11 +81,19 @@ describe('bundleUIComponentsForSSR', () => {
     reactComponentSource,
     'MultiExportComponents.tsx',
   );
+  const ssrLoggerProbeComponentPath = join(
+    reactComponentSource,
+    'SsrLoggerProbe.tsx',
+  );
 
   afterAll(() => {
     if (fs.existsSync(config.outDir)) {
       fs.rmSync(config.outDir, { recursive: true, force: true });
     }
+  });
+
+  afterEach(() => {
+    resetLoggerConfigForScope(TEST_LOGGER_SCOPE_ID);
   });
 
   it('Verify that SSR meets expectations', async () => {
@@ -214,5 +251,77 @@ describe('bundleUIComponentsForSSR', () => {
       'beta-render-id':
         '<div class="multi-export-card"><strong>MultiExportBeta</strong><span>MultiExportBeta</span></div>',
     });
+  });
+
+  it('tree-shakes suppressed static logger literals from SSR component bundles', async () => {
+    setLoggerConfigForScope(TEST_LOGGER_SCOPE_ID, {
+      levels: ['warn', 'error'],
+    });
+
+    const ssrComponents: ComponentBundleInfo[] = [
+      {
+        componentName: 'SsrLoggerProbe',
+        componentPath: ssrLoggerProbeComponentPath,
+        importReference: {
+          importedName: 'default',
+          identifier: ssrLoggerProbeComponentPath,
+        },
+        pendingRenderIds: new Set(['ssr-logger-probe-render-id']),
+        renderDirectives: new Set(['ssr:only']),
+      },
+    ];
+    const usedSnippetContainer = new Map<string, UsedSnippetContainerType>([
+      [
+        'ssr-logger-probe-render-id',
+        {
+          props: new Map([['component-name', 'SsrLoggerProbe']]),
+          renderId: 'ssr-logger-probe-render-id',
+          renderDirective: 'ssr:only',
+          renderComponent: 'SsrLoggerProbe',
+          useSpaSyncRender: true,
+        },
+      ],
+    ]);
+    const bundledJavaScriptSnapshots: string[] = [];
+    const originalRmSync = fs.rmSync;
+    const rmSyncSpy = vi
+      .spyOn(fs, 'rmSync')
+      .mockImplementation((...args: Parameters<typeof fs.rmSync>) => {
+        const [targetPath] = args;
+
+        if (
+          typeof targetPath === 'string' &&
+          targetPath.includes('ssr-temp-')
+        ) {
+          bundledJavaScriptSnapshots.push(
+            collectJavaScriptFiles(targetPath)
+              .map((file) => fs.readFileSync(file, 'utf8'))
+              .join('\n'),
+          );
+        }
+
+        return originalRmSync(...args);
+      });
+    try {
+      const { renderedComponents } = await bundleUIComponentsForSSR(
+        config,
+        ssrComponents,
+        usedSnippetContainer,
+        reactAdapter,
+        TEST_LOGGER_SCOPE_ID,
+      );
+
+      expect(Object.fromEntries(renderedComponents)).toEqual({
+        'ssr-logger-probe-render-id':
+          '<div class="ssr-logger-probe"><strong>SsrLoggerProbe</strong></div>',
+      });
+    } finally {
+      rmSyncSpy.mockRestore();
+    }
+
+    const bundledJavaScript = bundledJavaScriptSnapshots.join('\n');
+
+    expect(bundledJavaScript).not.toContain('tree-shaking hidden ssr info');
+    expect(bundledJavaScript).toContain('tree-shaking visible ssr warning');
   });
 });

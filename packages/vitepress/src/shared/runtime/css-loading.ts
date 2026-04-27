@@ -1,16 +1,12 @@
 import { VITEPRESS_RUNTIME_LOG_GROUPS } from '#shared/constants/log-groups/runtime';
-import { createLogger, shouldSuppressLog } from '@docs-islands/utils/logger';
-import './logger-scope-bridge';
+import { createLogger } from '../internal/logger';
 
-type Environment = 'development' | 'production';
 type FailureStrategy = 'partial' | 'strict';
 
 interface CSSLoadingConfig {
   timeout: number;
   retryCount: number;
   retryDelay: number;
-  enablePerformanceMonitoring: boolean;
-  enableDuplicateDetection: boolean;
   failureStrategy: FailureStrategy;
 }
 
@@ -43,8 +39,6 @@ interface LoadStyleOptions {
   timeout?: number;
   retryCount?: number;
   retryDelay?: number;
-  enablePerformanceMonitoring?: boolean;
-  enableDuplicateDetection?: boolean;
   failureStrategy?: FailureStrategy;
 }
 
@@ -60,44 +54,21 @@ const logCssLoading = (
   message: string,
 ): void => getCssLoadingLogger()[type](message, { elapsedTimeMs: 0 });
 
-function isCssLoadingDebugEnabled(): boolean {
-  return !shouldSuppressLog('debug', {
-    group: VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
-    main: MAIN_NAME,
-    message: 'runtime css loading diagnostics',
-  });
-}
-
 function createCSSLoadingConfig(): CSSLoadingConfig {
-  const developmentConfig = {
-    timeout: 10_000,
-    retryCount: 3,
-    retryDelay: 1000,
-    enablePerformanceMonitoring: true,
-    enableDuplicateDetection: true,
-    failureStrategy: 'partial' as const,
-  };
   const productionConfig = {
     timeout: 6000,
     retryCount: 1,
     retryDelay: 300,
-    enablePerformanceMonitoring: false,
-    enableDuplicateDetection: true,
     failureStrategy: 'partial' as const,
   };
   const debugConfig = {
     timeout: 15_000,
     retryCount: 3,
     retryDelay: 500,
-    enablePerformanceMonitoring: true,
-    enableDuplicateDetection: true,
     failureStrategy: 'strict' as const,
   };
-  if (isCssLoadingDebugEnabled()) {
+  if (__DEBUG__) {
     return debugConfig;
-  }
-  if (__ENV__ === 'development') {
-    return developmentConfig;
   }
   return productionConfig;
 }
@@ -125,8 +96,6 @@ async function loadHighPriorityStyles(
     timeout = 8000, // 8 seconds timeout.
     retryCount = 2, // Retry count.
     retryDelay = 500, // Retry delay.
-    enablePerformanceMonitoring = true,
-    enableDuplicateDetection = true,
     failureStrategy = 'partial', // 'partial' | 'strict'.
   } = options;
 
@@ -163,7 +132,7 @@ async function loadHighPriorityStyles(
         const endTime = performance.now();
         performanceMetrics.totalLoadTime = endTime - startTime;
 
-        if (enablePerformanceMonitoring) {
+        if (__DEBUG__) {
           logCssLoading(
             'warn',
             `CSS loading timeout after ${timeout}ms. Loaded: ${loadedCount}/${totalStyles}, Failed: ${failedCount}`,
@@ -192,7 +161,7 @@ async function loadHighPriorityStyles(
         const endTime = performance.now();
         performanceMetrics.totalLoadTime = endTime - startTime;
 
-        if (enablePerformanceMonitoring) {
+        if (__DEBUG__) {
           logCssLoading(
             'success',
             `Success rate: ${loadedCount}/${totalStyles} (${((loadedCount / totalStyles) * 100).toFixed(1)}%)`,
@@ -229,18 +198,15 @@ async function loadHighPriorityStyles(
     const loadStyleWithRetry = (styleUrl: string, retries = 0): void => {
       const loadStartTime = performance.now();
 
-      // Duplicate loading detection.
-      if (enableDuplicateDetection) {
-        const existingLink = document.querySelector<HTMLLinkElement>(
-          `link[href="${styleUrl}"]`,
-        );
-        if (existingLink) {
-          performanceMetrics.duplicatesDetected++;
-          loadedCount++;
-          loadResults.set(styleUrl, { success: true, cached: true });
-          checkCompletion();
-          return;
-        }
+      const existingLink = document.querySelector<HTMLLinkElement>(
+        `link[href="${styleUrl}"]`,
+      );
+      if (existingLink) {
+        performanceMetrics.duplicatesDetected++;
+        loadedCount++;
+        loadResults.set(styleUrl, { success: true, cached: true });
+        checkCompletion();
+        return;
       }
 
       const link = document.createElement('link');
@@ -255,7 +221,7 @@ async function loadHighPriorityStyles(
         loadedCount++;
         loadResults.set(styleUrl, { success: true, loadTime, retries });
 
-        if (enablePerformanceMonitoring && loadTime > 1000) {
+        if (__DEBUG__ && loadTime > 1000) {
           logCssLoading(
             'warn',
             `Slow CSS loading detected: ${styleUrl} took ${loadTime.toFixed(2)}ms`,
@@ -268,10 +234,13 @@ async function loadHighPriorityStyles(
       const onError = (): void => {
         if (retries < retryCount) {
           performanceMetrics.retriesPerformed++;
-          logCssLoading(
-            'error',
-            `CSS loading failed for ${styleUrl}, retrying (${retries + 1}/${retryCount})`,
-          );
+
+          if (__DEBUG__) {
+            logCssLoading(
+              'error',
+              `CSS loading failed for ${styleUrl}, retrying (${retries + 1}/${retryCount})`,
+            );
+          }
 
           // Remove the failed link element.
           if (link.parentNode) {
@@ -295,7 +264,7 @@ async function loadHighPriorityStyles(
             error: 'Load failed',
           });
 
-          if (enablePerformanceMonitoring) {
+          if (__DEBUG__) {
             logCssLoading(
               'error',
               `CSS loading failed permanently: ${styleUrl} after ${retries} retries`,
@@ -319,7 +288,7 @@ async function loadHighPriorityStyles(
   });
 }
 
-declare const __ENV__: Environment;
+declare const __DEBUG__: boolean;
 
 // TODO: Export CSS loading config to users.
 export default async function cssLoadingRuntime(
@@ -331,7 +300,7 @@ export default async function cssLoadingRuntime(
     cssLoadingConfig,
   );
 
-  if (isCssLoadingDebugEnabled()) {
+  if (__DEBUG__) {
     if (loadResult.timedOut) {
       logCssLoading(
         'error',

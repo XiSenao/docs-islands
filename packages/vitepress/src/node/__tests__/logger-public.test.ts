@@ -1,5 +1,4 @@
 import {
-  getLoggerConfigForScope,
   type LoggerConfig,
   resetLoggerConfigForScope,
 } from '@docs-islands/logger/internal';
@@ -10,17 +9,42 @@ import {
   formatDebugMessage,
 } from '@docs-islands/vitepress/logger';
 import presets, { hmr, runtime } from '@docs-islands/vitepress/logger/presets';
+import type { Plugin } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  createVitePressLoggerFacadePlugin,
+  createVitePressLoggerVirtualModuleId,
+  VITEPRESS_LOGGER_MODULE_ID,
+} from '../core/vite-plugin-logger-facade';
 
 const TEST_RUNTIME_LOGGER_SCOPE_ID = 'logger-public-runtime-scope';
 
-const normalizeConsoleCalls = (calls: readonly unknown[][]): string[] =>
-  calls.map((args) => args.map(String).join(' '));
+const callResolveId = async (plugin: Plugin, id: string): Promise<unknown> => {
+  const hook = plugin.resolveId;
+
+  if (!hook) {
+    return null;
+  }
+
+  return typeof hook === 'function'
+    ? hook.call({} as never, id)
+    : hook.handler.call({} as never, id);
+};
+
+const callLoad = async (plugin: Plugin, id: string): Promise<unknown> => {
+  const hook = plugin.load;
+
+  if (!hook) {
+    return null;
+  }
+
+  return typeof hook === 'function'
+    ? hook.call({} as never, id)
+    : hook.handler.call({} as never, id);
+};
 
 afterEach(() => {
   resetLoggerConfigForScope(TEST_RUNTIME_LOGGER_SCOPE_ID);
-  globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__ = undefined;
-  globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__ = undefined;
   vi.restoreAllMocks();
 });
 
@@ -43,7 +67,7 @@ describe('public vitepress logger api', () => {
     expect(vitepressPublicModule).not.toHaveProperty('getVitePressLogger');
   });
 
-  it('binds the public logger facade to the runtime-defined docs-islands scope', () => {
+  it('generates a scope-bound virtual logger facade in managed builds', async () => {
     const loggingConfig = {
       rules: [
         {
@@ -54,38 +78,33 @@ describe('public vitepress logger api', () => {
         },
       ],
     } satisfies LoggerConfig;
-
-    globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__ = TEST_RUNTIME_LOGGER_SCOPE_ID;
-    globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__ = loggingConfig;
-
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    const logger = createLogger({
-      main: '@docs-islands/vitepress',
-    });
-
-    logger
-      .getLoggerByGroup('runtime.allowed')
-      .info('visible runtime info', { elapsedTimeMs: 2.34 });
-    logger
-      .getLoggerByGroup('runtime.hidden')
-      .info('hidden runtime info', { elapsedTimeMs: 3.45 });
-
-    expect(getLoggerConfigForScope(TEST_RUNTIME_LOGGER_SCOPE_ID)).toEqual(
+    const plugin = createVitePressLoggerFacadePlugin(
+      TEST_RUNTIME_LOGGER_SCOPE_ID,
       loggingConfig,
     );
-    expect(
-      normalizeConsoleCalls(logSpy.mock.calls).some((message) =>
-        message.includes('visible runtime info'),
-      ),
-    ).toBe(true);
-    expect(
-      normalizeConsoleCalls(logSpy.mock.calls).some((message) =>
-        message.includes('hidden runtime info'),
-      ),
-    ).toBe(false);
-    expect(warnSpy).not.toHaveBeenCalled();
+
+    const resolved = await callResolveId(plugin, VITEPRESS_LOGGER_MODULE_ID);
+
+    expect(resolved).toBe(
+      createVitePressLoggerVirtualModuleId(TEST_RUNTIME_LOGGER_SCOPE_ID),
+    );
+    const source = await callLoad(plugin, resolved as string);
+
+    expect(typeof source).toBe('string');
+    const sourceCode = source as string;
+
+    expect(sourceCode).toContain(
+      `const loggerScopeId = ${JSON.stringify(TEST_RUNTIME_LOGGER_SCOPE_ID)};`,
+    );
+    expect(sourceCode).toContain('setLoggerConfigForScope(loggerScopeId');
+    expect(sourceCode).toContain(
+      `const loggerConfig = ${JSON.stringify(loggingConfig)};`,
+    );
+    expect(sourceCode).toContain(
+      'createLoggerWithScopeId(options, loggerScopeId)',
+    );
+    expect(sourceCode).not.toContain('__DOCS_ISLANDS_LOGGER_SCOPE_ID__');
+    expect(sourceCode).not.toContain('__DOCS_ISLANDS_LOGGER_CONFIG__');
   });
 
   it('throws when the public logger facade runs without a createDocsIslands scope', () => {
@@ -94,7 +113,7 @@ describe('public vitepress logger api', () => {
         main: '@docs-islands/vitepress-docs',
       }),
     ).toThrowError(
-      '@docs-islands/vitepress/logger is running without a logger scope injected by createDocsIslands().',
+      '@docs-islands/vitepress/logger must be resolved by createDocsIslands() before runtime use.',
     );
   });
 

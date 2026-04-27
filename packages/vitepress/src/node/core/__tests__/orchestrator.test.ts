@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { createLoggerScopeId } from '@docs-islands/logger/internal';
 import type { PluginOption } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { react } from '../../adapters/react';
@@ -8,10 +9,14 @@ import { REACT_RUNTIME_BUNDLING_PLUGIN_NAME } from '../../constants/adapters/rea
 import {
   FRAMEWORK_MARKDOWN_TRANSFORM_PLUGIN_NAME,
   INLINE_PAGE_RESOLUTION_PLUGIN_NAME,
+  LOGGER_FACADE_PLUGIN_NAME,
   SITE_DEVTOOLS_OPTIONAL_DEPENDENCY_BOOTSTRAP_PLUGIN_NAME,
   SITE_DEVTOOLS_SOURCE_PLUGIN_NAME,
 } from '../../constants/core/plugin-names';
-import { createLoggerScopeId } from '../logger-scope';
+import {
+  type createVitePressLoggerFacadePlugin,
+  VITEPRESS_LOGGER_MODULE_ID,
+} from '../vite-plugin-logger-facade';
 import { LOGGER_TREE_SHAKING_PLUGIN_NAME } from '../vite-plugin-logger-tree-shaking';
 
 vi.mock('@vitejs/plugin-react-swc', () => ({
@@ -60,6 +65,24 @@ function findPluginIndexByName(
       'name' in plugin &&
       (plugin as { name?: string }).name === name,
   );
+}
+
+async function resolvePublicLoggerVirtualId(
+  plugins: PluginOption[] | undefined,
+): Promise<unknown> {
+  const plugin = findPluginByName(
+    plugins,
+    LOGGER_FACADE_PLUGIN_NAME,
+  ) as ReturnType<typeof createVitePressLoggerFacadePlugin> | null;
+  const resolveId = plugin?.resolveId;
+
+  if (!resolveId) {
+    return null;
+  }
+
+  return typeof resolveId === 'function'
+    ? resolveId.call({} as never, VITEPRESS_LOGGER_MODULE_ID)
+    : resolveId.handler.call({} as never, VITEPRESS_LOGGER_MODULE_ID);
 }
 
 describe('createDocsIslands', () => {
@@ -170,10 +193,16 @@ describe('createDocsIslands', () => {
     expect(defineSnapshots[0]!).toMatchObject({
       __BASE__: JSON.stringify('/docs/'),
       __CLEAN_URLS__: JSON.stringify(true),
-      __DOCS_ISLANDS_LOGGER_CONFIG__: JSON.stringify({
-        levels: ['warn', 'error'],
-      }),
     });
+    expect(defineSnapshots[0]!).not.toHaveProperty(
+      '__DOCS_ISLANDS_LOGGER_CONFIG__',
+    );
+    expect(
+      findPluginByName(
+        vitepressConfig.vite?.plugins,
+        LOGGER_FACADE_PLUGIN_NAME,
+      ),
+    ).toBeTruthy();
     expect(
       findPluginByName(
         vitepressConfig.vite?.plugins,
@@ -199,11 +228,15 @@ describe('createDocsIslands', () => {
     firstIslands.apply(firstConfigB);
     secondIslands.apply(secondConfig);
 
-    expect(firstConfigA.vite?.define.__DOCS_ISLANDS_LOGGER_SCOPE_ID__).toBe(
-      firstConfigB.vite?.define.__DOCS_ISLANDS_LOGGER_SCOPE_ID__,
+    await expect(
+      resolvePublicLoggerVirtualId(firstConfigA.vite?.plugins),
+    ).resolves.toBe(
+      await resolvePublicLoggerVirtualId(firstConfigB.vite?.plugins),
     );
-    expect(firstConfigA.vite?.define.__DOCS_ISLANDS_LOGGER_SCOPE_ID__).not.toBe(
-      secondConfig.vite?.define.__DOCS_ISLANDS_LOGGER_SCOPE_ID__,
+    await expect(
+      resolvePublicLoggerVirtualId(firstConfigA.vite?.plugins),
+    ).resolves.not.toBe(
+      await resolvePublicLoggerVirtualId(secondConfig.vite?.plugins),
     );
   });
 

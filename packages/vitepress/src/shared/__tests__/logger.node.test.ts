@@ -3,6 +3,7 @@
  */
 import {
   createLogger,
+  createLoggerWithScopeId,
   formatDebugMessage,
   getLoggerConfigForScope,
   resetLoggerConfig,
@@ -226,13 +227,13 @@ describe('logger node behavior', () => {
       ],
     });
 
-    const scopeALogger = createLogger(
+    const scopeALogger = createLoggerWithScopeId(
       {
         main: '@docs-islands/vitepress',
       },
       scopeA,
     );
-    const scopeBLogger = createLogger(
+    const scopeBLogger = createLoggerWithScopeId(
       {
         main: '@docs-islands/vitepress',
       },
@@ -277,9 +278,12 @@ describe('logger node behavior', () => {
   it('keeps instant scoped logger output on the plain message body', () => {
     const output = captureConsoleOutput();
 
-    createLogger({
-      main: '@docs-islands/vitepress',
-    })
+    createLoggerWithScopeId(
+      {
+        main: '@docs-islands/vitepress',
+      },
+      'instant-output-scope',
+    )
       .getLoggerByGroup(VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager)
       .warn('runtime warning', { elapsedTimeMs: 0 });
 
