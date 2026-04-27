@@ -4,7 +4,6 @@ export const BUILD_AUTO_DISCOVER_PLACEHOLDER = '...';
 export const BUILD_SKIP_ARG_KEYS = new Set(['--skip', '--exclude']);
 
 export const BUILD_PIPELINE: BuildPhase[] = [
-  '@docs-islands/logger',
   '@docs-islands/plugin-license',
   '@docs-islands/core',
   '@docs-islands/vitepress',
@@ -12,7 +11,6 @@ export const BUILD_PIPELINE: BuildPhase[] = [
 ];
 
 export const BUILD_FALLBACK_PACKAGES = [
-  '@docs-islands/logger',
   '@docs-islands/plugin-license',
   '@docs-islands/utils',
   '@docs-islands/core',

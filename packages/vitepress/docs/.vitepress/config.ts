@@ -194,7 +194,7 @@ createDocsIslands({
             modelId: 'doubao-pro',
             cache: {
               dir: `.vitepress/site-devtools-reports/${cacheDir}`,
-              strategy: 'fallback',
+              strategy: isInCi ? 'fallback' : 'exact',
             },
           };
         },

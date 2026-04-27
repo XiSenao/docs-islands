@@ -31,7 +31,7 @@
     "frontend"
   ],
   "scripts": {
-    "build": "pnpm --filter @docs-islands/logger build && pnpm --filter @docs-islands/utils build && DOCS_ISLANDS_BUILD_SKIP_PACKAGES=@docs-islands/logger,@docs-islands/utils tsx scripts/build.ts",
+    "build": "tsx scripts/build.ts",
     "docs:dev": "sh -c 'pnpm --filter \"@docs-islands/${1:-monorepo}-docs\" docs:dev' --",
     "docs:build": "pnpm run _run docs:build && tsx scripts/merge-docs.ts",
     "docs:preview": "pnpm --filter @docs-islands/monorepo-docs docs:preview",
@@ -50,7 +50,7 @@
     "clean": "pnpm run _run clean && del-cli .eslintcache node_modules",
     "_run": "tsx scripts/run-workspace-script.ts",
     "preinstall": "npx only-allow pnpm",
-    "postinstall": "pnpm --filter @docs-islands/logger build && pnpm --filter @docs-islands/utils build && pnpm --filter @docs-islands/agents run link",
+    "postinstall": "pnpm --filter @docs-islands/utils build && pnpm --filter @docs-islands/logger build && pnpm --filter @docs-islands/agents run link",
     "prepare": "husky"
   },
   "dependencies": {
