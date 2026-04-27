@@ -62,11 +62,19 @@ describe('auditPublishedPackageBoundaries', () => {
       path.join(distDir, 'node', 'index.js'),
       `import path from 'node:path';
 import { defineConfig } from 'vite';
+import { formatDebugMessage } from '@docs-islands/utils/logger';
 import { createLogger } from '@docs-islands/vitepress/logger';
 import loggerPresets from '@docs-islands/vitepress/logger/presets';
-import { loggerTreeShaking } from '@docs-islands/logger/plugin';
+import { loggerPlugin } from '@docs-islands/logger/plugin';
 
-export { path, defineConfig, loggerPresets, loggerTreeShaking, createLogger };
+export {
+  path,
+  defineConfig,
+  loggerPresets,
+  loggerPlugin,
+  formatDebugMessage,
+  createLogger,
+};
 `,
     );
     writeTextFile(

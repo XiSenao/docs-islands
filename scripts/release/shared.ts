@@ -199,7 +199,7 @@ const RELEASE_PACKAGE_CONFIGS: readonly ReleasePackageConfig[] = [
     key: 'logger',
     packageName: '@docs-islands/logger',
     relativeDir: 'packages/logger',
-    publishRelativeDir: 'packages/logger',
+    publishRelativeDir: 'packages/logger/dist',
     changelogRelativePath: 'packages/logger/CHANGELOG.md',
     changelogPaths: [
       'packages/logger',
@@ -207,7 +207,13 @@ const RELEASE_PACKAGE_CONFIGS: readonly ReleasePackageConfig[] = [
       'docs/zh/logger.md',
     ],
     tagPrefix: 'logger',
-    previewChecks: ['test', 'build', 'npm pack --dry-run'],
+    previewChecks: [
+      'test',
+      'build package',
+      'verify dist/package.json version',
+      'lint:package',
+      'npm pack --dry-run',
+    ],
   },
   {
     key: 'vitepress',
