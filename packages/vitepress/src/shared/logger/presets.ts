@@ -123,10 +123,6 @@ export const runtime: LoggingPresetPlugin = createPresetPlugin({
     group: getFrameworkRenderStrategyLogGroup('react'),
     main: CORE_MAIN_NAME,
   },
-  cssLoading: {
-    group: VITEPRESS_RUNTIME_LOG_GROUPS.cssLoading,
-    main: VITEPRESS_MAIN_NAME,
-  },
   reactClientLoader: {
     group: VITEPRESS_RUNTIME_LOG_GROUPS.reactClientLoader,
     main: VITEPRESS_MAIN_NAME,

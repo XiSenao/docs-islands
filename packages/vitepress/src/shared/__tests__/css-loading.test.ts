@@ -11,6 +11,22 @@ import cssLoadingRuntime from '../runtime/css-loading';
 
 const TEST_LOGGER_SCOPE_ID = 'css-loading-runtime-test-scope';
 
+vi.mock('@docs-islands/utils/logger', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@docs-islands/utils/logger')>();
+  const loggerScopeId = 'css-loading-runtime-test-scope';
+
+  return {
+    ...actual,
+    createLogger: (options: Parameters<typeof actual.createLogger>[0]) =>
+      actual.createLoggerWithScopeId(options, loggerScopeId),
+    shouldSuppressLog: (
+      kind: Parameters<typeof actual.shouldSuppressLog>[0],
+      options: Parameters<typeof actual.shouldSuppressLog>[1],
+    ) => actual.shouldSuppressLogWithScopeId(kind, options, loggerScopeId),
+  };
+});
+
 const normalizeConsoleMessage = (value: unknown): string =>
   String(value).replaceAll('%c', '');
 
@@ -30,7 +46,6 @@ const captureConsoleOutput = (): string[] => {
 
 afterEach(() => {
   document.head.innerHTML = '';
-  globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__ = undefined;
   resetLoggerConfigForScope(TEST_LOGGER_SCOPE_ID);
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -38,8 +53,7 @@ afterEach(() => {
 
 describe('cssLoadingRuntime', () => {
   it('logs duplicate CSS loading diagnostics through the scoped vitepress logger', async () => {
-    vi.stubGlobal('__ENV__', 'development');
-    globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__ = TEST_LOGGER_SCOPE_ID;
+    vi.stubGlobal('__DEBUG__', true);
     setLoggerConfigForScope(TEST_LOGGER_SCOPE_ID, {
       rules: [
         {

@@ -16,7 +16,11 @@ import { pathToFileURL } from 'node:url';
 import { join, resolve } from 'pathe';
 import type { InlineConfig } from 'vite';
 import { build } from 'vite';
-import { createLoggerScopeDefinesFromRegistry } from '../core/logger-scope';
+import {
+  createVitePressLoggerFacadePlugin,
+  UTILS_LOGGER_MODULE_ID,
+  VITEPRESS_LOGGER_MODULE_ID,
+} from '../core/vite-plugin-logger-facade';
 import { createLoggerTreeShakingPlugin } from '../core/vite-plugin-logger-tree-shaking';
 import { getVitePressGroupLogger } from '../logger';
 import type { UIFrameworkBuildAdapter } from './adapter';
@@ -72,6 +76,13 @@ export async function bundleUIComponentsForSSR(
         rollupOptions: {
           input: preparedEntryModules.entryPoints,
           external: (id) => {
+            if (
+              id === VITEPRESS_LOGGER_MODULE_ID ||
+              id === UTILS_LOGGER_MODULE_ID
+            ) {
+              return false;
+            }
+
             if (isNodeLikeBuiltin(id)) {
               return true;
             }
@@ -99,12 +110,12 @@ export async function bundleUIComponentsForSSR(
         cssCodeSplit: true,
       },
       plugins: [
+        createVitePressLoggerFacadePlugin(loggerScopeId),
         createLoggerTreeShakingPlugin(loggerScopeId),
         ...adapter.ssrBundlerPlugins(),
       ],
       define: {
         'import.meta.dirname': DIRNAME_VAR_NAME,
-        ...createLoggerScopeDefinesFromRegistry(loggerScopeId),
       },
       logLevel: 'warn',
     };

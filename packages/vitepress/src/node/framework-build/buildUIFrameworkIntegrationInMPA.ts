@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'pathe';
 import type { InlineConfig, Plugin } from 'vite';
 import { build as viteBuild } from 'vite';
-import { createLoggerScopeDefinesFromRegistry } from '../core/logger-scope';
+import { createVitePressLoggerFacadePlugin } from '../core/vite-plugin-logger-facade';
 import { createLoggerTreeShakingPlugin } from '../core/vite-plugin-logger-tree-shaking';
 import { getVitePressGroupLogger } from '../logger';
 import type { UIFrameworkBuildAdapter } from './adapter';
@@ -78,14 +78,6 @@ export const buildUIFrameworkIntegrationInMPA = async (
        * - The `index-chunk` module statically imports the `entry-chunk` module.
        */
       const tempEntryContent = `
-if (typeof __DOCS_ISLANDS_LOGGER_SCOPE_ID__ !== 'undefined') {
-  globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__ = __DOCS_ISLANDS_LOGGER_SCOPE_ID__;
-}
-
-if (typeof __DOCS_ISLANDS_LOGGER_CONFIG__ !== 'undefined') {
-  globalThis.__DOCS_ISLANDS_LOGGER_CONFIG__ = __DOCS_ISLANDS_LOGGER_CONFIG__;
-}
-
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   void import('${adapter.clientEntryModule()}').then(({ ${adapter.clientEntryImportName()} }) => {
     ${adapter.clientEntryImportName()}();
@@ -151,6 +143,7 @@ export const inBrowser = true;
           assetsInlineLimit: 4096,
         },
         plugins: [
+          createVitePressLoggerFacadePlugin(loggerScopeId),
           createLoggerTreeShakingPlugin(loggerScopeId),
           vitepressTreeShakingPlugin,
         ],
@@ -163,7 +156,6 @@ export const inBrowser = true;
           'process.env.NODE_ENV': '"production"',
           __BASE__: JSON.stringify(base),
           __CLEAN_URLS__: JSON.stringify(cleanUrls),
-          ...createLoggerScopeDefinesFromRegistry(loggerScopeId),
         },
         resolve: {
           extensions: ['.ts', '.tsx', '.js', '.jsx'],

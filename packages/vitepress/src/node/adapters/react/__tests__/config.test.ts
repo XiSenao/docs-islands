@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VITEPRESS_HMR_LOG_GROUPS } from '../../../../shared/constants/log-groups/hmr';
 import { VITEPRESS_RUNTIME_LOG_GROUPS } from '../../../../shared/constants/log-groups/runtime';
 import { hmr } from '../../../../shared/logger/presets';
+import { LOGGER_FACADE_PLUGIN_NAME } from '../../../constants/core/plugin-names';
 
 const mockWarn = vi.fn();
 const TEST_LOGGER_SCOPE_ID = 'test-logger-scope';
@@ -268,31 +269,21 @@ describe('react logging config', () => {
       },
     );
 
-    expect(vitepressConfig.vite.define.__DOCS_ISLANDS_LOGGER_CONFIG__).toBe(
-      JSON.stringify({
-        debug: true,
-        levels: ['warn'],
-        rules: [
-          {
-            enabled: false,
-            group: VITEPRESS_HMR_LOG_GROUPS.markdownUpdate,
-            label: 'hmr/markdownUpdate',
-            main: '@docs-islands/vitepress',
-          },
-          {
-            group: VITEPRESS_HMR_LOG_GROUPS.viteAfterUpdate,
-            label: 'hmr/viteAfterUpdate',
-            main: '@docs-islands/vitepress',
-          },
-        ],
-      }),
+    expect(vitepressConfig.vite.define).not.toHaveProperty(
+      '__DOCS_ISLANDS_LOGGER_CONFIG__',
     );
-    expect(vitepressConfig.vite.define.__DOCS_ISLANDS_LOGGER_SCOPE_ID__).toBe(
-      JSON.stringify(TEST_LOGGER_SCOPE_ID),
+    expect(vitepressConfig.vite.define).not.toHaveProperty(
+      '__DOCS_ISLANDS_LOGGER_SCOPE_ID__',
     );
+    expect(
+      vitepressConfig.vite.plugins.some(
+        (plugin: { name?: string }) =>
+          plugin.name === LOGGER_FACADE_PLUGIN_NAME,
+      ),
+    ).toBe(true);
   });
 
-  it('applies the normalized logger config and injects it into vite define', async () => {
+  it('applies the normalized logger config and registers the virtual facade', async () => {
     const { applyDocsIslandsUserConfig, applyDocsIslandsViteBaseConfig } =
       await import('../../../core/config');
     const vitepressConfig: Record<string, any> = {};
@@ -377,12 +368,18 @@ describe('react logging config', () => {
       },
     );
 
-    expect(vitepressConfig.vite.define.__DOCS_ISLANDS_LOGGER_CONFIG__).toBe(
-      JSON.stringify(resolved.logging ?? null),
+    expect(vitepressConfig.vite.define).not.toHaveProperty(
+      '__DOCS_ISLANDS_LOGGER_CONFIG__',
     );
-    expect(vitepressConfig.vite.define.__DOCS_ISLANDS_LOGGER_SCOPE_ID__).toBe(
-      JSON.stringify(TEST_LOGGER_SCOPE_ID),
+    expect(vitepressConfig.vite.define).not.toHaveProperty(
+      '__DOCS_ISLANDS_LOGGER_SCOPE_ID__',
     );
+    expect(
+      vitepressConfig.vite.plugins.some(
+        (plugin: { name?: string }) =>
+          plugin.name === LOGGER_FACADE_PLUGIN_NAME,
+      ),
+    ).toBe(true);
   });
 
   it('rejects missing logger rule labels', async () => {

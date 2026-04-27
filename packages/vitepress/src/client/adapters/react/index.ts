@@ -28,7 +28,6 @@ import {
 } from '@docs-islands/utils/logger';
 import type React from 'react';
 import type ReactDOM from 'react-dom/client';
-import '../../../shared/runtime/logger-scope-bridge';
 import { createVitePressDevBridge } from '../../vitepress-dev-bridge';
 import { createVitePressLifecycleAdapter } from '../../vitepress-lifecycle-adapter';
 import { reactComponentManager } from './react-component-manager';

@@ -11,6 +11,7 @@ import {
   createLoggerTreeShakingPlugin,
   LOGGER_TREE_SHAKING_PLUGIN_NAME,
   transformLoggerTreeShaking,
+  VITEPRESS_LOGGER_TREE_SHAKING_MODULE_ID,
 } from '../vite-plugin-logger-tree-shaking';
 
 const TEST_LOGGER_SCOPE_ID = 'logger-tree-shaking-test-scope';
@@ -40,6 +41,12 @@ afterEach(() => {
 });
 
 describe('createLoggerTreeShakingPlugin', () => {
+  it('only targets the VitePress scoped logger facade', () => {
+    expect(VITEPRESS_LOGGER_TREE_SHAKING_MODULE_ID).toBe(
+      '@docs-islands/vitepress/logger',
+    );
+  });
+
   it('is a production build post plugin', () => {
     const plugin = createLoggerTreeShakingPlugin(TEST_LOGGER_SCOPE_ID);
 
@@ -77,23 +84,46 @@ logger.warn('visible static warning');
     expect(code).toContain("logger.warn('visible static warning')");
   });
 
-  it('removes suppressed static literal logs from the logger internal entry', async () => {
-    const code = await transformCode(
-      `
-import { createLogger } from '@docs-islands/logger/internal';
+  it.each(['@docs-islands/logger', '@docs-islands/logger/internal'])(
+    'leaves generic logger imports for the generic logger plugin: %s',
+    async (loggerModuleId) => {
+      resetLoggerConfigForScope(TEST_LOGGER_SCOPE_ID);
+      setLoggerConfigForScope(TEST_LOGGER_SCOPE_ID, {
+        levels: ['warn', 'error'],
+      });
+
+      const code = `
+import { createLogger } from '${loggerModuleId}';
 
 const logger = createLogger({ main: '@docs-islands/core' }).getLoggerByGroup('runtime.render.strategy');
 
-logger.info('hidden core runtime info');
-logger.warn('visible core runtime warning');
+logger.info('generic hidden info stays for generic plugin ownership');
+logger.warn('generic visible warning stays for generic plugin ownership');
+      `;
+
+      await expect(
+        transformLoggerTreeShaking(code, TEST_MODULE_ID, TEST_LOGGER_SCOPE_ID),
+      ).resolves.toBeNull();
+    },
+  );
+
+  it('does not prune generic logger imports through the VitePress wrapper', async () => {
+    const code = await transformCode(
+      `
+import { createLogger } from '@docs-islands/logger';
+
+const logger = createLogger({ main: '@docs-islands/core' }).getLoggerByGroup('runtime.render.strategy');
+
+logger.info('generic hidden info');
+logger.warn('generic visible warning');
       `,
       {
         levels: ['warn', 'error'],
       },
     );
 
-    expect(code).not.toContain('hidden core runtime info');
-    expect(code).toContain("logger.warn('visible core runtime warning')");
+    expect(code).toContain("logger.info('generic hidden info')");
+    expect(code).toContain("logger.warn('generic visible warning')");
   });
 
   it('removes debug logs with the default production visibility', async () => {

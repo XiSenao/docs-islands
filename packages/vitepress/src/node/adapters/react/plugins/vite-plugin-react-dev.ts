@@ -4,7 +4,6 @@ import {
   REACT_RENDER_STRATEGY_INJECT_RUNTIME_ID,
 } from '#shared/constants/react-hmr';
 import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/core/shared/constants/render-strategy';
-import { createRequire } from 'node:module';
 import { join } from 'pathe';
 import type { ModuleNode, PluginOption } from 'vite';
 import { normalizePath } from 'vite';
@@ -158,11 +157,6 @@ export function createReactDevPlugin(
 
         if (normalized.includes(REACT_RENDER_STRATEGY_INJECT_RUNTIME_ID)) {
           return normalized;
-        }
-
-        if (normalized === '@docs-islands/vitepress/logger') {
-          const __require = createRequire(import.meta.url);
-          return __require.resolve(normalized);
         }
 
         return null;

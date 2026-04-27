@@ -9,13 +9,14 @@ import {
   createElapsedLogOptions,
   type LoggerScopeId,
   setLoggerConfigForScope,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 import type { DefaultTheme, UserConfig } from 'vitepress';
+import { LOGGER_FACADE_PLUGIN_NAME } from '../constants/core/plugin-names';
 import { createVitePressLogger } from '../logger';
 import { ensureVitepressViteConfig } from './integration-plugin';
-import { createLoggerScopeDefines } from './logger-scope';
 import type { LoggerConfig } from './logging-config';
 import { resolveLoggingConfig } from './logging-config';
+import { createVitePressLoggerFacadePlugin } from './vite-plugin-logger-facade';
 import {
   createLoggerTreeShakingPlugin,
   LOGGER_TREE_SHAKING_PLUGIN_NAME,
@@ -147,38 +148,34 @@ function hasVitePluginNamed(
   return false;
 }
 
-const LOGGER_SCOPE_DEFINE_KEYS = [
-  '__DOCS_ISLANDS_LOGGER_SCOPE_ID__',
-  'globalThis.__DOCS_ISLANDS_LOGGER_SCOPE_ID__',
-] as const;
+const LOGGER_SCOPE_STATE = Symbol.for('docs-islands.vitepress.loggerScopeId');
+
+type ViteConfigWithLoggerScopeState = NonNullable<
+  UserConfig<DefaultTheme.Config>['vite']
+> & {
+  [LOGGER_SCOPE_STATE]?: LoggerScopeId;
+};
 
 export function assertCanApplyDocsIslandsLoggerScope(
   vitepressConfig: UserConfig<DefaultTheme.Config>,
   loggerScopeId: LoggerScopeId,
 ): void {
-  const define = vitepressConfig.vite?.define;
+  const viteConfig = vitepressConfig.vite as
+    | ViteConfigWithLoggerScopeState
+    | undefined;
+  const existingLoggerScopeId = viteConfig?.[LOGGER_SCOPE_STATE];
 
-  if (!define) {
+  if (
+    existingLoggerScopeId === undefined ||
+    existingLoggerScopeId === loggerScopeId
+  ) {
     return;
   }
 
-  const currentLoggerScopeId = JSON.stringify(loggerScopeId);
-
-  for (const defineKey of LOGGER_SCOPE_DEFINE_KEYS) {
-    const existingDefineValue = define[defineKey];
-
-    if (
-      existingDefineValue === undefined ||
-      existingDefineValue === currentLoggerScopeId
-    ) {
-      continue;
-    }
-
-    throw new Error(
-      'createDocsIslands() has already been applied to this VitePress config with a different logger scope. ' +
-        'Use a single createDocsIslands({ adapters: [...] }) call for one VitePress config instead of applying multiple createDocsIslands() instances.',
-    );
-  }
+  throw new Error(
+    'createDocsIslands() has already been applied to this VitePress config with a different logger scope. ' +
+      'Use a single createDocsIslands({ adapters: [...] }) call for one VitePress config instead of applying multiple createDocsIslands() instances.',
+  );
 }
 
 export function warnIfUnsupportedNodeVersion(
@@ -232,6 +229,8 @@ export function applyDocsIslandsViteBaseConfig(
   assertCanApplyDocsIslandsLoggerScope(vitepressConfig, options.loggerScopeId);
 
   const viteConfig = ensureVitepressViteConfig(vitepressConfig);
+  const scopedViteConfig = viteConfig as ViteConfigWithLoggerScopeState;
+  scopedViteConfig[LOGGER_SCOPE_STATE] = options.loggerScopeId;
 
   if (!viteConfig.define) {
     viteConfig.define = {};
@@ -239,10 +238,12 @@ export function applyDocsIslandsViteBaseConfig(
 
   viteConfig.define.__BASE__ = JSON.stringify(siteConfig.base);
   viteConfig.define.__CLEAN_URLS__ = JSON.stringify(siteConfig.cleanUrls);
-  Object.assign(
-    viteConfig.define,
-    createLoggerScopeDefines(options.loggerScopeId, options.logging),
-  );
+
+  if (!hasVitePluginNamed(viteConfig.plugins, LOGGER_FACADE_PLUGIN_NAME)) {
+    viteConfig.plugins!.push(
+      createVitePressLoggerFacadePlugin(options.loggerScopeId, options.logging),
+    );
+  }
 
   if (
     !hasVitePluginNamed(viteConfig.plugins, LOGGER_TREE_SHAKING_PLUGIN_NAME)

@@ -4,7 +4,7 @@ import {
   type LoggerScopeId,
   type LoggerType,
   type ScopedLoggerType,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/internal';
 
 const MAIN_NAME = '@docs-islands/vitepress';
 

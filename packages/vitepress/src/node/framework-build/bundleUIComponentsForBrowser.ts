@@ -26,7 +26,7 @@ import fs from 'node:fs';
 import { basename, dirname, extname, join, relative } from 'pathe';
 import type { InlineConfig } from 'vite';
 import { build } from 'vite';
-import { createLoggerScopeDefinesFromRegistry } from '../core/logger-scope';
+import { createVitePressLoggerFacadePlugin } from '../core/vite-plugin-logger-facade';
 import { createLoggerTreeShakingPlugin } from '../core/vite-plugin-logger-tree-shaking';
 import { getVitePressGroupLogger } from '../logger';
 import type {
@@ -883,6 +883,7 @@ async function bundleRuntimeModuleWithVite(
     ConfigType,
     'root' | 'outDir' | 'assetsDir' | 'cacheDir' | 'base'
   >,
+  loggerScopeId: LoggerScopeId,
   runtimeModule: {
     entryFileBaseName: string;
     source: string;
@@ -913,6 +914,10 @@ async function bundleRuntimeModuleWithVite(
       configFile: false,
       publicDir: false,
       logLevel: 'warn',
+      plugins: [
+        createVitePressLoggerFacadePlugin(loggerScopeId),
+        createLoggerTreeShakingPlugin(loggerScopeId),
+      ],
       build: {
         outDir: config.outDir,
         emptyOutDir: false,
@@ -1077,12 +1082,10 @@ export async function bundleUIComponentsForBrowser(
         cssCodeSplit: true,
       },
       plugins: [
+        createVitePressLoggerFacadePlugin(loggerScopeId),
         createLoggerTreeShakingPlugin(loggerScopeId),
         ...adapter.browserBundlerPlugins(),
       ],
-      define: {
-        ...createLoggerScopeDefinesFromRegistry(loggerScopeId),
-      },
       logLevel: 'warn',
     };
 
@@ -1420,18 +1423,26 @@ export async function bundleUIComponentsForBrowser(
         modulePath: wrapBaseUrl(entry.modulePath),
       })),
     });
-    const loaderBuildResult = await bundleRuntimeModuleWithVite(config, {
-      entryFileBaseName: 'unified-loader',
-      source: unifiedLoaderCode,
-    });
+    const loaderBuildResult = await bundleRuntimeModuleWithVite(
+      config,
+      loggerScopeId,
+      {
+        entryFileBaseName: 'unified-loader',
+        source: unifiedLoaderCode,
+      },
+    );
 
     let ssrInjectScriptRelativePath = '';
     let ssrInjectMetric: RuntimeBundleMetric | null = null;
     if (ssrInjectCodeSnippet.length > 0) {
-      const ssrInjectBuildResult = await bundleRuntimeModuleWithVite(config, {
-        entryFileBaseName: 'ssr-inject-code',
-        source: ssrInjectCodeSnippet.join('\n'),
-      });
+      const ssrInjectBuildResult = await bundleRuntimeModuleWithVite(
+        config,
+        loggerScopeId,
+        {
+          entryFileBaseName: 'ssr-inject-code',
+          source: ssrInjectCodeSnippet.join('\n'),
+        },
+      );
       ssrInjectScriptRelativePath = ssrInjectBuildResult.entryFile;
       ssrInjectMetric = ssrInjectBuildResult.metric;
     }

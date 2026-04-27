@@ -1,4 +1,5 @@
 import { resolveConfig } from '#shared/config';
+import { createLoggerScopeId } from '@docs-islands/logger/internal';
 import type { PluginOption } from 'vite';
 import type { DefaultTheme, UserConfig } from 'vitepress';
 import {
@@ -18,7 +19,6 @@ import {
 } from './config';
 import { resolveCurrentDependencyResolutionBase } from './dependency-resolution';
 import { ensureVitepressViteConfig } from './integration-plugin';
-import { createLoggerScopeId } from './logger-scope';
 
 export interface DocsIslandsAdapter {
   apply: (
