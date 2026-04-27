@@ -44,16 +44,32 @@ logger.debug('debug is visible only when debug is enabled');
 插件入口位于 `@docs-islands/logger/plugin`：
 
 ```ts
-import { loggerTreeShaking } from '@docs-islands/logger/plugin';
+import { loggerPlugin } from '@docs-islands/logger/plugin';
 
 export default {
   vite: {
-    plugins: [loggerTreeShaking.vite()],
+    plugins: [loggerPlugin.vite()],
   },
 };
 ```
 
 当前 docs 站点会在 `docs:build` 阶段使用这个插件。演示组件额外导入了一个静态 debug fixture，因此生产构建会实际经过 compile-time pruning，同时不会影响页面上的 runtime 交互演示。
+
+`loggerPlugin` 默认开启 `treeshake`。在 build 模式下，`treeshake: true` 会让插件删除那些根据已解析 logger 配置可以静态证明为隐藏的 logger 调用。构建产物需要保留所有 logger 调用、只依赖 runtime 过滤时，可以设置 `treeshake: false`：
+
+```ts
+import { loggerPlugin } from '@docs-islands/logger/plugin';
+
+export default {
+  vite: {
+    plugins: [
+      loggerPlugin.vite({
+        treeshake: false,
+      }),
+    ],
+  },
+};
+```
 
 插件只删除静态可证明的调用。动态消息、变量 group、alias、解构方法和间接封装都会保留。
 

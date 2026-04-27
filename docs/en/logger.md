@@ -44,16 +44,32 @@ logger.debug('debug is visible only when debug is enabled');
 The plugin entry lives under `@docs-islands/logger/plugin`:
 
 ```ts
-import { loggerTreeShaking } from '@docs-islands/logger/plugin';
+import { loggerPlugin } from '@docs-islands/logger/plugin';
 
 export default {
   vite: {
-    plugins: [loggerTreeShaking.vite()],
+    plugins: [loggerPlugin.vite()],
   },
 };
 ```
 
 The docs site uses this plugin during `docs:build`. A small static debug fixture is imported by the demo component, so production builds exercise compile-time pruning without changing the interactive runtime demo.
+
+`loggerPlugin` enables `treeshake` by default. In build mode, `treeshake: true` lets the plugin remove statically provable logger calls that are hidden by the resolved logger config. Set `treeshake: false` when a build should keep every logger call and only rely on runtime filtering:
+
+```ts
+import { loggerPlugin } from '@docs-islands/logger/plugin';
+
+export default {
+  vite: {
+    plugins: [
+      loggerPlugin.vite({
+        treeshake: false,
+      }),
+    ],
+  },
+};
+```
 
 The plugin only removes statically provable calls. Dynamic messages, variable groups, aliases, destructured methods, and indirect wrappers are kept.
 

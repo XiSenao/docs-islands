@@ -105,7 +105,7 @@ const logging = {
 
 `logging` 定义的是 logger 的运行时可见性策略。它决定日志在运行时是否输出；在 `debug` 模式下，也会决定可见日志附带哪些规则标签和相对耗时信息。
 
-`@docs-islands/logger` 保持 framework-agnostic。docs-islands 内部通过 `@docs-islands/utils/logger` 把 bundler 注入的 `__DOCS_ISLANDS_LOGGER_SCOPE_ID__` 显式桥接给底层 logger，而 `@docs-islands/vitepress/logger.createLogger(...)` 只有在该注入 scope 存在时才可用。
+`@docs-islands/logger` 保持 framework-agnostic。在受 `createDocsIslands()` 管理的 VitePress 构建中，`@docs-islands/vitepress/logger` 会被解析为绑定当前 scope 的 virtual module，因此每个集成实例都会使用自己的 logger registry 条目。
 
 ### Runtime Policy 与 Build-Time Optimization
 
@@ -163,19 +163,19 @@ hiddenLogger.info('suppressed userland info');
 
 ### Logger Tree-Shaking Plugin
 
-在 `createDocsIslands()` 管理的构建链里，docs-islands 已经会自动安装 logger tree-shaking transform。
+在 `createDocsIslands()` 管理的构建链里，docs-islands 已经会自动安装 logger tree-shaking transform。这个 VitePress 自动 transform 只处理受控 VitePress module graph 里的 `@docs-islands/vitepress/logger` 导入，包括用户组件的 browser/SSR bundle，以及 unified loader 这类经 Vite 二次打包的 runtime module。它不会裁剪 `@docs-islands/logger` 或 `@docs-islands/logger/internal` 导入。
 
-如果你只是想在 VitePress 站点里使用公开 logger，同时又希望拿到生产环境裁剪能力，可以显式安装公开 plugin：
+如果你在 VitePress 站点里使用框架无关的 `@docs-islands/logger` 入口，同时又希望这个通用 logger 拿到生产环境裁剪能力，可以显式安装公开 plugin：
 
 ```ts [.vitepress/config.ts]
 import { defineConfig } from 'vitepress';
-import { loggerTreeShaking } from '@docs-islands/logger/plugin';
+import { loggerPlugin } from '@docs-islands/logger/plugin';
 
 export default defineConfig({
   vite: {
     plugins: [
-      loggerTreeShaking.vite({
-        logging: {
+      loggerPlugin.vite({
+        config: {
           levels: ['warn', 'error'],
         },
       }),
@@ -184,7 +184,7 @@ export default defineConfig({
 });
 ```
 
-如果省略 `logging`，plugin 会回退到默认 logger 可见性策略，这仍然会裁剪静态可判定的 `debug` 日志。如果你还希望 `createDocsIslands()` 模块图之外的动态日志也遵循同一套策略，则需要额外配置 runtime logger。
+`loggerPlugin` 会接管通用 logger 的 runtime config，并默认开启 tree-shaking。如果省略 `config`，plugin 会使用默认 logger 可见性策略，这仍然会裁剪静态可判定的 `debug` 日志。如果只想接管 runtime 配置、不做编译期裁剪，可以设置 `treeshake: false`。
 
 ### 生产环境 Tree-Shaking
 
@@ -206,7 +206,7 @@ logger.error('static metric failed');
 logger.debug('static metric details');
 ```
 
-优化器只分析这个受约束的静态形态：
+VitePress 优化器只分析这个受约束的静态形态：
 
 - `createLogger` 必须是从 `@docs-islands/vitepress/logger` 命名导入的函数。
 - `main`、`getLoggerByGroup(...)` 和日志 message 都必须是字符串字面量。
