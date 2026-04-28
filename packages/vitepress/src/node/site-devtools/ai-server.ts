@@ -7,7 +7,7 @@ import {
   createElapsedLogOptions,
   formatErrorMessage,
   type LoggerScopeId,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger/runtime';
 import { createHash } from 'node:crypto';
 import {
   buildSiteDevToolsAiAnalysisPrompt,
@@ -22,7 +22,7 @@ import { getVitePressGroupLogger } from '../logger';
 
 const DEFAULT_DOUBAO_BASE_URL = 'https://ark.cn-beijing.volces.com/api/v3';
 const DEFAULT_ANALYSIS_TIMEOUT_MS = Number.POSITIVE_INFINITY;
-const getSiteDevToolsAiLogger = (loggerScopeId?: LoggerScopeId) =>
+const getSiteDevToolsAiLogger = (loggerScopeId: LoggerScopeId) =>
   getVitePressGroupLogger(
     VITEPRESS_SITE_DEVTOOLS_LOG_GROUPS.aiServer,
     loggerScopeId,
@@ -321,7 +321,7 @@ const formatRequestTraceDetail = (trace: SiteDevToolsAiRequestTrace) =>
 const logAiRequestStarted = (
   trace: SiteDevToolsAiRequestTrace,
   startedAt: number,
-  loggerScopeId?: LoggerScopeId,
+  loggerScopeId: LoggerScopeId,
 ) => {
   getSiteDevToolsAiLogger(loggerScopeId).info(
     `Starting AI analysis: ${formatRequestTraceDetail(trace)}`,
@@ -336,7 +336,7 @@ const logAiRequestSucceeded = ({
   trace,
 }: {
   elapsedMs: number;
-  loggerScopeId?: LoggerScopeId;
+  loggerScopeId: LoggerScopeId;
   result: string;
   trace: SiteDevToolsAiRequestTrace;
 }) => {
@@ -356,7 +356,7 @@ const logAiRequestFailed = ({
 }: {
   elapsedMs: number;
   error: unknown;
-  loggerScopeId?: LoggerScopeId;
+  loggerScopeId: LoggerScopeId;
   trace: SiteDevToolsAiRequestTrace;
 }) => {
   getSiteDevToolsAiLogger(loggerScopeId).error(
@@ -501,7 +501,7 @@ const runDoubaoAnalysis = async (
   prompt: string,
   config: SiteDevToolsAiConfig,
   target: SiteDevToolsAiAnalysisTarget,
-  loggerScopeId?: LoggerScopeId,
+  loggerScopeId: LoggerScopeId,
 ): Promise<SiteDevToolsAiExecutionResult> => {
   const capability = getDoubaoCapability(config);
   const providerConfig = getDoubaoProviderConfig(config);
@@ -652,7 +652,7 @@ export const analyzeSiteDevToolsAiTarget = async ({
   target,
 }: {
   config: SiteDevToolsAiConfig;
-  loggerScopeId?: LoggerScopeId;
+  loggerScopeId: LoggerScopeId;
   provider: SiteDevToolsAiProvider;
   target: SiteDevToolsAiAnalysisTarget;
 }): Promise<SiteDevToolsAiExecutionResult> => {

@@ -1,7 +1,4 @@
-import {
-  syncRuntimeDefinedLoggerConfig,
-  warnIfUncontrolledDefaultLoggerConfigMissing,
-} from './config';
+import { syncRuntimeDefinedLoggerConfig } from './config';
 import { emitLoggerMessage } from './console';
 import { normalizeLoggerGroup, normalizeLoggerMain } from './normalize';
 import { DEFAULT_LOGGER_SCOPE_ID, normalizeLoggerScopeId } from './scope';
@@ -27,7 +24,7 @@ const createScopedLoggerCacheKey = (
  * Main logger class for both Node.js and browser environments
  * @example
  * ```ts
- * const logger = createLogger({ main: '@docs-islands/utils' });
+ * const logger = createLogger({ main: '@acme/docs' });
  * const groupLogger = logger.getLoggerByGroup('runtime.react.component-manager');
  * groupLogger.info('Grouped message');
  * ```
@@ -203,7 +200,6 @@ const createLoggerForScope = (
   const normalizedScopeId = normalizeLoggerScopeId(scopeId);
 
   syncRuntimeDefinedLoggerConfig(normalizedScopeId);
-  warnIfUncontrolledDefaultLoggerConfigMissing(normalizedScopeId);
   return Logger.getOrCreate(options.main, normalizedScopeId);
 };
 

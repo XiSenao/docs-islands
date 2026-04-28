@@ -34,10 +34,6 @@ const activeLoggerConfigRegistry = new Map<
   NormalizedLoggerConfig | null
 >();
 const syncedRuntimeDefinedLoggerScopes = new Set<LoggerScopeId>();
-let hasWarnedUncontrolledDefaultLoggerConfig = false;
-
-const UNCONTROLLED_DEFAULT_LOGGER_WARNING =
-  '@docs-islands/logger is running without loggerPlugin.vite({ config }) or setLoggerConfig(...). Using the default logger config. Call setLoggerConfig(...) before createLogger(...) to configure non-plugin usage.';
 
 const CONTROLLED_SET_LOGGER_CONFIG_ERROR =
   '@docs-islands/logger is controlled by loggerPlugin.vite({ config }). setLoggerConfig(...) cannot be used in this runtime; update the loggerPlugin.vite({ config }) option in your bundler config instead.';
@@ -173,24 +169,6 @@ const hasLoggerConfigForScope = (scopeId?: LoggerScopeId): boolean => {
     normalizedScopeId === DEFAULT_LOGGER_SCOPE_ID &&
     readDefaultRuntimeLoggerConfig() !== undefined
   );
-};
-
-export const warnIfUncontrolledDefaultLoggerConfigMissing = (
-  scopeId?: LoggerScopeId,
-): void => {
-  const normalizedScopeId = resolveLoggerScopeId(scopeId);
-
-  if (
-    hasWarnedUncontrolledDefaultLoggerConfig ||
-    isLoggerControlled() ||
-    normalizedScopeId !== DEFAULT_LOGGER_SCOPE_ID ||
-    hasLoggerConfigForScope(normalizedScopeId)
-  ) {
-    return;
-  }
-
-  hasWarnedUncontrolledDefaultLoggerConfig = true;
-  console.warn(UNCONTROLLED_DEFAULT_LOGGER_WARNING);
 };
 
 export const syncRuntimeDefinedLoggerConfig = (
@@ -353,10 +331,6 @@ export function resetLoggerConfigForScope(scopeId: LoggerScopeId): void {
   syncedRuntimeDefinedLoggerScopes.delete(normalizedScopeId);
   activeLoggerConfigRegistry.delete(normalizedScopeId);
   getLoggerConfigRegistry().delete(normalizedScopeId);
-
-  if (normalizedScopeId === DEFAULT_LOGGER_SCOPE_ID) {
-    hasWarnedUncontrolledDefaultLoggerConfig = false;
-  }
 }
 
 /**

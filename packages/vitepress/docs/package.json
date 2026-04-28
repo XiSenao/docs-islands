@@ -27,12 +27,12 @@
   "dependencies": {
     "react": "catalog:dev",
     "react-dom": "catalog:dev",
-    "vue": "catalog:prod"
+    "vue": "catalog:prod",
+    "@docs-islands/logger": "catalog:prod"
   },
   "devDependencies": {
     "eslint": "catalog:lint",
     "@docs-islands/eslint-config": "workspace:*",
-    "@docs-islands/logger": "workspace:*",
     "typescript": "catalog:dev",
     "vue-tsc": "catalog:dev",
     "vitepress": "catalog:frameworks",

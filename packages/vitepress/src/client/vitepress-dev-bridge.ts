@@ -16,7 +16,7 @@ import {
   createLogger,
   formatDebugMessage,
   formatErrorMessage,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/vitepress/internal/logger';
 
 const loggerInstance = createLogger({
   main: '@docs-islands/vitepress',

@@ -1,6 +1,6 @@
 import type { ConfigType } from '#dep-types/utils';
 import { resolveConfig } from '#shared/config';
-import type { LoggerScopeId } from '@docs-islands/logger/internal';
+import type { LoggerScopeId } from '@docs-islands/logger/runtime';
 import type { PluginOption } from 'vite';
 import type { DefaultTheme, UserConfig } from 'vitepress';
 import {
@@ -45,6 +45,22 @@ export function ensureVitepressViteConfig(
     vitepressConfig.vite = {};
   }
 
+  if (!vitepressConfig.vite.define) {
+    vitepressConfig.vite.define = {};
+  }
+
+  if (!vitepressConfig.vite.optimizeDeps) {
+    vitepressConfig.vite.optimizeDeps = {};
+  }
+
+  if (!vitepressConfig.vite.worker) {
+    vitepressConfig.vite.worker = {};
+  }
+
+  if (!vitepressConfig.vite.optimizeDeps.exclude) {
+    vitepressConfig.vite.optimizeDeps.exclude = [];
+  }
+
   if (!vitepressConfig.vite.plugins) {
     vitepressConfig.vite.plugins = [];
   }
@@ -86,7 +102,9 @@ function createRenderingIntegrationContext(
   loggerScopeId: LoggerScopeId,
 ): RenderingIntegrationPluginContext {
   const context = {
-    frameworkParserManager: new DefaultRenderingFrameworkParserManager(),
+    frameworkParserManager: new DefaultRenderingFrameworkParserManager(
+      () => loggerScopeId,
+    ),
     loggerScopeId,
     vitepressConfig,
     siteConfig: resolveConfig(vitepressConfig),

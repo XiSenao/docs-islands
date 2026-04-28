@@ -7,7 +7,7 @@ import {
   type LoggerConfig,
   type LoggerRule,
   normalizeLoggerConfig,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger/runtime';
 
 type LoggingPluginMap = NonNullable<LoggingUserConfig['plugins']>;
 
@@ -241,4 +241,4 @@ export function resolveLoggingConfig(
   });
 }
 
-export { type LoggerConfig } from '@docs-islands/logger/internal';
+export { type LoggerConfig } from '@docs-islands/logger/runtime';

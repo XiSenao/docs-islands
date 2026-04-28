@@ -1,7 +1,7 @@
 import {
   createElapsedLogOptions,
   createLogger,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/core/shared/logger-runtime';
 import type { RenderDirective } from '../types/render';
 import { CORE_RUNTIME_LOG_GROUPS } from './constants/log-groups/runtime';
 import {

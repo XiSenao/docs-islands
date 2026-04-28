@@ -13,20 +13,14 @@
  * Distributed as a bin via @docs-islands/utils.
  * Relies on pnpm setting npm_package_json to the calling package's package.json path.
  */
-import {
-  createElapsedLogOptions,
-  createLoggerWithScopeId,
-  DEFAULT_LOGGER_SCOPE_ID,
-} from '@docs-islands/utils/logger';
+import { createLogger } from '@docs-islands/logger';
+import { createElapsedLogOptions } from '@docs-islands/logger/internal';
 import { execSync, spawn } from 'node:child_process';
 import path from 'node:path';
 
-const Log = createLoggerWithScopeId(
-  {
-    main: '@docs-islands/utils',
-  },
-  DEFAULT_LOGGER_SCOPE_ID,
-).getLoggerByGroup('task.link.guard');
+const Log = createLogger({
+  main: '@docs-islands/utils',
+}).getLoggerByGroup('task.link.guard');
 const scriptStartedAt = Date.now();
 const elapsedSince = (startTimeMs: number) =>
   createElapsedLogOptions(startTimeMs, Date.now());

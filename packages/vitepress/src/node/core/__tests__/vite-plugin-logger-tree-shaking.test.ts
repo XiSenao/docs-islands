@@ -8,6 +8,10 @@ import {
 } from '@docs-islands/logger/internal';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  CORE_LOGGER_RUNTIME_MODULE_ID,
+  VITEPRESS_INTERNAL_LOGGER_MODULE_ID,
+} from '../vite-plugin-logger-facade';
+import {
   createLoggerTreeShakingPlugin,
   LOGGER_TREE_SHAKING_PLUGIN_NAME,
   transformLoggerTreeShaking,
@@ -83,6 +87,28 @@ logger.warn('visible static warning');
     expect(code).not.toContain('hidden static info');
     expect(code).toContain("logger.warn('visible static warning')");
   });
+
+  it.each([VITEPRESS_INTERNAL_LOGGER_MODULE_ID, CORE_LOGGER_RUNTIME_MODULE_ID])(
+    'prunes scoped logger imports: %s',
+    async (loggerModuleId) => {
+      const code = await transformCode(
+        `
+import { createLogger } from '${loggerModuleId}';
+
+const logger = createLogger({ main: '@docs-islands/core' }).getLoggerByGroup('runtime.render.strategy');
+
+logger.info('hidden runtime info');
+logger.warn('visible runtime warning');
+      `,
+        {
+          levels: ['warn', 'error'],
+        },
+      );
+
+      expect(code).not.toContain('hidden runtime info');
+      expect(code).toContain("logger.warn('visible runtime warning')");
+    },
+  );
 
   it.each(['@docs-islands/logger', '@docs-islands/logger/internal'])(
     'leaves generic logger imports for the generic logger plugin: %s',

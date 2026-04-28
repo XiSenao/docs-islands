@@ -1,3 +1,4 @@
+import { createLogger, setLoggerConfig } from '@docs-islands/logger';
 import isInCi from 'is-in-ci';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import inspector from 'node:inspector';
@@ -9,6 +10,9 @@ import { findMonorepoRoot, isSubpath } from './path';
 
 let cachedEnv: EnvConfig | null = null;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const elapsedSince = (startTimeMs: number) => ({
+  elapsedTimeMs: Date.now() - startTimeMs,
+});
 
 const environmentSchema: z.ZodDefault<
   z.ZodEnum<{
@@ -58,6 +62,8 @@ const runtimeProcessEnvSchema = z.object({
   'ProgramFiles(x86)': z.string().optional(),
 });
 
+const processEnvSchema = managedProcessEnvSchema.merge(runtimeProcessEnvSchema);
+
 export interface EnvConfig {
   config: {
     sourcemap: boolean;
@@ -83,6 +89,210 @@ export interface EnvConfig {
   env: Environment;
   ci: boolean;
   release: boolean;
+}
+
+type EnvLoggerLevel = 'error' | 'warn' | 'info' | 'success';
+
+interface EnvLoggerConfig {
+  debug: boolean;
+  silence: boolean;
+}
+
+const getEnvLoggerLevels = (silence: boolean): EnvLoggerLevel[] =>
+  silence ? ['error', 'warn'] : ['error', 'warn', 'info', 'success'];
+
+function syncEnvLoggerConfig(config: EnvLoggerConfig): void {
+  setLoggerConfig({
+    debug: config.debug,
+    levels: getEnvLoggerLevels(config.silence),
+  });
+  hasEnvLoggerConfig = true;
+}
+
+const createEnvLogger = () =>
+  createLogger({
+    main: '@docs-islands/utils',
+  }).getLoggerByGroup('env');
+
+let EnvLogger: ReturnType<typeof createEnvLogger> | null = null;
+let hasEnvLoggerConfig = false;
+
+function getEnvLogger(): ReturnType<typeof createEnvLogger> {
+  if (!hasEnvLoggerConfig) {
+    syncEnvLoggerConfig({
+      debug: false,
+      silence: false,
+    });
+  }
+
+  EnvLogger ??= createEnvLogger();
+  return EnvLogger;
+}
+
+function createEnvDebugSummary(
+  env: EnvConfig,
+  metadata: {
+    appliedEnvFileKeys: string[];
+    ciAdjustedKeys: string[];
+    envDir: string;
+    inspectorDebugEnabled: boolean;
+    modeLocalOverrideKeys: string[];
+    parsedEnvFileKeys: string[];
+    releaseDebugSuppressed: boolean;
+    runtimeOverrideKeys: string[];
+  },
+): Record<string, unknown> {
+  return {
+    appliedEnvFileKeys: metadata.appliedEnvFileKeys,
+    build: {
+      skipPackages: env.build.skipPackages || null,
+    },
+    ci: env.ci,
+    ciAdjustedKeys: metadata.ciAdjustedKeys,
+    config: env.config,
+    envDir: metadata.envDir,
+    inspectorDebugEnabled: metadata.inspectorDebugEnabled,
+    mode: env.env,
+    modeLocalOverrideKeys: metadata.modeLocalOverrideKeys,
+    parsedEnvFileKeys: metadata.parsedEnvFileKeys,
+    release: env.release,
+    releaseDebugSuppressed: metadata.releaseDebugSuppressed,
+    runtime: {
+      chromiumExecutablePath: Boolean(env.runtime.chromiumExecutablePath),
+      programFiles: Boolean(env.runtime.programFiles),
+      programFilesX86: Boolean(env.runtime.programFilesX86),
+    },
+    runtimeOverrideKeys: metadata.runtimeOverrideKeys,
+    siteDevtools: {
+      doubaoApiKey: Boolean(env.siteDevtools.doubao_api_key),
+    },
+    test: {
+      port: Boolean(env.test.port),
+      wsEndpoint: Boolean(env.test.ws_endpoint),
+    },
+  };
+}
+
+function stringifyDebugSummary(summary: unknown): string {
+  if (summary === undefined) {
+    return 'n/a';
+  }
+
+  try {
+    return JSON.stringify(summary);
+  } catch {
+    return '[unserializable summary]';
+  }
+}
+
+function formatEnvDebugMessage({
+  context,
+  decision,
+  summary,
+  timingMs,
+}: {
+  context: string;
+  decision: string;
+  summary?: unknown;
+  timingMs?: number;
+}): string {
+  const timing =
+    timingMs === undefined || !Number.isFinite(timingMs)
+      ? 'n/a'
+      : `${timingMs.toFixed(2)}ms`;
+
+  return [
+    `context=${context}`,
+    `decision=${decision}`,
+    `summary=${stringifyDebugSummary(summary)}`,
+    `timing=${timing}`,
+  ].join(' | ');
+}
+
+type UserOverrideChecker = (key: string) => boolean;
+
+function loadParsedEnvIntoProcessEnv(
+  parsed: Record<string, string>,
+  runtimeKeys: ReadonlySet<string>,
+): {
+  appliedEnvFileKeys: string[];
+  runtimeOverrideKeys: string[];
+} {
+  const appliedEnvFileKeys: string[] = [];
+  const runtimeOverrideKeys: string[] = [];
+
+  for (const [key, value] of Object.entries(parsed)) {
+    if (runtimeKeys.has(key)) {
+      runtimeOverrideKeys.push(key);
+    } else {
+      process.env[key] = value;
+      appliedEnvFileKeys.push(key);
+    }
+  }
+
+  return {
+    appliedEnvFileKeys,
+    runtimeOverrideKeys,
+  };
+}
+
+function applyCiTestEnvDefaults(options: {
+  isCI: boolean;
+  isLocalTest: boolean;
+  isRelease: boolean;
+  isUserOverride: UserOverrideChecker;
+}): string[] {
+  const { isCI, isLocalTest, isRelease, isUserOverride } = options;
+
+  if ((!isCI && !isLocalTest) || isRelease) {
+    return [];
+  }
+
+  const ciAdjustedKeys: string[] = [];
+
+  if (!isUserOverride('DOCS_ISLANDS_SILENCE_LOG')) {
+    process.env.DOCS_ISLANDS_SILENCE_LOG = 'false';
+    ciAdjustedKeys.push('DOCS_ISLANDS_SILENCE_LOG');
+  }
+  if (!isUserOverride('DOCS_ISLANDS_SOURCEMAP')) {
+    process.env.DOCS_ISLANDS_SOURCEMAP = 'false';
+    ciAdjustedKeys.push('DOCS_ISLANDS_SOURCEMAP');
+  }
+  if (!isUserOverride('DOCS_ISLANDS_MINIFY')) {
+    process.env.DOCS_ISLANDS_MINIFY = 'true';
+    ciAdjustedKeys.push('DOCS_ISLANDS_MINIFY');
+  }
+
+  return ciAdjustedKeys;
+}
+
+function applyReleaseEnvDefaults(
+  isRelease: boolean,
+  isUserOverride: UserOverrideChecker,
+): boolean {
+  if (!isRelease || isUserOverride('DOCS_ISLANDS_DEBUG')) {
+    return false;
+  }
+
+  process.env.DOCS_ISLANDS_DEBUG = 'false';
+  return true;
+}
+
+function applyInspectorDebugFallback(
+  isRelease: boolean,
+  isUserOverride: UserOverrideChecker,
+): boolean {
+  if (
+    isRelease ||
+    isUserOverride('DOCS_ISLANDS_DEBUG') ||
+    process.env.DOCS_ISLANDS_DEBUG === 'true' ||
+    inspector.url() === undefined
+  ) {
+    return false;
+  }
+
+  process.env.DOCS_ISLANDS_DEBUG = 'true';
+  return true;
 }
 
 /**
@@ -123,7 +333,7 @@ function findNearestEnv(): string {
   }
 
   if (!isSubpath(root, dir)) {
-    console.warn(
+    getEnvLogger().warn(
       `[docs-islands] .env found at "${dir}" is outside the monorepo root "${root}". This may cause unexpected behavior.`,
     );
   }
@@ -153,9 +363,27 @@ const defaultOptions: LoadEnvOptions = {
  * @returns Pre-computed build configuration values.
  */
 export function loadEnv(options: LoadEnvOptions = defaultOptions): EnvConfig {
+  const loadStartedAt = Date.now();
   const { force } = options;
 
   if (!force && cachedEnv) {
+    syncEnvLoggerConfig({
+      debug: cachedEnv.debug,
+      silence: cachedEnv.config.silence,
+    });
+    getEnvLogger().debug(
+      formatEnvDebugMessage({
+        context: 'load docs-islands environment',
+        decision: 'reuse cached environment configuration',
+        summary: {
+          ci: cachedEnv.ci,
+          config: cachedEnv.config,
+          mode: cachedEnv.env,
+          release: cachedEnv.release,
+        },
+        timingMs: Date.now() - loadStartedAt,
+      }),
+    );
     return cachedEnv;
   }
 
@@ -167,6 +395,7 @@ export function loadEnv(options: LoadEnvOptions = defaultOptions): EnvConfig {
 
   // Keys the user explicitly set in .env.[mode].local
   const localKeys = parseEnvKeys(path.resolve(envDir, `.env.${mode}.local`));
+  const modeLocalOverrideKeys = [...localKeys].toSorted();
 
   /** Returns true if the user explicitly overrode this key. */
   const isUserOverride = (key: string) =>
@@ -174,11 +403,9 @@ export function loadEnv(options: LoadEnvOptions = defaultOptions): EnvConfig {
 
   // ── Step 2: load .env files via Vite ──
   const parsed = viteLoadEnv(mode, envDir, 'DOCS_ISLANDS');
-  for (const [key, value] of Object.entries(parsed)) {
-    if (!runtimeKeys.has(key)) {
-      process.env[key] = value;
-    }
-  }
+  const parsedEnvFileKeys = Object.keys(parsed).toSorted();
+  const { appliedEnvFileKeys, runtimeOverrideKeys } =
+    loadParsedEnvIntoProcessEnv(parsed, runtimeKeys);
 
   // ── Step 3: CI / RELEASE adjustments ──
   const isCI = isInCi;
@@ -186,39 +413,37 @@ export function loadEnv(options: LoadEnvOptions = defaultOptions): EnvConfig {
   const isLocalTest = envFlagSchema.parse(process.env.DOCS_ISLANDS_TEST);
 
   // CI mode: re-enable info/success logs, suppress sourcemap, enable minify
-  if ((isCI || isLocalTest) && !isRelease) {
-    if (!isUserOverride('DOCS_ISLANDS_SILENCE_LOG')) {
-      process.env.DOCS_ISLANDS_SILENCE_LOG = 'false';
-    }
-    if (!isUserOverride('DOCS_ISLANDS_SOURCEMAP')) {
-      process.env.DOCS_ISLANDS_SOURCEMAP = 'false';
-    }
-    if (!isUserOverride('DOCS_ISLANDS_MINIFY')) {
-      process.env.DOCS_ISLANDS_MINIFY = 'true';
-    }
-  }
+  // for keys that were not explicitly overridden.
+  const ciAdjustedKeys = applyCiTestEnvDefaults({
+    isCI,
+    isLocalTest,
+    isRelease,
+    isUserOverride,
+  });
 
-  // RELEASE mode: suppress debug unconditionally
-  if (isRelease) {
-    if (!isUserOverride('DOCS_ISLANDS_DEBUG')) {
-      process.env.DOCS_ISLANDS_DEBUG = 'false';
-    }
-  }
+  // RELEASE mode: suppress debug unless explicitly overridden.
+  const releaseDebugSuppressed = applyReleaseEnvDefaults(
+    isRelease,
+    isUserOverride,
+  );
 
   // ── Step 4: inspector-based debug fallback ──
-  if (
-    !isRelease &&
-    !isUserOverride('DOCS_ISLANDS_DEBUG') &&
-    process.env.DOCS_ISLANDS_DEBUG !== 'true' &&
-    inspector.url() !== undefined
-  ) {
-    process.env.DOCS_ISLANDS_DEBUG = 'true';
-  }
+  const inspectorDebugEnabled = applyInspectorDebugFallback(
+    isRelease,
+    isUserOverride,
+  );
 
   // ── Step 5: Validate and map final configuration ──
-  const finalEnv = managedProcessEnvSchema
-    .merge(runtimeProcessEnvSchema)
-    .parse(process.env);
+  let finalEnv: z.infer<typeof processEnvSchema>;
+  try {
+    finalEnv = processEnvSchema.parse(process.env);
+  } catch (error) {
+    getEnvLogger().error(
+      'Failed to validate docs-islands environment',
+      elapsedSince(loadStartedAt),
+    );
+    throw error;
+  }
 
   cachedEnv = {
     config: {
@@ -246,6 +471,49 @@ export function loadEnv(options: LoadEnvOptions = defaultOptions): EnvConfig {
     env: mode,
     ci: isCI,
   };
+
+  syncEnvLoggerConfig({
+    debug: cachedEnv.debug,
+    silence: cachedEnv.config.silence,
+  });
+
+  if (ciAdjustedKeys.length > 0) {
+    getEnvLogger().info(
+      `Applied CI/test env defaults: ${ciAdjustedKeys.join(', ')}`,
+    );
+  }
+
+  if (releaseDebugSuppressed) {
+    getEnvLogger().info('Suppressed debug logging for release mode');
+  }
+
+  if (inspectorDebugEnabled) {
+    getEnvLogger().info(
+      'Enabled debug logging because Node inspector is attached',
+    );
+  }
+
+  getEnvLogger().debug(
+    formatEnvDebugMessage({
+      context: 'load docs-islands environment',
+      decision: 'applied env files, runtime overrides, and computed defaults',
+      summary: createEnvDebugSummary(cachedEnv, {
+        appliedEnvFileKeys,
+        ciAdjustedKeys,
+        envDir,
+        inspectorDebugEnabled,
+        modeLocalOverrideKeys,
+        parsedEnvFileKeys,
+        releaseDebugSuppressed,
+        runtimeOverrideKeys,
+      }),
+      timingMs: Date.now() - loadStartedAt,
+    }),
+  );
+  getEnvLogger().success(
+    `Loaded ${mode} environment`,
+    elapsedSince(loadStartedAt),
+  );
 
   return cachedEnv;
 }
@@ -279,10 +547,29 @@ export function injectEnv(key: InjectableKey, value: InjectableValue): void {
   const validValue = injectValueSchema.parse(value);
 
   if (validValue === undefined || validValue === null) {
+    getEnvLogger().debug(
+      formatEnvDebugMessage({
+        context: 'inject docs-islands environment variable',
+        decision: 'skip nullish environment value',
+        summary: {
+          key: validKey,
+        },
+      }),
+    );
     return;
   }
 
   process.env[validKey] = String(validValue);
+  getEnvLogger().debug(
+    formatEnvDebugMessage({
+      context: 'inject docs-islands environment variable',
+      decision: 'wrote value to process.env',
+      summary: {
+        key: validKey,
+        valueType: typeof validValue,
+      },
+    }),
+  );
 }
 
 export function injectEnvs(

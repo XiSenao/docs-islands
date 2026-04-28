@@ -1,7 +1,5 @@
-import {
-  createElapsedLogOptions,
-  createLogger,
-} from '@docs-islands/logger/internal';
+import { createLogger } from '@docs-islands/logger';
+import { createElapsedLogOptions } from '@docs-islands/logger/runtime';
 import { scanFiles } from '@docs-islands/utils/fs-utils';
 import { existsSync, readFileSync } from 'node:fs';
 import { copyFile, mkdir, readdir, stat } from 'node:fs/promises';

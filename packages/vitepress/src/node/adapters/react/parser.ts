@@ -10,7 +10,7 @@ import coreTransformComponentTags, {
   travelImports,
 } from '@docs-islands/core/node/transform';
 import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/core/shared/constants/render-strategy';
-import { createElapsedLogOptions } from '@docs-islands/logger/internal';
+import { createElapsedLogOptions } from '@docs-islands/logger/runtime';
 import { type ImportSpecifier, init, parse } from 'es-module-lexer';
 import type { SourceMap } from 'magic-string';
 import { join } from 'pathe';

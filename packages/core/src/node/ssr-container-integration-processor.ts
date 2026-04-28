@@ -7,7 +7,7 @@ import {
   createElapsedLogOptions,
   formatErrorMessage,
   type LoggerScopeId,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/logger/runtime';
 import { CORE_TRANSFORM_LOG_GROUPS } from '../shared/constants/log-groups/transform';
 import {
   RENDER_STRATEGY_ATTRS,

@@ -13,7 +13,10 @@ export {
   formatDebugMessage,
   sanitizeDebugSummary,
 } from './runtime/debug-message.js';
-export { createElapsedLogOptions } from './runtime/elapsed.js';
+export {
+  createElapsedLogOptions,
+  formatElapsedTime,
+} from './runtime/elapsed.js';
 export {
   ScopedLogger,
   createLogger,

@@ -1,5 +1,20 @@
 import { VITEPRESS_RUNTIME_LOG_GROUPS } from '#shared/constants/log-groups/runtime';
-import { createLogger } from '../internal/logger';
+
+/**
+ * Internal client runtime source that is compiled into a build artifact and
+ * injected into the host document.
+ *
+ * The build pipeline passes this runtime the page's high-priority CSS bundle
+ * URLs. At runtime it appends stylesheet links to the host document and protects
+ * dependency loading with timeout, retry, duplicate detection, and partial/strict
+ * failure handling.
+ *
+ * This module is not a public extension point. Keep the behavior stable unless
+ * changing the injected runtime contract. Its `cssLoading` logs are emitted only
+ * under `__DEBUG__` for docs-islands development diagnostics and are not governed
+ * by upstream site logger configuration.
+ */
+import { createLogger } from './light-logger';
 
 type FailureStrategy = 'partial' | 'strict';
 

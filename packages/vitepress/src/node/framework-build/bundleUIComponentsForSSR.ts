@@ -9,7 +9,7 @@ import { DIRNAME_VAR_NAME } from '@docs-islands/core/shared/constants/runtime';
 import {
   createElapsedLogOptions,
   type LoggerScopeId,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger/runtime';
 import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -18,7 +18,7 @@ import type { InlineConfig } from 'vite';
 import { build } from 'vite';
 import {
   createVitePressLoggerFacadePlugin,
-  UTILS_LOGGER_MODULE_ID,
+  VITEPRESS_INTERNAL_LOGGER_MODULE_ID,
   VITEPRESS_LOGGER_MODULE_ID,
 } from '../core/vite-plugin-logger-facade';
 import { createLoggerTreeShakingPlugin } from '../core/vite-plugin-logger-tree-shaking';
@@ -78,7 +78,7 @@ export async function bundleUIComponentsForSSR(
           external: (id) => {
             if (
               id === VITEPRESS_LOGGER_MODULE_ID ||
-              id === UTILS_LOGGER_MODULE_ID
+              id === VITEPRESS_INTERNAL_LOGGER_MODULE_ID
             ) {
               return false;
             }

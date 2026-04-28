@@ -15,7 +15,7 @@ import {
 import {
   formatDebugMessage,
   type LoggerScopeId,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger/runtime';
 import { getProjectRoot } from '@docs-islands/utils/path';
 import { dirname, extname, isAbsolute, relative, resolve } from 'pathe';
 import type { Plugin } from 'vite';
@@ -218,7 +218,7 @@ function createRenderingViteModuleResolver(
 }
 
 function createRenderingModuleResolutionVitePlugin(
-  getLoggerScopeId?: () => LoggerScopeId,
+  getLoggerScopeId: () => LoggerScopeId,
 ): Plugin {
   let resolver: RenderingStaticPageResolver | null = null;
 
@@ -244,7 +244,7 @@ function createRenderingModuleResolutionVitePlugin(
         if (resolvedId) {
           getVitePressGroupLogger(
             VITEPRESS_RESOLVER_LOG_GROUPS.inlinePage,
-            getLoggerScopeId?.(),
+            getLoggerScopeId(),
           ).debug(
             formatDebugMessage({
               context: 'inline page module resolution',
@@ -276,7 +276,7 @@ function createRenderingModuleResolutionVitePlugin(
 }
 
 export function createRenderingModuleResolution(
-  getLoggerScopeId?: () => LoggerScopeId,
+  getLoggerScopeId: () => LoggerScopeId,
 ): RenderingModuleResolution {
   return {
     createInlinePageRequest,

@@ -69,7 +69,7 @@ logger.debug('debug details');
 
 `createLogger({ main })` 用来标识日志流所属的包或子系统。`getLoggerByGroup(group)` 用来标识更细的功能区域。group 必须使用小写点分命名空间，且不能带 package 标识，例如 `runtime.react` 或 `build.pipeline`。
 
-如果没有使用 `loggerPlugin`，也没有在创建 logger 前调用 `setLoggerConfig(...)`，运行时会打印一次提醒，并回退到默认可见性策略。
+如果没有使用 `loggerPlugin`，也没有在创建 logger 前调用 `setLoggerConfig(...)`，运行时会回退到默认可见性策略。
 
 ## Runtime 配置
 

@@ -33,20 +33,54 @@ afterEach(() => {
 });
 
 describe('runtime logger', () => {
-  it('warns once when default-scope direct usage has no runtime config', () => {
+  it('uses default visibility without warning when direct usage has no runtime config', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const output = captureConsoleLog();
 
-    createLogger({
+    const logger = createLogger({
       main: '@acme/logger',
-    });
+    }).getLoggerByGroup('generic.default');
     createLogger({
       main: '@acme/logger-other',
     });
 
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy.mock.calls[0]?.[0]).toContain(
-      'loggerPlugin.vite({ config }) or setLoggerConfig',
-    );
+    logger.info('visible default info', { elapsedTimeMs: 1.23 });
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(
+      output.some((message) => message.includes('visible default info')),
+    ).toBe(true);
+  });
+
+  it('uses injected controlled config without setup warnings', () => {
+    vi.stubGlobal('__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__', true);
+    vi.stubGlobal('__DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__', {
+      levels: ['error'],
+    });
+
+    const output = captureConsoleLog();
+    const errorOutput: string[] = [];
+    vi.spyOn(console, 'error').mockImplementation((message) => {
+      errorOutput.push(String(message));
+    });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const logger = createLogger({
+      main: '@acme/logger',
+    }).getLoggerByGroup('controlled.runtime');
+
+    logger.info('hidden controlled info', { elapsedTimeMs: 1 });
+    logger.error('visible controlled error', { elapsedTimeMs: 2 });
+
+    expect(
+      output.some((message) => message.includes('hidden controlled info')),
+    ).toBe(false);
+    expect(
+      errorOutput.some((message) =>
+        message.includes('visible controlled error'),
+      ),
+    ).toBe(true);
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 
   it('applies generic root setLoggerConfig to default-scope loggers', () => {
@@ -113,37 +147,6 @@ describe('runtime logger', () => {
     ).toThrow(
       '@docs-islands/logger is controlled by loggerPlugin.vite({ config }).',
     );
-  });
-
-  it('uses injected controlled config without emitting uncontrolled warnings', () => {
-    vi.stubGlobal('__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__', true);
-    vi.stubGlobal('__DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__', {
-      levels: ['error'],
-    });
-
-    const output = captureConsoleLog();
-    const errorOutput: string[] = [];
-    vi.spyOn(console, 'error').mockImplementation((message) => {
-      errorOutput.push(String(message));
-    });
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-    const logger = createLogger({
-      main: '@acme/logger',
-    }).getLoggerByGroup('controlled.runtime');
-
-    logger.info('hidden controlled info', { elapsedTimeMs: 1 });
-    logger.error('visible controlled error', { elapsedTimeMs: 2 });
-
-    expect(
-      output.some((message) => message.includes('hidden controlled info')),
-    ).toBe(false);
-    expect(
-      errorOutput.some((message) =>
-        message.includes('visible controlled error'),
-      ),
-    ).toBe(true);
-    expect(warnSpy).not.toHaveBeenCalled();
   });
 
   it('keeps internal scoped configs isolated from the default scope', () => {

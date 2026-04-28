@@ -2,7 +2,7 @@ import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
 import {
   createElapsedLogOptions,
   type LoggerScopeId,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger/runtime';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
@@ -21,7 +21,7 @@ let sharedClientRuntimeMetafileCache: SharedClientRuntimeMetafile | null = null;
 
 // TODO: Simplify processing; optimize further.
 export const getSharedClientRuntimeMetafile = async (
-  loggerScopeId?: LoggerScopeId,
+  loggerScopeId: LoggerScopeId,
 ): Promise<SharedClientRuntimeMetafile> => {
   const metafileBuildStartedAt = Date.now();
   if (sharedClientRuntimeMetafileCache) {

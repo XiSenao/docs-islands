@@ -1,7 +1,5 @@
-import {
-  createElapsedLogOptions,
-  createLogger,
-} from '@docs-islands/logger/internal';
+import { createLogger } from '@docs-islands/logger';
+import { createElapsedLogOptions } from '@docs-islands/logger/runtime';
 import { loadEnv } from '@docs-islands/utils/env';
 import { execSync, spawn } from 'node:child_process';
 import {

@@ -106,7 +106,7 @@ function normalizeReleaseType(
   return normalized;
 }
 
-export function createReleaseCliOptions(
+function createReleaseCliOptions(
   positionals: PositionalArgs,
   flags: ReleaseCommandFlags,
 ): ReleaseCliOptions {
@@ -132,7 +132,7 @@ export function createReleaseCliOptions(
   };
 }
 
-export function createChangelogCliOptions(
+function createChangelogCliOptions(
   positionals: PositionalArgs,
   flags: ChangelogCommandFlags,
 ): ChangelogCliOptions {
@@ -222,7 +222,7 @@ function createChangelogCli() {
   return cli;
 }
 
-export async function runReleaseCli(rawArgv = process.argv): Promise<void> {
+async function runReleaseCli(rawArgv = process.argv): Promise<void> {
   const cli = createReleaseCli();
   cli.parse(rawArgv, { run: false });
 
@@ -236,7 +236,7 @@ export async function runReleaseCli(rawArgv = process.argv): Promise<void> {
   }
 }
 
-export async function runChangelogCli(rawArgv = process.argv): Promise<void> {
+async function runChangelogCli(rawArgv = process.argv): Promise<void> {
   const cli = createChangelogCli();
   cli.parse(rawArgv, { run: false });
 

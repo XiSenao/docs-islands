@@ -50,7 +50,7 @@
     "clean": "pnpm run _run clean && del-cli .eslintcache node_modules",
     "_run": "tsx scripts/run-workspace-script.ts",
     "preinstall": "npx only-allow pnpm",
-    "postinstall": "pnpm --filter @docs-islands/utils build && pnpm --filter @docs-islands/plugin-license build && pnpm --filter @docs-islands/logger build && pnpm --filter @docs-islands/agents run link",
+    "postinstall": "pnpm --filter @docs-islands/utils build && pnpm --filter @docs-islands/agents run link",
     "prepare": "husky"
   },
   "dependencies": {
@@ -62,6 +62,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:dev",
+    "@types/prompts": "catalog:dev",
     "eslint": "catalog:lint",
     "@docs-islands/eslint-config": "workspace:*",
     "@docs-islands/logger": "workspace:*",
