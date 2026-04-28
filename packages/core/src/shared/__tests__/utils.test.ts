@@ -5,9 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RENDER_STRATEGY_CONSTANTS } from '../constants/render-strategy';
 import { validateLegalRenderElements } from '../utils';
 
-vi.mock('@docs-islands/utils/logger', async (importOriginal) => {
+vi.mock('@docs-islands/core/shared/logger-runtime', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@docs-islands/utils/logger')>();
+    await importOriginal<
+      typeof import('@docs-islands/core/shared/logger-runtime')
+    >();
 
   return {
     ...actual,

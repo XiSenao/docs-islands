@@ -12,7 +12,7 @@ import {
   createLogger,
   formatDebugMessage,
   formatErrorMessage,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/vitepress/internal/logger';
 import type React from 'react';
 import { getCleanPathname } from '../../../shared/runtime';
 

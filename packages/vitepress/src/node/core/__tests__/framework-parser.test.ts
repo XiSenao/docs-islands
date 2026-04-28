@@ -10,6 +10,8 @@ import type { RenderingFrameworkParser } from '../framework-parser';
 import { RenderingFrameworkParserManager } from '../framework-parser';
 
 const mockError = vi.fn();
+const TEST_LOGGER_SCOPE_ID = 'framework-parser-test-scope';
+const getTestLoggerScopeId = () => TEST_LOGGER_SCOPE_ID;
 
 vi.mock('../../logger', () => ({
   getVitePressGroupLogger: () => ({
@@ -114,7 +116,7 @@ function createFakeParser({
 describe('RenderingFrameworkParserManager', () => {
   it('runs registered parsers in order and stores framework-scoped containers for mixed pages', async () => {
     const calls: string[] = [];
-    const manager = new RenderingFrameworkParserManager();
+    const manager = new RenderingFrameworkParserManager(getTestLoggerScopeId);
     const react = createFakeParser({
       calls,
       framework: 'react',
@@ -164,7 +166,7 @@ describe('RenderingFrameworkParserManager', () => {
 
   it('errors and strips all recognized scripts when one framework declares multiple script blocks', async () => {
     const calls: string[] = [];
-    const manager = new RenderingFrameworkParserManager();
+    const manager = new RenderingFrameworkParserManager(getTestLoggerScopeId);
     const react = createFakeParser({
       calls,
       framework: 'react',
@@ -201,7 +203,7 @@ describe('RenderingFrameworkParserManager', () => {
 
   it('errors when multiple frameworks reuse the same local component name on one page', async () => {
     const calls: string[] = [];
-    const manager = new RenderingFrameworkParserManager();
+    const manager = new RenderingFrameworkParserManager(getTestLoggerScopeId);
     const react = createFakeParser({
       calls,
       framework: 'react',
@@ -250,7 +252,7 @@ describe('RenderingFrameworkParserManager', () => {
   });
 
   it('leaves unclaimed script blocks untouched', async () => {
-    const manager = new RenderingFrameworkParserManager();
+    const manager = new RenderingFrameworkParserManager(getTestLoggerScopeId);
     const react = createFakeParser({
       calls: [],
       framework: 'react',

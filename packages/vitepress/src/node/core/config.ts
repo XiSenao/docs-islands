@@ -9,10 +9,10 @@ import {
   createElapsedLogOptions,
   type LoggerScopeId,
   setLoggerConfigForScope,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger/runtime';
 import type { DefaultTheme, UserConfig } from 'vitepress';
 import { LOGGER_FACADE_PLUGIN_NAME } from '../constants/core/plugin-names';
-import { createVitePressLogger } from '../logger';
+import { getVitePressGroupLogger } from '../logger';
 import { ensureVitepressViteConfig } from './integration-plugin';
 import type { LoggerConfig } from './logging-config';
 import { resolveLoggingConfig } from './logging-config';
@@ -23,9 +23,7 @@ import {
 } from './vite-plugin-logger-tree-shaking';
 
 const getConfigLogger = (scopeId: LoggerScopeId) =>
-  createVitePressLogger(scopeId).getLoggerByGroup(
-    VITEPRESS_CONFIG_LOG_GROUPS.nodeVersion,
-  );
+  getVitePressGroupLogger(VITEPRESS_CONFIG_LOG_GROUPS.nodeVersion, scopeId);
 
 export interface DocsIslandsSharedOptions {
   logging?: LoggingUserConfig;
@@ -232,12 +230,14 @@ export function applyDocsIslandsViteBaseConfig(
   const scopedViteConfig = viteConfig as ViteConfigWithLoggerScopeState;
   scopedViteConfig[LOGGER_SCOPE_STATE] = options.loggerScopeId;
 
-  if (!viteConfig.define) {
-    viteConfig.define = {};
-  }
+  viteConfig.define!.__BASE__ = JSON.stringify(siteConfig.base);
+  viteConfig.define!.__CLEAN_URLS__ = JSON.stringify(siteConfig.cleanUrls);
 
-  viteConfig.define.__BASE__ = JSON.stringify(siteConfig.base);
-  viteConfig.define.__CLEAN_URLS__ = JSON.stringify(siteConfig.cleanUrls);
+  /**
+   * Do not pre-bundle @docs-islands/vitepress,
+   * otherwise it will break the takeover capability of the controlled logger.
+   */
+  viteConfig.optimizeDeps!.exclude!.push('@docs-islands/vitepress');
 
   if (!hasVitePluginNamed(viteConfig.plugins, LOGGER_FACADE_PLUGIN_NAME)) {
     viteConfig.plugins!.push(
@@ -257,13 +257,7 @@ export function applyDocsIslandsViteBaseConfig(
     return;
   }
 
-  if (!viteConfig.worker) {
-    viteConfig.worker = {};
-  }
-
-  if (!viteConfig.worker.format) {
-    // Site DevTools source preview uses module workers that may code-split during
-    // downstream Vite builds. The default IIFE worker output breaks that build.
-    viteConfig.worker.format = 'es';
-  }
+  // Site DevTools source preview uses module workers that may code-split during
+  // downstream Vite builds. The default IIFE worker output breaks that build.
+  viteConfig.worker!.format = 'es';
 }

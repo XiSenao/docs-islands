@@ -1,7 +1,5 @@
-import {
-  createElapsedLogOptions,
-  createLogger,
-} from '@docs-islands/logger/internal';
+import { createLogger } from '@docs-islands/logger';
+import { createElapsedLogOptions } from '@docs-islands/logger/runtime';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -692,9 +690,7 @@ export async function promptForPackageSelections(
   configs: ResolvedReleasePackageConfig[],
   question: string,
 ): Promise<PromptPackageSelectionResult> {
-  const { selectedPackageKeys = [] } = await prompts<{
-    selectedPackageKeys?: string[];
-  }>(
+  const { selectedPackageKeys = [] } = await prompts(
     {
       type: 'multiselect',
       name: 'selectedPackageKeys',

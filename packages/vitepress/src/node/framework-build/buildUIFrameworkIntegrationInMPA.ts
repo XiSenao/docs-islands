@@ -4,7 +4,7 @@ import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
 import {
   createElapsedLogOptions,
   type LoggerScopeId,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger/runtime';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'pathe';

@@ -21,7 +21,7 @@
     "clean": "del-cli .eslintcache dist node_modules"
   },
   "dependencies": {
-    "@docs-islands/logger": "workspace:*",
+    "@docs-islands/logger": "catalog:prod",
     "tinyglobby": "catalog:prod"
   },
   "devDependencies": {
@@ -44,7 +44,6 @@
     "./env": "./dist/env.js",
     "./fs-utils": "./dist/fs-utils.js",
     "./general": "./dist/general.js",
-    "./logger": "./dist/logger.js",
     "./path": "./dist/path.js",
     "./package.json": "./package.json"
   },

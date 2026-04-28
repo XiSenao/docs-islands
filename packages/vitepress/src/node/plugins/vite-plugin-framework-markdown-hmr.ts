@@ -4,7 +4,7 @@ import type { RenderController } from '@docs-islands/core/node/render-controller
 import {
   createElapsedLogOptions,
   type LoggerScopeId,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger/runtime';
 import { join } from 'pathe';
 import type { Plugin } from 'vite';
 import { normalizePath } from 'vite';
@@ -27,7 +27,7 @@ export function createFrameworkMarkdownHmrPlugin({
 }: {
   framework: string;
   frameworkParserManager: RenderingFrameworkParserManager;
-  loggerScopeId?: LoggerScopeId;
+  loggerScopeId: LoggerScopeId;
   name: string;
   renderController: RenderController;
   resolution: RenderingModuleResolution;

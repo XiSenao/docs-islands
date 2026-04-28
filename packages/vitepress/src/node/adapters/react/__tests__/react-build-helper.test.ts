@@ -6,6 +6,9 @@ import {
   resolveSiteDevToolsBuildReportPageContext,
 } from '../../../framework-build/page-metafile';
 
+const TEST_LOGGER_SCOPE_ID = 'react-build-helper-test-scope';
+const getTestLoggerScopeId = () => TEST_LOGGER_SCOPE_ID;
+
 describe('framework-build page metafile references', () => {
   it('creates a preload tag plus page metafile meta tags', () => {
     expect(
@@ -33,24 +36,24 @@ describe('framework-build page metafile references', () => {
   });
 
   it('resolves rewritten root routes back to their source markdown files', () => {
-    const pageResolver = createRenderingModuleResolution().createStaticResolver(
-      {
-        srcDir: 'packages/vitepress/docs',
-        site: {
-          base: '/docs-islands/vitepress/',
-          cleanUrls: true,
+    const pageResolver = createRenderingModuleResolution(
+      getTestLoggerScopeId,
+    ).createStaticResolver({
+      srcDir: 'packages/vitepress/docs',
+      site: {
+        base: '/docs-islands/vitepress/',
+        cleanUrls: true,
+      },
+      pages: ['en/core-concepts.md', 'zh/core-concepts.md'],
+      rewrites: {
+        inv: {
+          'core-concepts.md': 'en/core-concepts.md',
         },
-        pages: ['en/core-concepts.md', 'zh/core-concepts.md'],
-        rewrites: {
-          inv: {
-            'core-concepts.md': 'en/core-concepts.md',
-          },
-          map: {
-            'en/core-concepts.md': 'core-concepts.md',
-          },
+        map: {
+          'en/core-concepts.md': 'core-concepts.md',
         },
-      } as any,
-    );
+      },
+    } as any);
 
     expect(
       resolveSiteDevToolsBuildReportPageContext({

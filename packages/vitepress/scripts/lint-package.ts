@@ -3,11 +3,8 @@ import {
   createPackageFromTarballData,
   type Problem,
 } from '@arethetypeswrong/core';
-import {
-  createElapsedLogOptions,
-  createLoggerWithScopeId,
-  DEFAULT_LOGGER_SCOPE_ID,
-} from '@docs-islands/utils/logger';
+import { createLogger } from '@docs-islands/logger';
+import { createElapsedLogOptions } from '@docs-islands/logger/internal';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,12 +13,9 @@ import { formatMessage } from 'publint/utils';
 import { packDistTarball } from './package-artifacts';
 import { auditPublishedPackageBoundaries } from './package-boundary';
 
-const loggerInstance = createLoggerWithScopeId(
-  {
-    main: '@docs-islands/vitepress',
-  },
-  DEFAULT_LOGGER_SCOPE_ID,
-);
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
 const Logger = loggerInstance.getLoggerByGroup('task.package-lint');
 const elapsedSince = (startTimeMs: number) =>
   createElapsedLogOptions(startTimeMs, Date.now());

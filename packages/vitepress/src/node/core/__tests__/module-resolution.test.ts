@@ -4,6 +4,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRenderingModuleResolution } from '../module-resolution';
 
+const TEST_LOGGER_SCOPE_ID = 'module-resolution-test-scope';
+const getTestLoggerScopeId = () => TEST_LOGGER_SCOPE_ID;
+
 vi.mock('#shared/logger', () => ({
   createLogger: () => ({
     getLoggerByGroup: () => ({
@@ -22,7 +25,7 @@ afterEach(() => {
 
 describe('rendering module resolution', () => {
   it('resolves routes and document module ids through the shared static resolver', () => {
-    const resolution = createRenderingModuleResolution();
+    const resolution = createRenderingModuleResolution(getTestLoggerScopeId);
     const pageResolver = resolution.createStaticResolver({
       srcDir: 'packages/vitepress/docs',
       site: {
@@ -53,7 +56,7 @@ describe('rendering module resolution', () => {
   });
 
   it('refreshes cached route mappings when the shared vite plugin receives config updates', async () => {
-    const resolution = createRenderingModuleResolution();
+    const resolution = createRenderingModuleResolution(getTestLoggerScopeId);
     const plugin = resolution.createVitePlugin();
     const initialConfig = {
       srcDir: 'packages/vitepress/docs',

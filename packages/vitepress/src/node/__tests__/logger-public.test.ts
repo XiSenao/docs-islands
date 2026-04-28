@@ -12,8 +12,10 @@ import presets, { hmr, runtime } from '@docs-islands/vitepress/logger/presets';
 import type { Plugin } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  CORE_LOGGER_RUNTIME_MODULE_ID,
   createVitePressLoggerFacadePlugin,
   createVitePressLoggerVirtualModuleId,
+  VITEPRESS_INTERNAL_LOGGER_MODULE_ID,
   VITEPRESS_LOGGER_MODULE_ID,
 } from '../core/vite-plugin-logger-facade';
 
@@ -107,13 +109,40 @@ describe('public vitepress logger api', () => {
     expect(sourceCode).not.toContain('__DOCS_ISLANDS_LOGGER_CONFIG__');
   });
 
+  it('routes internal logger imports to the same scope-bound facade', async () => {
+    const plugin = createVitePressLoggerFacadePlugin(
+      TEST_RUNTIME_LOGGER_SCOPE_ID,
+    );
+
+    const internalResolved = await callResolveId(
+      plugin,
+      VITEPRESS_INTERNAL_LOGGER_MODULE_ID,
+    );
+    const coreResolved = await callResolveId(
+      plugin,
+      CORE_LOGGER_RUNTIME_MODULE_ID,
+    );
+
+    expect(internalResolved).toBe(coreResolved);
+
+    const source = await callLoad(plugin, internalResolved as string);
+
+    expect(typeof source).toBe('string');
+    expect(source as string).toContain(
+      'createBaseLoggerWithScopeId(options, loggerScopeId)',
+    );
+    expect(source as string).toContain(
+      'shouldSuppressBaseLog(kind, options, loggerScopeId)',
+    );
+  });
+
   it('throws when the public logger facade runs without a createDocsIslands scope', () => {
     expect(() =>
       createLogger({
         main: '@docs-islands/vitepress-docs',
       }),
     ).toThrowError(
-      '@docs-islands/vitepress/logger must be resolved by createDocsIslands() before runtime use.',
+      '@docs-islands/vitepress/logger must be resolved by createDocsIslands()',
     );
   });
 

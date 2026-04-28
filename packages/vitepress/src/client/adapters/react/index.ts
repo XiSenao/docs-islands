@@ -25,7 +25,7 @@ import {
   createLogger,
   formatDebugMessage,
   formatErrorMessage,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/vitepress/internal/logger';
 import type React from 'react';
 import type ReactDOM from 'react-dom/client';
 import { createVitePressDevBridge } from '../../vitepress-dev-bridge';

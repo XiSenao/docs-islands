@@ -69,7 +69,7 @@ logger.debug('debug details');
 
 `createLogger({ main })` identifies the package or subsystem that owns the log stream. `getLoggerByGroup(group)` identifies a narrower area inside that stream. Group names must use lowercase dot namespaces without package identifiers, for example `runtime.react` or `build.pipeline`.
 
-If you use the runtime without `loggerPlugin` or an explicit `setLoggerConfig(...)` call, the package prints a one-time warning and falls back to its default visibility.
+If you use the runtime without `loggerPlugin` or an explicit `setLoggerConfig(...)` call, the package falls back to its default visibility.
 
 ## Runtime Configuration
 

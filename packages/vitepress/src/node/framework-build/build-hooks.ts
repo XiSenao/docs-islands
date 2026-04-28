@@ -30,7 +30,7 @@ import {
 import {
   createElapsedLogOptions,
   type LoggerScopeId,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger/runtime';
 import type { CheerioAPI } from 'cheerio';
 import { load } from 'cheerio';
 import fs from 'node:fs';

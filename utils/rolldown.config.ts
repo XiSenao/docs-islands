@@ -12,6 +12,13 @@ async function getModuleEntries(): Promise<string[]> {
     absolute: false,
     onlyFiles: true,
     ignore: [
+      /**
+       * The @docs-islands/utils package is a universal module that works across different runtime environments.
+       * The index.ts module only defines the APIs that each module needs to expose.
+       * If users treat it as a barrel file, it will lead to runtime and build-stage errors.
+       * Therefore, ignore the index.ts module.
+       */
+      'index.ts',
       '**/*.d.ts',
       '**/*.config.ts',
       '**/*.test.ts',

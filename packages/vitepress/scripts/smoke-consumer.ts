@@ -1,9 +1,6 @@
+import { createLogger } from '@docs-islands/logger';
+import { createElapsedLogOptions } from '@docs-islands/logger/internal';
 import { loadEnv } from '@docs-islands/utils/env';
-import {
-  createElapsedLogOptions,
-  createLoggerWithScopeId,
-  DEFAULT_LOGGER_SCOPE_ID,
-} from '@docs-islands/utils/logger';
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync, readFileSync } from 'node:fs';
@@ -15,12 +12,9 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-chromium';
 import { packDistTarball } from './package-artifacts';
 
-const loggerInstance = createLoggerWithScopeId(
-  {
-    main: '@docs-islands/vitepress',
-  },
-  DEFAULT_LOGGER_SCOPE_ID,
-);
+const loggerInstance = createLogger({
+  main: '@docs-islands/vitepress',
+});
 const Logger = loggerInstance.getLoggerByGroup('task.consumer-smoke');
 const elapsedSince = (startTimeMs: number) =>
   createElapsedLogOptions(startTimeMs, Date.now());
@@ -29,6 +23,7 @@ const require = createRequire(import.meta.url);
 const { ci, runtime } = loadEnv();
 
 interface DistPackageJson {
+  dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
 }
 
@@ -340,11 +335,18 @@ function installConsumerDependencies(options: {
 }): void {
   const installStartedAt = Date.now();
   const { fixtureDir, manifest, tarballPath } = options;
-  const dependencyArguments = REQUIRED_CONSUMER_DEPENDENCIES.map(
+  const peerDependencyArguments = REQUIRED_CONSUMER_DEPENDENCIES.map(
     (packageName) =>
       `${packageName}@${resolveInstalledPackageVersion(
         packageName,
         manifest.peerDependencies?.[packageName],
+      )}`,
+  );
+  const dependencyArguments = Object.keys(manifest?.dependencies ?? {}).map(
+    (packageName) =>
+      `${packageName}@${resolveInstalledPackageVersion(
+        packageName,
+        manifest.dependencies?.[packageName],
       )}`,
   );
 
@@ -356,11 +358,25 @@ function installConsumerDependencies(options: {
     getPnpmCommand(),
     [
       'add',
+      '--save',
+      '--prefer-offline',
+      '--ignore-scripts',
+      ...dependencyArguments,
+    ],
+    {
+      cwd: fixtureDir,
+      stdio: 'inherit',
+    },
+  );
+  execFileSync(
+    getPnpmCommand(),
+    [
+      'add',
       '--save-dev',
       '--prefer-offline',
       '--ignore-scripts',
       tarballPath,
-      ...dependencyArguments,
+      ...peerDependencyArguments,
     ],
     {
       cwd: fixtureDir,

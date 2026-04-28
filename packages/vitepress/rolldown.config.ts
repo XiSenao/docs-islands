@@ -20,8 +20,30 @@ const packageExternalDeps = [
   // @ts-expect-error No type checking is needed here.
   ...Object.keys(pkg.optionalDependencies ?? {}),
 ];
+const CORE_LOGGER_RUNTIME_MODULE_ID =
+  '@docs-islands/core/shared/logger-runtime';
+const VITEPRESS_INTERNAL_LOGGER_MODULE_ID =
+  '@docs-islands/vitepress/internal/logger';
+const createCoreLoggerRuntimeAliasPlugin = (): NonNullable<
+  RolldownOptions['plugins']
+> => ({
+  name: 'rolldown-plugin-core-logger-runtime-alias',
+  resolveId: {
+    order: 'pre',
+    handler(id) {
+      if (id !== CORE_LOGGER_RUNTIME_MODULE_ID) {
+        return null;
+      }
+
+      return {
+        external: true,
+        id: VITEPRESS_INTERNAL_LOGGER_MODULE_ID,
+      };
+    },
+  },
+});
 const directExternalDeps = [
-  '@docs-islands/utils/logger',
+  VITEPRESS_INTERNAL_LOGGER_MODULE_ID,
   'react-dom/client',
   'vitepress/client',
 ];
@@ -159,7 +181,7 @@ const nodeConfig = defineConfig({
     'adapters/react': resolve(__dirname, 'src/node/adapters/react/index.ts'),
     'site-devtools/mcp': resolve(__dirname, 'src/node/site-devtools/mcp.ts'),
   },
-  plugins: nodePlugins,
+  plugins: [createCoreLoggerRuntimeAliasPlugin(), ...nodePlugins],
   output: {
     ...sharedNodeOptions.output,
     ...(minify && {
@@ -185,6 +207,7 @@ const nodeDtsConfig = defineConfig({
     'site-devtools/mcp': resolve(__dirname, 'src/node/site-devtools/mcp.ts'),
   },
   plugins: [
+    createCoreLoggerRuntimeAliasPlugin(),
     dts({
       tsconfig: 'src/node/tsconfig.json',
       emitDtsOnly: true,
@@ -202,6 +225,7 @@ const clientConfig = defineConfig({
   transform: {
     target: 'es2020',
   },
+  plugins: [createCoreLoggerRuntimeAliasPlugin()],
 });
 
 const clientDtsConfig = defineConfig({
@@ -212,6 +236,7 @@ const clientDtsConfig = defineConfig({
     'adapters/react': resolve(__dirname, 'src/client/adapters/react/index.ts'),
   },
   plugins: [
+    createCoreLoggerRuntimeAliasPlugin(),
     dts({
       tsconfig: 'src/client/tsconfig.json',
       emitDtsOnly: true,
@@ -323,6 +348,7 @@ const internalUtilsConfig = defineConfig({
   ...sharedBrowserOptions,
   input: {
     'internal/devtools': resolve(__dirname, 'src/shared/internal/devtools.ts'),
+    'internal/logger': resolve(__dirname, 'src/shared/internal/logger.ts'),
   },
   transform: {
     target: 'es2020',
@@ -338,6 +364,7 @@ const internalUtilsDtsConfig = defineConfig({
   external: dtsExternalDeps,
   input: {
     'internal/devtools': resolve(__dirname, 'src/shared/internal/devtools.ts'),
+    'internal/logger': resolve(__dirname, 'src/shared/internal/logger.ts'),
   },
   plugins: [
     dts({

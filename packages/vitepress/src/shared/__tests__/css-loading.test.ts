@@ -4,16 +4,18 @@
 import {
   resetLoggerConfigForScope,
   setLoggerConfigForScope,
-} from '@docs-islands/utils/logger';
+} from '@docs-islands/vitepress/internal/logger';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VITEPRESS_RUNTIME_LOG_GROUPS } from '../constants/log-groups/runtime';
 import cssLoadingRuntime from '../runtime/css-loading';
 
 const TEST_LOGGER_SCOPE_ID = 'css-loading-runtime-test-scope';
 
-vi.mock('@docs-islands/utils/logger', async (importOriginal) => {
+vi.mock('@docs-islands/vitepress/internal/logger', async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import('@docs-islands/utils/logger')>();
+    await importOriginal<
+      typeof import('@docs-islands/vitepress/internal/logger')
+    >();
   const loggerScopeId = 'css-loading-runtime-test-scope';
 
   return {

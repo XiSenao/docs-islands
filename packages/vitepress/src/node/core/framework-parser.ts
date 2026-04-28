@@ -8,7 +8,7 @@ import {
 import {
   createElapsedLogOptions,
   type LoggerScopeId,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger/runtime';
 import MagicString, { type SourceMap } from 'magic-string';
 import MarkdownIt from 'markdown-it';
 import type { Plugin } from 'vite';
@@ -117,17 +117,17 @@ function createEmptyTransformResult(
 }
 
 export class RenderingFrameworkParserManager {
-  readonly #getLoggerScopeId?: () => LoggerScopeId;
+  readonly #getLoggerScopeId: () => LoggerScopeId;
   readonly #parsers: RenderingFrameworkParser[] = [];
 
-  constructor(getLoggerScopeId?: () => LoggerScopeId) {
+  constructor(getLoggerScopeId: () => LoggerScopeId) {
     this.#getLoggerScopeId = getLoggerScopeId;
   }
 
   #getFrameworkLogger() {
     return getVitePressGroupLogger(
       VITEPRESS_PARSER_LOG_GROUPS.framework,
-      this.#getLoggerScopeId?.(),
+      this.#getLoggerScopeId(),
     );
   }
 

@@ -11,7 +11,7 @@ import { VITEPRESS_SITE_DEVTOOLS_LOG_GROUPS } from '#shared/constants/log-groups
 import {
   createElapsedLogOptions,
   type LoggerScopeId,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger/runtime';
 import { join } from 'pathe';
 import {
   buildSiteDevToolsAiAnalysisPrompt,
@@ -66,7 +66,7 @@ import {
 const elapsedSince = (startTimeMs: number) =>
   createElapsedLogOptions(startTimeMs, Date.now());
 
-const getAiBuildReportsLogger = (loggerScopeId?: LoggerScopeId) =>
+const getAiBuildReportsLogger = (loggerScopeId: LoggerScopeId) =>
   getVitePressGroupLogger(
     VITEPRESS_SITE_DEVTOOLS_LOG_GROUPS.aiBuildReports,
     loggerScopeId,
@@ -776,7 +776,7 @@ export const generateSiteDevToolsAiBuildReports = async ({
   assetsDir: string;
   cacheDir: string;
   dependencies?: BuildReportDependencies;
-  loggerScopeId?: LoggerScopeId;
+  loggerScopeId: LoggerScopeId;
   outDir: string;
   pageContexts?: Record<string, SiteDevToolsAnalysisBuildReportsPageContext>;
   pageMetafiles: Record<string, PageMetafile>;
