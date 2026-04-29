@@ -65,7 +65,6 @@ const vitepressConfig: UserConfig<DefaultTheme.Config> = defineConfig({
   },
   themeConfig: {
     outline: 'deep',
-    logo: { src: '/favicon.svg', width: 24, height: 24 },
     socialLinks: [
       {
         icon: 'github',

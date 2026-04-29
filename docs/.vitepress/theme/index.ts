@@ -5,12 +5,15 @@ import type { Theme } from 'vitepress';
 import DefaultTheme from 'vitepress/theme';
 import { h } from 'vue';
 import EnhanceLayout from './components/EnhanceLayout.vue';
+import NavBarLogo from './components/NavBarLogo.vue';
 import './styles/index.css';
 
 const theme: Theme = {
   extends: DefaultTheme,
   Layout: () => {
-    return h(EnhanceLayout, null);
+    return h(EnhanceLayout, null, {
+      'nav-bar-title-before': () => h(NavBarLogo),
+    });
   },
   enhanceApp() {
     // Initialize Vercel Analytics
