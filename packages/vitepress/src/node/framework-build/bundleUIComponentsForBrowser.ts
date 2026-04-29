@@ -16,10 +16,7 @@ import type { ConfigType } from '#dep-types/utils';
 import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
 import { parse, type ParserPlugin } from '@babel/parser';
 import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/core/shared/constants/render-strategy';
-import {
-  createElapsedLogOptions,
-  type LoggerScopeId,
-} from '@docs-islands/logger/runtime';
+import { createElapsedLogOptions } from '@docs-islands/logger/helper';
 import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -883,7 +880,7 @@ async function bundleRuntimeModuleWithVite(
     ConfigType,
     'root' | 'outDir' | 'assetsDir' | 'cacheDir' | 'base'
   >,
-  loggerScopeId: LoggerScopeId,
+  loggerScopeId: string,
   runtimeModule: {
     entryFileBaseName: string;
     source: string;
@@ -1003,7 +1000,7 @@ export async function bundleUIComponentsForBrowser(
   components: ComponentBundleInfo[],
   usedSnippetContainer: Map<string, UsedSnippetContainerType>,
   adapter: UIFrameworkBuildAdapter,
-  loggerScopeId: LoggerScopeId,
+  loggerScopeId: string,
 ): Promise<{
   buildMetrics: PageBuildMetrics;
   loaderScript: string;

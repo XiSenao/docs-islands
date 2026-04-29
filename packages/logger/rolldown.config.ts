@@ -25,8 +25,9 @@ const isExternalDependency = (id: string): boolean =>
 const neutralConfig: RolldownOptions = defineConfig({
   input: {
     index: 'src/index.ts',
-    internal: 'src/internal.ts',
-    runtime: 'src/runtime.ts',
+    'helper/index': 'src/helper/index.ts',
+    'core/index': 'src/core/index.ts',
+    'core/helper/index': 'src/core/helper/index.ts',
   },
   platform: 'neutral',
   preserveEntrySignatures: 'strict',
@@ -152,9 +153,11 @@ const pluginConfig = defineConfig({
 const dtsConfig: RolldownOptions = defineConfig({
   input: {
     index: 'src/index.ts',
-    internal: 'src/internal.ts',
-    runtime: 'src/runtime.ts',
+    'helper/index': 'src/helper/index.ts',
+    'core/index': 'src/core/index.ts',
+    'core/helper/index': 'src/core/helper/index.ts',
     'plugin/index': 'src/plugin/index.ts',
+    'types/index': 'src/types/index.ts',
   },
   external: isExternalDependency,
   plugins: [

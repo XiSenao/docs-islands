@@ -1,27 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { RENDER_STRATEGY_CONSTANTS } from '../../shared/constants/render-strategy';
 import transformComponentTags, { travelImports } from '../transform';
-
-vi.mock('@docs-islands/logger/runtime', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@docs-islands/logger/runtime')>();
-
-  return {
-    ...actual,
-    createLoggerWithScopeId: () => ({
-      getLoggerByGroup: () => ({
-        debug: vi.fn(),
-        error: vi.fn(),
-        info: vi.fn(),
-        success: vi.fn(),
-        warn: vi.fn(),
-      }),
-    }),
-  };
-});
 
 const attrNames = {
   renderId: RENDER_STRATEGY_CONSTANTS.renderId.toLowerCase(),

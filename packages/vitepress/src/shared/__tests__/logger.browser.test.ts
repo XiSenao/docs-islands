@@ -3,13 +3,15 @@
  */
 import {
   createLogger,
-  createLoggerWithScopeId,
-  getLoggerConfigForScope,
   resetLoggerConfig,
-  resetLoggerConfigForScope,
   setLoggerConfig,
-  setLoggerConfigForScope,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger';
+import {
+  createScopedLogger as createLoggerWithScopeId,
+  getScopedLoggerConfig as getLoggerConfigForScope,
+  resetScopedLoggerConfig,
+  setScopedLoggerConfig as setLoggerConfigForScope,
+} from '@docs-islands/logger/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VITEPRESS_RUNTIME_LOG_GROUPS } from '../constants/log-groups/runtime';
 import {
@@ -210,7 +212,7 @@ describe('logger browser behavior', () => {
       ],
     });
 
-    resetLoggerConfigForScope(scopeA);
+    resetScopedLoggerConfig(scopeA);
     expect(getLoggerConfigForScope(scopeA)).toBeUndefined();
     expect(getLoggerConfigForScope(scopeB)).toEqual({
       rules: [
@@ -225,13 +227,16 @@ describe('logger browser behavior', () => {
   });
 
   it('keeps instant scoped logger output on the plain message body', () => {
+    const scopeId = 'browser-instant-output-scope';
     const output = captureConsoleOutput();
+
+    setLoggerConfigForScope(scopeId, undefined);
 
     createLoggerWithScopeId(
       {
         main: '@docs-islands/vitepress',
       },
-      'browser-instant-output-scope',
+      scopeId,
     )
       .getLoggerByGroup(VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager)
       .warn('runtime warning', { elapsedTimeMs: 0 });

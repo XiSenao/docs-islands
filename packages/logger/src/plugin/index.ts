@@ -15,9 +15,9 @@ import {
   type UnpluginContextMeta,
   type UnpluginFactory,
 } from 'unplugin';
-import { setLoggerConfigForScope } from '../runtime/config';
-import { DEFAULT_LOGGER_SCOPE_ID } from '../runtime/scope';
-import type { LoggerConfig } from '../runtime/types';
+import { DEFAULT_LOGGER_CONFIG, setScopedLoggerConfig } from '../core/config';
+import { DEFAULT_LOGGER_SCOPE_ID } from '../core/helper/scope';
+import type { LoggerConfig } from '../types';
 import {
   DEFAULT_LOGGER_MODULE_ID,
   transformLoggerTreeShaking,
@@ -130,17 +130,11 @@ const createLoggerPluginDefines = (
   config: LoggerConfig | null | undefined,
 ): Record<
   | '__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__'
-  | '__DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__'
-  | 'globalThis.__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__'
-  | 'globalThis.__DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__',
+  | '__DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__',
   string
 > => ({
   __DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__: JSON.stringify(true),
   __DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__: JSON.stringify(config ?? null),
-  'globalThis.__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__': JSON.stringify(true),
-  'globalThis.__DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__': JSON.stringify(
-    config ?? null,
-  ),
 });
 
 const prependRolldownPlugin = (
@@ -327,12 +321,12 @@ const factory: UnpluginFactory<LoggerPluginOptions | undefined> = (
   meta,
 ) => {
   const loggerScopeId = DEFAULT_LOGGER_SCOPE_ID;
-  const loggerConfig = options.config ?? null;
+  const loggerConfig = options.config ?? DEFAULT_LOGGER_CONFIG;
   const defines = createLoggerPluginDefines(loggerConfig);
   const shouldTreeshake = options.treeshake !== false;
   let isBuild = readInitialIsBuild(meta);
 
-  setLoggerConfigForScope(loggerScopeId, loggerConfig);
+  setScopedLoggerConfig(loggerScopeId, loggerConfig);
 
   return {
     name: LOGGER_PLUGIN_NAME,
@@ -402,3 +396,8 @@ const factory: UnpluginFactory<LoggerPluginOptions | undefined> = (
 };
 
 export const loggerPlugin = createUnplugin(factory);
+
+export {
+  LOGGER_TREE_SHAKING_PLUGIN_NAME,
+  transformLoggerTreeShaking,
+} from './transform';

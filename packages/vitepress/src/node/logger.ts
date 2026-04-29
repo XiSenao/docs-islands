@@ -1,16 +1,13 @@
-import {
-  createLoggerWithScopeId,
-  type LoggerScopeId,
-  type ScopedLoggerType,
-} from '@docs-islands/logger/runtime';
+import { createScopedLogger } from '@docs-islands/logger/core';
+import type { ScopedLogger } from '@docs-islands/logger/types';
 
 const MAIN_NAME = '@docs-islands/vitepress';
 
 export const getVitePressGroupLogger = (
   group: string,
-  scopeId: LoggerScopeId,
-): ScopedLoggerType =>
-  createLoggerWithScopeId(
+  scopeId: string,
+): ScopedLogger =>
+  createScopedLogger(
     {
       main: MAIN_NAME,
     },

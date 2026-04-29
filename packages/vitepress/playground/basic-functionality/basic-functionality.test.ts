@@ -1,4 +1,4 @@
-import { createElapsedLogOptions } from '@docs-islands/logger/internal';
+import { createElapsedLogOptions } from '@docs-islands/logger/helper';
 import { expect } from '@playwright/test';
 import { getPlaygroundLogger } from '../test-utils/logger';
 

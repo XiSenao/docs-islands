@@ -1,6 +1,10 @@
 /**
  * @vitest-environment node
  */
+import {
+  resetScopedLoggerConfig,
+  setScopedLoggerConfig as setLoggerConfigForScope,
+} from '@docs-islands/logger/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRenderingModuleResolution } from '../module-resolution';
 
@@ -20,6 +24,7 @@ vi.mock('#shared/logger', () => ({
 }));
 
 afterEach(() => {
+  resetScopedLoggerConfig(TEST_LOGGER_SCOPE_ID);
   vi.restoreAllMocks();
 });
 
@@ -56,6 +61,8 @@ describe('rendering module resolution', () => {
   });
 
   it('refreshes cached route mappings when the shared vite plugin receives config updates', async () => {
+    setLoggerConfigForScope(TEST_LOGGER_SCOPE_ID, undefined);
+
     const resolution = createRenderingModuleResolution(getTestLoggerScopeId);
     const plugin = resolution.createVitePlugin();
     const initialConfig = {

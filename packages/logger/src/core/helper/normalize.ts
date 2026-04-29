@@ -1,5 +1,9 @@
-import { ROOT_LOGGER_RULE_LABEL } from './constants/levels';
-import type { LoggerConfig, LoggerRule, LoggerVisibilityLevel } from './types';
+import { ROOT_LOGGER_RULE_LABEL } from '../../constants/levels';
+import type {
+  LoggerConfig,
+  LoggerRule,
+  LoggerVisibilityLevel,
+} from '../../types';
 
 const GROUP_NAME_RE =
   /^[\da-z]+(?:[_-][\da-z]+)*(?:\.[\da-z]+(?:[_-][\da-z]+)*)*$/;

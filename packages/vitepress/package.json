@@ -167,7 +167,6 @@
     "./package.json": "./package.json",
     "./internal/devtools": "./src/shared/internal/devtools.ts",
     "./internal/client-runtime": "./src/shared/internal/client-runtime.ts",
-    "./internal/logger": "./src/shared/internal/logger.ts",
     "./internal-helper/client-runtime": "./dist/shared/internal/client-runtime.js",
     "./internal-helper/imports/types/*": "./types/*.d.ts",
     "./internal-helper/imports/dep-types/*": "./src/types/*.d.ts",
@@ -210,9 +209,6 @@
       ],
       "internal/client-runtime": [
         "./shared/internal/client-runtime.d.ts"
-      ],
-      "internal/logger": [
-        "./shared/internal/logger.d.ts"
       ]
     }
   }

@@ -1,8 +1,9 @@
-import { formatElapsedTime } from '@docs-islands/logger/internal';
+import { formatElapsedTime } from '@docs-islands/logger/helper';
 import type {
   CreateLoggerOptions,
   LoggerLogOptions,
-} from '@docs-islands/logger/runtime';
+  ScopedLogger,
+} from '@docs-islands/logger/types';
 
 export interface LightGeneralLoggerReturn {
   log: () => void;
@@ -38,15 +39,7 @@ const LIGHT_LOGGER_STYLES = {
 } as const;
 
 interface LoggerType {
-  getLoggerByGroup: (group: string) => ScopeLogger;
-}
-
-interface ScopeLogger {
-  info: (message: string, options?: LoggerLogOptions) => void;
-  success: (message: string, options?: LoggerLogOptions) => void;
-  warn: (message: string, options?: LoggerLogOptions) => void;
-  error: (message: string, options?: LoggerLogOptions) => void;
-  debug: (message: string, options?: LoggerLogOptions) => void;
+  getLoggerByGroup: (group: string) => ScopedLogger;
 }
 
 const getFormatElapsedTime = (options?: LoggerLogOptions): string => {
@@ -59,7 +52,7 @@ const getFormatElapsedTime = (options?: LoggerLogOptions): string => {
 export function createLogger(options: CreateLoggerOptions): LoggerType {
   const logMain = options.main;
   return {
-    getLoggerByGroup(group: string): ScopeLogger {
+    getLoggerByGroup(group: string): ScopedLogger {
       return {
         info: (message: string, options?: LoggerLogOptions) => {
           const type = 'info';
@@ -131,7 +124,7 @@ export function createLogger(options: CreateLoggerOptions): LoggerType {
             config.messageColor,
           );
         },
-      };
+      } as ScopedLogger;
     },
   };
 }

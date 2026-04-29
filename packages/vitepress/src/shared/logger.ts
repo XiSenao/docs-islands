@@ -1,13 +1,8 @@
-import type {
-  CreateLoggerOptions,
-  LoggerType,
-} from '@docs-islands/logger/runtime';
+import type { CreateLoggerOptions, Logger } from '@docs-islands/logger/types';
 
-export function createLogger(options: CreateLoggerOptions): LoggerType;
-export function createLogger(): LoggerType {
+export function createLogger(options: CreateLoggerOptions): Logger;
+export function createLogger(): Logger {
   throw new Error(
     '@docs-islands/vitepress/logger must be resolved by createDocsIslands()',
   );
 }
-
-export { formatDebugMessage } from '@docs-islands/logger/runtime';

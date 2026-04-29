@@ -32,8 +32,12 @@ describe('ReactRenderController', () => {
     const code = await controller.generateClientRuntimeInDEV('/guide/react.md');
 
     expect(code).toContain('@docs-islands/vitepress/logger');
+    expect(code).toContain('@docs-islands/logger/helper');
     expect(code).toContain(
-      "import { createLogger, formatDebugMessage as __docs_islands_format_debug__ } from '@docs-islands/vitepress/logger';",
+      "import { formatDebugMessage as __docs_islands_format_debug__ } from '@docs-islands/logger/helper';",
+    );
+    expect(code).toContain(
+      "import { createLogger } from '@docs-islands/vitepress/logger';",
     );
     expect(code).toContain('const Logger = createLogger({');
     expect(code).toContain("main: '@docs-islands/vitepress'");
@@ -41,7 +45,6 @@ describe('ReactRenderController', () => {
       `}).getLoggerByGroup('${VITEPRESS_RUNTIME_LOG_GROUPS.reactDevRender}');`,
     );
     expect(code).not.toContain('getLoggerInstance()');
-    expect(code).not.toContain('@docs-islands/logger/internal');
     expect(code).not.toContain('emitRuntimeLog');
     expect(code).toContain('const __MAX_RENDER_ATTEMPTS__ = 10;');
     expect(code).toContain('function __queueRenderRetry__()');

@@ -5,10 +5,7 @@ import {
   createEmptyCompilationContainer,
   type RenderController,
 } from '@docs-islands/core/node/render-controller';
-import {
-  createElapsedLogOptions,
-  type LoggerScopeId,
-} from '@docs-islands/logger/runtime';
+import { createElapsedLogOptions } from '@docs-islands/logger/helper';
 import MagicString, { type SourceMap } from 'magic-string';
 import MarkdownIt from 'markdown-it';
 import type { Plugin } from 'vite';
@@ -117,17 +114,17 @@ function createEmptyTransformResult(
 }
 
 export class RenderingFrameworkParserManager {
-  readonly #getLoggerScopeId: () => LoggerScopeId;
+  readonly #getstring: () => string;
   readonly #parsers: RenderingFrameworkParser[] = [];
 
-  constructor(getLoggerScopeId: () => LoggerScopeId) {
-    this.#getLoggerScopeId = getLoggerScopeId;
+  constructor(getstring: () => string) {
+    this.#getstring = getstring;
   }
 
   #getFrameworkLogger() {
     return getVitePressGroupLogger(
       VITEPRESS_PARSER_LOG_GROUPS.framework,
-      this.#getLoggerScopeId(),
+      this.#getstring(),
     );
   }
 

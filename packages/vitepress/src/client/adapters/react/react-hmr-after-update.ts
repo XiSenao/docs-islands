@@ -18,9 +18,9 @@ import {
 } from '@docs-islands/core/shared/constants/render-strategy';
 import {
   createElapsedLogOptions,
-  createLogger,
   formatDebugMessage,
-} from '@docs-islands/vitepress/internal/logger';
+} from '@docs-islands/logger/helper';
+import { createLogger } from '@docs-islands/vitepress/logger';
 import type React from 'react';
 import type ReactDOM from 'react-dom/client';
 import { reactComponentManager } from './react-component-manager';

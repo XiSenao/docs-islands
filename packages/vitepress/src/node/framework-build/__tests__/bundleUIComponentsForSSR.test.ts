@@ -5,9 +5,9 @@ import type {
 import type { ConfigType } from '#dep-types/utils';
 import { resolveConfig } from '#shared/config';
 import {
-  resetLoggerConfigForScope,
-  setLoggerConfigForScope,
-} from '@docs-islands/logger/internal';
+  resetScopedLoggerConfig,
+  setScopedLoggerConfig as setLoggerConfigForScope,
+} from '@docs-islands/logger/core';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'pathe';
@@ -93,7 +93,7 @@ describe('bundleUIComponentsForSSR', () => {
   });
 
   afterEach(() => {
-    resetLoggerConfigForScope(TEST_LOGGER_SCOPE_ID);
+    resetScopedLoggerConfig(TEST_LOGGER_SCOPE_ID);
   });
 
   it('Verify that SSR meets expectations', async () => {

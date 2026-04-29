@@ -22,9 +22,9 @@ export function createReactClientLoaderModuleSource({
 
   return `
 import {
-  createLogger,
   formatDebugMessage as __docs_islands_format_debug__
-} from '@docs-islands/vitepress/logger';
+} from '@docs-islands/logger/helper';
+import { createLogger } from '@docs-islands/vitepress/logger';
 
 const Logger = createLogger({
   main: '@docs-islands/vitepress'

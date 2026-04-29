@@ -1,19 +1,12 @@
 // @ts-expect-error -- picomatch v4 does not ship TypeScript declarations.
 import rawPicomatch from 'picomatch';
-import { DEFAULT_RESOLVED_LEVELS, LOG_KIND_TO_LEVEL } from './constants/levels';
 import {
-  normalizeLoggerConfig,
-  normalizeLoggerGroup,
-  normalizeLoggerLevelsArray,
-  normalizeLoggerMain,
-} from './normalize';
-import {
-  DEFAULT_LOGGER_SCOPE_ID,
-  normalizeLoggerScopeId,
-  resolveLoggerScopeId,
-} from './scope';
+  DEFAULT_RESOLVED_LEVELS,
+  LOG_KIND_TO_LEVEL,
+} from '../constants/levels';
 import type {
   LoggerConfig,
+  LoggerConfigRegistryEntry,
   LoggerContext,
   LoggerScopeId,
   LoggerVisibilityLevel,
@@ -21,7 +14,19 @@ import type {
   NormalizedLoggerConfig,
   NormalizedLoggerRule,
   ResolvedLoggerContext,
-} from './types';
+} from '../types';
+import {
+  normalizeLoggerConfig,
+  normalizeLoggerGroup,
+  normalizeLoggerLevelsArray,
+  normalizeLoggerMain,
+} from './helper/normalize';
+import {
+  DEFAULT_LOGGER_SCOPE_ID,
+  normalizeLoggerScopeId,
+} from './helper/scope';
+
+export const DEFAULT_LOGGER_CONFIG: LoggerConfig = {};
 
 const GLOB_PATTERN_RE = /[!()*+?[\]{}]/;
 
@@ -29,14 +34,18 @@ const picomatch = rawPicomatch as unknown as (
   pattern: string | readonly string[],
 ) => (value: string) => boolean;
 
-const activeLoggerConfigRegistry = new Map<
-  LoggerScopeId,
-  NormalizedLoggerConfig | null
->();
-const syncedRuntimeDefinedLoggerScopes = new Set<LoggerScopeId>();
+let hasSyncedRuntimeDefinedDefaultLoggerConfig = false;
 
 const CONTROLLED_SET_LOGGER_CONFIG_ERROR =
   '@docs-islands/logger is controlled by loggerPlugin.vite({ config }). setLoggerConfig(...) cannot be used in this runtime; update the loggerPlugin.vite({ config }) option in your bundler config instead.';
+const createMissingScopedLoggerConfigError = (scopeId: LoggerScopeId): string =>
+  `Logger config for scope "${scopeId}" is not registered in this runtime. Call setScopedLoggerConfig(scopeId, config) before creating a scoped logger.`;
+
+declare const __DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__: boolean | undefined;
+declare const __DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__:
+  | LoggerConfig
+  | null
+  | undefined;
 
 const createPatternMatcher = (
   pattern: string,
@@ -72,10 +81,8 @@ const compileLoggerRule = (
 });
 
 const compileLoggerConfig = (
-  config: LoggerConfig | undefined,
+  normalizedConfig: LoggerConfig | undefined,
 ): NormalizedLoggerConfig | null => {
-  const normalizedConfig = normalizeLoggerConfig(config);
-
   if (!normalizedConfig) {
     return null;
   }
@@ -101,122 +108,108 @@ const cloneLevels = (
   levels: ReadonlySet<LoggerVisibilityLevel>,
 ): Set<LoggerVisibilityLevel> => new Set(levels);
 
-type DocsIslandsGlobal = typeof globalThis & {
-  __DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__?: boolean | undefined;
-  __DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__?: LoggerConfig | null | undefined;
-  __DOCS_ISLANDS_LOGGER_CONFIG_REGISTRY__?: Map<
-    LoggerScopeId,
-    LoggerConfig | undefined
-  >;
-};
-
-const getDocsIslandsGlobal = (): DocsIslandsGlobal =>
-  globalThis as DocsIslandsGlobal;
-
 export const isLoggerControlled = (): boolean => {
-  return (
-    getDocsIslandsGlobal().__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__ === true
-  );
+  if (typeof __DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__ === 'boolean') {
+    return __DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__ === true;
+  }
+  return false;
 };
 
 const getLoggerConfigRegistry = (): Map<
   LoggerScopeId,
-  LoggerConfig | undefined
+  LoggerConfigRegistryEntry
 > => {
-  const docsIslandsGlobal = getDocsIslandsGlobal();
-  docsIslandsGlobal.__DOCS_ISLANDS_LOGGER_CONFIG_REGISTRY__ ??= new Map();
-  return docsIslandsGlobal.__DOCS_ISLANDS_LOGGER_CONFIG_REGISTRY__;
+  globalThis.__DOCS_ISLANDS_LOGGER_CONFIG_REGISTRY__ ??= new Map();
+  return globalThis.__DOCS_ISLANDS_LOGGER_CONFIG_REGISTRY__;
 };
 
-const readDefaultRuntimeLoggerConfig = (): LoggerConfig | null | undefined =>
-  getDocsIslandsGlobal().__DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__;
-
-const readRuntimeDefinedLoggerConfig = (
-  scopeId?: LoggerScopeId,
-): LoggerConfig | null | undefined => {
-  const normalizedScopeId = resolveLoggerScopeId(scopeId);
-
-  if (normalizedScopeId !== DEFAULT_LOGGER_SCOPE_ID) {
-    return undefined;
-  }
-
-  return readDefaultRuntimeLoggerConfig();
-};
-
-const applyLoggerConfigForScope = (
-  scopeId: LoggerScopeId,
+const createLoggerConfigRegistryEntry = (
   config: LoggerConfig | null | undefined,
-): void => {
-  const normalizedScopeId = normalizeLoggerScopeId(scopeId);
+): LoggerConfigRegistryEntry => {
   const normalizedConfig = normalizeLoggerConfig(config);
 
-  activeLoggerConfigRegistry.set(
-    normalizedScopeId,
-    compileLoggerConfig(normalizedConfig),
-  );
-  getLoggerConfigRegistry().set(normalizedScopeId, normalizedConfig);
+  return {
+    compiledConfig: compileLoggerConfig(normalizedConfig),
+    config: normalizedConfig,
+  };
 };
 
-const hasLoggerConfigForScope = (scopeId?: LoggerScopeId): boolean => {
-  const normalizedScopeId = resolveLoggerScopeId(scopeId);
+const readDefaultRuntimeLoggerConfig = (): LoggerConfig | null | undefined => {
+  if (typeof __DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__ === 'object') {
+    return __DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__;
+  }
+  return undefined;
+};
+
+const applyScopedLoggerConfig = (
+  scopeId: LoggerScopeId,
+  config: LoggerConfig,
+): void => {
+  const normalizedScopeId = normalizeLoggerScopeId(scopeId);
+
+  getLoggerConfigRegistry().set(
+    normalizedScopeId,
+    createLoggerConfigRegistryEntry(config),
+  );
+};
+
+const syncRuntimeDefinedDefaultLoggerConfig = (): void => {
   const registry = getLoggerConfigRegistry();
 
-  if (registry.has(normalizedScopeId)) {
-    return true;
-  }
-
-  return (
-    normalizedScopeId === DEFAULT_LOGGER_SCOPE_ID &&
-    readDefaultRuntimeLoggerConfig() !== undefined
-  );
-};
-
-export const syncRuntimeDefinedLoggerConfig = (
-  scopeId?: LoggerScopeId,
-): void => {
-  const normalizedScopeId = resolveLoggerScopeId(scopeId);
-
-  if (syncedRuntimeDefinedLoggerScopes.has(normalizedScopeId)) {
+  if (
+    hasSyncedRuntimeDefinedDefaultLoggerConfig &&
+    registry.has(DEFAULT_LOGGER_SCOPE_ID)
+  ) {
     return;
   }
 
-  syncedRuntimeDefinedLoggerScopes.add(normalizedScopeId);
+  if (registry.has(DEFAULT_LOGGER_SCOPE_ID)) {
+    hasSyncedRuntimeDefinedDefaultLoggerConfig = true;
+    return;
+  }
+
+  const runtimeDefinedDefaultLoggerConfig = readDefaultRuntimeLoggerConfig();
+
+  hasSyncedRuntimeDefinedDefaultLoggerConfig = true;
+  applyScopedLoggerConfig(
+    DEFAULT_LOGGER_SCOPE_ID,
+    runtimeDefinedDefaultLoggerConfig ?? DEFAULT_LOGGER_CONFIG,
+  );
+};
+
+export const assertLoggerConfigRegisteredForScope = (
+  scopeId?: LoggerScopeId,
+): LoggerScopeId => {
+  const normalizedScopeId = normalizeLoggerScopeId(scopeId);
+
+  if (normalizedScopeId === DEFAULT_LOGGER_SCOPE_ID) {
+    syncRuntimeDefinedDefaultLoggerConfig();
+    return normalizedScopeId;
+  }
 
   if (getLoggerConfigRegistry().has(normalizedScopeId)) {
-    return;
+    return normalizedScopeId;
   }
 
-  const runtimeDefinedLoggerConfig =
-    readRuntimeDefinedLoggerConfig(normalizedScopeId);
-
-  if (runtimeDefinedLoggerConfig === undefined) {
-    return;
-  }
-
-  applyLoggerConfigForScope(normalizedScopeId, runtimeDefinedLoggerConfig);
+  throw new Error(createMissingScopedLoggerConfigError(normalizedScopeId));
 };
 
-const getNormalizedActiveLoggerConfig = (
+const getCompiledLoggerConfigForScope = (
   scopeId?: LoggerScopeId,
 ): NormalizedLoggerConfig | null => {
-  const normalizedScopeId = resolveLoggerScopeId(scopeId);
+  const normalizedScopeId = normalizeLoggerScopeId(scopeId);
 
-  syncRuntimeDefinedLoggerConfig(normalizedScopeId);
-
-  if (activeLoggerConfigRegistry.has(normalizedScopeId)) {
-    return activeLoggerConfigRegistry.get(normalizedScopeId) ?? null;
+  if (normalizedScopeId === DEFAULT_LOGGER_SCOPE_ID) {
+    syncRuntimeDefinedDefaultLoggerConfig();
   }
 
-  if (!hasLoggerConfigForScope(normalizedScopeId)) {
-    return null;
+  const registry = getLoggerConfigRegistry();
+
+  if (!registry.has(normalizedScopeId)) {
+    throw new Error(createMissingScopedLoggerConfigError(normalizedScopeId));
   }
 
-  const compiledLoggerConfig = compileLoggerConfig(
-    getLoggerConfigForScope(normalizedScopeId),
-  );
-
-  activeLoggerConfigRegistry.set(normalizedScopeId, compiledLoggerConfig);
-  return compiledLoggerConfig;
+  return registry.get(normalizedScopeId)?.compiledConfig ?? null;
 };
 
 const matchesLoggerRule = (
@@ -257,7 +250,7 @@ export const resolveLoggerContext = (
   context: LoggerContext,
   scopeId?: LoggerScopeId,
 ): ResolvedLoggerContext => {
-  const config = getNormalizedActiveLoggerConfig(scopeId);
+  const config = getCompiledLoggerConfigForScope(scopeId);
   const baseEnabledLevels = config?.levels
     ? cloneLevels(config.levels)
     : cloneLevels(DEFAULT_RESOLVED_LEVELS);
@@ -298,38 +291,44 @@ export const resolveLoggerContext = (
   };
 };
 
-export function getLoggerConfigForScope(
+export function getScopedLoggerConfig(
   scopeId: LoggerScopeId,
 ): LoggerConfig | undefined {
   const normalizedScopeId = normalizeLoggerScopeId(scopeId);
+
+  if (normalizedScopeId === DEFAULT_LOGGER_SCOPE_ID) {
+    syncRuntimeDefinedDefaultLoggerConfig();
+  }
+
   const registry = getLoggerConfigRegistry();
 
   if (registry.has(normalizedScopeId)) {
-    return registry.get(normalizedScopeId);
-  }
-
-  if (normalizedScopeId === DEFAULT_LOGGER_SCOPE_ID) {
-    return normalizeLoggerConfig(readDefaultRuntimeLoggerConfig());
+    return registry.get(normalizedScopeId)?.config;
   }
 
   return undefined;
 }
 
-export function setLoggerConfigForScope(
+export function setScopedLoggerConfig(
   scopeId: LoggerScopeId,
-  config: LoggerConfig | null | undefined,
+  config: LoggerConfig,
 ): void {
   const normalizedScopeId = normalizeLoggerScopeId(scopeId);
 
-  syncedRuntimeDefinedLoggerScopes.add(normalizedScopeId);
-  applyLoggerConfigForScope(normalizedScopeId, config);
+  if (normalizedScopeId === DEFAULT_LOGGER_SCOPE_ID) {
+    hasSyncedRuntimeDefinedDefaultLoggerConfig = true;
+  }
+
+  applyScopedLoggerConfig(normalizedScopeId, config);
 }
 
-export function resetLoggerConfigForScope(scopeId: LoggerScopeId): void {
+export function resetScopedLoggerConfig(scopeId: LoggerScopeId): void {
   const normalizedScopeId = normalizeLoggerScopeId(scopeId);
 
-  syncedRuntimeDefinedLoggerScopes.delete(normalizedScopeId);
-  activeLoggerConfigRegistry.delete(normalizedScopeId);
+  if (normalizedScopeId === DEFAULT_LOGGER_SCOPE_ID) {
+    hasSyncedRuntimeDefinedDefaultLoggerConfig = false;
+  }
+
   getLoggerConfigRegistry().delete(normalizedScopeId);
 }
 
@@ -339,18 +338,17 @@ export function resetLoggerConfigForScope(scopeId: LoggerScopeId): void {
  * This is primarily useful for direct logger usage outside any
  * runtime with an injected logger scope such as `createDocsIslands()`.
  *
- * Pass `null` or `undefined` to clear the default-scope config.
  */
-export function setLoggerConfig(config: LoggerConfig | null | undefined): void {
+export function setLoggerConfig(config: LoggerConfig): void {
   if (isLoggerControlled()) {
     throw new Error(CONTROLLED_SET_LOGGER_CONFIG_ERROR);
   }
 
-  setLoggerConfigForScope(DEFAULT_LOGGER_SCOPE_ID, config);
+  setScopedLoggerConfig(DEFAULT_LOGGER_SCOPE_ID, config);
 }
 
 export function resetLoggerConfig(): void {
-  resetLoggerConfigForScope(DEFAULT_LOGGER_SCOPE_ID);
+  resetScopedLoggerConfig(DEFAULT_LOGGER_SCOPE_ID);
 }
 
 export function shouldSuppressLog(

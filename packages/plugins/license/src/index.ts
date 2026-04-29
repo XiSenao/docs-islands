@@ -1,5 +1,4 @@
 import { createLogger } from '@docs-islands/logger';
-import { createElapsedLogOptions } from '@docs-islands/logger/internal';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +13,9 @@ type PluginContext = ThisParameterType<GetHandler<NonNullable<LoadPlugin>>>;
 const LicenseLogger = createLogger({
   main: '@docs-islands/plugin-license',
 }).getLoggerByGroup('plugin.license');
+const elapsedSince = (startTimeMs: number) => ({
+  elapsedTimeMs: Date.now() - startTimeMs,
+});
 
 // Keep in sync with github ci workflow: https://github.com/XiSenao/docs-islands/blob/main/.github/workflows/dependency-review.yml
 const ALLOWED_LICENSES = new Set([
@@ -163,7 +165,7 @@ ${dependencyLicenseTexts}`;
         fs.writeFileSync(licenseFilePath, licenseText);
         LicenseLogger.warn(
           'LICENSE.md updated. You should commit the updated file.',
-          createElapsedLogOptions(updateStartedAt, Date.now()),
+          elapsedSince(updateStartedAt),
         );
       }
     },

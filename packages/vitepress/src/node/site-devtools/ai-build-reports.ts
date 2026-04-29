@@ -8,10 +8,7 @@ import type {
   SiteDevToolsAnalysisBuildReportsPageContext,
 } from '#dep-types/utils';
 import { VITEPRESS_SITE_DEVTOOLS_LOG_GROUPS } from '#shared/constants/log-groups/site-devtools';
-import {
-  createElapsedLogOptions,
-  type LoggerScopeId,
-} from '@docs-islands/logger/runtime';
+import { createElapsedLogOptions } from '@docs-islands/logger/helper';
 import { join } from 'pathe';
 import {
   buildSiteDevToolsAiAnalysisPrompt,
@@ -66,7 +63,7 @@ import {
 const elapsedSince = (startTimeMs: number) =>
   createElapsedLogOptions(startTimeMs, Date.now());
 
-const getAiBuildReportsLogger = (loggerScopeId: LoggerScopeId) =>
+const getAiBuildReportsLogger = (loggerScopeId: string) =>
   getVitePressGroupLogger(
     VITEPRESS_SITE_DEVTOOLS_LOG_GROUPS.aiBuildReports,
     loggerScopeId,
@@ -75,7 +72,7 @@ const getAiBuildReportsLogger = (loggerScopeId: LoggerScopeId) =>
 interface BuildReportDependencies {
   analyzeTarget?: (options: {
     config: SiteDevToolsAiConfig;
-    loggerScopeId?: LoggerScopeId;
+    loggerScopeId?: string;
     provider: SiteDevToolsAiProvider;
     target: SiteDevToolsAiAnalysisTarget;
   }) => Promise<SiteDevToolsAiExecutionResult>;
@@ -776,7 +773,7 @@ export const generateSiteDevToolsAiBuildReports = async ({
   assetsDir: string;
   cacheDir: string;
   dependencies?: BuildReportDependencies;
-  loggerScopeId: LoggerScopeId;
+  loggerScopeId: string;
   outDir: string;
   pageContexts?: Record<string, SiteDevToolsAnalysisBuildReportsPageContext>;
   pageMetafiles: Record<string, PageMetafile>;

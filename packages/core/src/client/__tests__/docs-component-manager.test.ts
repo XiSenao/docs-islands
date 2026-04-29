@@ -7,11 +7,9 @@ import { RENDER_STRATEGY_CONSTANTS } from '../../shared/constants/render-strateg
 import type { DocsInjectComponent } from '../../types/client';
 import { DocsComponentManager } from '../docs-component-manager';
 
-vi.mock('@docs-islands/core/shared/logger-runtime', async (importOriginal) => {
+vi.mock('@docs-islands/core/logger', async (importOriginal) => {
   const actual =
-    await importOriginal<
-      typeof import('@docs-islands/core/shared/logger-runtime')
-    >();
+    await importOriginal<typeof import('@docs-islands/core/logger')>();
 
   return {
     ...actual,

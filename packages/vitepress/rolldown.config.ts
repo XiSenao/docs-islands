@@ -20,30 +20,32 @@ const packageExternalDeps = [
   // @ts-expect-error No type checking is needed here.
   ...Object.keys(pkg.optionalDependencies ?? {}),
 ];
-const CORE_LOGGER_RUNTIME_MODULE_ID =
-  '@docs-islands/core/shared/logger-runtime';
-const VITEPRESS_INTERNAL_LOGGER_MODULE_ID =
-  '@docs-islands/vitepress/internal/logger';
-const createCoreLoggerRuntimeAliasPlugin = (): NonNullable<
+const CORE_LOGGER_MODULE_ID = '@docs-islands/core/logger';
+const VITEPRESS_LOGGER_MODULE_ID = '@docs-islands/vitepress/logger';
+
+// Core runtime modules import the managed logger facade through the core
+// package. When VitePress bundles those modules, rewrite that facade to the
+// VitePress logger entry so createDocsIslands() can provide the active scope.
+const createCoreLoggerAliasPlugin = (): NonNullable<
   RolldownOptions['plugins']
 > => ({
-  name: 'rolldown-plugin-core-logger-runtime-alias',
+  name: 'rolldown-plugin-core-logger-alias',
   resolveId: {
     order: 'pre',
     handler(id) {
-      if (id !== CORE_LOGGER_RUNTIME_MODULE_ID) {
+      if (id !== CORE_LOGGER_MODULE_ID) {
         return null;
       }
 
       return {
         external: true,
-        id: VITEPRESS_INTERNAL_LOGGER_MODULE_ID,
+        id: VITEPRESS_LOGGER_MODULE_ID,
       };
     },
   },
 });
 const directExternalDeps = [
-  VITEPRESS_INTERNAL_LOGGER_MODULE_ID,
+  VITEPRESS_LOGGER_MODULE_ID,
   'react-dom/client',
   'vitepress/client',
 ];
@@ -181,7 +183,7 @@ const nodeConfig = defineConfig({
     'adapters/react': resolve(__dirname, 'src/node/adapters/react/index.ts'),
     'site-devtools/mcp': resolve(__dirname, 'src/node/site-devtools/mcp.ts'),
   },
-  plugins: [createCoreLoggerRuntimeAliasPlugin(), ...nodePlugins],
+  plugins: [createCoreLoggerAliasPlugin(), ...nodePlugins],
   output: {
     ...sharedNodeOptions.output,
     ...(minify && {
@@ -207,7 +209,7 @@ const nodeDtsConfig = defineConfig({
     'site-devtools/mcp': resolve(__dirname, 'src/node/site-devtools/mcp.ts'),
   },
   plugins: [
-    createCoreLoggerRuntimeAliasPlugin(),
+    createCoreLoggerAliasPlugin(),
     dts({
       tsconfig: 'src/node/tsconfig.json',
       emitDtsOnly: true,
@@ -225,7 +227,7 @@ const clientConfig = defineConfig({
   transform: {
     target: 'es2020',
   },
-  plugins: [createCoreLoggerRuntimeAliasPlugin()],
+  plugins: [createCoreLoggerAliasPlugin()],
 });
 
 const clientDtsConfig = defineConfig({
@@ -236,7 +238,7 @@ const clientDtsConfig = defineConfig({
     'adapters/react': resolve(__dirname, 'src/client/adapters/react/index.ts'),
   },
   plugins: [
-    createCoreLoggerRuntimeAliasPlugin(),
+    createCoreLoggerAliasPlugin(),
     dts({
       tsconfig: 'src/client/tsconfig.json',
       emitDtsOnly: true,
@@ -348,7 +350,6 @@ const internalUtilsConfig = defineConfig({
   ...sharedBrowserOptions,
   input: {
     'internal/devtools': resolve(__dirname, 'src/shared/internal/devtools.ts'),
-    'internal/logger': resolve(__dirname, 'src/shared/internal/logger.ts'),
   },
   transform: {
     target: 'es2020',
@@ -364,7 +365,6 @@ const internalUtilsDtsConfig = defineConfig({
   external: dtsExternalDeps,
   input: {
     'internal/devtools': resolve(__dirname, 'src/shared/internal/devtools.ts'),
-    'internal/logger': resolve(__dirname, 'src/shared/internal/logger.ts'),
   },
   plugins: [
     dts({

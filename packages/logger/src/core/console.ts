@@ -1,8 +1,8 @@
 import picocolors from 'picocolors';
+import { BROWSER_STYLES, CONSOLE_METHOD_BY_KIND } from '../constants/console';
+import { formatElapsedTime } from '../helper/elapsed';
+import type { LoggerLogOptions, LoggerScopeId, LogKind } from '../types';
 import { resolveLoggerContext } from './config';
-import { BROWSER_STYLES, CONSOLE_METHOD_BY_KIND } from './constants/console';
-import { formatElapsedTime } from './elapsed';
-import type { LoggerLogOptions, LoggerScopeId, LogKind } from './types';
 
 interface PicocolorsType {
   blueBright: (str: string) => string;

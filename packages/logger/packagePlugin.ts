@@ -249,7 +249,7 @@ function rewriteExportPath(value: string, exportCondition?: string): string {
   }
 
   const rewrittenValue = value.replace('src/', '');
-  if (exportCondition === 'types') {
+  if (exportCondition === 'types' || rewrittenValue.includes('types')) {
     return rewrittenValue.replace('.ts', '.d.ts');
   }
 

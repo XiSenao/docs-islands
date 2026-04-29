@@ -1,10 +1,7 @@
 import type { ConfigType } from '#dep-types/utils';
 import { VITEPRESS_HMR_LOG_GROUPS } from '#shared/constants/log-groups/hmr';
 import type { RenderController } from '@docs-islands/core/node/render-controller';
-import {
-  createElapsedLogOptions,
-  type LoggerScopeId,
-} from '@docs-islands/logger/runtime';
+import { createElapsedLogOptions } from '@docs-islands/logger/helper';
 import { join } from 'pathe';
 import type { Plugin } from 'vite';
 import { normalizePath } from 'vite';
@@ -27,7 +24,7 @@ export function createFrameworkMarkdownHmrPlugin({
 }: {
   framework: string;
   frameworkParserManager: RenderingFrameworkParserManager;
-  loggerScopeId: LoggerScopeId;
+  loggerScopeId: string;
   name: string;
   renderController: RenderController;
   resolution: RenderingModuleResolution;

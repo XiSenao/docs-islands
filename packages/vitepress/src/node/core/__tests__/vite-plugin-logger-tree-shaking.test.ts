@@ -2,15 +2,11 @@
  * @vitest-environment node
  */
 import {
-  type LoggerConfig,
-  resetLoggerConfigForScope,
-  setLoggerConfigForScope,
-} from '@docs-islands/logger/internal';
+  resetScopedLoggerConfig,
+  setScopedLoggerConfig as setLoggerConfigForScope,
+} from '@docs-islands/logger/core';
+import type { LoggerConfig } from '@docs-islands/logger/types';
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  CORE_LOGGER_RUNTIME_MODULE_ID,
-  VITEPRESS_INTERNAL_LOGGER_MODULE_ID,
-} from '../vite-plugin-logger-facade';
 import {
   createLoggerTreeShakingPlugin,
   LOGGER_TREE_SHAKING_PLUGIN_NAME,
@@ -25,11 +21,8 @@ const transformCode = async (
   code: string,
   config?: LoggerConfig,
 ): Promise<string> => {
-  resetLoggerConfigForScope(TEST_LOGGER_SCOPE_ID);
-
-  if (config !== undefined) {
-    setLoggerConfigForScope(TEST_LOGGER_SCOPE_ID, config);
-  }
+  resetScopedLoggerConfig(TEST_LOGGER_SCOPE_ID);
+  setLoggerConfigForScope(TEST_LOGGER_SCOPE_ID, config);
 
   const result = await transformLoggerTreeShaking(
     code,
@@ -41,7 +34,7 @@ const transformCode = async (
 };
 
 afterEach(() => {
-  resetLoggerConfigForScope(TEST_LOGGER_SCOPE_ID);
+  resetScopedLoggerConfig(TEST_LOGGER_SCOPE_ID);
 });
 
 describe('createLoggerTreeShakingPlugin', () => {
@@ -88,32 +81,10 @@ logger.warn('visible static warning');
     expect(code).toContain("logger.warn('visible static warning')");
   });
 
-  it.each([VITEPRESS_INTERNAL_LOGGER_MODULE_ID, CORE_LOGGER_RUNTIME_MODULE_ID])(
-    'prunes scoped logger imports: %s',
-    async (loggerModuleId) => {
-      const code = await transformCode(
-        `
-import { createLogger } from '${loggerModuleId}';
-
-const logger = createLogger({ main: '@docs-islands/core' }).getLoggerByGroup('runtime.render.strategy');
-
-logger.info('hidden runtime info');
-logger.warn('visible runtime warning');
-      `,
-        {
-          levels: ['warn', 'error'],
-        },
-      );
-
-      expect(code).not.toContain('hidden runtime info');
-      expect(code).toContain("logger.warn('visible runtime warning')");
-    },
-  );
-
-  it.each(['@docs-islands/logger', '@docs-islands/logger/internal'])(
+  it.each(['@docs-islands/logger'])(
     'leaves generic logger imports for the generic logger plugin: %s',
     async (loggerModuleId) => {
-      resetLoggerConfigForScope(TEST_LOGGER_SCOPE_ID);
+      resetScopedLoggerConfig(TEST_LOGGER_SCOPE_ID);
       setLoggerConfigForScope(TEST_LOGGER_SCOPE_ID, {
         levels: ['warn', 'error'],
       });

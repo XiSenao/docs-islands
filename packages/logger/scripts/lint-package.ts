@@ -3,12 +3,8 @@ import {
   createPackageFromTarballData,
   type Problem,
 } from '@arethetypeswrong/core';
-import {
-  createElapsedLogOptions,
-  createLoggerWithScopeId,
-  DEFAULT_LOGGER_SCOPE_ID,
-  setLoggerConfig,
-} from '@docs-islands/logger/internal';
+import { createLogger, setLoggerConfig } from '@docs-islands/logger';
+import { createElapsedLogOptions } from '@docs-islands/logger/helper';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,12 +17,9 @@ setLoggerConfig({
   levels: ['info', 'success', 'warn', 'error'],
 });
 
-const loggerInstance = createLoggerWithScopeId(
-  {
-    main: '@docs-islands/logger',
-  },
-  DEFAULT_LOGGER_SCOPE_ID,
-);
+const loggerInstance = createLogger({
+  main: '@docs-islands/logger',
+});
 const Logger = loggerInstance.getLoggerByGroup('task.package-lint');
 const elapsedSince = (startTimeMs: number) =>
   createElapsedLogOptions(startTimeMs, Date.now());

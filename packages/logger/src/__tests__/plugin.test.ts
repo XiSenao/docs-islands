@@ -1,15 +1,13 @@
 /**
  * @vitest-environment node
  */
-import {
-  DEFAULT_LOGGER_MODULE_ID,
-  DEFAULT_LOGGER_SCOPE_ID,
-  resetLoggerConfigForScope,
-  setLoggerConfigForScope,
-  transformLoggerTreeShaking,
-} from '@docs-islands/logger/internal';
+import { setScopedLoggerConfig } from '@docs-islands/logger/core';
 import * as loggerPluginModule from '@docs-islands/logger/plugin';
-import { loggerPlugin } from '@docs-islands/logger/plugin';
+import {
+  LOGGER_TREE_SHAKING_PLUGIN_NAME,
+  loggerPlugin,
+  transformLoggerTreeShaking,
+} from '@docs-islands/logger/plugin';
 import { rolldown } from 'rolldown';
 import { rollup } from 'rollup';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -18,6 +16,9 @@ import {
   LOGGER_TREE_SHAKING_HIDDEN_INFO,
   LOGGER_TREE_SHAKING_VISIBLE_WARNING,
 } from '../../playground/tree-shaking/expected';
+import { resetScopedLoggerConfig } from '../core/config';
+import { DEFAULT_LOGGER_SCOPE_ID } from '../core/helper/scope';
+import { DEFAULT_LOGGER_MODULE_ID } from '../plugin/transform';
 
 const TEST_SCOPE_ID = 'logger-plugin-test-scope';
 const TEST_MODULE_ID = '/workspace/docs/components/LoggerProbe.tsx';
@@ -183,8 +184,8 @@ const createRawPlugin = (
   } as Parameters<(typeof loggerPlugin)['raw']>[1]);
 
 afterEach(() => {
-  resetLoggerConfigForScope(DEFAULT_LOGGER_SCOPE_ID);
-  resetLoggerConfigForScope(TEST_SCOPE_ID);
+  resetScopedLoggerConfig(DEFAULT_LOGGER_SCOPE_ID);
+  resetScopedLoggerConfig(TEST_SCOPE_ID);
 });
 
 describe('logger plugin', () => {
@@ -197,10 +198,15 @@ describe('logger plugin', () => {
     });
   });
 
-  it('only exposes the public loggerPlugin entrypoint', () => {
+  it('exposes the public plugin and tree-shaking transform entrypoints', () => {
     expect(Object.keys(loggerPluginModule).toSorted()).toEqual([
+      'LOGGER_TREE_SHAKING_PLUGIN_NAME',
       'loggerPlugin',
+      'transformLoggerTreeShaking',
     ]);
+    expect(loggerPluginModule.LOGGER_TREE_SHAKING_PLUGIN_NAME).toBe(
+      LOGGER_TREE_SHAKING_PLUGIN_NAME,
+    );
   });
 
   it('injects controlled runtime config into Vite define', () => {
@@ -213,6 +219,10 @@ describe('logger plugin', () => {
 
     callViteHook((plugin as { config?: ViteConfigHook }).config, config);
 
+    expect(Object.keys(config.define ?? {}).toSorted()).toEqual([
+      '__DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__',
+      '__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__',
+    ]);
     expect(config.define).toMatchObject({
       __DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__: 'true',
       __DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__: JSON.stringify({
@@ -231,6 +241,10 @@ describe('logger plugin', () => {
 
     plugin.esbuild?.config?.(config);
 
+    expect(Object.keys(config.define ?? {}).toSorted()).toEqual([
+      '__DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__',
+      '__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__',
+    ]);
     expect(config.define).toMatchObject({
       __DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__: 'true',
       __DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__: JSON.stringify({
@@ -254,6 +268,10 @@ describe('logger plugin', () => {
 
     const returnedConfig = farmConfig?.(config);
 
+    expect(Object.keys(config.compilation?.define ?? {}).toSorted()).toEqual([
+      '__DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__',
+      '__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__',
+    ]);
     expect(config.compilation?.define).toMatchObject({
       __DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__: 'true',
       __DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__: JSON.stringify({
@@ -292,6 +310,10 @@ describe('logger plugin', () => {
 
       (plugin[framework] as BundlerCompilerHook | undefined)?.(compiler);
 
+      expect(Object.keys(receivedDefinitions ?? {}).toSorted()).toEqual([
+        '__DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__',
+        '__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__',
+      ]);
       expect(receivedDefinitions).toMatchObject({
         __DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__: 'true',
         __DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__: JSON.stringify({
@@ -523,15 +545,19 @@ console.log(controlled, config);
     }
   });
 
-  it('uses null runtime config when plugin config is omitted', () => {
+  it('uses the default runtime config when plugin config is omitted', () => {
     const plugin = loggerPlugin.vite();
     const config: { define?: Record<string, unknown> } = {};
 
     callViteHook((plugin as { config?: ViteConfigHook }).config, config);
 
+    expect(Object.keys(config.define ?? {}).toSorted()).toEqual([
+      '__DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__',
+      '__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__',
+    ]);
     expect(config.define).toMatchObject({
       __DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__: 'true',
-      __DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__: 'null',
+      __DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__: '{}',
     });
   });
 
@@ -603,7 +629,7 @@ console.log(controlled, config);
   });
 
   it('removes suppressed static literal logs from @docs-islands/logger imports', async () => {
-    setLoggerConfigForScope(TEST_SCOPE_ID, {
+    setScopedLoggerConfig(TEST_SCOPE_ID, {
       levels: ['warn', 'error'],
     });
 
@@ -627,35 +653,8 @@ logger.warn('visible static warning');
     expect(result?.code).toContain("logger.warn('visible static warning')");
   });
 
-  it('removes suppressed static literal logs from @docs-islands/logger/internal imports', async () => {
-    setLoggerConfigForScope(TEST_SCOPE_ID, {
-      levels: ['warn', 'error'],
-    });
-
-    const result = await transformLoggerTreeShaking(
-      `
-import { createLogger } from '@docs-islands/logger/internal';
-
-const logger = createLogger({ main: '@acme/docs' }).getLoggerByGroup('userland.metrics');
-
-logger.info('hidden internal static info');
-logger.warn('visible internal static warning');
-      `,
-      TEST_MODULE_ID,
-      {
-        loggerModuleId: '@docs-islands/logger/internal',
-        loggerScopeId: TEST_SCOPE_ID,
-      },
-    );
-
-    expect(result?.code).not.toContain('hidden internal static info');
-    expect(result?.code).toContain(
-      "logger.warn('visible internal static warning')",
-    );
-  });
-
   it('keeps unsupported static shapes unchanged', async () => {
-    setLoggerConfigForScope(TEST_SCOPE_ID, {
+    setScopedLoggerConfig(TEST_SCOPE_ID, {
       levels: ['error'],
     });
 

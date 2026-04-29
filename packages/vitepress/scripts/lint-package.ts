@@ -4,7 +4,7 @@ import {
   type Problem,
 } from '@arethetypeswrong/core';
 import { createLogger } from '@docs-islands/logger';
-import { createElapsedLogOptions } from '@docs-islands/logger/internal';
+import { createElapsedLogOptions } from '@docs-islands/logger/helper';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

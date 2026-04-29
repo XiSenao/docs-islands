@@ -9,10 +9,10 @@ import { DocsComponentManager } from '@docs-islands/core/client';
 import type { DocsComponentManagerInitializeOptions } from '@docs-islands/core/types/client';
 import {
   createElapsedLogOptions,
-  createLogger,
   formatDebugMessage,
   formatErrorMessage,
-} from '@docs-islands/vitepress/internal/logger';
+} from '@docs-islands/logger/helper';
+import { createLogger } from '@docs-islands/vitepress/logger';
 import type React from 'react';
 import { getCleanPathname } from '../../../shared/runtime';
 

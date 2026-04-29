@@ -5,9 +5,9 @@ import type {
 import type { ConfigType } from '#dep-types/utils';
 import { resolveConfig } from '#shared/config';
 import {
-  resetLoggerConfigForScope,
-  setLoggerConfigForScope,
-} from '@docs-islands/logger/internal';
+  resetScopedLoggerConfig,
+  setScopedLoggerConfig as setLoggerConfigForScope,
+} from '@docs-islands/logger/core';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'pathe';
@@ -177,7 +177,7 @@ describe('bundleUIComponentsForBrowser', () => {
   });
 
   afterEach(() => {
-    resetLoggerConfigForScope(TEST_LOGGER_SCOPE_ID);
+    resetScopedLoggerConfig(TEST_LOGGER_SCOPE_ID);
   });
 
   it('should correctly bundle browser assets and validate their contents', async () => {
@@ -351,7 +351,6 @@ describe('bundleUIComponentsForBrowser', () => {
       loaderScriptContent,
       'loaderScript should resolve the global component manager before registering components',
     ).to.include('__COMPONENT_MANAGER__');
-    expect(loaderScriptContent).not.toContain('@docs-islands/logger/internal');
 
     expect(
       loaderScriptContent,
