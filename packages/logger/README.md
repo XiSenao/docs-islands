@@ -214,14 +214,15 @@ Plugin entry:
 import { loggerPlugin } from '@docs-islands/logger/plugin';
 ```
 
-Advanced runtime entry:
+Advanced type and helper entries:
 
 ```ts
-import type { LoggerConfig } from '@docs-islands/logger/runtime';
-import { createElapsedLogOptions } from '@docs-islands/logger/runtime';
+import type { LoggerConfig } from '@docs-islands/logger/types';
+import { createElapsedLogOptions } from '@docs-islands/logger/helper';
+import { createLoggerScopeId } from '@docs-islands/logger/core/helper';
 ```
 
-Prefer the root entry for application code. Use `@docs-islands/logger/runtime` only when you need explicit scope helpers, normalization utilities, or exported runtime types.
+Prefer the root entry for application code. Use `@docs-islands/logger/helper` for shared formatting, elapsed-time, and error/debug-message utilities. Use `@docs-islands/logger/core/helper` for scoped logger helper utilities.
 
 ## Documentation
 

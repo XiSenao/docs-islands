@@ -101,7 +101,7 @@ const logging = {
 
 ## 公开 Logger 用法
 
-`@docs-islands/vitepress/logger` 是 VitePress logger facade。它只暴露 `createLogger` 与 `formatDebugMessage`；通用的直接 runtime 配置能力位于 `@docs-islands/logger`。
+`@docs-islands/vitepress/logger` 是 VitePress logger facade。它只暴露 `createLogger`；`formatDebugMessage` 等共享 helper 位于 `@docs-islands/logger/helper`，通用的直接 runtime 配置能力位于 `@docs-islands/logger`。
 
 `logging` 定义的是 logger 的运行时可见性策略。它决定日志在运行时是否输出；在 `debug` 模式下，也会决定可见日志附带哪些规则标签和相对耗时信息。
 
@@ -163,7 +163,7 @@ hiddenLogger.info('suppressed userland info');
 
 ### Logger Tree-Shaking Plugin
 
-在 `createDocsIslands()` 管理的构建链里，docs-islands 已经会自动安装 logger tree-shaking transform。这个 VitePress 自动 transform 只处理受控 VitePress module graph 里的 `@docs-islands/vitepress/logger` 导入，包括用户组件的 browser/SSR bundle，以及 unified loader 这类经 Vite 二次打包的 runtime module。它不会裁剪 `@docs-islands/logger` 或 `@docs-islands/logger/internal` 导入。
+在 `createDocsIslands()` 管理的构建链里，docs-islands 已经会自动安装 logger tree-shaking transform。这个 VitePress 自动 transform 只处理受控 VitePress module graph 里的 `@docs-islands/vitepress/logger` 导入，包括用户组件的 browser/SSR bundle，以及 unified loader 这类经 Vite 二次打包的 runtime module。它不会裁剪框架无关的 `@docs-islands/logger` 导入。
 
 如果你在 VitePress 站点里使用框架无关的 `@docs-islands/logger` 入口，同时又希望这个通用 logger 拿到生产环境裁剪能力，可以显式安装公开 plugin：
 
