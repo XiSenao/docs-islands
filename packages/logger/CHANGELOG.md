@@ -8,6 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-04-29
+
+### Bug Fixes
+
+- fix(build): incorrect arrangement of construction sequence ([1f5a21c](https://github.com/XiSenao/docs-islands/commit/1f5a21c))
+
+### Documentation
+
+- docs(logger): document helper entrypoints ([03b092d](https://github.com/XiSenao/docs-islands/commit/03b092d))
+
+### Maintenance
+
+- chore(logger): refresh bundled license manifest ([2d717c5](https://github.com/XiSenao/docs-islands/commit/2d717c5))
+- refactor(logger): expose explicit runtime subpaths ([3cde2b8](https://github.com/XiSenao/docs-islands/commit/3cde2b8))
+- refactor(logger): centralize runtime logging ([f5daf80](https://github.com/XiSenao/docs-islands/commit/f5daf80))
+
 ## [0.0.1] - 2026-04-27
 
 ### Features
