@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { createLogger, setLoggerConfig } from '@docs-islands/logger';
+import {
+  createLogger,
+  resetLoggerConfig,
+  setLoggerConfig,
+} from '@docs-islands/logger';
 import { computed, onBeforeUnmount, ref } from 'vue';
 import './logger-pruning-fixture';
 
@@ -9,7 +13,7 @@ type ScenarioId = 'default' | 'quiet' | 'debug' | 'rules';
 type ConsoleMethod = 'debug' | 'error' | 'log' | 'warn';
 
 interface ScenarioDefinition {
-  config: LoggerConfigInput;
+  config?: LoggerConfigInput;
   id: ScenarioId;
   labels: Record<Locale, string>;
   notes: Record<Locale, string>;
@@ -51,7 +55,6 @@ const copy = {
 
 const scenarios: ScenarioDefinition[] = [
   {
-    config: null,
     id: 'default',
     labels: {
       en: 'Default',
@@ -123,6 +126,8 @@ const scenarios: ScenarioDefinition[] = [
   },
 ];
 
+const DEFAULT_LOGGER_CONFIG_PREVIEW = null;
+
 const activeScenarioId = ref<ScenarioId>('default');
 const capturedLogs = ref<CapturedLog[]>([]);
 
@@ -135,7 +140,11 @@ const activeScenario = computed(
 );
 
 const activeConfig = computed(() =>
-  JSON.stringify(activeScenario.value.config ?? null, null, 2),
+  JSON.stringify(
+    activeScenario.value.config ?? DEFAULT_LOGGER_CONFIG_PREVIEW,
+    null,
+    2,
+  ),
 );
 
 const stringifyConsoleArg = (value: unknown): string => {
@@ -214,7 +223,11 @@ const emitDemoLogs = (): void => {
 
 const runScenario = (scenario: ScenarioDefinition): void => {
   activeScenarioId.value = scenario.id;
-  setLoggerConfig(scenario.config);
+  if (scenario.config === undefined) {
+    resetLoggerConfig();
+  } else {
+    setLoggerConfig(scenario.config);
+  }
   capturedLogs.value = captureConsole(emitDemoLogs);
 };
 
@@ -223,7 +236,7 @@ const clearOutput = (): void => {
 };
 
 onBeforeUnmount(() => {
-  setLoggerConfig(null);
+  resetLoggerConfig();
 });
 </script>
 

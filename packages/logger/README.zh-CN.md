@@ -214,14 +214,15 @@ import { createLogger, setLoggerConfig } from '@docs-islands/logger';
 import { loggerPlugin } from '@docs-islands/logger/plugin';
 ```
 
-高级 runtime 入口：
+高级类型与 helper 入口：
 
 ```ts
-import type { LoggerConfig } from '@docs-islands/logger/runtime';
-import { createElapsedLogOptions } from '@docs-islands/logger/runtime';
+import type { LoggerConfig } from '@docs-islands/logger/types';
+import { createElapsedLogOptions } from '@docs-islands/logger/helper';
+import { createLoggerScopeId } from '@docs-islands/logger/core/helper';
 ```
 
-应用代码优先使用 root 入口。只有在需要显式 scope helper、normalize utility 或导出的 runtime 类型时，再使用 `@docs-islands/logger/runtime`。
+应用代码优先使用 root 入口。共享的格式化、elapsed-time、error/debug-message 工具从 `@docs-islands/logger/helper` 导入；scoped logger helper 工具从 `@docs-islands/logger/core/helper` 导入。
 
 ## 文档
 
