@@ -1,10 +1,7 @@
 import type { OutputChunk, RollupOutput } from '#dep-types/rollup';
 import type { ConfigType } from '#dep-types/utils';
 import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
-import {
-  createElapsedLogOptions,
-  type LoggerScopeId,
-} from '@docs-islands/logger/runtime';
+import { createElapsedLogOptions } from '@docs-islands/logger/helper';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'pathe';
@@ -37,7 +34,7 @@ const buildPromiseByKey = new Map<
 export const buildUIFrameworkIntegrationInMPA = async (
   config: ConfigType,
   adapter: UIFrameworkBuildAdapter,
-  loggerScopeId: LoggerScopeId,
+  loggerScopeId: string,
 ): Promise<{
   entryPoint: string;
   modulePreloads: string[];

@@ -1,14 +1,18 @@
 /**
  * @vitest-environment node
  */
-import { createLogger, setLoggerConfig } from '@docs-islands/logger';
 import {
-  createLoggerWithScopeId,
-  getLoggerConfigForScope,
+  createLogger,
   resetLoggerConfig,
-  resetLoggerConfigForScope,
-  setLoggerConfigForScope,
-} from '@docs-islands/logger/internal';
+  setLoggerConfig,
+} from '@docs-islands/logger';
+import {
+  createScopedLogger,
+  getScopedLoggerConfig as getLoggerConfigForScope,
+  resetScopedLoggerConfig,
+  setScopedLoggerConfig,
+  shouldSuppressLog,
+} from '@docs-islands/logger/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const TEST_SCOPE_ID = 'logger-runtime-test-scope';
@@ -27,14 +31,13 @@ const captureConsoleLog = (): string[] => {
 afterEach(() => {
   vi.unstubAllGlobals();
   resetLoggerConfig();
-  resetLoggerConfigForScope(TEST_SCOPE_ID);
-  resetLoggerConfigForScope(OTHER_SCOPE_ID);
+  resetScopedLoggerConfig(TEST_SCOPE_ID);
+  resetScopedLoggerConfig(OTHER_SCOPE_ID);
   vi.restoreAllMocks();
 });
 
 describe('runtime logger', () => {
-  it('uses default visibility without warning when direct usage has no runtime config', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('uses default visibility when direct usage has no runtime config', () => {
     const output = captureConsoleLog();
 
     const logger = createLogger({
@@ -46,7 +49,36 @@ describe('runtime logger', () => {
 
     logger.info('visible default info', { elapsedTimeMs: 1.23 });
 
-    expect(warnSpy).not.toHaveBeenCalled();
+    expect(
+      output.some((message) => message.includes('visible default info')),
+    ).toBe(true);
+  });
+
+  it('allows all default non-debug levels but suppresses debug', () => {
+    const context = {
+      group: 'generic.default',
+      main: '@acme/logger',
+      message: 'default visibility',
+    };
+
+    expect(shouldSuppressLog('error', context)).toBe(false);
+    expect(shouldSuppressLog('warn', context)).toBe(false);
+    expect(shouldSuppressLog('info', context)).toBe(false);
+    expect(shouldSuppressLog('success', context)).toBe(false);
+    expect(shouldSuppressLog('debug', context)).toBe(true);
+  });
+
+  it('uses default visibility when direct usage explicitly clears default config', () => {
+    const output = captureConsoleLog();
+
+    setLoggerConfig(undefined);
+
+    createLogger({
+      main: '@acme/logger',
+    })
+      .getLoggerByGroup('generic.default')
+      .info('visible default info', { elapsedTimeMs: 1.23 });
+
     expect(
       output.some((message) => message.includes('visible default info')),
     ).toBe(true);
@@ -149,11 +181,11 @@ describe('runtime logger', () => {
     );
   });
 
-  it('keeps internal scoped configs isolated from the default scope', () => {
+  it('keeps explicit scoped configs isolated from the default scope', () => {
     setLoggerConfig({
       levels: ['error'],
     });
-    setLoggerConfigForScope(TEST_SCOPE_ID, {
+    setScopedLoggerConfig(TEST_SCOPE_ID, {
       levels: ['info'],
     });
 
@@ -169,7 +201,7 @@ describe('runtime logger', () => {
       .getLoggerByGroup('scope.default')
       .info('hidden default info', { elapsedTimeMs: 1 });
 
-    const scopedLogger = createLoggerWithScopeId(
+    const scopedLogger = createScopedLogger(
       {
         main: '@acme/logger',
       },
@@ -177,7 +209,7 @@ describe('runtime logger', () => {
     );
 
     scopedLogger
-      .getLoggerByGroup('scope.internal')
+      .getLoggerByGroup('scope.explicit')
       .info('visible scoped info', { elapsedTimeMs: 2 });
 
     expect(
@@ -189,16 +221,16 @@ describe('runtime logger', () => {
   });
 
   it('keeps multiple explicit scope configs isolated in the same runtime', () => {
-    setLoggerConfigForScope(TEST_SCOPE_ID, {
+    setScopedLoggerConfig(TEST_SCOPE_ID, {
       levels: ['info'],
     });
-    setLoggerConfigForScope(OTHER_SCOPE_ID, {
+    setScopedLoggerConfig(OTHER_SCOPE_ID, {
       levels: ['warn'],
     });
 
     const output = captureConsoleLog();
 
-    createLoggerWithScopeId(
+    createScopedLogger(
       {
         main: '@acme/logger',
       },
@@ -207,7 +239,7 @@ describe('runtime logger', () => {
       .getLoggerByGroup('runtime.scope-a')
       .info('visible scope-a info', { elapsedTimeMs: 1 });
 
-    createLoggerWithScopeId(
+    createScopedLogger(
       {
         main: '@acme/logger',
       },
@@ -222,5 +254,35 @@ describe('runtime logger', () => {
     expect(
       output.some((message) => message.includes('hidden scope-b info')),
     ).toBe(false);
+  });
+
+  it('rejects scoped loggers when their runtime config is not registered', () => {
+    expect(() =>
+      createScopedLogger(
+        {
+          main: '@acme/logger',
+        },
+        TEST_SCOPE_ID,
+      ),
+    ).toThrow(`Logger config for scope "${TEST_SCOPE_ID}" is not registered`);
+  });
+
+  it('rejects existing scoped loggers after their runtime config is reset', () => {
+    setScopedLoggerConfig(TEST_SCOPE_ID, {
+      levels: ['info'],
+    });
+
+    const scopedLogger = createScopedLogger(
+      {
+        main: '@acme/logger',
+      },
+      TEST_SCOPE_ID,
+    ).getLoggerByGroup('scope.explicit');
+
+    resetScopedLoggerConfig(TEST_SCOPE_ID);
+
+    expect(() =>
+      scopedLogger.info('hidden after reset', { elapsedTimeMs: 1 }),
+    ).toThrow(`Logger config for scope "${TEST_SCOPE_ID}" is not registered`);
   });
 });

@@ -6,8 +6,7 @@ import * as t from '@babel/types';
 import {
   createElapsedLogOptions,
   formatErrorMessage,
-  type LoggerScopeId,
-} from '@docs-islands/logger/runtime';
+} from '@docs-islands/logger/helper';
 import { CORE_TRANSFORM_LOG_GROUPS } from '../shared/constants/log-groups/transform';
 import {
   RENDER_STRATEGY_ATTRS,
@@ -69,7 +68,7 @@ const elapsedSince = (startTimeMs: number) =>
 class SSRContainerIntegrationProcessor {
   private readonly callback: SSRContainerIntegrationCallback;
   private readonly createdAt = getProcessorNow();
-  private readonly loggerScopeId?: LoggerScopeId;
+  private readonly loggerScopeId?: string;
   private readonly Logger: ReturnType<typeof getCoreGroupLogger>;
   private readonly sourceCode: string;
   private transformations: TransformationRecord[] = [];
@@ -77,7 +76,7 @@ class SSRContainerIntegrationProcessor {
   constructor(
     sourceCode: string,
     callback: SSRContainerIntegrationCallback,
-    loggerScopeId?: LoggerScopeId,
+    loggerScopeId?: string,
   ) {
     this.sourceCode = sourceCode;
     this.callback = callback;
@@ -614,7 +613,7 @@ class SSRContainerIntegrationProcessor {
 export function transformSSRContainerIntegrationCode(
   sourceCode: string,
   callback: SSRContainerIntegrationCallback,
-  loggerScopeId?: LoggerScopeId,
+  loggerScopeId?: string,
 ): TransformWithStatsResult {
   const processor = new SSRContainerIntegrationProcessor(
     sourceCode,

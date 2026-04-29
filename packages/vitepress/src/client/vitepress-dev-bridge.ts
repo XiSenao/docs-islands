@@ -13,10 +13,10 @@ import {
 } from '@docs-islands/core/client';
 import {
   createElapsedLogOptions,
-  createLogger,
   formatDebugMessage,
   formatErrorMessage,
-} from '@docs-islands/vitepress/internal/logger';
+} from '@docs-islands/logger/helper';
+import { createLogger } from '@docs-islands/vitepress/logger';
 
 const loggerInstance = createLogger({
   main: '@docs-islands/vitepress',

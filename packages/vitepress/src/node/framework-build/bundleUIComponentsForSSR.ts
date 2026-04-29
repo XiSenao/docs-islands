@@ -6,10 +6,7 @@ import type { RollupOutput } from '#dep-types/rollup';
 import type { ConfigType } from '#dep-types/utils';
 import { VITEPRESS_BUILD_LOG_GROUPS } from '#shared/constants/log-groups/build';
 import { DIRNAME_VAR_NAME } from '@docs-islands/core/shared/constants/runtime';
-import {
-  createElapsedLogOptions,
-  type LoggerScopeId,
-} from '@docs-islands/logger/runtime';
+import { createElapsedLogOptions } from '@docs-islands/logger/helper';
 import { isNodeLikeBuiltin } from '@docs-islands/utils/builtin';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -18,7 +15,6 @@ import type { InlineConfig } from 'vite';
 import { build } from 'vite';
 import {
   createVitePressLoggerFacadePlugin,
-  VITEPRESS_INTERNAL_LOGGER_MODULE_ID,
   VITEPRESS_LOGGER_MODULE_ID,
 } from '../core/vite-plugin-logger-facade';
 import { createLoggerTreeShakingPlugin } from '../core/vite-plugin-logger-tree-shaking';
@@ -34,7 +30,7 @@ export async function bundleUIComponentsForSSR(
   ssrComponents: ComponentBundleInfo[],
   usedSnippetContainer: Map<string, UsedSnippetContainerType>,
   adapter: UIFrameworkBuildAdapter,
-  loggerScopeId: LoggerScopeId,
+  loggerScopeId: string,
 ): Promise<{
   renderedComponents: Map<string, string>;
 }> {
@@ -76,10 +72,7 @@ export async function bundleUIComponentsForSSR(
         rollupOptions: {
           input: preparedEntryModules.entryPoints,
           external: (id) => {
-            if (
-              id === VITEPRESS_LOGGER_MODULE_ID ||
-              id === VITEPRESS_INTERNAL_LOGGER_MODULE_ID
-            ) {
+            if (id === VITEPRESS_LOGGER_MODULE_ID) {
               return false;
             }
 

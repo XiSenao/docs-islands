@@ -8,26 +8,17 @@ import type {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VitePressDevBridge } from '../vitepress-dev-bridge';
 
-vi.mock('@docs-islands/vitepress/internal/logger', async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import('@docs-islands/vitepress/internal/logger')
-    >();
-
-  return {
-    ...actual,
-    createLogger: () => ({
-      getLoggerByGroup: () => ({
-        error: vi.fn(),
-        info: vi.fn(),
-        success: vi.fn(),
-        warn: vi.fn(),
-      }),
+vi.mock('@docs-islands/vitepress/logger', () => ({
+  createLogger: () => ({
+    getLoggerByGroup: () => ({
+      debug: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+      success: vi.fn(),
+      warn: vi.fn(),
     }),
-    formatErrorMessage: (error: unknown) =>
-      error instanceof Error ? error.message : String(error),
-  };
-});
+  }),
+}));
 
 describe('VitePressDevBridge', () => {
   beforeEach(() => {

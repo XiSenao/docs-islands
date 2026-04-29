@@ -1,2 +1,2 @@
-export { setLoggerConfig } from './runtime/config';
-export { createLogger } from './runtime/factory';
+export { resetLoggerConfig, setLoggerConfig } from './core/config';
+export { createLogger } from './core/factory';

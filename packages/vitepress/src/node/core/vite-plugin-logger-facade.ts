@@ -1,22 +1,12 @@
-import {
-  getLoggerConfigForScope,
-  type LoggerConfig,
-  type LoggerScopeId,
-} from '@docs-islands/logger/runtime';
-import type { Plugin } from 'vite';
-import { normalizePath } from 'vite';
+import { getScopedLoggerConfig } from '@docs-islands/logger/core';
+import type { LoggerConfig, LoggerScopeId } from '@docs-islands/logger/types';
+import { normalizePath, type Plugin } from 'vite';
 import { LOGGER_FACADE_PLUGIN_NAME } from '../constants/core/plugin-names';
 
 export const VITEPRESS_LOGGER_MODULE_ID = '@docs-islands/vitepress/logger';
-export const VITEPRESS_INTERNAL_LOGGER_MODULE_ID =
-  '@docs-islands/vitepress/internal/logger';
-export const CORE_LOGGER_RUNTIME_MODULE_ID =
-  '@docs-islands/core/shared/logger-runtime';
 
 const VITEPRESS_LOGGER_VIRTUAL_MODULE_PREFIX =
   '\0docs-islands:vitepress-logger:';
-const VITEPRESS_INTERNAL_LOGGER_VIRTUAL_MODULE_PREFIX =
-  '\0docs-islands:vitepress-internal-logger:';
 
 const serializeLoggerConfig = (
   config: LoggerConfig | null | undefined,
@@ -26,86 +16,35 @@ export const createVitePressLoggerVirtualModuleId = (
   loggerScopeId: LoggerScopeId,
 ): string => `${VITEPRESS_LOGGER_VIRTUAL_MODULE_PREFIX}${loggerScopeId}`;
 
-const createVitePressInternalLoggerVirtualModuleId = (
-  loggerScopeId: LoggerScopeId,
-): string =>
-  `${VITEPRESS_INTERNAL_LOGGER_VIRTUAL_MODULE_PREFIX}${loggerScopeId}`;
-
 const createSharedHeader = (
   loggerScopeId: LoggerScopeId,
   logging: LoggerConfig | null | undefined,
 ): string => `
 const loggerScopeId = ${JSON.stringify(loggerScopeId)};
 const loggerConfig = ${serializeLoggerConfig(logging)};
-setLoggerConfigForScope(loggerScopeId, loggerConfig);
+setScopedLoggerConfig(loggerScopeId, loggerConfig);
 `;
 
 const createVitePressLoggerFacadeSource = (
   loggerScopeId: LoggerScopeId,
   logging: LoggerConfig | null | undefined,
 ): string => `
-import {
-  createLoggerWithScopeId,
-  formatDebugMessage,
-  setLoggerConfigForScope,
-} from '@docs-islands/logger/runtime';
-
-${createSharedHeader(loggerScopeId, logging)}
-
-export { formatDebugMessage };
-export const createLogger = (options) =>
-  createLoggerWithScopeId(options, loggerScopeId);
-`;
-
-const createVitePressInternalLoggerFacadeSource = (
-  loggerScopeId: LoggerScopeId,
-  logging: LoggerConfig | null | undefined,
-): string => `
-import {
-  createLoggerWithScopeId as createBaseLoggerWithScopeId,
-  normalizeLoggerScopeId,
-  setLoggerConfigForScope,
-  shouldSuppressLog as shouldSuppressBaseLog,
-} from '@docs-islands/logger/runtime';
+import { createScopedLogger, setScopedLoggerConfig } from '@docs-islands/logger/core';
 
 ${createSharedHeader(loggerScopeId, logging)}
 
 export const createLogger = (options) =>
-  createBaseLoggerWithScopeId(options, loggerScopeId);
-
-export const createLoggerWithScopeId = (options, scopeId) =>
-  createBaseLoggerWithScopeId(options, normalizeLoggerScopeId(scopeId));
-
-export const shouldSuppressLog = (kind, options) =>
-  shouldSuppressBaseLog(kind, options, loggerScopeId);
-
-export const shouldSuppressLogWithScopeId = (kind, options, scopeId) =>
-  shouldSuppressBaseLog(kind, options, normalizeLoggerScopeId(scopeId));
-
-export {
-  createElapsedLogOptions,
-  DEFAULT_LOGGER_SCOPE_ID,
-  formatDebugMessage,
-  formatErrorMessage,
-  getLoggerConfigForScope,
-  resetLoggerConfig,
-  resetLoggerConfigForScope,
-  setLoggerConfig,
-  setLoggerConfigForScope,
-  syncRuntimeDefinedLoggerConfig,
-} from '@docs-islands/logger/runtime';
+  createScopedLogger(options, loggerScopeId);
 `;
 
 export const createVitePressLoggerFacadePlugin = (
   loggerScopeId: LoggerScopeId,
-  logging: LoggerConfig | null | undefined = getLoggerConfigForScope(
+  logging: LoggerConfig | null | undefined = getScopedLoggerConfig(
     loggerScopeId,
   ),
 ): Plugin => {
   const vitepressLoggerVirtualModuleId =
     createVitePressLoggerVirtualModuleId(loggerScopeId);
-  const vitepressInternalLoggerVirtualModuleId =
-    createVitePressInternalLoggerVirtualModuleId(loggerScopeId);
 
   return {
     name: LOGGER_FACADE_PLUGIN_NAME,
@@ -119,26 +58,12 @@ export const createVitePressLoggerFacadePlugin = (
           return vitepressLoggerVirtualModuleId;
         }
 
-        if (
-          normalizedId === VITEPRESS_INTERNAL_LOGGER_MODULE_ID ||
-          normalizedId === CORE_LOGGER_RUNTIME_MODULE_ID
-        ) {
-          return vitepressInternalLoggerVirtualModuleId;
-        }
-
         return null;
       },
     },
     load(id) {
       if (id === vitepressLoggerVirtualModuleId) {
         return createVitePressLoggerFacadeSource(loggerScopeId, logging);
-      }
-
-      if (id === vitepressInternalLoggerVirtualModuleId) {
-        return createVitePressInternalLoggerFacadeSource(
-          loggerScopeId,
-          logging,
-        );
       }
 
       return null;

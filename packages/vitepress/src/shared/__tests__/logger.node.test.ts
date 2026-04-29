@@ -3,15 +3,19 @@
  */
 import {
   createLogger,
-  createLoggerWithScopeId,
-  formatDebugMessage,
-  getLoggerConfigForScope,
   resetLoggerConfig,
-  resetLoggerConfigForScope,
-  sanitizeDebugSummary,
   setLoggerConfig,
-  setLoggerConfigForScope,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger';
+import {
+  createScopedLogger as createLoggerWithScopeId,
+  getScopedLoggerConfig as getLoggerConfigForScope,
+  resetScopedLoggerConfig,
+  setScopedLoggerConfig as setLoggerConfigForScope,
+} from '@docs-islands/logger/core';
+import {
+  formatDebugMessage,
+  sanitizeDebugSummary,
+} from '@docs-islands/logger/helper';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,11 +34,14 @@ const ANSI_ESCAPE_RE = new RegExp(
 );
 const currentTestFile = fileURLToPath(import.meta.url);
 const repoRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
+const vitePressCacheDirectoryRe =
+  /(?:^|[/\\])\.vitepress[/\\]cache(?:[/\\]|$)/i;
 const vitePressGeneratedConfigModuleRe =
   /(?:^|[/\\])\.vitepress[/\\]config\.ts\.timestamp-\d+-[\da-f]+\.mjs$/i;
 
 const stripAnsi = (value: string) => value.replaceAll(ANSI_ESCAPE_RE, '');
 const isTransientSourceArtifact = (filePath: string) =>
+  vitePressCacheDirectoryRe.test(filePath) ||
   vitePressGeneratedConfigModuleRe.test(filePath);
 
 const collectSourceFiles = (directory: string): string[] => {
@@ -261,7 +268,7 @@ describe('logger node behavior', () => {
       ],
     });
 
-    resetLoggerConfigForScope(scopeA);
+    resetScopedLoggerConfig(scopeA);
     expect(getLoggerConfigForScope(scopeA)).toBeUndefined();
     expect(getLoggerConfigForScope(scopeB)).toEqual({
       rules: [
@@ -276,13 +283,16 @@ describe('logger node behavior', () => {
   });
 
   it('keeps instant scoped logger output on the plain message body', () => {
+    const scopeId = 'instant-output-scope';
     const output = captureConsoleOutput();
+
+    setLoggerConfigForScope(scopeId, undefined);
 
     createLoggerWithScopeId(
       {
         main: '@docs-islands/vitepress',
       },
-      'instant-output-scope',
+      scopeId,
     )
       .getLoggerByGroup(VITEPRESS_RUNTIME_LOG_GROUPS.reactComponentManager)
       .warn('runtime warning', { elapsedTimeMs: 0 });
@@ -361,7 +371,7 @@ describe('logger node behavior', () => {
       path.join(repoRoot, segment),
     );
     const loggerImplementationFiles = new Set([
-      path.join(repoRoot, 'packages', 'logger', 'src', 'runtime', 'factory.ts'),
+      path.join(repoRoot, 'packages', 'logger', 'src', 'core', 'factory.ts'),
     ]);
     const offenders = targetRoots
       .flatMap((targetRoot) => collectSourceFiles(targetRoot))

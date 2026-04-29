@@ -3,11 +3,10 @@ import type {
   LoggingPresetRulesUserConfig,
   LoggingUserConfig,
 } from '#dep-types/utils';
-import {
-  type LoggerConfig,
-  type LoggerRule,
-  normalizeLoggerConfig,
-} from '@docs-islands/logger/runtime';
+import { normalizeLoggerConfig } from '@docs-islands/logger/core/helper';
+import type { LoggerConfig, LoggerRule } from '@docs-islands/logger/types';
+
+export type { LoggerConfig } from '@docs-islands/logger/types';
 
 type LoggingPluginMap = NonNullable<LoggingUserConfig['plugins']>;
 
@@ -240,5 +239,3 @@ export function resolveLoggingConfig(
     ...(logging.levels === undefined ? {} : { levels: logging.levels }),
   });
 }
-
-export { type LoggerConfig } from '@docs-islands/logger/runtime';

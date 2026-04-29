@@ -65,14 +65,22 @@ export interface NormalizedLoggerConfig {
   rules?: NormalizedLoggerRule[];
 }
 
+export interface LoggerConfigRegistryEntry {
+  config: LoggerConfig | undefined;
+  compiledConfig: NormalizedLoggerConfig | null;
+}
+
 export interface ResolvedLoggerContext {
   appendElapsedTime: boolean;
   ruleLabels: string[];
   suppress: boolean;
 }
 
+export type { Logger, ScopedLogger } from '../core/factory';
+export type { LoggerTreeShakingTransformResult } from '../plugin/transform';
+
 declare global {
   var __DOCS_ISLANDS_LOGGER_CONFIG_REGISTRY__:
-    | Map<LoggerScopeId, LoggerConfig | undefined>
+    | Map<LoggerScopeId, LoggerConfigRegistryEntry>
     | undefined;
 }

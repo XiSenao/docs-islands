@@ -1,11 +1,11 @@
 /**
  * @vitest-environment node
  */
+import { resetLoggerConfig } from '@docs-islands/logger';
 import {
-  resetLoggerConfig,
-  resetLoggerConfigForScope,
+  resetScopedLoggerConfig,
   shouldSuppressLog,
-} from '@docs-islands/logger/internal';
+} from '@docs-islands/logger/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VITEPRESS_HMR_LOG_GROUPS } from '../../../../shared/constants/log-groups/hmr';
 import { VITEPRESS_RUNTIME_LOG_GROUPS } from '../../../../shared/constants/log-groups/runtime';
@@ -29,7 +29,7 @@ vi.mock('#shared/logger', () => ({
 
 afterEach(() => {
   resetLoggerConfig();
-  resetLoggerConfigForScope(TEST_LOGGER_SCOPE_ID);
+  resetScopedLoggerConfig(TEST_LOGGER_SCOPE_ID);
   vi.restoreAllMocks();
   vi.resetModules();
 });

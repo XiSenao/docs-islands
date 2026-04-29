@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { createLoggerScopeId } from '@docs-islands/logger/internal';
+import { createLoggerScopeId } from '@docs-islands/logger/core/helper';
 import type { PluginOption } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { react } from '../../adapters/react';

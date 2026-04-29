@@ -1,22 +1,25 @@
-import {
-  createLoggerWithScopeId,
-  DEFAULT_LOGGER_SCOPE_ID,
-  type LoggerScopeId,
-  type LoggerType,
-  type ScopedLoggerType,
-} from '@docs-islands/logger/runtime';
+import { createLogger } from '@docs-islands/logger';
+import { createScopedLogger } from '@docs-islands/logger/core';
+import type { Logger, ScopedLogger } from '@docs-islands/logger/types';
 
 const MAIN_NAME = '@docs-islands/core';
 
-export const createCoreLogger = (scopeId?: LoggerScopeId): LoggerType =>
-  createLoggerWithScopeId(
-    {
-      main: MAIN_NAME,
-    },
-    scopeId ?? DEFAULT_LOGGER_SCOPE_ID,
-  );
+export const createCoreLogger = (scopeId?: string): Logger => {
+  if (typeof scopeId === 'string') {
+    return createScopedLogger(
+      {
+        main: MAIN_NAME,
+      },
+      scopeId,
+    );
+  }
+
+  return createLogger({
+    main: MAIN_NAME,
+  });
+};
 
 export const getCoreGroupLogger = (
   group: string,
-  scopeId?: LoggerScopeId,
-): ScopedLoggerType => createCoreLogger(scopeId).getLoggerByGroup(group);
+  scopeId?: string,
+): ScopedLogger => createCoreLogger(scopeId).getLoggerByGroup(group);

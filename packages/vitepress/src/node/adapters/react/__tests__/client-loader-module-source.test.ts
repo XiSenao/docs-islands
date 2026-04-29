@@ -16,14 +16,17 @@ describe('createReactClientLoaderModuleSource', () => {
     });
 
     expect(code).toContain('@docs-islands/vitepress/logger');
+    expect(code).toContain('@docs-islands/logger/helper');
     expect(code).toContain(
-      "import {\n  createLogger,\n  formatDebugMessage as __docs_islands_format_debug__\n} from '@docs-islands/vitepress/logger';",
+      "import {\n  formatDebugMessage as __docs_islands_format_debug__\n} from '@docs-islands/logger/helper';",
+    );
+    expect(code).toContain(
+      "import { createLogger } from '@docs-islands/vitepress/logger';",
     );
     expect(code).toContain('const Logger = createLogger({');
     expect(code).toContain(
       "}).getLoggerByGroup('runtime.react.client-loader');",
     );
-    expect(code).not.toContain('@docs-islands/logger/internal');
     expect(code).not.toContain('emitRuntimeLog');
     expect(code).not.toContain('__docs_islands_runtime_log__');
   });

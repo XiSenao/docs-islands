@@ -1,5 +1,5 @@
 import { resolveConfig } from '#shared/config';
-import { createLoggerScopeId } from '@docs-islands/logger/runtime';
+import { createLoggerScopeId } from '@docs-islands/logger/core/helper';
 import type { PluginOption } from 'vite';
 import type { DefaultTheme, UserConfig } from 'vitepress';
 import {

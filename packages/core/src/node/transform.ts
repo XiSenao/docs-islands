@@ -8,10 +8,7 @@ import type {
   ImportSpecifier,
   StringLiteral,
 } from '@babel/types';
-import {
-  createElapsedLogOptions,
-  type LoggerScopeId,
-} from '@docs-islands/logger/runtime';
+import { createElapsedLogOptions } from '@docs-islands/logger/helper';
 import { Parser } from 'htmlparser2';
 import MagicString, { type SourceMap } from 'magic-string';
 import MarkdownIt from 'markdown-it';
@@ -120,7 +117,7 @@ export default function transformComponentTags(
     renderComponent: string;
     renderWithSpaSync: string;
   },
-  loggerScopeId?: LoggerScopeId,
+  loggerScopeId?: string,
 ): {
   code: string;
   renderIdToRenderDirectiveMap: Map<string, string[]>;

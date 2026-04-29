@@ -14,7 +14,6 @@
  * Relies on pnpm setting npm_package_json to the calling package's package.json path.
  */
 import { createLogger } from '@docs-islands/logger';
-import { createElapsedLogOptions } from '@docs-islands/logger/internal';
 import { execSync, spawn } from 'node:child_process';
 import path from 'node:path';
 
@@ -22,8 +21,9 @@ const Log = createLogger({
   main: '@docs-islands/utils',
 }).getLoggerByGroup('task.link.guard');
 const scriptStartedAt = Date.now();
-const elapsedSince = (startTimeMs: number) =>
-  createElapsedLogOptions(startTimeMs, Date.now());
+const elapsedSince = (startTimeMs: number) => ({
+  elapsedTimeMs: Date.now() - startTimeMs,
+});
 
 // ---------------------------------------------------------------------------
 // 1. Parse arguments

@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rolldown } from 'rolldown';
-import { rollup, RollupOutput } from 'rollup';
+import { rollup, type RollupOutput } from 'rollup';
 import { build as viteBuild } from 'vite';
 import { webpack } from 'webpack';
 

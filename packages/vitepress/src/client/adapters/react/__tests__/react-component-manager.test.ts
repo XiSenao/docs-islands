@@ -34,26 +34,29 @@ vi.mock('#shared/internal/devtools', async (importOriginal) => {
   };
 });
 
-vi.mock('@docs-islands/vitepress/internal/logger', async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import('@docs-islands/vitepress/internal/logger')
-    >();
-
-  return {
-    ...actual,
-    createLogger: () => ({
-      getLoggerByGroup: () => ({
-        error: vi.fn(),
-        info: vi.fn(),
-        success: vi.fn(),
-        warn: vi.fn(),
-      }),
+vi.mock('@docs-islands/core/logger', () => ({
+  createLogger: () => ({
+    getLoggerByGroup: () => ({
+      debug: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+      success: vi.fn(),
+      warn: vi.fn(),
     }),
-    formatErrorMessage: (error: unknown) =>
-      error instanceof Error ? error.message : String(error),
-  };
-});
+  }),
+}));
+
+vi.mock('@docs-islands/vitepress/logger', () => ({
+  createLogger: () => ({
+    getLoggerByGroup: () => ({
+      debug: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+      success: vi.fn(),
+      warn: vi.fn(),
+    }),
+  }),
+}));
 
 describe('ReactComponentManager page metafile loading', () => {
   beforeEach(() => {

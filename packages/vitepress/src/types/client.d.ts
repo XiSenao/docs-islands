@@ -7,7 +7,7 @@ import type {
   DocsInjectComponent,
   DocsRuntimeManagerLike,
 } from '@docs-islands/core/types/client';
-import type { LoggerConfig, LoggerScopeId } from '@docs-islands/logger/runtime';
+import type { LoggerConfigRegistryEntry } from '@docs-islands/logger/types';
 import type * as ReactDOMClient from 'react-dom/client';
 import type { DefaultTheme, SiteConfig } from 'vitepress';
 
@@ -34,7 +34,7 @@ declare global {
   const __BASE__: string | undefined;
   const __CLEAN_URLS__: boolean | undefined;
   var __DOCS_ISLANDS_LOGGER_CONFIG_REGISTRY__:
-    | Map<LoggerScopeId, LoggerConfig | undefined>
+    | Map<string, LoggerConfigRegistryEntry>
     | undefined;
 
   // Global React and ReactDOM runtime (loaded dynamically)

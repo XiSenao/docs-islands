@@ -4,8 +4,8 @@ import babelTraverse from '@babel/traverse';
 import * as t from '@babel/types';
 import { init, parse as parseImports } from 'es-module-lexer';
 import MagicString, { type SourceMap } from 'magic-string';
-import { shouldSuppressLog } from '../runtime/config';
-import type { LoggerScopeId, LogKind } from '../runtime/types';
+import { shouldSuppressLog } from '../core/config';
+import type { LoggerScopeId, LogKind } from '../types';
 
 export const LOGGER_TREE_SHAKING_PLUGIN_NAME =
   'docs-islands:logger-tree-shaking';

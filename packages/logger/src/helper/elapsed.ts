@@ -1,4 +1,4 @@
-import type { LoggerElapsedLogOptions } from './types';
+import type { LoggerElapsedLogOptions } from '../types';
 
 const readLoggerClockMs = (): number => {
   if (

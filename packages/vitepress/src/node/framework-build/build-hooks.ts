@@ -27,10 +27,7 @@ import {
   RENDER_STRATEGY_ATTRS,
   RENDER_STRATEGY_CONSTANTS,
 } from '@docs-islands/core/shared/constants/render-strategy';
-import {
-  createElapsedLogOptions,
-  type LoggerScopeId,
-} from '@docs-islands/logger/runtime';
+import { createElapsedLogOptions } from '@docs-islands/logger/helper';
 import type { CheerioAPI } from 'cheerio';
 import { load } from 'cheerio';
 import fs from 'node:fs';
@@ -137,7 +134,7 @@ const writeSpaSyncRenderedPageClientChunks = ({
 }: {
   clientRuntimeFileName: string;
   framework: string;
-  loggerScopeId: LoggerScopeId;
+  loggerScopeId: string;
   markdownModuleIdToSpaSyncRenderMap: ReturnType<
     RenderController<PageBuildMetrics>['getMarkdownModuleIdToSpaSyncRenderMap']
   >;
@@ -227,7 +224,7 @@ const collectPageComponentBundles = ({
       RenderController<PageBuildMetrics>['getCompilationContainerByMarkdownModuleId']
     >
   >['importsByLocalName'];
-  loggerScopeId: LoggerScopeId;
+  loggerScopeId: string;
   renderController: RenderController<PageBuildMetrics>;
   resolvedId: string;
   srcDir: string;
@@ -359,7 +356,7 @@ const collectPageComponentBundles = ({
 
 export interface RegisterUIFrameworkBuildHooksOptions {
   adapter: UIFrameworkBuildAdapter;
-  loggerScopeId: LoggerScopeId;
+  loggerScopeId: string;
   preloadFrameworkRuntimeOnEveryPage?: boolean;
   siteDevtoolsEnabled: boolean;
 }

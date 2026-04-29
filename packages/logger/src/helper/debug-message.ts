@@ -3,8 +3,8 @@ import {
   DEBUG_SUMMARY_MAX_DEPTH,
   DEBUG_SUMMARY_MAX_ITEMS,
   DEBUG_SUMMARY_MAX_KEYS,
-} from './constants/debug';
-import type { DebugMessageOptions } from './types';
+} from '../constants/debug';
+import type { DebugMessageOptions } from '../types';
 
 const sanitizeDebugText = (
   value: string,

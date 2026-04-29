@@ -88,22 +88,27 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./internal": "./src/internal.ts",
-    "./runtime": "./src/runtime.ts",
+    "./helper": "./src/helper/index.ts",
+    "./core": "./src/core/index.ts",
+    "./core/helper": "./src/core/helper/index.ts",
     "./plugin": "./src/plugin/index.ts",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./types": "./src/types/index.ts"
   },
   "types": "./src/index.ts",
   "typesVersions": {
     "*": {
-      "internal": [
-        "./internal.d.ts"
+      "helper": [
+        "./helper/index.d.ts"
+      ],
+      "core": [
+        "./core/index.d.ts"
+      ],
+      "core/helper": [
+        "./core/helper/index.d.ts"
       ],
       "plugin": [
         "./plugin/index.d.ts"
-      ],
-      "runtime": [
-        "./runtime.d.ts"
       ]
     }
   },

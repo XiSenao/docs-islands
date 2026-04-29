@@ -42,7 +42,6 @@ describe('auditPublishedPackageBoundaries', () => {
           name: '@docs-islands/vitepress',
           exports: {
             '.': './node/index.js',
-            './internal/logger': './shared/internal/logger.js',
             './logger': './shared/logger.js',
             './logger/presets': './shared/logger/presets.js',
             './types/*': './types/*',
@@ -63,7 +62,7 @@ describe('auditPublishedPackageBoundaries', () => {
       path.join(distDir, 'node', 'index.js'),
       `import path from 'node:path';
 import { defineConfig } from 'vite';
-import { formatDebugMessage } from '@docs-islands/vitepress/internal/logger';
+import { formatDebugMessage } from '@docs-islands/logger/helper';
 import { createLogger } from '@docs-islands/vitepress/logger';
 import loggerPresets from '@docs-islands/vitepress/logger/presets';
 import { loggerPlugin } from '@docs-islands/logger/plugin';

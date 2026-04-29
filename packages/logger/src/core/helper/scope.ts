@@ -1,4 +1,4 @@
-import type { LoggerScopeId } from './types';
+import type { LoggerScopeId } from '../../types';
 
 export const DEFAULT_LOGGER_SCOPE_ID = '__default__';
 
@@ -26,18 +26,4 @@ export const normalizeLoggerScopeId = (
   const normalizedScopeId = scopeId.trim();
 
   return normalizedScopeId || DEFAULT_LOGGER_SCOPE_ID;
-};
-
-export const readRuntimeLoggerScopeId = (): LoggerScopeId | undefined => {
-  return undefined;
-};
-
-export const resolveLoggerScopeId = (
-  scopeId?: LoggerScopeId,
-): LoggerScopeId => {
-  if (typeof scopeId === 'string') {
-    return normalizeLoggerScopeId(scopeId);
-  }
-
-  return DEFAULT_LOGGER_SCOPE_ID;
 };
