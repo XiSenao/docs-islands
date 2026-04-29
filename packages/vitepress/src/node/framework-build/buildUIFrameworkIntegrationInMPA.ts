@@ -75,11 +75,9 @@ export const buildUIFrameworkIntegrationInMPA = async (
        * - The `index-chunk` module statically imports the `entry-chunk` module.
        */
       const tempEntryContent = `
-if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-  void import('${adapter.clientEntryModule()}').then(({ ${adapter.clientEntryImportName()} }) => {
-    ${adapter.clientEntryImportName()}();
-  });
-}
+import { ${adapter.clientEntryImportName()} } from '${adapter.clientEntryModule()}';
+
+${adapter.clientEntryImportName()}();
 `;
 
       fs.writeFileSync(tempEntryPath, tempEntryContent, 'utf8');
