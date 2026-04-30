@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "pnpm smoke",
-    "smoke": "tsx consumer.ts && tsx mpa-integration.ts",
+    "smoke": "playwright test",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
     "clean": "del-cli .eslintcache node_modules"
@@ -19,10 +19,10 @@
     "@docs-islands/utils": "workspace:*",
     "@typescript-eslint/parser": "catalog:lint",
     "@vitejs/plugin-react-swc": "catalog:dev",
+    "@playwright/test": "catalog:test",
     "del-cli": "catalog:dev",
     "eslint": "catalog:lint",
     "globals": "catalog:test",
-    "playwright-chromium": "catalog:test",
     "react": "catalog:dev",
     "react-dom": "catalog:dev",
     "tsx": "catalog:dev",
