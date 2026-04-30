@@ -12,6 +12,73 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 - refactor(vitepress)!: replace public logger accessors with factory-first `createLogger` on `@docs-islands/vitepress/logger` and remove `emitRuntimeLog` / `LightGeneralLogger(...).formatText`
 
+## [0.3.0] - 2026-04-30
+
+### Features
+
+- feat(release): validate logger dist packages ([c0fe550](https://github.com/XiSenao/docs-islands/commit/c0fe550))
+- feat(vitepress): bind logger facade with virtual modules ([96be8e3](https://github.com/XiSenao/docs-islands/commit/96be8e3))
+- feat(logger): add scoped utils logger bridge ([7f14e1a](https://github.com/XiSenao/docs-islands/commit/7f14e1a))
+- feat(release): add workspace public package release CLI ([252c555](https://github.com/XiSenao/docs-islands/commit/252c555))
+- feat(vitepress): warn on unmanaged logger facade ([7d575e6](https://github.com/XiSenao/docs-islands/commit/7d575e6))
+- feat(logger)!: add standalone logger package ([288d12c](https://github.com/XiSenao/docs-islands/commit/288d12c))
+- feat(vitepress): isolate logger scopes across runtime builds ([7dfb6e0](https://github.com/XiSenao/docs-islands/commit/7dfb6e0))
+- feat(vitepress): track React HMR and dev render timing ([82f7306](https://github.com/XiSenao/docs-islands/commit/82f7306))
+- feat(vitepress)!: add public logger modules and preset-based logging ([0664b0c](https://github.com/XiSenao/docs-islands/commit/0664b0c))
+- feat(logging): align rule matching with spec ([5b2e8e1](https://github.com/XiSenao/docs-islands/commit/5b2e8e1))
+- feat(vitepress): audit package boundary and harden publishing gates ([c3d4ed5](https://github.com/XiSenao/docs-islands/commit/c3d4ed5))
+- feat(vitepress)!: introduce adapters API and site devtools ([2426539](https://github.com/XiSenao/docs-islands/commit/2426539))
+- feat(logging): add structured config and scoped log groups ([fe59a9d](https://github.com/XiSenao/docs-islands/commit/fe59a9d))
+- feat: introduce @docs-islands/core package ([f1e5f76](https://github.com/XiSenao/docs-islands/commit/f1e5f76))
+- feat(site-debug): enrich page build report context ([d4958d2](https://github.com/XiSenao/docs-islands/commit/d4958d2))
+- feat(vitepress)!: redesign site debug ai build report config ([626835a](https://github.com/XiSenao/docs-islands/commit/626835a))
+- feat(site-debug): improve large-file previews and report layout ([b13b4df](https://github.com/XiSenao/docs-islands/commit/b13b4df))
+- feat(vitepress): track site debug AI reports in git ([3aa9b91](https://github.com/XiSenao/docs-islands/commit/3aa9b91))
+- feat(vitepress): add site debug AI reports and review UI ([d573615](https://github.com/XiSenao/docs-islands/commit/d573615))
+- feat(vitepress): improve site debug console diagnostics ([db672b0](https://github.com/XiSenao/docs-islands/commit/db672b0))
+- feat(vitepress): add site debug console (#57) ([d9f7c06](https://github.com/XiSenao/docs-islands/commit/d9f7c06))
+
+### Bug Fixes
+
+- fix(logger): reject resetLoggerConfig in controlled runtimes ([2197e52](https://github.com/XiSenao/docs-islands/commit/2197e52))
+- fix(agents): run link script through tsx ([7fe61a0](https://github.com/XiSenao/docs-islands/commit/7fe61a0))
+- fix(vitepress): guard duplicate docs islands instances ([0826c60](https://github.com/XiSenao/docs-islands/commit/0826c60))
+- fix(vitepress): preserve scoped logger output in docs dev ([37737f7](https://github.com/XiSenao/docs-islands/commit/37737f7))
+- fix(docs): component popup exception issue ([6f77e0a](https://github.com/XiSenao/docs-islands/commit/6f77e0a))
+- fix(vitepress): handle Windows boundary audit paths ([3ec185a](https://github.com/XiSenao/docs-islands/commit/3ec185a))
+- fix(vitepress): publish site-debug optional fallbacks ([9507203](https://github.com/XiSenao/docs-islands/commit/9507203))
+- fix: resolve VitePress integration deps from consumer root ([432fdd5](https://github.com/XiSenao/docs-islands/commit/432fdd5))
+- fix(vitepress): stabilize site debug build report caching ([278671f](https://github.com/XiSenao/docs-islands/commit/278671f))
+- fix(vitepress): sanitize site debug AI report paths ([6b04e34](https://github.com/XiSenao/docs-islands/commit/6b04e34))
+- fix(vitepress): refine debug module source panel ([4ae3e44](https://github.com/XiSenao/docs-islands/commit/4ae3e44))
+- fix(site-debug): prevent module source badge overlap ([3f3f1cf](https://github.com/XiSenao/docs-islands/commit/3f3f1cf))
+
+### Documentation
+
+- docs: add animated navbar logo ([0fe542a](https://github.com/XiSenao/docs-islands/commit/0fe542a))
+- docs(logger): document helper entrypoints ([03b092d](https://github.com/XiSenao/docs-islands/commit/03b092d))
+- docs(vitepress): document scoped logger plugin behavior ([59946c5](https://github.com/XiSenao/docs-islands/commit/59946c5))
+- docs(vitepress): document logging presets and refresh reports ([c92ba5c](https://github.com/XiSenao/docs-islands/commit/c92ba5c))
+- docs(vitepress): rename site debug console to site devtools ([2894e30](https://github.com/XiSenao/docs-islands/commit/2894e30))
+- docs(vitepress): polish guide copy and examples ([1a17a9b](https://github.com/XiSenao/docs-islands/commit/1a17a9b))
+
+### Maintenance
+
+- test(vitepress): integrate Playwright smoke checks ([3bc1a86](https://github.com/XiSenao/docs-islands/commit/3bc1a86))
+- test(vitepress): add dist smoke workspace ([0447c0d](https://github.com/XiSenao/docs-islands/commit/0447c0d))
+- chore(deps): bump @docs-islands/logger@0.0.2 ([3891d5e](https://github.com/XiSenao/docs-islands/commit/3891d5e))
+- refactor(logger): expose explicit runtime subpaths ([3cde2b8](https://github.com/XiSenao/docs-islands/commit/3cde2b8))
+- refactor(logger): centralize runtime logging ([f5daf80](https://github.com/XiSenao/docs-islands/commit/f5daf80))
+- refactor(utils): expose explicit utility subpaths ([f4fd6a3](https://github.com/XiSenao/docs-islands/commit/f4fd6a3))
+- refactor(logger): centralize scoped logger runtime ([b5ca948](https://github.com/XiSenao/docs-islands/commit/b5ca948))
+- test(vitepress): stabilize react rendering strategy tests ([20f2f2a](https://github.com/XiSenao/docs-islands/commit/20f2f2a))
+- chore(vitepress): interface enhancements and document layout adjustments ([8a68f7c](https://github.com/XiSenao/docs-islands/commit/8a68f7c))
+- chore(tsconfig): strictly restrict auto-injection of third-party package types ([5668488](https://github.com/XiSenao/docs-islands/commit/5668488))
+
+### Other Changes
+
+- perf(debug-console): stream source previews off the main thread ([771946c](https://github.com/XiSenao/docs-islands/commit/771946c))
+
 ## [0.2.5] - 2026-03-27
 
 ### Features
