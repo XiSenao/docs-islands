@@ -158,13 +158,13 @@ function runPackageReleaseChecks(
       localTest: true,
     });
     getPackageScriptRunner(config, 'test');
+    getPackageScriptRunner(config, 'smoke');
   }
 
   if (!options.skipBuild) {
     buildVitepressProject(config);
     verifyDistVersion(plan);
     getPackageScriptRunner(config, 'lint:package');
-    getPackageScriptRunner(config, 'smoke:consumer');
     runCommand(getNpmCommand(), ['pack', '--dry-run'], {
       cwd: config.publishDir,
       stdio: 'inherit',
