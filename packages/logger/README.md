@@ -13,12 +13,13 @@ Framework-agnostic runtime logging and build-time pruning for docs-islands packa
 
 ## Features
 
-- **Tiny public runtime API**: import `createLogger` and `setLoggerConfig` from `@docs-islands/logger`.
+- **Tiny public runtime API**: import `createLogger`, `setLoggerConfig`, and `resetLoggerConfig` from `@docs-islands/logger`.
 - **Node.js and browser output**: uses colored terminal output when available and styled browser console output in web runtimes.
 - **Scoped log groups**: organize messages by package `main` and lowercase dot-namespace groups such as `build.pipeline`.
 - **Configurable visibility**: allow `error`, `warn`, `info`, and `success` globally or by focused rules.
 - **Debug diagnostics**: enable debug output for simple configs, and add rule labels plus elapsed timing metadata to visible rule-based logs.
 - **Production pruning**: `loggerPlugin` removes supported static log calls that the resolved config suppresses.
+- **Scoped integration API**: host packages can create explicit logger scopes without mutating the root runtime policy.
 - **Bundler coverage through unplugin**: supports Vite, Rollup, Rolldown, esbuild, webpack, Rspack, and Farm.
 - **TypeScript first**: ships ESM and TypeScript declarations through package exports.
 
@@ -71,6 +72,18 @@ logger.debug('debug details');
 
 If you use the runtime without `loggerPlugin` or an explicit `setLoggerConfig(...)` call, the package falls back to its default visibility.
 
+## Configuration Ownership
+
+`@docs-islands/logger` has a default scope behind the root entry and explicit scopes for host integrations. Decide who owns configuration before creating loggers:
+
+| Scenario                                             | Entry                                                     | Config owner                                                                                                                      |
+| ---------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Direct app, script, or standalone tool               | `@docs-islands/logger`                                    | The application calls `setLoggerConfig(...)` and `resetLoggerConfig()` on the default scope.                                      |
+| Bundler-controlled runtime                           | `@docs-islands/logger` plus `@docs-islands/logger/plugin` | The bundler plugin injects the default scope config. Application calls to `setLoggerConfig(...)` and `resetLoggerConfig()` throw. |
+| Host or framework integration with private ownership | `@docs-islands/logger/core`                               | The host creates an explicit scope and calls `setScopedLoggerConfig(scopeId, config)` before `createScopedLogger(...)`.           |
+
+Reusable libraries should not call `setLoggerConfig(...)` or `resetLoggerConfig()` at module initialization. The default scope belongs to the application or bundler host that owns the runtime.
+
 ## Runtime Configuration
 
 The default visibility set is `error`, `warn`, `info`, and `success`. `debug` logs are hidden unless `debug: true` is enabled in a simple, non-rule config.
@@ -81,11 +94,13 @@ setLoggerConfig({
 });
 ```
 
-Pass `null` or `undefined` to clear the default runtime config:
+Use `resetLoggerConfig()` to clear the default runtime config in direct, non-plugin usage:
 
 ```ts
-setLoggerConfig(null);
+resetLoggerConfig();
 ```
+
+When a runtime is controlled by `loggerPlugin`, both `setLoggerConfig(...)` and `resetLoggerConfig()` throw. Update the plugin `config` instead.
 
 ### Rule Mode
 
@@ -164,11 +179,19 @@ Plugin options:
 
 Rollup hosts must install `@rollup/plugin-replace` before using `loggerPlugin.rollup(...)`. The logger plugin prepends Rollup's replace plugin to inline the logger control constants, including `__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__` and `__DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__`, so the bundle receives the same serialized runtime config that other bundlers inject through their `define` hooks.
 
-When `loggerPlugin` controls a runtime, calling `setLoggerConfig(...)` from application code throws. Update the plugin `config` instead so build-time pruning and runtime filtering share the same policy.
+When `loggerPlugin` controls a runtime, calling `setLoggerConfig(...)` or `resetLoggerConfig()` from application code throws. Update the plugin `config` instead so build-time pruning and runtime filtering share the same policy.
 
 ### Tree-Shaking Coverage
 
 Tree-shaking is deliberately conservative. The runtime policy is always canonical; the plugin only removes calls it can prove safe.
+
+A log call can be removed only when the plugin sees all of these static facts:
+
+- `createLogger` is imported as a named, unaliased import from `@docs-islands/logger`
+- `main`, `group`, and the message are string literals
+- the logger binding is not reassigned
+- the log call is a standalone expression
+- the plugin is running in a build context and `treeshake` is not `false`
 
 Supported static shape:
 
@@ -200,13 +223,14 @@ Kept for runtime filtering:
 Root entry:
 
 ```ts
-import { createLogger, setLoggerConfig } from '@docs-islands/logger';
+import { createLogger, resetLoggerConfig, setLoggerConfig } from '@docs-islands/logger';
 ```
 
-| API               | Description                                                              |
-| ----------------- | ------------------------------------------------------------------------ |
-| `createLogger()`  | Creates or reuses a main logger. Call `.getLoggerByGroup(group)` to log. |
-| `setLoggerConfig` | Sets or clears the default runtime config for direct non-plugin usage.   |
+| API                   | Description                                                                                          |
+| --------------------- | ---------------------------------------------------------------------------------------------------- |
+| `createLogger()`      | Creates or reuses a main logger in the default scope. Call `.getLoggerByGroup(group)` to log.        |
+| `setLoggerConfig()`   | Sets the default runtime config for direct non-plugin usage. Throws in plugin-controlled runtimes.   |
+| `resetLoggerConfig()` | Clears the default runtime config for direct non-plugin usage. Throws in plugin-controlled runtimes. |
 
 Plugin entry:
 
@@ -214,15 +238,49 @@ Plugin entry:
 import { loggerPlugin } from '@docs-islands/logger/plugin';
 ```
 
+Scoped integration entry:
+
+```ts
+import {
+  createScopedLogger,
+  getScopedLoggerConfig,
+  resetScopedLoggerConfig,
+  setScopedLoggerConfig,
+  shouldSuppressLog,
+} from '@docs-islands/logger/core';
+import { createLoggerScopeId } from '@docs-islands/logger/core/helper';
+
+const scopeId = createLoggerScopeId();
+
+setScopedLoggerConfig(scopeId, {
+  levels: ['warn', 'error'],
+});
+
+const scopedLogger = createScopedLogger({ main: '@acme/docs-host' }, scopeId);
+const logger = scopedLogger.getLoggerByGroup('build.pipeline');
+
+logger.warn('host warning');
+
+resetScopedLoggerConfig(scopeId);
+```
+
+| API                         | Description                                                                            |
+| --------------------------- | -------------------------------------------------------------------------------------- |
+| `setScopedLoggerConfig()`   | Registers or updates an explicit logger scope. Must run before `createScopedLogger()`. |
+| `createScopedLogger()`      | Creates or reuses a main logger inside an explicit scope.                              |
+| `getScopedLoggerConfig()`   | Reads the current config for a scope. Returns `undefined` when it is not registered.   |
+| `resetScopedLoggerConfig()` | Removes an explicit scope config.                                                      |
+| `shouldSuppressLog()`       | Resolves runtime visibility for custom integration logic.                              |
+
 Advanced type and helper entries:
 
 ```ts
 import type { LoggerConfig } from '@docs-islands/logger/types';
 import { createElapsedLogOptions } from '@docs-islands/logger/helper';
-import { createLoggerScopeId } from '@docs-islands/logger/core/helper';
+import { createLoggerScopeId, normalizeLoggerConfig } from '@docs-islands/logger/core/helper';
 ```
 
-Prefer the root entry for application code. Use `@docs-islands/logger/helper` for shared formatting, elapsed-time, and error/debug-message utilities. Use `@docs-islands/logger/core/helper` for scoped logger helper utilities.
+Prefer the root entry for application code. Use `@docs-islands/logger/core` only when an integration needs an explicit scope. Use `@docs-islands/logger/helper` for shared formatting, elapsed-time, and error/debug-message utilities. Use `@docs-islands/logger/core/helper` for scope and config normalization helpers.
 
 ## Documentation
 

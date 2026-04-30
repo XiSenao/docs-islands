@@ -181,6 +181,14 @@ describe('runtime logger', () => {
     );
   });
 
+  it('rejects generic root resetLoggerConfig in controlled runtimes', () => {
+    vi.stubGlobal('__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__', true);
+
+    expect(() => resetLoggerConfig()).toThrow(
+      '@docs-islands/logger is controlled by loggerPlugin.vite({ config }).',
+    );
+  });
+
   it('keeps explicit scoped configs isolated from the default scope', () => {
     setLoggerConfig({
       levels: ['error'],

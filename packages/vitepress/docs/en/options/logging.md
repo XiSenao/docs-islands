@@ -107,6 +107,28 @@ The presets exported by `@docs-islands/vitepress/logger/presets` are predefined 
 
 `@docs-islands/logger` stays framework-agnostic. In managed VitePress builds, `createDocsIslands()` resolves `@docs-islands/vitepress/logger` to a scope-bound virtual module, so each integration instance uses its own logger registry entry.
 
+### Entry Ownership
+
+| Situation                                                | Import from                                          | Config owner                               |
+| -------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------ |
+| Code processed by the managed VitePress Vite pipeline    | `@docs-islands/vitepress/logger`                     | `createDocsIslands({ logging })`           |
+| VitePress internals that already carry a `loggerScopeId` | `@docs-islands/logger/core`                          | The current `createDocsIslands()` instance |
+| Reusable docs-islands packages that need host takeover   | A package facade such as `@docs-islands/core/logger` | The host that aliases the facade           |
+| Framework-agnostic user code outside the managed graph   | `@docs-islands/logger`                               | The root logger runtime or `loggerPlugin`  |
+| Shared formatting and elapsed-time helpers               | `@docs-islands/logger/helper`                        | No runtime config                          |
+
+`@docs-islands/vitepress/logger` is not a generic logger entry. Do not call it from `.vitepress/config.ts` or from standalone Node scripts; those files run before the Vite module graph can replace the facade with the active scope-bound virtual module.
+
+For this package, the project-level constraints are:
+
+- Use `@docs-islands/vitepress/logger` for logs that are created inside the Vite module graph owned by `createDocsIslands()`. This is the only entry covered by VitePress automatic scope injection and VitePress automatic tree-shaking.
+- Use `@docs-islands/logger/core` only for VitePress internals that run outside that Vite graph but already receive the active `loggerScopeId`. Those callers must register or consume an explicit scope through the core API.
+- A reusable monorepo package that must be controlled by VitePress should expose its own logger facade, for example `@docs-islands/core/logger`. The VitePress package then aliases that facade to `@docs-islands/vitepress/logger` when it bundles the package.
+- A reusable package that does not need VitePress takeover should use the generic `@docs-islands/logger` entry. If a host installs `loggerPlugin`, that generic default scope becomes plugin-controlled; otherwise it remains directly configurable with `setLoggerConfig(...)` / `resetLoggerConfig()`.
+- Shared formatting, elapsed-time, and diagnostic helpers should come from `@docs-islands/logger/helper` or `@docs-islands/logger/core/helper`; do not import a runtime logger entry only to access helpers.
+
+`@docs-islands/vitepress` may contain both `@docs-islands/vitepress/logger` and `@docs-islands/logger` imports. They intentionally represent different ownership models: the VitePress facade is tied to the current `createDocsIslands()` scope, while the generic logger uses the default root scope unless a public `loggerPlugin` controls it.
+
 ### Runtime Policy vs Build-Time Optimization
 
 The logger tree-shaking plugin is a build-time optimization layer. It reuses the resolved `logging` rules to prune statically analyzable logger calls during build.
@@ -128,18 +150,14 @@ So a runtime-suppressed log is not automatically a pruned log.
 | Coverage                                    | Full runtime model | Static, provable subset only         |
 | Fallback when analysis is not possible      | Runtime matching   | Keep the call and defer to runtime   |
 
+Configure visibility in `.vitepress/config.ts`:
+
 ```ts [.vitepress/config.ts]
 import { createDocsIslands } from '@docs-islands/vitepress';
-import { createLogger } from '@docs-islands/vitepress/logger';
-
-const logger = createLogger({
-  main: '@acme/custom-docs',
-}).getLoggerByGroup('userland.metrics');
-const hiddenLogger = createLogger({
-  main: '@acme/custom-docs',
-}).getLoggerByGroup('userland.hidden');
+import { react } from '@docs-islands/vitepress/adapters/react';
 
 const islands = createDocsIslands({
+  adapters: [react()],
   logging: {
     debug: true,
     rules: [
@@ -154,6 +172,19 @@ const islands = createDocsIslands({
 });
 
 islands.apply(vitepressConfig);
+```
+
+Then import the facade from modules that are actually handled by the managed Vite graph:
+
+```ts [src/userland-metrics.ts]
+import { createLogger } from '@docs-islands/vitepress/logger';
+
+const logger = createLogger({
+  main: '@acme/custom-docs',
+}).getLoggerByGroup('userland.metrics');
+const hiddenLogger = createLogger({
+  main: '@acme/custom-docs',
+}).getLoggerByGroup('userland.hidden');
 
 logger.info('visible userland info');
 hiddenLogger.info('suppressed userland info');
@@ -164,6 +195,8 @@ With this setup, `userland.metrics` stays visible, while `userland.hidden` is su
 ### Logger Tree-Shaking Plugin
 
 In `createDocsIslands()` managed builds, docs-islands already installs the logger tree-shaking transform automatically. This automatic VitePress transform only targets `@docs-islands/vitepress/logger` imports in the managed VitePress module graph, including user component browser/SSR bundles and Vite-bundled runtime modules such as the unified loader. It does not prune framework-agnostic `@docs-islands/logger` imports.
+
+Package facades can still participate in this takeover. For example, `@docs-islands/core` exposes `@docs-islands/core/logger`; the VitePress package rewrites that facade to `@docs-islands/vitepress/logger` while building its own output. Keeping the rewritten import external in the VitePress package output is intentional: the final consumer site's Vite pipeline must still see and resolve `@docs-islands/vitepress/logger` so the scope-bound virtual module and VitePress tree-shaking transform can run. Do not externalize `@docs-islands/vitepress/logger` in the consumer site's Vite build.
 
 If you use the framework-agnostic `@docs-islands/logger` entry in a VitePress site and still want production pruning for that generic logger, install the public plugin explicitly:
 
@@ -184,7 +217,7 @@ export default defineConfig({
 });
 ```
 
-`loggerPlugin` controls the generic logger runtime config and enables tree-shaking by default. If `config` is omitted, the plugin uses the default logger visibility policy, which still prunes statically analyzable `debug` logs. Use `treeshake: false` when you want runtime control without build-time pruning.
+`loggerPlugin` controls the generic logger runtime config and enables tree-shaking by default. If `config` is omitted, the plugin uses the default logger visibility policy, which still prunes statically analyzable `debug` logs. Use `treeshake: false` when you want runtime control without build-time pruning. In this controlled generic runtime, application code must not call `setLoggerConfig(...)` or `resetLoggerConfig()`; update the plugin `config` instead.
 
 ### Production Tree-Shaking
 
@@ -236,7 +269,7 @@ Those forms remain compatible, but docs-islands does not guarantee that their me
 For direct logger usage outside VitePress managed builds, import from the framework-agnostic package:
 
 ```ts
-import { createLogger, setLoggerConfig } from '@docs-islands/logger';
+import { createLogger, resetLoggerConfig, setLoggerConfig } from '@docs-islands/logger';
 
 setLoggerConfig({
   levels: ['warn', 'error'],
@@ -247,9 +280,11 @@ const logger = createLogger({
 }).getLoggerByGroup('userland.metrics');
 
 logger.warn('visible generic warning');
+
+resetLoggerConfig();
 ```
 
-`@docs-islands/vitepress/logger` should not be used as a generic logger entry. It is reserved for the VitePress build graph established by `createDocsIslands()`.
+Without `loggerPlugin`, this generic runtime uses the default scope and can be configured directly with `setLoggerConfig(...)` / `resetLoggerConfig()`, but it is not covered by the automatic VitePress tree-shaking transform. `@docs-islands/vitepress/logger` should not be used as a generic logger entry. It is reserved for the VitePress build graph established by `createDocsIslands()`.
 
 ### Interactive Scope Probe
 
