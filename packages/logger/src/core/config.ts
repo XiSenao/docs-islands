@@ -36,8 +36,8 @@ const picomatch = rawPicomatch as unknown as (
 
 let hasSyncedRuntimeDefinedDefaultLoggerConfig = false;
 
-const CONTROLLED_SET_LOGGER_CONFIG_ERROR =
-  '@docs-islands/logger is controlled by loggerPlugin.vite({ config }). setLoggerConfig(...) cannot be used in this runtime; update the loggerPlugin.vite({ config }) option in your bundler config instead.';
+const CONTROLLED_LOGGER_CONFIG_ERROR =
+  '@docs-islands/logger is controlled by loggerPlugin.vite({ config }). setLoggerConfig(...) and resetLoggerConfig() cannot be used in this runtime; update the loggerPlugin.vite({ config }) option in your bundler config instead.';
 const createMissingScopedLoggerConfigError = (scopeId: LoggerScopeId): string =>
   `Logger config for scope "${scopeId}" is not registered in this runtime. Call setScopedLoggerConfig(scopeId, config) before creating a scoped logger.`;
 
@@ -341,13 +341,17 @@ export function resetScopedLoggerConfig(scopeId: LoggerScopeId): void {
  */
 export function setLoggerConfig(config: LoggerConfig): void {
   if (isLoggerControlled()) {
-    throw new Error(CONTROLLED_SET_LOGGER_CONFIG_ERROR);
+    throw new Error(CONTROLLED_LOGGER_CONFIG_ERROR);
   }
 
   setScopedLoggerConfig(DEFAULT_LOGGER_SCOPE_ID, config);
 }
 
 export function resetLoggerConfig(): void {
+  if (isLoggerControlled()) {
+    throw new Error(CONTROLLED_LOGGER_CONFIG_ERROR);
+  }
+
   resetScopedLoggerConfig(DEFAULT_LOGGER_SCOPE_ID);
 }
 
