@@ -2,6 +2,7 @@ packages:
   - packages/*
   - packages/*/docs
   - packages/*/playground
+  - packages/*/smoke
   - packages/plugins/*
   - docs
   - utils
