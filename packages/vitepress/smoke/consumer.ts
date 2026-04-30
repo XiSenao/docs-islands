@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-chromium';
-import { packDistTarball } from './package-artifacts';
+import { packDistTarball } from '../scripts/package-artifacts';
 
 const loggerInstance = createLogger({
   main: '@docs-islands/vitepress',
