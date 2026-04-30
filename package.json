@@ -40,6 +40,7 @@
     "test": "DOCS_ISLANDS_TEST='1' DOCS_ISLANDS_MODE='production' pnpm run build && concurrently --names \"test:unit,test:e2e\" --prefix-colors \"blue,orange\" --kill-others-on-fail \"pnpm run _run test:unit\" \"pnpm run _run test:e2e\"",
     "test:unit": "pnpm run _run test:unit",
     "test:e2e": "pnpm run _run test:e2e",
+    "test:smoke": "pnpm run _run smoke vitepress",
     "lint": "pnpm --filter @docs-islands/eslint-config build && eslint . --fix --cache --concurrency auto --config ./eslint.config.mjs && pnpm -r --parallel run lint",
     "lint:packages": "pnpm -r --parallel run lint:package",
     "format": "prettier --write --cache .",
