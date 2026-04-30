@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-04-30
+
+### Bug Fixes
+
+- fix(logger): reject resetLoggerConfig in controlled runtimes ([2197e52](https://github.com/XiSenao/docs-islands/commit/2197e52))
+
 ## [0.0.2] - 2026-04-29
 
 ### Bug Fixes
