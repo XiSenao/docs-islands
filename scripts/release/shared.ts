@@ -224,11 +224,11 @@ const RELEASE_PACKAGE_CONFIGS: readonly ReleasePackageConfig[] = [
     legacyTagPrefix: 'v',
     previewChecks: [
       'test',
+      'smoke',
       'build workspace dependencies',
       'build package',
       'verify dist/package.json version',
       'lint:package',
-      'smoke:consumer',
       'npm pack --dry-run',
     ],
   },
