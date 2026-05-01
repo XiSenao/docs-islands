@@ -4,7 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   assertDistArtifacts,
-  assertNoCoreLoggerRuntimeError,
+  assertNoManagedLoggerSpecifier,
   CLIENT_ENTRY_SPECIFIER,
   collectMpaIntegrationScripts,
   createConsumerFixture,
@@ -154,7 +154,7 @@ test('MPA dist integration bundle resolves and imports cleanly', async () => {
     const integrationScripts = collectMpaIntegrationScripts(outDir);
 
     await importMpaIntegrationScripts(outDir, integrationScripts);
-    assertNoCoreLoggerRuntimeError(outDir);
+    assertNoManagedLoggerSpecifier(outDir);
 
     expect(integrationScripts.length).toBeGreaterThan(0);
     logger.success(

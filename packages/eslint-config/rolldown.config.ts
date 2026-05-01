@@ -1,32 +1,17 @@
 import { loadEnv } from '@docs-islands/utils/env';
 import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
-import { glob } from 'tinyglobby';
 
 const { config } = loadEnv();
 const { sourcemap } = config;
 
-async function getModuleFiles(): Promise<string[]> {
-  const files = await glob(['**/*.ts'], {
-    cwd: process.cwd(),
-    absolute: false,
-    onlyFiles: true,
-    ignore: [
-      '**/*.d.ts',
-      '**/*.config.ts',
-      '**/*.test.ts',
-      '**/*.spec.ts',
-      '**/node_modules/**',
-    ],
-  });
-
-  return files.map((file) => file.replace('.ts', ''));
-}
-
-const modules = await getModuleFiles();
-
 const moduleConfig: RolldownOptions = defineConfig({
-  input: './index.ts',
+  input: {
+    general: 'src/general.ts',
+    'presets/index': 'src/presets/index.ts',
+    'plugins/index': 'src/plugins/index.ts',
+    'config/index': 'src/config/index.ts',
+  },
   platform: 'neutral',
   preserveEntrySignatures: 'strict',
   external: [/^[\w@][^:]/],
@@ -50,7 +35,12 @@ const dtsConfig: RolldownOptions = defineConfig({
   // is preserved. The dts plugin converts all default exports to the former
   // form during its fake-js transform, so the dts build is always affected.
   // The JS build is only safe when the source uses `export default X` directly.
-  input: modules,
+  input: {
+    general: 'src/general.ts',
+    'presets/index': 'src/presets/index.ts',
+    'plugins/index': 'src/plugins/index.ts',
+    'config/index': 'src/config/index.ts',
+  },
   platform: 'neutral',
   preserveEntrySignatures: 'strict',
   external: [/^[\w@][^:]/],

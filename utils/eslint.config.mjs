@@ -1,8 +1,9 @@
-import eslintConfig from '@docs-islands/eslint-config';
+import eslintGeneralConfig from '@docs-islands/eslint-config';
 import { defineConfig } from 'eslint/config';
 
 export default defineConfig([
-  ...eslintConfig,
+  ...eslintGeneralConfig,
+
   {
     rules: {
       'no-restricted-syntax': 'off',

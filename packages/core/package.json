@@ -47,14 +47,15 @@
     "htmlparser2": "catalog:dev",
     "magic-string": "catalog:dev",
     "markdown-it": "catalog:dev",
-    "pathe": "catalog:dev"
+    "pathe": "catalog:dev",
+    "@docs-islands/logger": "catalog:prod"
   },
   "devDependencies": {
     "@types/babel__generator": "catalog:dev",
     "@types/babel__traverse": "catalog:dev",
     "@docs-islands/eslint-config": "workspace:*",
     "@docs-islands/plugin-license": "workspace:*",
-    "@docs-islands/logger": "workspace:*",
+    "@docs-islands/utils": "workspace:*",
     "@types/node": "catalog:dev",
     "@types/markdown-it": "catalog:dev",
     "@types/react": "catalog:dev",
@@ -76,7 +77,6 @@
     "./client/docs-render-strategy": "./src/client/docs-render-strategy.ts",
     "./client/dom": "./src/client/dom.ts",
     "./client/render-strategy": "./src/client/render-strategy.ts",
-    "./logger": "./src/logger.ts",
     "./node": "./src/node/index.ts",
     "./node/import-reference-resolver": "./src/node/import-reference-resolver.ts",
     "./node/module-resolution": "./src/node/module-resolution.ts",

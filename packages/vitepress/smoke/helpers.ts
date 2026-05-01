@@ -1,5 +1,5 @@
-import { createLogger } from '@docs-islands/logger';
 import { createElapsedLogOptions } from '@docs-islands/logger/helper';
+import { createLogger } from '@docs-islands/utils/logger';
 import type { ConsoleMessage, Page, Request, Response } from '@playwright/test';
 import { load } from 'cheerio';
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
@@ -57,8 +57,7 @@ export const CONSUMER_SMOKE_ROUTE = '/script-content-changes/basic';
 export const CLIENT_ENTRY_SPECIFIER =
   '@docs-islands/vitepress/adapters/react/client';
 export const DIST_CLIENT_ENTRY_PATH = 'client/adapters/react.mjs';
-export const MANAGED_LOGGER_RUNTIME_ERROR =
-  '@docs-islands/core/logger must be resolved by an integration before runtime use.';
+const MANAGED_LOGGER_SPECIFIERS = ['@docs-islands/utils/logger'] as const;
 
 export const PACKAGE_ROOT_DIR = fileURLToPath(new URL('..', import.meta.url));
 export const DIST_DIR = path.join(PACKAGE_ROOT_DIR, 'dist');
@@ -143,9 +142,13 @@ export function assertDistArtifacts(): DistPackageJson {
       `${clientEntryPath} does not import @docs-islands/vitepress/logger.`,
     );
   }
-  if (clientEntrySource.includes('@docs-islands/core/logger')) {
+  for (const managedLoggerSpecifier of MANAGED_LOGGER_SPECIFIERS) {
+    if (!clientEntrySource.includes(managedLoggerSpecifier)) {
+      continue;
+    }
+
     throw new Error(
-      `${clientEntryPath} still references @docs-islands/core/logger.`,
+      `${clientEntryPath} still references ${managedLoggerSpecifier}.`,
     );
   }
 
@@ -776,7 +779,7 @@ export async function importMpaIntegrationScripts(
   }
 }
 
-export function assertNoCoreLoggerRuntimeError(outDir: string): void {
+export function assertNoManagedLoggerSpecifier(outDir: string): void {
   const outputFiles = collectFiles(
     outDir,
     (file) =>
@@ -786,9 +789,13 @@ export function assertNoCoreLoggerRuntimeError(outDir: string): void {
   for (const outputFile of outputFiles) {
     const source = readFileSync(outputFile, 'utf8');
 
-    if (source.includes(MANAGED_LOGGER_RUNTIME_ERROR)) {
+    for (const managedLoggerSpecifier of MANAGED_LOGGER_SPECIFIERS) {
+      if (!source.includes(managedLoggerSpecifier)) {
+        continue;
+      }
+
       throw new Error(
-        `Built output still contains the core logger runtime placeholder in ${outputFile}.`,
+        `Built output still contains ${managedLoggerSpecifier} in ${outputFile}.`,
       );
     }
   }

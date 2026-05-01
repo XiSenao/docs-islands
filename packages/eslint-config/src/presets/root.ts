@@ -4,11 +4,11 @@ import type { defineConfig } from 'eslint/config';
 import { globalIgnores } from 'eslint/config';
 import {
   commonJsModuleGlobals,
-  eslintConfigBase,
   nodeEsmGlobals,
+  supportedEcmaVersion,
   untypedModuleTypeScriptRules,
-} from './base';
-import { supportedEcmaVersion } from './baseConfig';
+} from '../config';
+import eslintGeneralConfig from '../general';
 
 type Config = ReturnType<typeof defineConfig>;
 
@@ -29,7 +29,7 @@ type Config = ReturnType<typeof defineConfig>;
  * If you need to write new configuration or scripts, prefer ESM (.mjs) over CommonJS (.cjs).
  */
 const config: Config = [
-  ...eslintConfigBase,
+  ...eslintGeneralConfig,
 
   globalIgnores(['packages/**', 'docs', 'utils']),
 

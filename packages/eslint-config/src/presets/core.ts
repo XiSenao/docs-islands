@@ -1,17 +1,18 @@
 import typescriptESlintParser from '@typescript-eslint/parser';
 import type { defineConfig } from 'eslint/config';
 import { globalIgnores } from 'eslint/config';
-import { eslintConfigBase, untypedTypeScriptRules } from '../base';
-import { supportedEcmaVersion } from '../baseConfig';
+import { untypedTypeScriptRules } from '../config';
+import { supportedEcmaVersion } from '../config/constants';
+import eslintGeneralConfig from '../general';
 
 type Config = ReturnType<typeof defineConfig>;
 
 /**
- * General structure of generic output packages and lint rules:
+ * Core structure of generic output packages and lint rules:
  * - packages
  *   - packageName (monorepo)
  *     - docs (monorepo)
- *     - e2e (monorepo)
+ *     - playground (monorepo)
  *     - src
  *       - client
  *       - node
@@ -24,7 +25,8 @@ type Config = ReturnType<typeof defineConfig>;
  *     - packagePlugin.ts
  */
 const config: Config = [
-  ...eslintConfigBase,
+  ...eslintGeneralConfig,
+
   globalIgnores(['docs/**', 'playground/**']),
   // Core rendering files - complex rendering logic requires flexibility
   {
@@ -71,7 +73,7 @@ const config: Config = [
 
   // Tooling config files - disable typed linting
   {
-    files: ['vitest.config.ts', 'rolldown.config.ts', 'packagePlugin.ts'],
+    files: ['vitest.config.ts', 'rolldown.*config.ts', 'packagePlugin.ts'],
     languageOptions: {
       // Tooling config files - parse TS syntax without TS project services.
       parser: typescriptESlintParser,

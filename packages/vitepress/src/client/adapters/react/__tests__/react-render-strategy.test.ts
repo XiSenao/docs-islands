@@ -6,7 +6,7 @@ import { RENDER_STRATEGY_CONSTANTS } from '@docs-islands/core/shared/constants/r
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReactRenderStrategy } from '../react-render-strategy';
 
-vi.mock('@docs-islands/core/logger', () => ({
+vi.mock('@docs-islands/utils/logger', () => ({
   createLogger: () => ({
     getLoggerByGroup: () => ({
       debug: vi.fn(),

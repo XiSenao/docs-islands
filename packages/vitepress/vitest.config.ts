@@ -7,7 +7,7 @@ const config: ViteUserConfig = defineConfig({
       '#types': fileURLToPath(new URL('types', import.meta.url)),
       '#dep-types': fileURLToPath(new URL('src/types', import.meta.url)),
       '#shared': fileURLToPath(new URL('src/shared', import.meta.url)),
-      '@docs-islands/core/logger': fileURLToPath(
+      '@docs-islands/utils/logger': fileURLToPath(
         new URL('src/shared/logger.ts', import.meta.url),
       ),
     },

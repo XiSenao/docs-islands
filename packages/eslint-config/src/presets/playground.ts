@@ -1,14 +1,12 @@
 import type { defineConfig } from 'eslint/config';
-import {
-  baseTestFileRules,
-  eslintConfigBase,
-  testFilePatterns,
-} from '../../base';
+import { baseTestFileRules, testFilePatterns } from '../config';
+import eslintGeneralConfig from '../general';
 
 type Config = ReturnType<typeof defineConfig>;
 
 const config: Config = [
-  ...eslintConfigBase,
+  ...eslintGeneralConfig,
+
   // E2E test files - allow test-specific patterns
   {
     files: testFilePatterns,

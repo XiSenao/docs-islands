@@ -1,8 +1,30 @@
-import eslintConfig from '@docs-islands/eslint-config';
+import { createLoggerPlugin } from '@docs-islands/eslint-config/plugins';
+import { core } from '@docs-islands/eslint-config/presets';
 import { defineConfig } from 'eslint/config';
 
 export default defineConfig([
-  ...eslintConfig,
+  ...core,
+
+  {
+    name: 'Create Logger Boundary',
+    files: ['**/*.{js,mjs,cjs,jsx,mjsx,ts,mts,cts,tsx,mtsx}'],
+    plugins: {
+      '@docs-islands/core': createLoggerPlugin,
+    },
+    ignores: [
+      'docs/**',
+      'playground/**',
+      'smoke/**',
+      '**/__tests__/**',
+      '**/tests/**',
+      '**/fixtures/**',
+      '**/*.test.*',
+      '**/*.spec.*',
+    ],
+    rules: {
+      '@docs-islands/core/unified-log-entry': 'error',
+    },
+  },
   {
     rules: {
       '@typescript-eslint/no-inferrable-types': 'off',

@@ -1,1 +1,1 @@
-export { default } from '@docs-islands/eslint-config/playground';
+export { playground as default } from '@docs-islands/eslint-config/presets';

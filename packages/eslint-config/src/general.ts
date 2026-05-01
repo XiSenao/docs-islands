@@ -12,23 +12,20 @@ import type { defineConfig } from 'eslint/config';
 import { globalIgnores } from 'eslint/config';
 import globals from 'globals';
 import typescriptESlint from 'typescript-eslint';
-import { supportedEcmaVersion, supportedNodeVersion } from './baseConfig';
-import {
-  javascriptFiles,
-  markdownVirtualFiles,
-  nodeFilePatterns,
-  testFilePatterns,
-  typescriptFiles,
-} from './constants/file-patterns';
-import {
-  esmRestrictedNodeGlobals,
-  nodeEsmGlobals,
-  supportedEcmaGlobals,
-} from './constants/globals';
 import {
   baseTestFileRules,
+  esmRestrictedNodeGlobals,
+  javascriptFiles,
+  markdownVirtualFiles,
+  nodeEsmGlobals,
+  nodeFilePatterns,
+  supportedEcmaGlobals,
+  supportedEcmaVersion,
+  supportedNodeVersion,
+  testFilePatterns,
+  typescriptFiles,
   untypedModuleTypeScriptRules,
-} from './constants/rules';
+} from './config';
 
 type Config = ReturnType<typeof defineConfig>;
 type Rules = NonNullable<Config[number]['rules']>;
@@ -50,7 +47,7 @@ const typeCheckedTypeScriptRules: Rules = {
   ],
 };
 
-export const eslintConfigBase: Config = [
+export default [
   eslint.configs.recommended,
   ...typescriptESlint.configs.recommended,
   ...typescriptESlint.configs.stylistic,
@@ -360,13 +357,4 @@ export const eslintConfigBase: Config = [
     },
   },
   eslintConfigPrettier,
-];
-
-export { commonJsModuleGlobals, nodeEsmGlobals } from './constants/globals';
-export {
-  baseTestFileRules,
-  untypedModuleTypeScriptRules,
-  untypedTypeScriptRules,
-} from './constants/rules';
-
-export { testFilePatterns } from './constants/file-patterns';
+] as Config;

@@ -1,11 +1,12 @@
-import defaultConfig from '@docs-islands/eslint-config';
+import eslintGeneralConfig from '@docs-islands/eslint-config';
 import { supportedEcmaVersion } from '@docs-islands/eslint-config/config';
 import typescriptESlintParser from '@typescript-eslint/parser';
 import { defineConfig } from 'eslint/config';
 import globals from 'globals';
 
 export default defineConfig([
-  ...defaultConfig,
+  ...eslintGeneralConfig,
+
   {
     files: ['*.ts'],
     languageOptions: {

@@ -1,8 +1,9 @@
-import defaultConfig from '@docs-islands/eslint-config/monorepo';
+import { root } from '@docs-islands/eslint-config/presets';
 import { defineConfig } from 'eslint/config';
 
 export default defineConfig([
-  ...defaultConfig,
+  ...root,
+
   {
     files: ['scripts/**/*.ts'],
     rules: {

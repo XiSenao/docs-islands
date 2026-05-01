@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@docs-islands/logger": "../dist"
+    "@docs-islands/logger": "link:../dist"
   },
   "devDependencies": {
     "@farmfe/core": "catalog:dev",
