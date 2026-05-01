@@ -3,8 +3,8 @@ import {
   createPackageFromTarballData,
   type Problem,
 } from '@arethetypeswrong/core';
-import { createLogger } from '@docs-islands/logger';
 import { createElapsedLogOptions } from '@docs-islands/logger/helper';
+import { createLogger } from '@docs-islands/utils/logger';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

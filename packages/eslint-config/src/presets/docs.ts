@@ -8,13 +8,13 @@ import eslintPluginVue from 'eslint-plugin-vue';
 import type { defineConfig } from 'eslint/config';
 import globals from 'globals';
 import vueParser from 'vue-eslint-parser';
-import { eslintConfigBase, untypedTypeScriptRules } from '../../base';
-import { supportedEcmaVersion } from '../../baseConfig';
+import { supportedEcmaVersion, untypedTypeScriptRules } from '../config';
+import eslintGeneralConfig from '../general';
 
 type Config = ReturnType<typeof defineConfig>;
 
 const config: Config = [
-  ...eslintConfigBase,
+  ...eslintGeneralConfig,
 
   // Vue recommended config (includes plugin registration)
   ...eslintPluginVue.configs['flat/recommended'],

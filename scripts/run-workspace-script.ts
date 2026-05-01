@@ -1,8 +1,8 @@
-import { createLogger } from '@docs-islands/logger';
 import {
   createElapsedLogOptions,
   formatErrorMessage,
 } from '@docs-islands/logger/helper';
+import { createLogger } from '@docs-islands/utils/logger';
 import { spawnSync } from 'node:child_process';
 
 const WorkspaceLogger = createLogger({

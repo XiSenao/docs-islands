@@ -1,8 +1,9 @@
-import defaultConfig from '@docs-islands/eslint-config/docs';
+import { docs } from '@docs-islands/eslint-config/presets';
 import { defineConfig } from 'eslint/config';
 
 export default defineConfig([
-  ...defaultConfig,
+  ...docs,
+
   {
     files: ['.vitepress/dynamicProxyPlugin.ts'],
     rules: {

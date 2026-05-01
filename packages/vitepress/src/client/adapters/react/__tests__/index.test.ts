@@ -8,7 +8,7 @@ vi.mock('vitepress/client', () => ({
   onContentUpdated: vi.fn(),
 }));
 
-vi.mock('@docs-islands/core/logger', () => ({
+vi.mock('@docs-islands/utils/logger', () => ({
   createLogger: () => ({
     getLoggerByGroup: () => ({
       debug: vi.fn(),

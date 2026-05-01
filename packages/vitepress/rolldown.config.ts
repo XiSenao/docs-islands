@@ -20,20 +20,20 @@ const packageExternalDeps = [
   // @ts-expect-error No type checking is needed here.
   ...Object.keys(pkg.optionalDependencies ?? {}),
 ];
-const CORE_LOGGER_MODULE_ID = '@docs-islands/core/logger';
+const UTILS_LOGGER_MODULE_ID = '@docs-islands/utils/logger';
 const VITEPRESS_LOGGER_MODULE_ID = '@docs-islands/vitepress/logger';
 
-// Core runtime modules import the managed logger facade through the core
-// package. When VitePress bundles those modules, rewrite that facade to the
-// VitePress logger entry so createDocsIslands() can provide the active scope.
-const createCoreLoggerAliasPlugin = (): NonNullable<
+// Reusable runtime modules import the managed logger facade through utils.
+// When VitePress bundles those modules, rewrite that facade to the VitePress
+// logger entry so createDocsIslands() can provide the active scope.
+const createManagedLoggerAliasPlugin = (): NonNullable<
   RolldownOptions['plugins']
 > => ({
-  name: 'rolldown-plugin-core-logger-alias',
+  name: 'rolldown-plugin-managed-logger-alias',
   resolveId: {
     order: 'pre',
     handler(id) {
-      if (id !== CORE_LOGGER_MODULE_ID) {
+      if (id !== UTILS_LOGGER_MODULE_ID) {
         return null;
       }
 
@@ -183,7 +183,7 @@ const nodeConfig = defineConfig({
     'adapters/react': resolve(__dirname, 'src/node/adapters/react/index.ts'),
     'site-devtools/mcp': resolve(__dirname, 'src/node/site-devtools/mcp.ts'),
   },
-  plugins: [createCoreLoggerAliasPlugin(), ...nodePlugins],
+  plugins: [createManagedLoggerAliasPlugin(), ...nodePlugins],
   output: {
     ...sharedNodeOptions.output,
     ...(minify && {
@@ -209,7 +209,7 @@ const nodeDtsConfig = defineConfig({
     'site-devtools/mcp': resolve(__dirname, 'src/node/site-devtools/mcp.ts'),
   },
   plugins: [
-    createCoreLoggerAliasPlugin(),
+    createManagedLoggerAliasPlugin(),
     dts({
       tsconfig: 'src/node/tsconfig.json',
       emitDtsOnly: true,
@@ -227,7 +227,7 @@ const clientConfig = defineConfig({
   transform: {
     target: 'es2020',
   },
-  plugins: [createCoreLoggerAliasPlugin()],
+  plugins: [createManagedLoggerAliasPlugin()],
 });
 
 const clientDtsConfig = defineConfig({
@@ -238,7 +238,7 @@ const clientDtsConfig = defineConfig({
     'adapters/react': resolve(__dirname, 'src/client/adapters/react/index.ts'),
   },
   plugins: [
-    createCoreLoggerAliasPlugin(),
+    createManagedLoggerAliasPlugin(),
     dts({
       tsconfig: 'src/client/tsconfig.json',
       emitDtsOnly: true,

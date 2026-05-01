@@ -34,7 +34,7 @@ vi.mock('#shared/internal/devtools', async (importOriginal) => {
   };
 });
 
-vi.mock('@docs-islands/core/logger', () => ({
+vi.mock('@docs-islands/utils/logger', () => ({
   createLogger: () => ({
     getLoggerByGroup: () => ({
       debug: vi.fn(),

@@ -1,4 +1,4 @@
-import { createLogger } from '@docs-islands/logger';
+import { createLogger } from '@docs-islands/utils/logger';
 
 const MAIN_NAME = '@docs-islands/vitepress-playground';
 

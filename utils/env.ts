@@ -1,4 +1,4 @@
-import { createLogger, setLoggerConfig } from '@docs-islands/logger';
+import { setLoggerConfig } from '@docs-islands/logger';
 import isInCi from 'is-in-ci';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import inspector from 'node:inspector';
@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadEnv as viteLoadEnv } from 'vite';
 import { z } from 'zod';
+import { createLogger } from './logger';
 import { findMonorepoRoot, isSubpath } from './path';
 
 let cachedEnv: EnvConfig | null = null;

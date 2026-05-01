@@ -473,6 +473,9 @@ importers:
       '@docs-islands/logger':
         specifier: catalog:prod
         version: 0.0.3(@rollup/plugin-replace@6.0.3(rollup@4.59.0))(rolldown@1.0.0-rc.4)
+      '@docs-islands/utils':
+        specifier: workspace:*
+        version: link:../../utils
     devDependencies:
       del-cli:
         specifier: catalog:dev
@@ -492,6 +495,9 @@ importers:
       '@babel/types':
         specifier: catalog:dev
         version: 7.29.0
+      '@docs-islands/logger':
+        specifier: catalog:prod
+        version: 0.0.3(@rollup/plugin-replace@6.0.3(rollup@4.59.0))(rolldown@1.0.0-rc.4)
       htmlparser2:
         specifier: catalog:dev
         version: 10.1.0
@@ -508,12 +514,12 @@ importers:
       '@docs-islands/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@docs-islands/logger':
-        specifier: workspace:*
-        version: link:../logger
       '@docs-islands/plugin-license':
         specifier: workspace:*
         version: link:../plugins/license
+      '@docs-islands/utils':
+        specifier: workspace:*
+        version: link:../../utils
       '@types/babel__generator':
         specifier: catalog:dev
         version: 7.27.0
@@ -733,7 +739,7 @@ importers:
   packages/logger/playground:
     dependencies:
       '@docs-islands/logger':
-        specifier: ../dist
+        specifier: link:../dist
         version: link:../dist
     devDependencies:
       '@farmfe/core':

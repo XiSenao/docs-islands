@@ -6,7 +6,7 @@
     "build": "rolldown --config rolldown.config.ts",
     "build:watch": "rolldown --config rolldown.config.ts --watch",
     "typecheck": "tsc --noEmit",
-    "lint": "pnpm build && eslint . --config ./dist/src/config.js --fix --cache",
+    "lint": "eslint . --config ./dist/general.js --fix --cache",
     "clean": "del-cli .eslintcache dist node_modules"
   },
   "dependencies": {
@@ -44,30 +44,10 @@
     "del-cli": "catalog:dev"
   },
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./config": {
-      "types": "./dist/baseConfig.d.ts",
-      "import": "./dist/baseConfig.js"
-    },
-    "./monorepo": {
-      "types": "./dist/config.d.ts",
-      "import": "./dist/config.js"
-    },
-    "./playground": {
-      "types": "./dist/src/playground/config.d.ts",
-      "import": "./dist/src/playground/config.js"
-    },
-    "./docs": {
-      "types": "./dist/src/docs/config.d.ts",
-      "import": "./dist/src/docs/config.js"
-    },
-    "./*": {
-      "types": "./dist/*.d.ts",
-      "import": "./dist/*.js"
-    },
+    ".": "./dist/general.js",
+    "./presets": "./dist/presets/index.js",
+    "./plugins": "./dist/plugins/index.js",
+    "./config": "./dist/config/index.js",
     "./package.json": "./package.json"
   }
 }

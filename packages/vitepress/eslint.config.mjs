@@ -1,11 +1,11 @@
-import defaultConfig from '@docs-islands/eslint-config';
 import { supportedEcmaVersion } from '@docs-islands/eslint-config/config';
+import { core } from '@docs-islands/eslint-config/presets';
 import typescriptESlintParser from '@typescript-eslint/parser';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
 
 export default defineConfig([
-  ...defaultConfig,
+  ...core,
 
   // Ignore intentionally empty .d.ts files for runtime modules
   globalIgnores(['src/shared/internal/client-runtime.d.ts']),

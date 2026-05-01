@@ -7,7 +7,7 @@ import rspack from '@rspack/core';
 import esbuild from 'esbuild';
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rolldown } from 'rolldown';
 import { rollup, type RollupOutput } from 'rollup';
@@ -16,9 +16,11 @@ import { webpack } from 'webpack';
 
 const LOGGER_MODULE_ID = '@docs-islands/logger';
 const TREE_SHAKING_PLAYGROUND_ENTRY = fileURLToPath(
-  new URL('./src/entry.ts', import.meta.url),
+  new URL('src/entry.ts', import.meta.url),
 );
-const TREE_SHAKING_PLAYGROUND_ROOT = dirname(TREE_SHAKING_PLAYGROUND_ENTRY);
+const TREE_SHAKING_PLAYGROUND_ROOT = path.dirname(
+  TREE_SHAKING_PLAYGROUND_ENTRY,
+);
 
 interface BuildStatsLike {
   hasErrors: () => boolean;
@@ -80,7 +82,9 @@ const runCompiler = async <TStats extends BuildStatsLike>(
             all: false,
             errors: true,
           });
-          const errors = info.errors?.map(formatStatsError).join('\n');
+          const errors = info.errors
+            ?.map((error) => formatStatsError(error))
+            .join('\n');
 
           reject(
             new Error(
@@ -102,7 +106,7 @@ const withTemporaryOutputDirectory = async (
   build: (outputDirectory: string) => Promise<string>,
 ): Promise<string> => {
   const outputDirectory = await mkdtemp(
-    join(tmpdir(), `docs-islands-logger-${bundler}-`),
+    path.join(tmpdir(), `docs-islands-logger-${bundler}-`),
   );
 
   try {
@@ -123,7 +127,7 @@ const readJavaScriptOutputFiles = async (
   });
   const contents = await Promise.all(
     entries.map(async (entry) => {
-      const entryPath = join(outputDirectory, entry.name);
+      const entryPath = path.join(outputDirectory, entry.name);
 
       if (entry.isDirectory()) {
         return readJavaScriptOutputFiles(entryPath);

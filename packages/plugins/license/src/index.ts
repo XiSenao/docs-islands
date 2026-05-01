@@ -1,4 +1,4 @@
-import { createLogger } from '@docs-islands/logger';
+import { createLogger } from '@docs-islands/utils/logger';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
