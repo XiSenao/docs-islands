@@ -10,7 +10,7 @@ import {
 } from '@docs-islands/logger/plugin';
 import { rolldown } from 'rolldown';
 import { rollup } from 'rollup';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LOGGER_TREE_SHAKING_PLAYGROUND_BUILDS } from '../../playground/tree-shaking/builders';
 import {
   LOGGER_TREE_SHAKING_HIDDEN_INFO,
@@ -672,5 +672,174 @@ logger.info('kept aliased dynamic info');
     });
 
     expect(result).toBeNull();
+  });
+
+  it('omits diagnostics when collectDiagnostics is unset', async () => {
+    setScopedLoggerConfig(TEST_SCOPE_ID, {
+      levels: ['warn', 'error'],
+    });
+
+    const source = `
+import { createLogger } from '@docs-islands/logger';
+
+const logger = createLogger({ main: '@acme/docs' }).getLoggerByGroup('userland.metrics');
+
+logger.info('hidden static info');
+logger.warn('visible static warning');
+`;
+    const result = await transformLoggerTreeShaking(source, TEST_MODULE_ID, {
+      loggerModuleId: DEFAULT_LOGGER_MODULE_ID,
+      loggerScopeId: TEST_SCOPE_ID,
+    });
+
+    expect(result?.diagnostics).toBeUndefined();
+    expect(result?.stats).toEqual({
+      keptRuntimeAllowedCount: 1,
+      keptStaticUnprunableCount: 0,
+      prunedCount: 1,
+    });
+  });
+
+  it('reports an aliased-create-logger diagnostic when verbose', async () => {
+    setScopedLoggerConfig(TEST_SCOPE_ID, {
+      levels: ['error'],
+    });
+
+    const source = `
+import { createLogger as makeLogger } from '@docs-islands/logger';
+
+const logger = makeLogger({ main: '@acme/docs' }).getLoggerByGroup('userland.metrics');
+
+logger.info('kept aliased info');
+`;
+    const result = await transformLoggerTreeShaking(source, TEST_MODULE_ID, {
+      collectDiagnostics: true,
+      loggerModuleId: DEFAULT_LOGGER_MODULE_ID,
+      loggerScopeId: TEST_SCOPE_ID,
+    });
+
+    expect(result?.diagnostics).toEqual([
+      expect.objectContaining({
+        reason: 'aliased-create-logger',
+        snippet: "logger.info('kept aliased info');",
+      }),
+    ]);
+    expect(result?.stats?.keptStaticUnprunableCount).toBe(1);
+    expect(result?.stats?.prunedCount).toBe(0);
+  });
+
+  it('reports a dynamic-message diagnostic when verbose', async () => {
+    setScopedLoggerConfig(TEST_SCOPE_ID, {
+      levels: ['error'],
+    });
+
+    const source = `
+import { createLogger } from '@docs-islands/logger';
+
+const logger = createLogger({ main: '@acme/docs' }).getLoggerByGroup('userland.metrics');
+const dynamic = String(Date.now());
+
+logger.info(\`event \${dynamic}\`);
+`;
+    const result = await transformLoggerTreeShaking(source, TEST_MODULE_ID, {
+      collectDiagnostics: true,
+      loggerModuleId: DEFAULT_LOGGER_MODULE_ID,
+      loggerScopeId: TEST_SCOPE_ID,
+    });
+
+    expect(result?.diagnostics).toEqual([
+      expect.objectContaining({
+        reason: 'dynamic-message',
+      }),
+    ]);
+  });
+
+  it('reports a destructured-method diagnostic when verbose', async () => {
+    setScopedLoggerConfig(TEST_SCOPE_ID, {
+      levels: ['error'],
+    });
+
+    const source = `
+import { createLogger } from '@docs-islands/logger';
+
+const [logger] = [createLogger({ main: '@acme/docs' }).getLoggerByGroup('userland.metrics')];
+
+logger.info('kept destructured info');
+`;
+    const result = await transformLoggerTreeShaking(source, TEST_MODULE_ID, {
+      collectDiagnostics: true,
+      loggerModuleId: DEFAULT_LOGGER_MODULE_ID,
+      loggerScopeId: TEST_SCOPE_ID,
+    });
+
+    expect(result?.diagnostics).toEqual([
+      expect.objectContaining({
+        reason: 'destructured-method',
+      }),
+    ]);
+  });
+
+  it('reports a non-standalone-call diagnostic when verbose', async () => {
+    setScopedLoggerConfig(TEST_SCOPE_ID, {
+      levels: ['error'],
+    });
+
+    const source = `
+import { createLogger } from '@docs-islands/logger';
+
+const logger = createLogger({ main: '@acme/docs' }).getLoggerByGroup('userland.metrics');
+
+const result = logger.info('kept non-standalone info');
+`;
+    const result = await transformLoggerTreeShaking(source, TEST_MODULE_ID, {
+      collectDiagnostics: true,
+      loggerModuleId: DEFAULT_LOGGER_MODULE_ID,
+      loggerScopeId: TEST_SCOPE_ID,
+    });
+
+    expect(result?.diagnostics).toEqual([
+      expect.objectContaining({
+        reason: 'non-standalone-call',
+      }),
+    ]);
+  });
+
+  it('emits a verbose summary on buildEnd', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      const plugin = loggerPlugin.vite({
+        config: { levels: ['warn', 'error'] },
+        verbose: true,
+      });
+      const code = await runPluginTransform(
+        plugin,
+        `
+import { createLogger } from '@docs-islands/logger';
+const logger = createLogger({ main: '@acme/docs' }).getLoggerByGroup('userland.metrics');
+logger.info('hidden static info');
+logger.warn('visible static warning');
+`,
+      );
+
+      expect(code).not.toContain('hidden static info');
+      expect(code).toContain('visible static warning');
+
+      const buildEnd = (plugin as { buildEnd?: () => void }).buildEnd;
+      buildEnd?.call({});
+
+      const summaryCall = warnSpy.mock.calls.find(([message]) =>
+        typeof message === 'string'
+          ? message.includes('tree-shaking summary:')
+          : false,
+      );
+
+      expect(summaryCall?.[0]).toMatch(/1 files scanned/);
+      expect(summaryCall?.[0]).toMatch(/1 pruned/);
+      expect(summaryCall?.[0]).toMatch(/1 kept \(runtime-allowed\)/);
+      expect(summaryCall?.[0]).toMatch(/0 kept \(unprunable\)/);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });

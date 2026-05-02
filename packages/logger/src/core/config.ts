@@ -32,6 +32,7 @@ const GLOB_PATTERN_RE = /[!()*+?[\]{}]/;
 
 const picomatch = rawPicomatch as unknown as (
   pattern: string | readonly string[],
+  options?: { bash?: boolean },
 ) => (value: string) => boolean;
 
 let hasSyncedRuntimeDefinedDefaultLoggerConfig = false;
@@ -51,14 +52,19 @@ const createPatternMatcher = (
   pattern: string,
   mode: 'group' | 'message',
 ): ((value: string) => boolean) => {
-  if (
-    (mode === 'group' || mode === 'message') &&
-    !GLOB_PATTERN_RE.test(pattern)
-  ) {
+  if (!GLOB_PATTERN_RE.test(pattern)) {
     return (value) => value === pattern;
   }
 
-  const matcher = picomatch(pattern);
+  // Group names are constrained by GROUP_NAME_RE to lowercase dot namespaces
+  // and never contain `/`, so picomatch's path-segment-aware default is fine.
+  // Messages may legitimately contain `/` (HTTP paths, file paths embedded in
+  // text). Users expect shell fnmatch semantics where `*` crosses `/`. Picomatch
+  // v4's `bash: true` option makes single `*` behave like `**` for that mode.
+  const matcher =
+    mode === 'message'
+      ? picomatch(pattern, { bash: true })
+      : picomatch(pattern);
 
   return (value) => matcher(value);
 };
@@ -124,7 +130,7 @@ const getLoggerConfigRegistry = (): Map<
 };
 
 const createLoggerConfigRegistryEntry = (
-  config: LoggerConfig | null | undefined,
+  config: LoggerConfig,
 ): LoggerConfigRegistryEntry => {
   const normalizedConfig = normalizeLoggerConfig(config);
 

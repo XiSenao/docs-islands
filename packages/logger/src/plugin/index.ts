@@ -21,6 +21,8 @@ import type { LoggerConfig } from '../types';
 import {
   DEFAULT_LOGGER_MODULE_ID,
   transformLoggerTreeShaking,
+  type LoggerTreeShakingDiagnostic,
+  type LoggerTreeShakingStats,
 } from './transform';
 
 const resolveModuleSpecifier = (
@@ -59,6 +61,7 @@ const ROLLUP_REPLACE_PLUGIN_OPTIONS = {
 export interface LoggerPluginOptions {
   config?: LoggerConfig | null;
   treeshake?: boolean;
+  verbose?: boolean;
 }
 
 interface ViteUserConfigWithDefine {
@@ -316,6 +319,33 @@ const readTransformIsBuild = (
   return isBuild;
 };
 
+const emitLoggerVerboseDiagnostic = (
+  id: string,
+  diagnostic: LoggerTreeShakingDiagnostic,
+): void => {
+  // eslint-disable-next-line no-console -- build-time diagnostic intentionally
+  // bypasses the runtime logger to avoid feedback loops and ensure visibility
+  // even when the logger config suppresses everything.
+  console.warn(
+    `[${LOGGER_PLUGIN_NAME}] ${id}:${diagnostic.line}:${diagnostic.column} ` +
+      `kept (${diagnostic.reason}): ${diagnostic.snippet}`,
+  );
+};
+
+const emitLoggerVerboseSummary = (
+  scannedFileCount: number,
+  stats: LoggerTreeShakingStats,
+): void => {
+  // eslint-disable-next-line no-console -- see emitLoggerVerboseDiagnostic.
+  console.warn(
+    `[${LOGGER_PLUGIN_NAME}] tree-shaking summary: ` +
+      `${scannedFileCount} files scanned, ` +
+      `${stats.prunedCount} pruned, ` +
+      `${stats.keptRuntimeAllowedCount} kept (runtime-allowed), ` +
+      `${stats.keptStaticUnprunableCount} kept (unprunable)`,
+  );
+};
+
 const factory: UnpluginFactory<LoggerPluginOptions | undefined> = (
   options = {},
   meta,
@@ -324,7 +354,14 @@ const factory: UnpluginFactory<LoggerPluginOptions | undefined> = (
   const loggerConfig = options.config ?? DEFAULT_LOGGER_CONFIG;
   const defines = createLoggerPluginDefines(loggerConfig);
   const shouldTreeshake = options.treeshake !== false;
+  const verbose = options.verbose === true;
   let isBuild = readInitialIsBuild(meta);
+  let scannedFileCount = 0;
+  const aggregateStats: LoggerTreeShakingStats = {
+    keptRuntimeAllowedCount: 0,
+    keptStaticUnprunableCount: 0,
+    prunedCount: 0,
+  };
 
   setScopedLoggerConfig(loggerScopeId, loggerConfig);
 
@@ -387,10 +424,43 @@ const factory: UnpluginFactory<LoggerPluginOptions | undefined> = (
         return null;
       }
 
-      return transformLoggerTreeShaking(code, id, {
+      const result = await transformLoggerTreeShaking(code, id, {
+        collectDiagnostics: verbose,
         loggerModuleId: DEFAULT_LOGGER_MODULE_ID,
         loggerScopeId,
       });
+
+      if (!result) {
+        return null;
+      }
+
+      if (result.stats) {
+        scannedFileCount += 1;
+        aggregateStats.prunedCount += result.stats.prunedCount;
+        aggregateStats.keptRuntimeAllowedCount +=
+          result.stats.keptRuntimeAllowedCount;
+        aggregateStats.keptStaticUnprunableCount +=
+          result.stats.keptStaticUnprunableCount;
+      }
+
+      if (verbose && result.diagnostics) {
+        for (const diagnostic of result.diagnostics) {
+          emitLoggerVerboseDiagnostic(id, diagnostic);
+        }
+      }
+
+      // When no code change, returning the original code/no map is a
+      // near-no-op for the bundler — accepted by Vite/Rollup/Rolldown/etc.
+      return result.map
+        ? { code: result.code, map: result.map }
+        : { code: result.code };
+    },
+    buildEnd() {
+      if (!verbose) {
+        return;
+      }
+
+      emitLoggerVerboseSummary(scannedFileCount, aggregateStats);
     },
   };
 };

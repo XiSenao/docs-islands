@@ -139,6 +139,32 @@ Rule fields:
 
 `levels` accepts `error`, `warn`, `info`, and `success`. `debug` is controlled by `debug: true`, not by `levels`.
 
+### Debug Timing in Rules Mode
+
+When a log call is emitted with `LoggerLogOptions.elapsedTimeMs`, the elapsed time is appended to the rendered message only when timing is active. Timing is asymmetric across configuration shapes:
+
+- **Without rules** (top-level `levels` only): `debug: true` enables timing on every visible log.
+- **With rules**: `debug: true` enables timing only on logs that match at least one rule that contributes the log's level. Logs that don't match any rule are already suppressed (rules are an allowlist with no root-level fallback), so the practical statement is: a log shows elapsed time iff it is **visible AND debug is on AND a rule contributed the level**.
+
+Example:
+
+```ts
+// Without rules — timing on all visible logs
+setLoggerConfig({ debug: true, levels: ['info', 'warn'] });
+logger.info('a', { elapsedTimeMs: 12.34 }); //=> visible with " 12.34ms"
+logger.warn('b', { elapsedTimeMs: 56.78 }); //=> visible with " 56.78ms"
+
+// With rules — timing only on rule-matched logs
+setLoggerConfig({
+  debug: true,
+  rules: [{ label: 'matched', group: 'userland.*', levels: ['info'] }],
+});
+logger.info('c', { elapsedTimeMs: 12.34 }); //=> only visible (and timed) if group matches userland.*
+logger.warn('d', { elapsedTimeMs: 56.78 }); //=> suppressed (no rule allows warn for this group)
+```
+
+`debug` is a top-level field, not per-rule. To get "always show timing on visible logs", configure without rules. To scope what is visible, use rules and accept that timing follows the same scope.
+
 ## Bundler Plugin
 
 Use `@docs-islands/logger/plugin` when you want bundler-injected runtime config and production tree-shaking.
@@ -172,10 +198,11 @@ loggerPlugin.farm(options);
 
 Plugin options:
 
-| Option      | Description                                                                                    |
-| ----------- | ---------------------------------------------------------------------------------------------- |
-| `config`    | Runtime `LoggerConfig` injected into the bundle. Omit it to use the default visibility policy. |
-| `treeshake` | Defaults to `true`. Set `false` to keep all logger calls and rely only on runtime filtering.   |
+| Option      | Description                                                                                                                                                                       |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config`    | Runtime `LoggerConfig` injected into the bundle. Omit it to use the default visibility policy.                                                                                    |
+| `treeshake` | Defaults to `true`. Set `false` to keep all logger calls and rely only on runtime filtering.                                                                                      |
+| `verbose`   | Defaults to `false`. Set `true` to print per-file diagnostics for log calls that cannot be statically removed (with a reason and source frame), plus a build-end pruning summary. |
 
 Rollup hosts must install `@rollup/plugin-replace` before using `loggerPlugin.rollup(...)`. The logger plugin prepends Rollup's replace plugin to inline the logger control constants, including `__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__` and `__DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__`, so the bundle receives the same serialized runtime config that other bundlers inject through their `define` hooks.
 
@@ -217,6 +244,21 @@ Kept for runtime filtering:
 - destructured methods
 - computed method access
 - non-standalone expressions such as assigning the result of a log call
+
+### Verbose Diagnostics
+
+Set `verbose: true` on the plugin to surface log calls the static analyzer kept. For each kept call the plugin emits a `console.warn` line with the source frame and a machine-readable reason; at the end of the build it emits a one-line summary of pruned, runtime-allowed, and unprunable counts.
+
+```ts
+loggerPlugin.vite({
+  config: { levels: ['warn', 'error'] },
+  verbose: true,
+});
+// [docs-islands:logger] /src/foo.ts:12:2 kept (dynamic-message): logger.info(`event ${id}`);
+// [docs-islands:logger] tree-shaking summary: 8 files scanned, 14 pruned, 3 kept (runtime-allowed), 2 kept (unprunable)
+```
+
+Reasons are one of: `aliased-create-logger`, `computed-method-access`, `destructured-method`, `dynamic-group`, `dynamic-main`, `dynamic-message`, `non-standalone-call`, `reassigned-binding`. Use them to decide whether to refactor the call site for static prunability or keep it as a runtime-filtered log.
 
 ## API
 

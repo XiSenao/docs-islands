@@ -1,6 +1,6 @@
 import type { LoggerConfig, LogKind } from '@docs-islands/logger/types';
 
-export const LOGGER_SPEC_CASE_COUNT = 31;
+export const LOGGER_SPEC_CASE_COUNT = 32;
 export const LOGGER_SPEC_ELAPSED = '42.00ms';
 
 interface LoggerFixture {
@@ -1451,5 +1451,48 @@ export const loggerSpecCases: LoggerSpecCase[] = [
     operations: [op('A', 'error', 'request timeout')],
     expected: [],
     expectedDebug: [],
+  },
+  {
+    name: 'Case 32 - message glob crosses path separators (bash mode)',
+    config: {
+      debug: false,
+      rules: [
+        { label: 'Test1', message: 'GET /api/*', levels: ['error'] },
+        { label: 'Test2', message: '*timeout*', levels: ['warn'] },
+      ],
+    },
+    loggers: {
+      A: { group: 'test.case.message.slash', main: TEST_MAIN },
+    },
+    operations: [
+      op('A', 'error', 'GET /api/users'),
+      op('A', 'error', 'GET /api/users/profile'),
+      op('A', 'warn', 'request /api/timeout'),
+    ],
+    expected: [
+      line(TEST_MAIN, 'test.case.message.slash', 'GET /api/users'),
+      line(TEST_MAIN, 'test.case.message.slash', 'GET /api/users/profile'),
+      line(TEST_MAIN, 'test.case.message.slash', 'request /api/timeout'),
+    ],
+    expectedDebug: [
+      debugLine(
+        ['Test1'],
+        TEST_MAIN,
+        'test.case.message.slash',
+        'GET /api/users',
+      ),
+      debugLine(
+        ['Test1'],
+        TEST_MAIN,
+        'test.case.message.slash',
+        'GET /api/users/profile',
+      ),
+      debugLine(
+        ['Test2'],
+        TEST_MAIN,
+        'test.case.message.slash',
+        'request /api/timeout',
+      ),
+    ],
   },
 ];
