@@ -139,6 +139,32 @@ setLoggerConfig({
 
 `levels` 只接受 `error`、`warn`、`info` 和 `success`。`debug` 由 `debug: true` 控制，不放进 `levels`。
 
+### 规则模式下的调试耗时显示
+
+当日志调用传入 `LoggerLogOptions.elapsedTimeMs` 时，耗时只有在「计时启用」的状态下才会附加到渲染消息上。计时的启用条件因配置形态而异：
+
+- **没有 rules**（仅顶层 `levels`）：`debug: true` 让每条可见日志都附耗时。
+- **启用 rules**：`debug: true` 仅对命中至少一条规则、且该规则贡献了当前级别的日志附耗时。未命中任何规则的日志本就被抑制（rules 是 allowlist，不会回退到顶层 `levels`），因此完整规则可总结为：**仅当日志可见且 debug 开启且某规则贡献了该级别，才会显示耗时**。
+
+示例：
+
+```ts
+// 无 rules —— 所有可见日志都计时
+setLoggerConfig({ debug: true, levels: ['info', 'warn'] });
+logger.info('a', { elapsedTimeMs: 12.34 }); //=> 可见且带 " 12.34ms"
+logger.warn('b', { elapsedTimeMs: 56.78 }); //=> 可见且带 " 56.78ms"
+
+// 有 rules —— 只有命中规则的日志才计时
+setLoggerConfig({
+  debug: true,
+  rules: [{ label: 'matched', group: 'userland.*', levels: ['info'] }],
+});
+logger.info('c', { elapsedTimeMs: 12.34 }); //=> 仅当 group 匹配 userland.* 时可见且计时
+logger.warn('d', { elapsedTimeMs: 56.78 }); //=> 该 group 上 warn 没有规则贡献，被抑制
+```
+
+`debug` 是顶层字段，不能逐规则设置。若希望「所有可见日志都显示耗时」，请使用不带 rules 的配置；若需要用 rules 限定可见范围，则要接受耗时显示也跟随该范围。
+
 ## 构建插件
 
 当你需要由构建工具注入 runtime config，并在生产构建中做日志裁剪时，使用 `@docs-islands/logger/plugin`。
@@ -172,10 +198,11 @@ loggerPlugin.farm(options);
 
 插件选项：
 
-| 选项        | 说明                                                                    |
-| ----------- | ----------------------------------------------------------------------- |
-| `config`    | 注入 bundle 的 runtime `LoggerConfig`。省略时使用默认可见性策略。       |
-| `treeshake` | 默认为 `true`。设置为 `false` 后保留所有日志调用，只依赖 runtime 过滤。 |
+| 选项        | 说明                                                                                                                  |
+| ----------- | --------------------------------------------------------------------------------------------------------------------- |
+| `config`    | 注入 bundle 的 runtime `LoggerConfig`。省略时使用默认可见性策略。                                                     |
+| `treeshake` | 默认为 `true`。设置为 `false` 后保留所有日志调用，只依赖 runtime 过滤。                                               |
+| `verbose`   | 默认为 `false`。设置为 `true` 后，对每个无法静态裁剪的日志调用打印源码 frame 与原因，并在构建结束时输出一行裁剪汇总。 |
 
 Rollup 宿主 bundler 在使用 `loggerPlugin.rollup(...)` 前，需要主动安装 `@rollup/plugin-replace`。logger plugin 会把 Rollup 的 replace plugin 插到插件链前面，用它内联 logger 控制常量，包括 `__DOCS_ISLANDS_DEFAULT_LOGGER_CONTROLLED__` 和 `__DOCS_ISLANDS_DEFAULT_LOGGER_CONFIG__`，让 Rollup bundle 拿到与其他 bundler 通过 `define` hook 注入时相同的序列化 runtime config。
 
@@ -217,6 +244,21 @@ logger.debug('static metric details');
 - 解构出的日志方法
 - computed method access
 - 非独立表达式，例如把日志调用结果赋值给变量
+
+### Verbose 诊断
+
+把插件选项设为 `verbose: true`，可以暴露静态分析未能裁剪的日志调用。每条这样的调用都会通过 `console.warn` 打印源码 frame 与可被工具识别的原因；构建结束时还会打印一行汇总，列出被裁剪、运行时允许、以及无法裁剪的数量。
+
+```ts
+loggerPlugin.vite({
+  config: { levels: ['warn', 'error'] },
+  verbose: true,
+});
+// [docs-islands:logger] /src/foo.ts:12:2 kept (dynamic-message): logger.info(`event ${id}`);
+// [docs-islands:logger] tree-shaking summary: 8 files scanned, 14 pruned, 3 kept (runtime-allowed), 2 kept (unprunable)
+```
+
+可能的原因取值：`aliased-create-logger`、`computed-method-access`、`destructured-method`、`dynamic-group`、`dynamic-main`、`dynamic-message`、`non-standalone-call`、`reassigned-binding`。可据此决定是否重构调用点以让它支持静态裁剪，还是保留它依赖 runtime 过滤。
 
 ## API
 

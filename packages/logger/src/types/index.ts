@@ -77,7 +77,12 @@ export interface ResolvedLoggerContext {
 }
 
 export type { Logger, ScopedLogger } from '../core/factory';
-export type { LoggerTreeShakingTransformResult } from '../plugin/transform';
+export type {
+  LoggerTreeShakingDiagnostic,
+  LoggerTreeShakingStats,
+  LoggerTreeShakingTransformResult,
+  LoggerTreeShakingUnprunableReason,
+} from '../plugin/transform';
 
 declare global {
   var __DOCS_ISLANDS_LOGGER_CONFIG_REGISTRY__:

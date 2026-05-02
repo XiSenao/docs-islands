@@ -68,10 +68,12 @@ describe('runtime logger', () => {
     expect(shouldSuppressLog('debug', context)).toBe(true);
   });
 
-  it('uses default visibility when direct usage explicitly clears default config', () => {
+  it('uses default visibility after resetLoggerConfig() clears the default config', () => {
+    setLoggerConfig({ levels: ['error'] });
+
     const output = captureConsoleLog();
 
-    setLoggerConfig(undefined);
+    resetLoggerConfig();
 
     createLogger({
       main: '@acme/logger',

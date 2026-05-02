@@ -39,14 +39,40 @@ interface StaticLogCall {
   message: string;
 }
 
+export type LoggerTreeShakingUnprunableReason =
+  | 'aliased-create-logger'
+  | 'computed-method-access'
+  | 'destructured-method'
+  | 'dynamic-group'
+  | 'dynamic-main'
+  | 'dynamic-message'
+  | 'non-standalone-call'
+  | 'reassigned-binding';
+
+export interface LoggerTreeShakingDiagnostic {
+  column: number;
+  line: number;
+  reason: LoggerTreeShakingUnprunableReason;
+  snippet: string;
+}
+
+export interface LoggerTreeShakingStats {
+  keptRuntimeAllowedCount: number;
+  keptStaticUnprunableCount: number;
+  prunedCount: number;
+}
+
 export interface LoggerTreeShakingTransformOptions {
+  collectDiagnostics?: boolean;
   loggerModuleId: string;
   loggerScopeId: LoggerScopeId;
 }
 
 export interface LoggerTreeShakingTransformResult {
   code: string;
-  map: SourceMap;
+  diagnostics?: LoggerTreeShakingDiagnostic[];
+  map?: SourceMap;
+  stats?: LoggerTreeShakingStats;
 }
 
 // @babel/traverse only exposes a CommonJS package.
@@ -221,59 +247,189 @@ const readStaticLoggerBinding = (
   };
 };
 
-const readStaticLogCall = (
-  expression: t.Expression,
-  path: NodePath<t.ExpressionStatement>,
-  staticLoggerBindings: WeakMap<t.Identifier, StaticLoggerBinding>,
-): StaticLogCall | null => {
+interface LogCallShape {
+  kind: LogKind;
+  objectName: string;
+}
+
+const detectLogCallShape = (expression: t.Expression): LogCallShape | null => {
   if (!t.isCallExpression(expression)) {
     return null;
   }
 
   const callee = expression.callee;
 
+  if (!t.isMemberExpression(callee) || !t.isIdentifier(callee.object)) {
+    return null;
+  }
+
+  let methodName: string | null = null;
+
+  if (callee.computed) {
+    if (t.isStringLiteral(callee.property)) {
+      methodName = callee.property.value;
+    }
+  } else if (t.isIdentifier(callee.property)) {
+    methodName = callee.property.name;
+  }
+
+  if (!methodName || !LOG_METHODS.has(methodName as LogKind)) {
+    return null;
+  }
+
+  return {
+    kind: methodName as LogKind,
+    objectName: callee.object.name,
+  };
+};
+
+const classifyLoggerBindingFailure = (
+  init: t.Expression | null | undefined,
+): LoggerTreeShakingUnprunableReason => {
+  if (!t.isCallExpression(init)) {
+    return 'destructured-method';
+  }
+
+  const callee = init.callee;
+
   if (
     !t.isMemberExpression(callee) ||
     callee.computed ||
-    !t.isIdentifier(callee.object) ||
     !t.isIdentifier(callee.property) ||
-    !LOG_METHODS.has(callee.property.name as LogKind)
+    callee.property.name !== 'getLoggerByGroup'
   ) {
-    return null;
+    return 'destructured-method';
   }
 
-  const [messageArgument] = expression.arguments;
+  const [groupArgument] = init.arguments;
 
-  if (!isStaticStringLiteral(messageArgument)) {
-    return null;
+  if (!isStaticStringLiteral(groupArgument)) {
+    return 'dynamic-group';
   }
 
-  const binding = path.scope.getBinding(callee.object.name);
+  if (!t.isCallExpression(callee.object)) {
+    return 'destructured-method';
+  }
+
+  const createCall = callee.object;
 
   if (
-    !binding?.path.isVariableDeclarator() ||
-    binding.constantViolations.length > 0
+    !t.isIdentifier(createCall.callee) ||
+    createCall.callee.name !== 'createLogger'
   ) {
+    return 'aliased-create-logger';
+  }
+
+  const [createOptions] = createCall.arguments;
+
+  if (!t.isObjectExpression(createOptions)) {
+    return 'dynamic-main';
+  }
+
+  for (const property of createOptions.properties) {
+    if (
+      t.isObjectProperty(property) &&
+      !property.computed &&
+      getStaticPropertyName(property.key) === 'main'
+    ) {
+      if (!isStaticStringLiteral(property.value)) {
+        return 'dynamic-main';
+      }
+      // Main is literal, but the binding still wasn't recognized — so the
+      // createLogger identifier resolves to a binding outside the public
+      // import set. The most likely cause is an import alias.
+      return 'aliased-create-logger';
+    }
+  }
+
+  return 'dynamic-main';
+};
+
+type LogCallClassification =
+  | { call: StaticLogCall; type: 'static' }
+  | { reason: LoggerTreeShakingUnprunableReason; type: 'unprunable' };
+
+const classifyLogCall = (
+  expression: t.Expression,
+  path: NodePath<t.ExpressionStatement>,
+  staticLoggerBindings: WeakMap<t.Identifier, StaticLoggerBinding>,
+): LogCallClassification | null => {
+  const shape = detectLogCallShape(expression);
+
+  if (!shape) {
     return null;
+  }
+
+  const callee = (expression as t.CallExpression).callee as t.MemberExpression;
+
+  if (callee.computed) {
+    return { reason: 'computed-method-access', type: 'unprunable' };
+  }
+
+  const binding = path.scope.getBinding(shape.objectName);
+
+  if (!binding) {
+    // Identifier not declared in scope (e.g., a global). Not a candidate.
+    return null;
+  }
+
+  if (binding.constantViolations.length > 0) {
+    return { reason: 'reassigned-binding', type: 'unprunable' };
+  }
+
+  if (!binding.path.isVariableDeclarator()) {
+    return { reason: 'reassigned-binding', type: 'unprunable' };
+  }
+
+  const declarationParent = binding.path.parentPath;
+
+  if (
+    declarationParent?.isVariableDeclaration() &&
+    declarationParent.node.kind !== 'const'
+  ) {
+    return { reason: 'reassigned-binding', type: 'unprunable' };
   }
 
   const declarationId = binding.path.node.id;
 
   if (!t.isIdentifier(declarationId)) {
-    return null;
+    return { reason: 'destructured-method', type: 'unprunable' };
   }
 
   const loggerBinding = staticLoggerBindings.get(declarationId);
 
   if (!loggerBinding) {
-    return null;
+    return {
+      reason: classifyLoggerBindingFailure(binding.path.node.init),
+      type: 'unprunable',
+    };
+  }
+
+  const [messageArgument] = (expression as t.CallExpression).arguments;
+
+  if (!isStaticStringLiteral(messageArgument)) {
+    return { reason: 'dynamic-message', type: 'unprunable' };
   }
 
   return {
-    ...loggerBinding,
-    kind: callee.property.name as LogKind,
-    message: messageArgument.value,
+    call: {
+      ...loggerBinding,
+      kind: shape.kind,
+      message: messageArgument.value,
+    },
+    type: 'static',
   };
+};
+
+const extractDiagnosticSnippet = (code: string, node: t.Node): string => {
+  if (typeof node.start !== 'number' || typeof node.end !== 'number') {
+    return '';
+  }
+
+  const slice = code.slice(node.start, node.end);
+  const firstLine = slice.split('\n')[0];
+
+  return firstLine.trim();
 };
 
 export async function transformLoggerTreeShaking(
@@ -282,6 +438,7 @@ export async function transformLoggerTreeShaking(
   options: LoggerTreeShakingTransformOptions,
 ): Promise<LoggerTreeShakingTransformResult | null> {
   const loggerModuleId = normalizeLoggerModuleId(options.loggerModuleId);
+  const collectDiagnostics = options.collectDiagnostics === true;
 
   if (!(await hasPublicCreateLoggerImport(code, loggerModuleId))) {
     return null;
@@ -337,19 +494,47 @@ export async function transformLoggerTreeShaking(
   });
 
   const transformedCode = new MagicString(code);
-  let removedLogCount = 0;
+  const diagnostics: LoggerTreeShakingDiagnostic[] = [];
+  const stats: LoggerTreeShakingStats = {
+    keptRuntimeAllowedCount: 0,
+    keptStaticUnprunableCount: 0,
+    prunedCount: 0,
+  };
+  const reportUnprunable = (
+    reason: LoggerTreeShakingUnprunableReason,
+    node: t.Node,
+  ): void => {
+    stats.keptStaticUnprunableCount += 1;
+    if (!collectDiagnostics) {
+      return;
+    }
+    const loc = node.loc?.start;
+    diagnostics.push({
+      column: loc?.column ?? 0,
+      line: loc?.line ?? 0,
+      reason,
+      snippet: extractDiagnosticSnippet(code, node),
+    });
+  };
 
   traverse(ast, {
     ExpressionStatement(path) {
-      const staticLogCall = readStaticLogCall(
+      const classification = classifyLogCall(
         path.node.expression,
         path,
         staticLoggerBindings,
       );
 
-      if (!staticLogCall) {
+      if (!classification) {
         return;
       }
+
+      if (classification.type === 'unprunable') {
+        reportUnprunable(classification.reason, path.node);
+        return;
+      }
+
+      const staticLogCall = classification.call;
 
       if (
         !shouldSuppressLog(
@@ -362,6 +547,7 @@ export async function transformLoggerTreeShaking(
           options.loggerScopeId,
         )
       ) {
+        stats.keptRuntimeAllowedCount += 1;
         return;
       }
 
@@ -373,20 +559,57 @@ export async function transformLoggerTreeShaking(
       }
 
       transformedCode.remove(path.node.start, path.node.end);
-      removedLogCount += 1;
+      stats.prunedCount += 1;
+    },
+    CallExpression(path) {
+      if (path.parentPath.isExpressionStatement()) {
+        return;
+      }
+
+      const shape = detectLogCallShape(path.node);
+
+      if (!shape) {
+        return;
+      }
+
+      const binding = path.scope.getBinding(shape.objectName);
+
+      if (!binding) {
+        return;
+      }
+
+      const declarationId = binding.path.isVariableDeclarator()
+        ? binding.path.node.id
+        : null;
+
+      if (!declarationId || !t.isIdentifier(declarationId)) {
+        return;
+      }
+
+      if (!staticLoggerBindings.has(declarationId)) {
+        return;
+      }
+
+      reportUnprunable('non-standalone-call', path.node);
     },
   });
 
-  if (removedLogCount === 0) {
+  if (stats.prunedCount === 0 && !collectDiagnostics) {
     return null;
   }
 
+  const hasCodeChange = stats.prunedCount > 0;
+
   return {
-    code: transformedCode.toString(),
-    map: transformedCode.generateMap({
-      hires: true,
-      includeContent: true,
-      source: id,
-    }),
+    code: hasCodeChange ? transformedCode.toString() : code,
+    diagnostics: collectDiagnostics ? diagnostics : undefined,
+    map: hasCodeChange
+      ? transformedCode.generateMap({
+          hires: true,
+          includeContent: true,
+          source: id,
+        })
+      : undefined,
+    stats,
   };
 }
