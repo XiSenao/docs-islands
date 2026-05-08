@@ -1,7 +1,7 @@
-/**
- * @vitest-environment node
- */
-import { setScopedLoggerConfig } from '@docs-islands/logger/core';
+import {
+  resetScopedLoggerConfig,
+  setScopedLoggerConfig,
+} from '@docs-islands/logger/core';
 import * as loggerPluginModule from '@docs-islands/logger/plugin';
 import {
   LOGGER_TREE_SHAKING_PLUGIN_NAME,
@@ -11,14 +11,13 @@ import {
 import { rolldown } from 'rolldown';
 import { rollup } from 'rollup';
 import { afterEach, describe, expect, it } from 'vitest';
-import { LOGGER_TREE_SHAKING_PLAYGROUND_BUILDS } from '../../playground/tree-shaking/builders';
+import { DEFAULT_LOGGER_SCOPE_ID } from '../../core/helper/scope';
+import { DEFAULT_LOGGER_MODULE_ID } from '../transform';
+import { LOGGER_TREE_SHAKING_PLAYGROUND_BUILDS } from './fixtures/tree-shaking/builders';
 import {
   LOGGER_TREE_SHAKING_HIDDEN_INFO,
   LOGGER_TREE_SHAKING_VISIBLE_WARNING,
-} from '../../playground/tree-shaking/expected';
-import { resetScopedLoggerConfig } from '../core/config';
-import { DEFAULT_LOGGER_SCOPE_ID } from '../core/helper/scope';
-import { DEFAULT_LOGGER_MODULE_ID } from '../plugin/transform';
+} from './fixtures/tree-shaking/expected';
 
 const TEST_SCOPE_ID = 'logger-plugin-test-scope';
 const TEST_MODULE_ID = '/workspace/docs/components/LoggerProbe.tsx';
@@ -33,7 +32,10 @@ type ViteConfigHook = ViteHook<
 type ViteConfigResolvedHook = ViteHook<
   (this: unknown, config: { command: 'build' | 'serve' }) => unknown
 >;
-type LoggerRawPlugin = ReturnType<(typeof loggerPlugin)['raw']>;
+type LoggerRawPlugin = Exclude<
+  ReturnType<(typeof loggerPlugin)['raw']>,
+  unknown[]
+>;
 type RollupOptionsHook = ViteHook<
   (this: unknown, options: { plugins?: unknown }) => unknown
 >;
@@ -178,10 +180,17 @@ const runRollupOptionsHook = async (
 const createRawPlugin = (
   framework: Parameters<(typeof loggerPlugin)['raw']>[1]['framework'],
   options?: Parameters<(typeof loggerPlugin)['raw']>[0],
-): LoggerRawPlugin =>
-  loggerPlugin.raw(options, {
+): LoggerRawPlugin => {
+  const plugin = loggerPlugin.raw(options, {
     framework,
   } as Parameters<(typeof loggerPlugin)['raw']>[1]);
+
+  if (Array.isArray(plugin)) {
+    throw new TypeError('Expected single plugin, got array');
+  }
+
+  return plugin;
+};
 
 afterEach(() => {
   resetScopedLoggerConfig(DEFAULT_LOGGER_SCOPE_ID);
