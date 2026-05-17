@@ -1,23 +1,23 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "isolatedDeclarations": false,
-    "declaration": false,
-    "lib": ["ESNext", "DOM"],
-    "types": ["node"],
-  },
-  // moduleResolution enforces TypeScript to resolve the imports field of package.json file
-  // when performing a lookup that starts with # from a file whose ancestor directory contains a package.json
-  // under the node16, nodenext, and bundler options.
-  //
-  // https://devblogs.microsoft.com/typescript/announcing-typescript-5-0/#moduleresolution-bundler
-  "include": [
-    "types/",
-    "src/types/",
-    "src/shared/**/*.d.ts",
-    "tests/",
-    "scripts/",
-    "theme/**/*.ts",
-    "*.ts",
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.source.json",
+    },
+    {
+      "path": "./tsconfig.test.json",
+    },
+    {
+      "path": "./src/node",
+    },
+    {
+      "path": "./src/client",
+    },
+    {
+      "path": "./src/shared",
+    },
+    {
+      "path": "./theme",
+    },
   ],
 }
