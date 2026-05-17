@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Tools build leaf for root scripts; not a production library project.
+  "extends": "../tsconfig.graph.base.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "outDir": "./.tsbuild",
+    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
+    "isolatedDeclarations": false,
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "references": [
+    {
+      "path": "../packages/logger/tsconfig.lib.build.json"
+    },
+    {
+      "path": "../utils/tsconfig.lib.build.json"
+    }
+  ],
+  "include": ["**/*.ts"],
+  "exclude": [
+    "dist",
+    "cache",
+    "**/*cache*/**",
+    "coverage",
+    "node_modules",
+    ".eslintcache",
+    "**/__tests__/**",
+    "**/*.spec.ts",
+    "**/*.test.ts"
+  ]
+}

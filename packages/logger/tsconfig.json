@@ -1,11 +1,16 @@
 {
-  "files": [],
-  "references": [
-    {
-      "path": "./tsconfig.source.json",
-    },
-    {
-      "path": "./tsconfig.test.json",
-    },
+  // Package-local source/editor check and rolldown-plugin-dts input.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "isolatedDeclarations": false,
+    "declaration": true,
+    "lib": ["ESNext", "DOM"],
+    "types": ["node"],
+  },
+  "include": [
+    "packagePlugin.ts",
+    "rolldown.config.ts",
+    "scripts/**/*.ts",
+    "src/",
   ],
 }

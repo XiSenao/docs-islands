@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Tools build leaf for VitePress build/config files; runtime source stays in src/* build leaves.
+  "extends": "../../tsconfig.graph.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./.tsbuild",
+    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
+    "isolatedDeclarations": false,
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "references": [
+    {
+      "path": "./src/shared/tsconfig.build.json"
+    },
+    {
+      "path": "./src/node/tsconfig.build.json"
+    },
+    {
+      "path": "./src/client/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/logger/tsconfig.lib.build.json"
+    },
+    {
+      "path": "../../utils/tsconfig.lib.build.json"
+    },
+    {
+      "path": "../../packages/plugins/license/tsconfig.lib.build.json"
+    }
+  ],
+  "include": [
+    "package.json",
+    "packagePlugin.ts",
+    "rolldown.config.ts",
+    "rolldown.theme.config.ts",
+    "scripts/**/*.ts"
+  ],
+  "exclude": [
+    "src",
+    "docs",
+    "theme",
+    "playground",
+    "smoke",
+    "dist",
+    "cache",
+    "coverage",
+    "node_modules",
+    ".eslintcache",
+    "vitest.config.ts",
+    "**/__tests__/**",
+    "**/*.spec.ts",
+    "**/*.test.ts"
+  ]
+}

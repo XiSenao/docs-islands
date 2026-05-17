@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Tools build leaf for package build/config files.
+  "extends": "../../tsconfig.graph.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./.tsbuild",
+    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
+    "isolatedDeclarations": false,
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "references": [
+    {
+      "path": "./tsconfig.lib.build.json"
+    },
+    {
+      "path": "../../utils/tsconfig.lib.build.json"
+    }
+  ],
+  "include": ["rolldown.config.ts"],
+  "exclude": [
+    "src",
+    "dist",
+    "cache",
+    "**/*cache*/**",
+    "coverage",
+    "node_modules",
+    ".eslintcache",
+    "vitest.config.ts",
+    "**/__tests__/**",
+    "**/*.spec.ts",
+    "**/*.test.ts"
+  ]
+}

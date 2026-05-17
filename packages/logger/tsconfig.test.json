@@ -1,4 +1,5 @@
 {
+  // Local package-script test check. Build graph leaf: tsconfig.test.build.json.
   "extends": "../../tsconfig.test.base.json",
   "compilerOptions": {
     "types": ["node", "vitest/globals"]

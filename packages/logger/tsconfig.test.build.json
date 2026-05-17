@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Test build leaf for logger unit tests and test-only fixtures.
+  "extends": "../../tsconfig.graph.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./.tsbuild",
+    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
+    "isolatedDeclarations": false,
+    "lib": ["ES2023"],
+    "types": ["node", "vitest/globals"]
+  },
+  "references": [
+    {
+      "path": "./tsconfig.lib.build.json"
+    }
+  ],
+  "include": [
+    "src/**/__tests__/**/*.ts",
+    "**/types/**/*.d.ts",
+    "vitest.config.ts"
+  ],
+  "exclude": [
+    "dist",
+    "cache",
+    "**/*cache*/**",
+    "coverage",
+    "node_modules",
+    ".eslintcache"
+  ]
+}

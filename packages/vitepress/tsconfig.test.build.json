@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Test build leaf. Tests may depend on runtime/tools projects; runtime projects must not depend on tests.
+  "extends": "../../tsconfig.graph.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./.tsbuild",
+    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
+    "isolatedDeclarations": false,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node", "vitest/globals"],
+    "jsx": "preserve",
+    "noUnusedLocals": false,
+    "stripInternal": false
+  },
+  "references": [
+    {
+      "path": "./src/shared/tsconfig.build.json"
+    },
+    {
+      "path": "./src/node/tsconfig.build.json"
+    },
+    {
+      "path": "./src/client/tsconfig.build.json"
+    },
+    {
+      "path": "./tsconfig.tools.build.json"
+    },
+    {
+      "path": "../../packages/logger/tsconfig.lib.build.json"
+    },
+    {
+      "path": "../../utils/tsconfig.lib.build.json"
+    },
+    {
+      "path": "../../packages/core/tsconfig.lib.build.json"
+    }
+  ],
+  "include": [
+    "src/**/__tests__/**/*.ts",
+    "src/**/__tests__/**/*.tsx",
+    "scripts/**/__tests__/**/*.ts",
+    "tests/**/*.ts",
+    "src/types/**/*.d.ts",
+    "types/**/*.d.ts",
+    "vitest.config.ts",
+    "theme/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/dist/**",
+    "coverage",
+    "**/coverage/**",
+    "playground",
+    "smoke"
+  ]
+}

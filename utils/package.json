@@ -18,7 +18,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
-    "clean": "del-cli .eslintcache dist node_modules"
+    "clean": "del-cli .tsbuild .eslintcache dist node_modules"
   },
   "dependencies": {
     "@docs-islands/logger": "catalog:prod",

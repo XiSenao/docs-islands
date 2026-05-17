@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Playground test build leaf. Tests must not be referenced by source/runtime projects.
+  "extends": "../../../tsconfig.graph.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./.tsbuild",
+    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
+    "isolatedDeclarations": false,
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["node", "vitest/globals"],
+    "jsx": "preserve"
+  },
+  "references": [
+    {
+      "path": "./tsconfig.source.build.json"
+    },
+    {
+      "path": "../../../packages/logger/tsconfig.lib.build.json"
+    },
+    {
+      "path": "../../../utils/tsconfig.lib.build.json"
+    }
+  ],
+  "include": [
+    "client.d.ts",
+    "test-utils/**/*.ts",
+    "**/*.spec.ts",
+    "vitest.config.ts",
+    "vitestGlobalSetup.ts",
+    "vitestSetup.ts"
+  ],
+  "exclude": ["node_modules", ".vitepress/cache", ".vitepress/dist", "coverage"]
+}

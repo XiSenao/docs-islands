@@ -1,5 +1,6 @@
 {
-  "extends": "./tsconfig.source.json",
+  // Playground-local test check. Build leaf: tsconfig.test.build.json.
+  "extends": "./tsconfig.json",
   "compilerOptions": {
     "types": ["node", "vitest/globals"]
   },

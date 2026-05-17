@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Full TypeScript graph check. Includes production graph, tools, tests, and fixtures.
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.graph.lib.json"
+    },
+    {
+      "path": "./scripts/tsconfig.build.json"
+    },
+    {
+      "path": "./utils/tsconfig.graph.json"
+    },
+    {
+      "path": "./packages/logger/tsconfig.graph.json"
+    },
+    {
+      "path": "./packages/core/tsconfig.graph.json"
+    },
+    {
+      "path": "./packages/plugins/license/tsconfig.graph.json"
+    },
+    {
+      "path": "./packages/eslint-config/tsconfig.graph.json"
+    },
+    {
+      "path": "./packages/vitepress/tsconfig.graph.json"
+    }
+  ]
+}

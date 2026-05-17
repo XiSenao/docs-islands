@@ -1,5 +1,6 @@
 {
-  "extends": "../tsconfig.source.json",
+  // Vue docs check used by vue-tsc via pnpm typecheck:vue; not native tsc -b.
+  "extends": "../tsconfig.json",
   "compilerOptions": {
     "jsx": "preserve",
     "isolatedDeclarations": false,

@@ -23,7 +23,7 @@ import {
   getSiteDevToolsAnalysisProviderMetadata,
   isSiteDevToolsAnalysisBuildReportModelConfig,
   isSiteDevToolsAnalysisProviderConfig,
-} from './site-devtools-models';
+} from '../../shared/site-devtools-models';
 
 type SiteDevToolsBuildReportsInput =
   SiteDevToolsAnalysisUserConfig['buildReports'];

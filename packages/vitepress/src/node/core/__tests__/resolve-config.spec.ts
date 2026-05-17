@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { resolveConfig } from '../config';
-import { claude, doubao } from '../site-devtools-models';
+import { claude, doubao } from '../../../shared/site-devtools-models';
+import { resolveConfig } from '../resolve-config';
 
 const resolveBuildReportsTestPage = () => false as const;
 

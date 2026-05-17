@@ -1,5 +1,6 @@
 {
-  "extends": "../../tsconfig.source.json",
+  // Runtime local check kept stable for package scripts. Build leaf: ./tsconfig.build.json.
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
     "isolatedDeclarations": true,
     "declaration": true,

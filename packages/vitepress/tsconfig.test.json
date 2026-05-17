@@ -1,4 +1,5 @@
 {
+  // Package-local test check. Build leaf: tsconfig.test.build.json.
   "extends": "../../tsconfig.test.base.json",
   "compilerOptions": {
     "types": ["node", "vitest/globals"]

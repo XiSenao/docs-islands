@@ -39,7 +39,7 @@
     "lint:package:attw": "tsx scripts/lint-package.ts --tool attw",
     "lint:package:boundary": "tsx scripts/lint-package.ts --tool boundary",
     "smoke": "pnpm --dir ./smoke test",
-    "typecheck": "tsc -p tsconfig.source.json --noEmit && tsc -p src/node --noEmit && tsc -p src/client --noEmit && tsc -p src/shared --noEmit && pnpm typecheck:theme",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p src/node --noEmit && tsc -p src/client --noEmit && tsc -p src/shared --noEmit && pnpm typecheck:theme",
     "typecheck:theme": "vue-tsc -p theme/tsconfig.json --noEmit",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "build": "rolldown --config rolldown.config.ts && pnpm build:theme && pnpm build-types-check",
@@ -48,7 +48,7 @@
     "build:watch": "concurrently --names \"rolldown,theme\" --prefix-colors \"blue,magenta\" \"rolldown --config rolldown.config.ts --watch\" \"rolldown --config rolldown.theme.config.ts --watch\"",
     "test": "pnpm test:unit && pnpm --dir ./playground test:e2e",
     "test:unit": "vitest run",
-    "clean": "del-cli .eslintcache dist coverage node_modules"
+    "clean": "del-cli  .tsbuild src/client/.tsbuild src/node/.tsbuild src/shared/.tsbuild .eslintcache dist coverage node_modules"
   },
   "imports": {
     "#types/*": "./types/*.d.ts",

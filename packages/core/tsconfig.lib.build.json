@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Library build leaf. Keep tests and package tooling out.
+  "extends": "../../tsconfig.graph.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "./.tsbuild",
+    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "references": [
+    {
+      "path": "../../packages/logger/tsconfig.lib.build.json"
+    },
+    {
+      "path": "../../utils/tsconfig.lib.build.json"
+    }
+  ],
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "dist",
+    "cache",
+    "**/*cache*/**",
+    "coverage",
+    "node_modules",
+    ".eslintcache",
+    "packagePlugin.ts",
+    "rolldown.config.ts",
+    "scripts",
+    "vitest.config.ts",
+    "**/__tests__/**",
+    "**/*.spec.ts",
+    "**/*.test.ts"
+  ]
+}

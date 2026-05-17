@@ -1,4 +1,5 @@
 {
-  "extends": "./tsconfig.source.json",
+  // Smoke-local test check. Build leaf: tsconfig.test.build.json.
+  "extends": "./tsconfig.json",
   "include": ["consumer.fixtures.ts", "helpers.ts", "*.spec.ts"]
 }

@@ -7,7 +7,7 @@
     "build:watch": "rolldown --config rolldown.config.ts --watch",
     "typecheck": "tsc --noEmit",
     "lint": "del-cli .eslintcache || true && eslint . --config ./eslint.config.mjs --fix --cache",
-    "clean": "del-cli dist .eslintcache node_modules"
+    "clean": "del-cli .tsbuild .eslintcache dist node_modules"
   },
   "dependencies": {
     "@docs-islands/logger": "catalog:prod"

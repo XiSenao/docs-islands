@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // VitePress package graph aggregator.
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.graph.lib.json"
+    },
+    {
+      "path": "./tsconfig.tools.build.json"
+    },
+    {
+      "path": "./tsconfig.test.build.json"
+    },
+    {
+      "path": "./playground/tsconfig.source.build.json"
+    },
+    {
+      "path": "./playground/tsconfig.test.build.json"
+    },
+    {
+      "path": "./smoke/tsconfig.source.build.json"
+    },
+    {
+      "path": "./smoke/tsconfig.test.build.json"
+    }
+  ]
+}

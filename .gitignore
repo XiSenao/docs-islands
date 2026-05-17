@@ -4,6 +4,8 @@ coverage
 .pnpm-store
 node_modules
 .eslintcache
+.tsbuild/
+**/.tsbuild/
 .temp
 cache
 # ignore the temporary config.ts build output, 

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Playground source build leaf. Playground projects stay above runtime projects.
+  "extends": "../../../tsconfig.graph.base.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "outDir": "./.tsbuild",
+    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
+    "isolatedDeclarations": false,
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "jsx": "preserve"
+  },
+  "references": [
+    {
+      "path": "../src/client/tsconfig.build.json"
+    },
+    {
+      "path": "../src/node/tsconfig.build.json"
+    }
+  ],
+  "include": [".vitepress/**/*.ts", "components/**/*.tsx"],
+  "exclude": ["node_modules", ".vitepress/cache", ".vitepress/dist", "coverage"]
+}

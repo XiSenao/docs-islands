@@ -1,11 +1,11 @@
 {
-  "files": [],
-  "references": [
-    {
-      "path": "./tsconfig.source.json",
-    },
-    {
-      "path": "./tsconfig.test.json",
-    },
-  ],
+  // Package-local source/editor check. Build graph leaf: tsconfig.lib.build.json.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "isolatedDeclarations": false,
+    "declaration": true,
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+  },
+  "include": ["src/"],
 }

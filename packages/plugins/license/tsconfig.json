@@ -1,4 +1,5 @@
 {
+  // Package-local source/tooling check and implicit rolldown-plugin-dts config.
   "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
     "types": ["node"]

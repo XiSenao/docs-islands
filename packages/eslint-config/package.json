@@ -5,12 +5,12 @@
   "scripts": {
     "build": "rolldown --config rolldown.config.ts",
     "build:watch": "rolldown --config rolldown.config.ts --watch",
-    "typecheck": "tsc -p tsconfig.source.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "lint": "eslint . --config ./dist/general.js --fix --cache",
     "test": "vitest run",
     "test:watch": "vitest",
-    "clean": "del-cli .eslintcache dist node_modules"
+    "clean": "del-cli .tsbuild .eslintcache dist node_modules"
   },
   "dependencies": {
     "tinyglobby": "catalog:prod"
