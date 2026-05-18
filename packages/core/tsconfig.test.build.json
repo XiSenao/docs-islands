@@ -1,22 +1,20 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   // Test build leaf for core unit tests and test helpers.
-  "extends": "../../tsconfig.graph.base.json",
+  "extends": [
+    "./tsconfig.graph.paths.generated.json",
+    "./tsconfig.test.json",
+    "../../tsconfig.graph.base.json"
+  ],
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "./.tsbuild",
-    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
-    "isolatedDeclarations": false,
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "types": ["node", "vitest/globals"],
-    "jsx": "preserve"
+    "tsBuildInfoFile": "./.tsbuild/test.tsbuildinfo",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"]
   },
   "references": [
     {
       "path": "./tsconfig.lib.build.json"
-    },
-    {
-      "path": "../logger/tsconfig.lib.build.json"
     },
     {
       "path": "../../utils/tsconfig.lib.build.json"
@@ -28,13 +26,5 @@
     "tests/**/*.ts",
     "**/types/**/*.d.ts",
     "vitest.config.ts"
-  ],
-  "exclude": [
-    "dist",
-    "cache",
-    "**/*cache*/**",
-    "coverage",
-    "node_modules",
-    ".eslintcache"
   ]
 }

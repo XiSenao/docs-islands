@@ -1,15 +1,16 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   // Library build leaf. Keep logger tooling out to avoid logger/tools cycles.
-  "extends": "../../tsconfig.graph.base.json",
+  "extends": [
+    "./tsconfig.graph.paths.generated.json",
+    "./tsconfig.json",
+    "../../tsconfig.graph.base.json"
+  ],
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "./.tsbuild",
-    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
-    "lib": ["ESNext", "DOM"],
-    "types": ["node"]
+    "tsBuildInfoFile": "./.tsbuild/lib.tsbuildinfo"
   },
-  "include": ["src/**/*.ts"],
   "exclude": [
     "dist",
     "cache",

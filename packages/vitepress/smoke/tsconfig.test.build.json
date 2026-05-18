@@ -1,14 +1,15 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   // Smoke test build leaf. Tests must not be referenced by source/runtime projects.
-  "extends": "../../../tsconfig.graph.base.json",
+  "extends": [
+    "./tsconfig.graph.paths.generated.json",
+    "./tsconfig.test.json",
+    "../../../tsconfig.graph.base.json"
+  ],
   "compilerOptions": {
     "rootDir": "..",
     "outDir": "./.tsbuild",
-    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
-    "isolatedDeclarations": false,
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "types": ["node"]
+    "tsBuildInfoFile": "./.tsbuild/test.tsbuildinfo"
   },
   "references": [
     {
@@ -18,12 +19,7 @@
       "path": "../tsconfig.tools.build.json"
     },
     {
-      "path": "../../../packages/logger/tsconfig.lib.build.json"
-    },
-    {
       "path": "../../../utils/tsconfig.lib.build.json"
     }
-  ],
-  "include": ["consumer.fixtures.ts", "helpers.ts", "*.spec.ts"],
-  "exclude": ["node_modules", "coverage"]
+  ]
 }

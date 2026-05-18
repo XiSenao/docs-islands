@@ -1,14 +1,16 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  // Tools build leaf. This is where logger may depend on plugin-license.
-  "extends": "../../tsconfig.graph.base.json",
+  // Tools build leaf. It must be split from lib, otherwise it will cause an error due to circular dependency.
+  "extends": [
+    "./tsconfig.graph.paths.generated.json",
+    "./tsconfig.json",
+    "../../tsconfig.graph.base.json"
+  ],
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "./.tsbuild",
-    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
-    "isolatedDeclarations": false,
-    "lib": ["ES2023"],
-    "types": ["node"]
+    "tsBuildInfoFile": "./.tsbuild/tools.tsbuildinfo",
+    "lib": ["ES2023"]
   },
   "references": [
     {
@@ -26,18 +28,5 @@
     "packagePlugin.ts",
     "rolldown.config.ts",
     "scripts/**/*.ts"
-  ],
-  "exclude": [
-    "src",
-    "dist",
-    "cache",
-    "**/*cache*/**",
-    "coverage",
-    "node_modules",
-    ".eslintcache",
-    "vitest.config.ts",
-    "**/__tests__/**",
-    "**/*.spec.ts",
-    "**/*.test.ts"
   ]
 }

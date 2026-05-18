@@ -73,6 +73,7 @@ catalogs:
     vue-tsc: ~3.2.4
     wait-on: ^9.0.3
     webpack: ^5.102.1
+    yaml: ^2.8.3
     zod: ^4.3.6
   docs-dev:
     '@nolebase/vitepress-plugin-enhanced-mark': ^2.18.2

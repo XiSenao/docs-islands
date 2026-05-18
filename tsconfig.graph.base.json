@@ -1,32 +1,11 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  // Shared base for build leaf projects; each leaf owns rootDir/outDir/tsBuildInfoFile.
-  "extends": "./tsconfig.graph.paths.generated.json",
   "compilerOptions": {
-    "strict": true,
-    "target": "ES2023",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "types": [],
-    "isolatedModules": true,
-    "esModuleInterop": true,
-    "noImplicitOverride": true,
-    "noUnusedLocals": true,
-    "resolveJsonModule": true,
-    "verbatimModuleSyntax": true,
-    "forceConsistentCasingInFileNames": true,
-    "erasableSyntaxOnly": true,
-    "stripInternal": true,
     "composite": true,
     "incremental": true,
     "noEmit": false,
     "declaration": true,
     "emitDeclarationOnly": true,
-    "declarationMap": false,
-    // Not every existing project is isolated-declaration-clean yet.
-    "isolatedDeclarations": false,
-    // Keep graph stabilization separate from dist artifact checks.
-    "skipLibCheck": true
-  },
-  "exclude": ["**/.tsbuild/**"]
+    "declarationMap": false
+  }
 }

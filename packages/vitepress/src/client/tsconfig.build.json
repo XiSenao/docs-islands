@@ -1,15 +1,15 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   // Client runtime build leaf; keep Node ambient types out.
-  "extends": ["./tsconfig.json", "../../../../tsconfig.graph.base.json"],
+  "extends": [
+    "../../tsconfig.graph.paths.generated.json",
+    "./tsconfig.json",
+    "../../../../tsconfig.graph.base.json"
+  ],
   "compilerOptions": {
     "rootDir": "..",
     "outDir": "./.tsbuild",
-    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
-    "isolatedDeclarations": true,
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "types": [],
-    "jsx": "preserve"
+    "tsBuildInfoFile": "./.tsbuild/build.tsbuildinfo"
   },
   "references": [
     {
@@ -24,17 +24,5 @@
     {
       "path": "../../../core/tsconfig.lib.build.json"
     }
-  ],
-  "include": ["./**/*.ts", "./**/*.tsx", "./**/*.d.ts", "../types/**/*.d.ts"],
-  "exclude": [
-    ".tsbuild",
-    "**/.tsbuild/**",
-    "dist",
-    "cache",
-    "coverage",
-    "node_modules",
-    "**/__tests__/**",
-    "**/*.spec.ts",
-    "**/*.test.ts"
   ]
 }

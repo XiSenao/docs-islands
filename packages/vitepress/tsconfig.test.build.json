@@ -1,17 +1,15 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   // Test build leaf. Tests may depend on runtime/tools projects; runtime projects must not depend on tests.
-  "extends": "../../tsconfig.graph.base.json",
+  "extends": [
+    "./tsconfig.graph.paths.generated.json",
+    "./tsconfig.test.json",
+    "../../tsconfig.graph.base.json"
+  ],
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "./.tsbuild",
-    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
-    "isolatedDeclarations": false,
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": ["node", "vitest/globals"],
-    "jsx": "preserve",
-    "noUnusedLocals": false,
-    "stripInternal": false
+    "tsBuildInfoFile": "./.tsbuild/test.tsbuildinfo"
   },
   "references": [
     {
@@ -45,14 +43,5 @@
     "types/**/*.d.ts",
     "vitest.config.ts",
     "theme/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/dist/**",
-    "coverage",
-    "**/coverage/**",
-    "playground",
-    "smoke"
   ]
 }

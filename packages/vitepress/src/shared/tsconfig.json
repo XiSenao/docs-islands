@@ -6,6 +6,7 @@
     "declaration": true,
     "stripInternal": true,
     "lib": ["ESNext", "DOM"],
+    "types": [],
   },
   "include": ["./", "../types/"],
 }

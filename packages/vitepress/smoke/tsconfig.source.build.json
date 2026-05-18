@@ -1,20 +1,19 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   // Smoke source build leaf. Smoke projects stay above runtime projects.
-  "extends": "../../../tsconfig.graph.base.json",
+  "extends": [
+    "./tsconfig.graph.paths.generated.json",
+    "./tsconfig.json",
+    "../../../tsconfig.graph.base.json"
+  ],
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "./.tsbuild",
-    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
-    "isolatedDeclarations": false,
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "types": ["node"]
+    "tsBuildInfoFile": "./.tsbuild/source.tsbuildinfo"
   },
   "references": [
     {
       "path": "../../../utils/tsconfig.lib.build.json"
     }
-  ],
-  "include": ["playwright.config.ts"],
-  "exclude": ["node_modules", "coverage"]
+  ]
 }

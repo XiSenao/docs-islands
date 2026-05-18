@@ -1,31 +1,20 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   // Test build leaf for eslint-config unit tests.
-  "extends": "../../tsconfig.graph.base.json",
+  "extends": [
+    "./tsconfig.graph.paths.generated.json",
+    "./tsconfig.test.json",
+    "../../tsconfig.graph.base.json"
+  ],
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "./.tsbuild",
-    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
-    "isolatedDeclarations": false,
-    "lib": ["ES2023"],
-    "types": ["node", "vitest/globals"]
+    "tsBuildInfoFile": "./.tsbuild/test.tsbuildinfo",
+    "lib": ["ES2023"]
   },
   "references": [
     {
       "path": "./tsconfig.lib.build.json"
     }
-  ],
-  "include": [
-    "src/**/__tests__/**/*.ts",
-    "**/types/**/*.d.ts",
-    "vitest.config.ts"
-  ],
-  "exclude": [
-    "dist",
-    "cache",
-    "**/*cache*/**",
-    "coverage",
-    "node_modules",
-    ".eslintcache"
   ]
 }

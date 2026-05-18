@@ -1,11 +1,15 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   // Tools build leaf for package build/config files.
-  "extends": "../../tsconfig.graph.base.json",
+  "extends": [
+    "./tsconfig.graph.paths.generated.json",
+    "./tsconfig.json",
+    "../../tsconfig.graph.base.json"
+  ],
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "./.tsbuild",
-    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
+    "tsBuildInfoFile": "./.tsbuild/tools.tsbuildinfo",
     "isolatedDeclarations": false,
     "lib": ["ES2023"],
     "types": ["node"]
@@ -18,7 +22,6 @@
       "path": "../../utils/tsconfig.lib.build.json"
     }
   ],
-  "include": ["rolldown.config.ts"],
   "exclude": [
     "src",
     "dist",

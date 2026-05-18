@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
+import { parse } from 'yaml';
 
 type JsonObject = Record<string, unknown>;
 
@@ -20,6 +21,28 @@ interface ImportRecord {
 interface PackageInfo {
   directory: string;
   name: string;
+}
+
+interface LockfileDependency {
+  specifier?: string;
+  version?: string;
+}
+
+interface LockfileImporter {
+  dependencies?: Record<string, LockfileDependency>;
+  devDependencies?: Record<string, LockfileDependency>;
+  optionalDependencies?: Record<string, LockfileDependency>;
+  peerDependencies?: Record<string, LockfileDependency>;
+}
+
+interface Lockfile {
+  importers?: Record<string, LockfileImporter>;
+}
+
+interface ImporterInfo {
+  directory: string;
+  name?: string;
+  workspaceDependencies: Set<string>;
 }
 
 type ProjectKind =
@@ -198,6 +221,39 @@ function collectWorkspacePackages(): PackageInfo[] {
   }
 
   return packages.sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function readPnpmLockfile(): Lockfile {
+  const lockfilePath = path.join(rootDir, 'pnpm-lock.yaml');
+  const lockfile = parse(readFileSync(lockfilePath, 'utf8')) as Lockfile;
+
+  if (!lockfile.importers || typeof lockfile.importers !== 'object') {
+    throw new Error('pnpm-lock.yaml does not contain importers.');
+  }
+
+  return lockfile;
+}
+
+function getDependencySections(
+  importer: LockfileImporter,
+): Record<string, LockfileDependency>[] {
+  return [
+    importer.dependencies,
+    importer.devDependencies,
+    importer.optionalDependencies,
+    importer.peerDependencies,
+  ].filter((section): section is Record<string, LockfileDependency> =>
+    Boolean(section),
+  );
+}
+
+function isWorkspaceLockfileDependency(
+  dependency: LockfileDependency,
+): boolean {
+  return (
+    dependency.specifier?.startsWith('workspace:') === true &&
+    dependency.version?.startsWith('link:') === true
+  );
 }
 
 function getSourceFileKind(filePath: string): ts.ScriptKind {
@@ -458,6 +514,119 @@ function findPackageForSpecifier(
   );
 }
 
+function readPackageName(directoryPath: string): string | undefined {
+  const packageJsonPath = path.join(directoryPath, 'package.json');
+
+  if (!existsSync(packageJsonPath)) {
+    return undefined;
+  }
+
+  return (
+    JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { name?: string }
+  ).name;
+}
+
+function isPathInsideDirectory(
+  filePath: string,
+  directoryPath: string,
+): boolean {
+  const normalizedFilePath = normalizeAbsolutePath(filePath);
+  const normalizedDirectoryPath = normalizeAbsolutePath(directoryPath);
+
+  return (
+    normalizedFilePath === normalizedDirectoryPath ||
+    normalizedFilePath.startsWith(`${normalizedDirectoryPath}/`)
+  );
+}
+
+function isWorkspacePackageFile(
+  filePath: string,
+  packages: PackageInfo[],
+): boolean {
+  return packages.some((workspacePackage) =>
+    isPathInsideDirectory(filePath, workspacePackage.directory),
+  );
+}
+
+function collectImporters(packages: PackageInfo[]): ImporterInfo[] {
+  const lockfile = readPnpmLockfile();
+  const packagesByDirectory = new Map(
+    packages.map((workspacePackage) => [
+      workspacePackage.directory,
+      workspacePackage,
+    ]),
+  );
+  const importers: ImporterInfo[] = [];
+
+  for (const [rawImporterDirectory, importer] of Object.entries(
+    lockfile.importers!,
+  )) {
+    const importerDirectory =
+      rawImporterDirectory === '.'
+        ? rootDir
+        : normalizeAbsolutePath(path.join(rootDir, rawImporterDirectory));
+    const workspaceDependencies = new Set<string>();
+
+    for (const dependencies of getDependencySections(importer)) {
+      for (const [dependencyName, dependency] of Object.entries(dependencies)) {
+        if (
+          !dependencyName.startsWith(internalPackageScope) ||
+          !isWorkspaceLockfileDependency(dependency)
+        ) {
+          continue;
+        }
+
+        const linkedPackageDirectory = normalizeAbsolutePath(
+          path.resolve(
+            importerDirectory,
+            dependency.version!.slice('link:'.length),
+          ),
+        );
+        const linkedPackage = packagesByDirectory.get(linkedPackageDirectory);
+
+        if (linkedPackage?.name === dependencyName) {
+          workspaceDependencies.add(dependencyName);
+        }
+      }
+    }
+
+    importers.push({
+      directory: importerDirectory,
+      name: readPackageName(importerDirectory),
+      workspaceDependencies,
+    });
+  }
+
+  return importers.sort((left, right) => {
+    return right.directory.length - left.directory.length;
+  });
+}
+
+function findImporterForFile(
+  filePath: string,
+  importers: ImporterInfo[],
+): ImporterInfo | null {
+  return (
+    importers.find((importer) =>
+      isPathInsideDirectory(filePath, importer.directory),
+    ) ?? null
+  );
+}
+
+function shouldResolveThroughGraph(
+  importer: ImporterInfo | null,
+  targetPackage: PackageInfo | null,
+): boolean {
+  if (!importer || !targetPackage) {
+    return false;
+  }
+
+  return (
+    importer.name === targetPackage.name ||
+    importer.workspaceDependencies.has(targetPackage.name)
+  );
+}
+
 function inferVitePressProject(resolvedFilePath: string): string | null {
   const relativePath = toRelativePath(resolvedFilePath);
 
@@ -497,6 +666,10 @@ function inferPackageProject(
   workspacePackage: PackageInfo,
   projectPaths: string[],
 ): string | null {
+  if (!isPathInsideDirectory(resolvedFilePath, workspacePackage.directory)) {
+    return null;
+  }
+
   if (workspacePackage.name === '@docs-islands/vitepress') {
     return inferVitePressProject(resolvedFilePath);
   }
@@ -605,6 +778,7 @@ function main(): void {
   );
   const fileOwnerLookup = createFileOwnerLookup(projects);
   const packages = collectWorkspacePackages();
+  const importers = collectImporters(packages);
   const problems: string[] = [];
 
   for (const project of projects) {
@@ -637,6 +811,14 @@ function main(): void {
           filePath,
           project.options,
         );
+        const targetPackage = importRecord.specifier.startsWith(
+          internalPackageScope,
+        )
+          ? findPackageForSpecifier(importRecord.specifier, packages)
+          : null;
+        const importer = targetPackage
+          ? findImporterForFile(importRecord.filePath, importers)
+          : null;
 
         if (!resolvedFilePath) {
           if (!importRecord.specifier.startsWith(internalPackageScope)) {
@@ -655,6 +837,13 @@ function main(): void {
           continue;
         }
 
+        if (
+          targetPackage &&
+          !shouldResolveThroughGraph(importer, targetPackage)
+        ) {
+          continue;
+        }
+
         const targetProjectPath = findTargetProject({
           fileOwnerLookup,
           packages,
@@ -665,6 +854,25 @@ function main(): void {
 
         if (!targetProjectPath) {
           if (!importRecord.specifier.startsWith(internalPackageScope)) {
+            continue;
+          }
+
+          if (!isWorkspacePackageFile(resolvedFilePath, packages)) {
+            if (
+              targetPackage &&
+              shouldResolveThroughGraph(importer, targetPackage)
+            ) {
+              problems.push(
+                [
+                  'Workspace internal import resolved outside the workspace graph:',
+                  `  importing project: ${toRelativePath(project.configPath)}`,
+                  `  file: ${toRelativePath(importRecord.filePath)}:${importRecord.line}`,
+                  `  imported specifier: ${importRecord.specifier}`,
+                  `  resolved file: ${toRelativePath(resolvedFilePath)}`,
+                  '  reason: generated TypeScript graph paths may be stale; run `pnpm tsconfig:graph:paths`.',
+                ].join('\n'),
+              );
+            }
             continue;
           }
 

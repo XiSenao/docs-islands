@@ -40,7 +40,7 @@ tsconfig.graph.lib.json
   production library/runtime declaration graph
 
 tsconfig.graph.base.json
-  shared build-mode compiler policy for build leaves
+  shared build-mode overlay for build leaves
 
 tsconfig.graph.paths.generated.json
   generated relative paths only
@@ -49,12 +49,13 @@ packages/*/tsconfig.graph.json
   package/domain-level graph aggregator
 
 tsconfig.*.build.json
-  build leaf; owns compiler options, include/exclude, and direct references
+  build leaf; owns output/cache paths, references, and any intentional source-boundary overrides
 ```
 
 Root graph entries should only know first-class domains. Package graph
-aggregators own package internals. Build leaf configs own one capability
-boundary and how that node is built.
+aggregators own package internals. Build leaf configs usually inherit source
+semantics from their adjacent source/test config, then add build-mode output
+paths, direct references, and any intentional source-boundary overrides.
 
 ## Permanent Rules
 
@@ -114,7 +115,7 @@ native graph references the adjacent `tsconfig.build.json` files.
 | `tsconfig.json`                                                                                         | solution        | Editor-facing solution that points at `tsconfig.graph.json`.                             |
 | `tsconfig.graph.json`                                                                                   | solution        | Default full graph check entry for root scripts, packages, tests, playground, and smoke. |
 | `tsconfig.graph.lib.json`                                                                               | solution        | Production library/runtime declaration graph entry.                                      |
-| `tsconfig.graph.base.json`                                                                              | build base      | Shared build-mode compiler policy for build leaves.                                      |
+| `tsconfig.graph.base.json`                                                                              | build base      | Shared generated paths and build-mode overlay for build leaves.                          |
 | `tsconfig.graph.paths.generated.json`                                                                   | generated paths | Generated relative `paths` only.                                                         |
 | `scripts/tsconfig.build.json`                                                                           | tools leaf      | Root scripts tooling build leaf.                                                         |
 | `utils/tsconfig.json`                                                                                   | local source    | Utils package-local source/editor check.                                                 |
@@ -146,9 +147,13 @@ dist files.
 
 ## Follow-Ups
 
-The graph base intentionally does not define `rootDir`, `outDir`, or
-`tsBuildInfoFile`; every build leaf owns those paths. The legacy
-`tsconfig.base.json` still defines `rootDir: "."` because existing local
-checks and package scripts extend it. Removing that root directory from the
-legacy base should be a separate compatibility task after the graph and
-legacy checks have proven stable.
+The graph base intentionally only defines generated paths plus build-mode
+options such as `composite`, `incremental`, declaration emit, and
+`noEmit: false`. It does not define source-checking semantics such as `strict`,
+`lib`, `types`, or `include`/`exclude`; build leaves inherit those from their
+adjacent source/test config where possible. It also does not define `rootDir`,
+`outDir`, or `tsBuildInfoFile`; every build leaf owns those paths. The legacy
+`tsconfig.base.json` still defines `rootDir: "."` because existing local checks
+and package scripts extend it. Removing that root directory from the legacy base
+should be a separate compatibility task after the graph and legacy checks have
+proven stable.

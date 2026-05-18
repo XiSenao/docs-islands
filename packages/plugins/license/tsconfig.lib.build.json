@@ -1,23 +1,22 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   // Library build leaf for plugin runtime source; tooling stays in tsconfig.tools.build.json.
-  "extends": "../../../tsconfig.graph.base.json",
+  "extends": [
+    "./tsconfig.graph.paths.generated.json",
+    "./tsconfig.json",
+    "../../../tsconfig.graph.base.json"
+  ],
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "./.tsbuild",
-    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
+    "tsBuildInfoFile": "./.tsbuild/lib.tsbuildinfo",
     "lib": ["ES2023"],
-    "types": ["node"],
   },
   "references": [
-    {
-      "path": "../../../packages/logger/tsconfig.lib.build.json",
-    },
     {
       "path": "../../../utils/tsconfig.lib.build.json",
     },
   ],
-  "include": ["src/**/*.ts"],
   "exclude": [
     "dist",
     "cache",

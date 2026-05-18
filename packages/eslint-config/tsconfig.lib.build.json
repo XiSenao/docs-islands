@@ -1,15 +1,17 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   // Library build leaf. Keep rolldown config and tests out.
-  "extends": "../../tsconfig.graph.base.json",
+  "extends": [
+    "./tsconfig.graph.paths.generated.json",
+    "./tsconfig.json",
+    "../../tsconfig.graph.base.json"
+  ],
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "./.tsbuild",
-    "tsBuildInfoFile": "./.tsbuild/.tsbuildinfo",
-    "lib": ["ES2023"],
-    "types": []
+    "tsBuildInfoFile": "./.tsbuild/lib.tsbuildinfo",
+    "lib": ["ES2023"]
   },
-  "include": ["src/**/*.ts"],
   "exclude": [
     "dist",
     "cache",

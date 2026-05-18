@@ -1,5 +1,4 @@
 {
-  // Package-local source/editor check. Build lib is tsconfig.lib.build.json.
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "isolatedDeclarations": true,
@@ -8,4 +7,5 @@
     "types": ["node"],
   },
   "include": ["./"],
+  "exclude": ["rolldown.config.ts", "**/.tsbuild/**", ".eslintcache", "dist"],
 }
