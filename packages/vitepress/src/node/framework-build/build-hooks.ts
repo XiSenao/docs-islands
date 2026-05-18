@@ -521,6 +521,7 @@ export function registerUIFrameworkBuildHooks(
           `failed to bundle and render ${framework} SSR components for page ${id}: ${formatErrorMessage(error)}`,
           ssrBundleElapsed(),
         );
+        throw error;
       }
     }
 
@@ -594,6 +595,7 @@ export function registerUIFrameworkBuildHooks(
           `failed to bundle ${framework} components for page ${id}: ${formatErrorMessage(error)}`,
           clientElapsed(),
         );
+        throw error;
       }
     }
 

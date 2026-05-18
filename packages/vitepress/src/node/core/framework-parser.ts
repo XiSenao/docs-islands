@@ -172,26 +172,19 @@ export class RenderingFrameworkParserManager {
       code,
       this.#parsers,
     );
-    const parserStates = this.#prepareParserStates(
-      normalizedId,
-      scriptMatchesByFramework,
-    );
     const transformElapsed = createElapsedTimer();
     const allRecognizedScriptMatches = [...scriptMatchesByFramework.values()]
       .flat()
       .toSorted((left, right) => left.startIndex - right.startIndex);
 
-    const skippedFrameworks = new Set<string>();
     for (const [framework, scriptMatches] of scriptMatchesByFramework) {
       if (scriptMatches.length <= 1) {
         continue;
       }
 
-      skippedFrameworks.add(framework);
-      this.#getFrameworkLogger().error(
-        `Single file can contain only one <script lang="${scriptMatches[0].lang}"> element.`,
-        transformElapsed(),
-      );
+      const message = `Failed to parse ${id}: framework "${framework}" can contain only one <script lang="${scriptMatches[0].lang}"> element per file.`;
+      this.#getFrameworkLogger().error(message, transformElapsed());
+      throw new Error(message);
     }
 
     const parsedScripts = new Map<
@@ -200,10 +193,6 @@ export class RenderingFrameworkParserManager {
     >();
 
     for (const parser of this.#parsers) {
-      if (skippedFrameworks.has(parser.framework)) {
-        continue;
-      }
-
       const scriptMatch = scriptMatchesByFramework.get(parser.framework)?.[0];
       if (!scriptMatch) {
         continue;
@@ -220,20 +209,14 @@ export class RenderingFrameworkParserManager {
           }),
         );
       } catch (error) {
-        skippedFrameworks.add(parser.framework);
-        this.#getFrameworkLogger().error(
-          `failed to parse <script lang="${parser.lang}"> in ${id}: ${formatErrorMessage(error)}`,
-          transformElapsed(),
-        );
+        const message = `Failed to parse <script lang="${parser.lang}"> for framework "${parser.framework}" in ${id}: ${formatErrorMessage(error)}`;
+        this.#getFrameworkLogger().error(message, transformElapsed());
+        throw new Error(message);
       }
     }
 
     const componentNameToFramework = new Map<string, string>();
     for (const parser of this.#parsers) {
-      if (skippedFrameworks.has(parser.framework)) {
-        continue;
-      }
-
       const parsedScript = parsedScripts.get(parser.framework);
       if (!parsedScript) {
         continue;
@@ -246,14 +229,16 @@ export class RenderingFrameworkParserManager {
           continue;
         }
 
-        skippedFrameworks.add(existingFramework);
-        skippedFrameworks.add(parser.framework);
-        this.#getFrameworkLogger().error(
-          `Duplicate component local name "${componentName}" found across rendering frameworks in ${id}. Rename one of the imports before mixing frameworks on the same page.`,
-          transformElapsed(),
-        );
+        const message = `Duplicate component local name "${componentName}" found across rendering frameworks in ${id}: "${existingFramework}" and "${parser.framework}". Rename one of the imports before mixing frameworks on the same page.`;
+        this.#getFrameworkLogger().error(message, transformElapsed());
+        throw new Error(message);
       }
     }
+
+    const parserStates = this.#prepareParserStates(
+      normalizedId,
+      scriptMatchesByFramework,
+    );
 
     if (allRecognizedScriptMatches.length === 0) {
       if (parserStates.size === 0) {
@@ -290,7 +275,7 @@ export class RenderingFrameworkParserManager {
     for (const parserState of parserStates.values()) {
       const { parser } = parserState;
       const parsedScript = parsedScripts.get(parser.framework);
-      if (skippedFrameworks.has(parser.framework) || !parsedScript) {
+      if (!parsedScript) {
         this.#finalizeParserState(
           parserState,
           normalizedId,
