@@ -80,6 +80,15 @@ function normalizeAbsolutePath(value: string): string {
   return toPosixPath(path.resolve(value));
 }
 
+function isRelativeSpecifier(specifier: string): boolean {
+  return (
+    specifier === '.' ||
+    specifier === '..' ||
+    specifier.startsWith('./') ||
+    specifier.startsWith('../')
+  );
+}
+
 function readJsonConfig(configPath: string): JsonObject {
   const result = ts.readConfigFile(configPath, ts.sys.readFile);
 
@@ -548,6 +557,19 @@ function isWorkspacePackageFile(
   );
 }
 
+function findPackageForFile(
+  filePath: string,
+  packages: PackageInfo[],
+): PackageInfo | null {
+  return (
+    [...packages]
+      .sort((left, right) => right.directory.length - left.directory.length)
+      .find((workspacePackage) =>
+        isPathInsideDirectory(filePath, workspacePackage.directory),
+      ) ?? null
+  );
+}
+
 function collectImporters(packages: PackageInfo[]): ImporterInfo[] {
   const lockfile = readPnpmLockfile();
   const packagesByDirectory = new Map(
@@ -835,6 +857,42 @@ function main(): void {
             ].join('\n'),
           );
           continue;
+        }
+
+        if (
+          // Test and smoke projects intentionally exercise internal fixtures;
+          // production graph imports must go through package exports.
+          isProductionGraphKind(getProjectKind(project.configPath)) &&
+          isRelativeSpecifier(importRecord.specifier)
+        ) {
+          const sourcePackage = findPackageForFile(
+            importRecord.filePath,
+            packages,
+          );
+          const targetWorkspacePackage = findPackageForFile(
+            resolvedFilePath,
+            packages,
+          );
+
+          if (
+            sourcePackage &&
+            targetWorkspacePackage &&
+            sourcePackage.name !== targetWorkspacePackage.name
+          ) {
+            problems.push(
+              [
+                'Cross-package relative import:',
+                `  importing project: ${toRelativePath(project.configPath)}`,
+                `  file: ${toRelativePath(importRecord.filePath)}:${importRecord.line}`,
+                `  imported specifier: ${importRecord.specifier}`,
+                `  source package: ${sourcePackage.name}`,
+                `  target package: ${targetWorkspacePackage.name}`,
+                `  resolved file: ${toRelativePath(resolvedFilePath)}`,
+                '  reason: workspace packages must depend through package exports.',
+              ].join('\n'),
+            );
+            continue;
+          }
         }
 
         if (
