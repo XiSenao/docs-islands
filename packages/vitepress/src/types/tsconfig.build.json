@@ -1,10 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   // Internal declaration module build leaf; runtime projects import these types.
-  "extends": [
-    "./tsconfig.json",
-    "../../../../tsconfig.graph.base.json"
-  ],
+  "extends": ["./tsconfig.json", "../../../../tsconfig.graph.base.json"],
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "./.tsbuild",

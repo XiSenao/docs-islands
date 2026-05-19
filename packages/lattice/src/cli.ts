@@ -3,13 +3,15 @@ import { cac } from 'cac';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { runGraphCheck } from './commands/graph';
-import { runPackageBoundaryCheck } from './commands/package-boundary';
+import { runPackageCheck } from './commands/package';
 import { runPaths } from './commands/paths';
 import { runProofCheck } from './commands/proof';
 import {
   loadConfig,
   type BuiltinTaskName,
   type LatticeCommand,
+  type PackageAttwProfile,
+  type PackageCheckToolSelection,
   type PipelineStep,
   type ResolvedLatticeConfig,
 } from './config';
@@ -20,8 +22,10 @@ interface GlobalFlags {
   mode?: string;
 }
 
-interface PackageBoundaryFlags extends GlobalFlags {
+interface PackageFlags extends GlobalFlags {
+  attwProfile?: string;
   package?: string;
+  tool?: string;
 }
 
 type NormalizedPipelineStep = Exclude<PipelineStep, string>;
@@ -49,8 +53,8 @@ async function runBuiltinTask(
     case 'proof:check': {
       return runProofCheck(config);
     }
-    case 'package-boundary:check': {
-      return runPackageBoundaryCheck({ config });
+    case 'package:check': {
+      return runPackageCheck({ config });
     }
   }
 }
@@ -63,7 +67,7 @@ function normalizePipelineStep(step: PipelineStep): NormalizedPipelineStep {
   if (
     step === 'graph:check' ||
     step === 'proof:check' ||
-    step === 'package-boundary:check'
+    step === 'package:check'
   ) {
     return {
       name: step,
@@ -82,6 +86,43 @@ function normalizePipelineStep(step: PipelineStep): NormalizedPipelineStep {
     command,
     type: 'command',
   };
+}
+
+function parsePackageTool(
+  tool: string | undefined,
+): PackageCheckToolSelection | undefined {
+  if (!tool) {
+    return undefined;
+  }
+
+  if (
+    tool === 'all' ||
+    tool === 'publint' ||
+    tool === 'attw' ||
+    tool === 'boundary'
+  ) {
+    return tool;
+  }
+
+  throw new Error(
+    `Invalid package check --tool "${tool}". Expected one of: all, publint, attw, boundary.`,
+  );
+}
+
+function parsePackageAttwProfile(
+  profile: string | undefined,
+): PackageAttwProfile | undefined {
+  if (!profile) {
+    return undefined;
+  }
+
+  if (profile === 'strict' || profile === 'node16' || profile === 'esm-only') {
+    return profile;
+  }
+
+  throw new Error(
+    `Invalid package check --attw-profile "${profile}". Expected one of: strict, node16, esm-only.`,
+  );
 }
 
 function runCommandStep(
@@ -194,23 +235,22 @@ async function main(): Promise<void> {
     });
 
   cli
-    .command(
-      'package-boundary <action>',
-      'Audit configured published package boundaries',
-    )
-    .option('-p, --package <name>', 'Run a single package-boundary target')
-    .action(async (action: string, flags: PackageBoundaryFlags) => {
+    .command('package <action>', 'Check configured published package outputs')
+    .option('-p, --package <name>', 'Run a single package check target')
+    .option('--tool <tool>', 'Run one package check tool')
+    .option('--attw-profile <profile>', 'Override the configured ATTW profile')
+    .action(async (action: string, flags: PackageFlags) => {
       if (action !== 'check') {
-        throw new Error(
-          `Unknown package-boundary action "${action}". Expected check.`,
-        );
+        throw new Error(`Unknown package action "${action}". Expected check.`);
       }
-      const config = await load(flags, 'package-boundary');
+      const config = await load(flags, 'package');
 
       if (
-        !(await runPackageBoundaryCheck({
+        !(await runPackageCheck({
+          attwProfile: parsePackageAttwProfile(flags.attwProfile),
           config,
           targetName: flags.package,
+          tool: parsePackageTool(flags.tool),
         }))
       ) {
         process.exitCode = 1;

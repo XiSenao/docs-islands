@@ -3,7 +3,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 /**
- * Runtime label used by package-boundary checks.
+ * Runtime label used by package boundary checks.
  *
  * Use `browser` for code that must stay free of Node.js runtime imports,
  * `node` for server-only output, or a custom string when a package has its own
@@ -63,10 +63,7 @@ export type PipelineStep =
 /**
  * Built-in task names understood by Lattice pipelines.
  */
-export type BuiltinTaskName =
-  | 'graph:check'
-  | 'package-boundary:check'
-  | 'proof:check';
+export type BuiltinTaskName = 'graph:check' | 'package:check' | 'proof:check';
 
 /**
  * Workspace discovery and path settings.
@@ -307,13 +304,50 @@ export interface ProofConfig {
 }
 
 /**
- * One published package output to audit.
+ * Package check tools that can run against a built package output.
  */
-export interface PackageBoundaryTarget {
+export type PackageCheckTool = 'attw' | 'boundary' | 'publint';
+
+/**
+ * CLI package check tool selection.
+ */
+export type PackageCheckToolSelection = PackageCheckTool | 'all';
+
+/**
+ * Are The Types Wrong profile used for package type resolution checks.
+ */
+export type PackageAttwProfile = 'esm-only' | 'node16' | 'strict';
+
+/**
+ * publint package check settings.
+ */
+export interface PackagePublintCheckConfig {
   /**
-   * Built package directory to scan, relative to `workspace.rootDir`.
+   * Whether publint should run in strict mode.
+   *
+   * @default true
    */
-  distDir: string;
+  strict?: boolean;
+}
+
+/**
+ * Are The Types Wrong package check settings.
+ */
+export interface PackageAttwCheckConfig {
+  /**
+   * Problem profile to enforce.
+   *
+   * `esm-only` ignores CJS resolution failures for pure ESM packages.
+   *
+   * @default "esm-only"
+   */
+  profile?: PackageAttwProfile;
+}
+
+/**
+ * Built package import boundary settings.
+ */
+export interface PackageBoundaryCheckConfig {
   /**
    * Runtime environment for each emitted file.
    *
@@ -328,6 +362,34 @@ export interface PackageBoundaryTarget {
    * not listed in the built package manifest.
    */
   ignoredExternalPackages?: string[];
+}
+
+/**
+ * One published package output to check.
+ */
+export interface PackageCheckTarget {
+  /**
+   * Built package directory to scan, relative to `workspace.rootDir`.
+   */
+  distDir: string;
+  /**
+   * Package check tools enabled for this target.
+   *
+   * @default ["publint", "attw", "boundary"]
+   */
+  checks?: PackageCheckTool[];
+  /**
+   * publint settings for this package output.
+   */
+  publint?: PackagePublintCheckConfig;
+  /**
+   * Are The Types Wrong settings for this package output.
+   */
+  attw?: PackageAttwCheckConfig;
+  /**
+   * Built package import boundary settings.
+   */
+  boundary?: PackageBoundaryCheckConfig;
   /**
    * Friendly target name used by CLI filters and reports.
    *
@@ -337,13 +399,13 @@ export interface PackageBoundaryTarget {
 }
 
 /**
- * Published package boundary audit settings.
+ * Published package check settings.
  */
-export interface PackageBoundaryConfig {
+export interface PackageChecksConfig {
   /**
-   * Built package outputs to audit.
+   * Built package outputs to check.
    */
-  targets?: PackageBoundaryTarget[];
+  targets?: PackageCheckTarget[];
 }
 
 /**
@@ -355,9 +417,9 @@ export interface LatticeConfig {
    */
   graph?: GraphConfig;
   /**
-   * Rules for checking built package imports against package manifests.
+   * Rules for checking built package outputs before publishing.
    */
-  packageBoundary?: PackageBoundaryConfig;
+  packageChecks?: PackageChecksConfig;
   /**
    * Options for generating TypeScript source `paths` compatibility files.
    */
@@ -382,7 +444,7 @@ export interface LatticeConfig {
 export type LatticeCommand =
   | 'check'
   | 'graph'
-  | 'package-boundary'
+  | 'package'
   | 'paths'
   | 'proof'
   | (string & {});
@@ -403,9 +465,7 @@ export interface LatticeConfigEnv {
   mode: string;
 }
 
-export type LatticeConfigFnObject = (
-  env: LatticeConfigEnv,
-) => LatticeConfig;
+export type LatticeConfigFnObject = (env: LatticeConfigEnv) => LatticeConfig;
 export type LatticeConfigFnPromise = (
   env: LatticeConfigEnv,
 ) => Promise<LatticeConfig>;

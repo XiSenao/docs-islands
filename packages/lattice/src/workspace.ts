@@ -341,9 +341,7 @@ export function getDependencySections(
     importer.devDependencies,
     importer.optionalDependencies,
     importer.peerDependencies,
-  ].filter((section): section is Record<string, string> =>
-    Boolean(section),
-  );
+  ].filter((section): section is Record<string, string> => Boolean(section));
 }
 
 export function isWorkspaceDependencySpecifier(specifier: string): boolean {

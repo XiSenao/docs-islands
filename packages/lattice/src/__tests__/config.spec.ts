@@ -16,12 +16,36 @@ describe('defineConfig', () => {
         packagePatterns: ['packages/*'],
       },
       pipelines: {
+        package: ['package:check'],
         typecheck: ['graph:check'],
+      },
+      packageChecks: {
+        targets: [
+          {
+            attw: {
+              profile: 'esm-only',
+            },
+            boundary: {
+              ignoredExternalPackages: ['@example/allowed'],
+            },
+            checks: ['publint', 'attw', 'boundary'],
+            distDir: 'packages/core/dist',
+            name: '@example/core',
+            publint: {
+              strict: true,
+            },
+          },
+        ],
       },
     });
 
     expect(config.workspace?.packagePatterns).toEqual(['packages/*']);
-    expect(config.pipelines?.typecheck).toEqual(['graph:check']);
+    expect(config.pipelines?.package).toEqual(['package:check']);
+    expect(config.packageChecks?.targets?.[0]?.checks).toEqual([
+      'publint',
+      'attw',
+      'boundary',
+    ]);
   });
 
   it('returns config factories unchanged', async () => {

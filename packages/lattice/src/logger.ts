@@ -7,9 +7,7 @@ const logger = createLogger({
 
 export const CliLogger = logger.getLoggerByGroup('task.cli');
 export const GraphLogger = logger.getLoggerByGroup('task.graph');
-export const PackageBoundaryLogger = logger.getLoggerByGroup(
-  'task.package-boundary',
-);
+export const PackageLogger = logger.getLoggerByGroup('task.package');
 export const PathsLogger = logger.getLoggerByGroup('task.paths');
 export const ProofLogger = logger.getLoggerByGroup('task.proof');
 

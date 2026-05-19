@@ -1,10 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   // Test build leaf for logger unit tests and test-only fixtures.
-  "extends": [
-    "./tsconfig.test.json",
-    "../../tsconfig.graph.base.json"
-  ],
+  "extends": ["./tsconfig.test.json", "../../tsconfig.graph.base.json"],
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "./.tsbuild",

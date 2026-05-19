@@ -46,9 +46,12 @@
     "clean": "del-cli .tsbuild .eslintcache dist coverage node_modules"
   },
   "dependencies": {
+    "@arethetypeswrong/core": "catalog:lint",
     "@docs-islands/logger": "catalog:prod",
+    "@publint/pack": "catalog:lint",
     "cac": "catalog:dev",
     "es-module-lexer": "catalog:dev",
+    "publint": "catalog:lint",
     "tinyglobby": "catalog:prod",
     "yaml": "catalog:dev"
   },

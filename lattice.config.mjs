@@ -175,10 +175,10 @@ export default defineConfig({
       },
     ],
   },
-  // Published package boundary checks. These scan dist output to make sure
-  // runtime imports match package.json and browser/node boundaries.
-  packageBoundary: {
-    // Each target is one built package output to audit.
+  // Published package checks. These validate the actual dist output that
+  // consumers install: package exports, type resolution, and import boundaries.
+  packageChecks: {
+    // Each target is one built package output to check.
     targets: [
       {
         name: '@docs-islands/logger',
@@ -187,9 +187,11 @@ export default defineConfig({
       {
         name: '@docs-islands/vitepress',
         distDir: 'packages/vitepress/dist',
-        // vitepress dist currently references utils, but this dependency is
-        // handled separately at the publish boundary.
-        ignoredExternalPackages: ['@docs-islands/utils'],
+        boundary: {
+          // vitepress dist currently references utils, but this dependency is
+          // handled separately at the publish boundary.
+          ignoredExternalPackages: ['@docs-islands/utils'],
+        },
       },
     ],
   },
@@ -259,9 +261,9 @@ export default defineConfig({
         args: ['--dir', 'packages/vitepress/smoke', 'typecheck:test'],
       },
     ],
-    // Package-boundary-only audit for dist output.
-    package: ['package-boundary:check'],
+    // Package artifact checks for dist output.
+    package: ['package:check'],
     // Governance checks to run before publishing.
-    publish: ['graph:check', 'proof:check', 'package-boundary:check'],
+    publish: ['graph:check', 'proof:check', 'package:check'],
   },
 });

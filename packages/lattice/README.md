@@ -87,11 +87,14 @@ export default defineConfig({
       },
     ],
   },
-  packageBoundary: {
+  packageChecks: {
     targets: [
       {
         name: '@acme/core',
         distDir: 'packages/core/dist',
+        boundary: {
+          ignoredExternalPackages: ['@acme/runtime-shim'],
+        },
       },
     ],
   },
@@ -105,7 +108,7 @@ export default defineConfig({
         args: ['-b', 'tsconfig.graph.json', '--pretty', 'false'],
       },
     ],
-    package: ['package-boundary:check'],
+    package: ['package:check'],
   },
 });
 ```
@@ -124,7 +127,7 @@ Run checks:
 
 ```sh
 pnpm typecheck
-pnpm exec lattice package-boundary check --package @acme/core
+pnpm exec lattice package check --package @acme/core
 ```
 
 ## CLI
@@ -133,17 +136,18 @@ pnpm exec lattice package-boundary check --package @acme/core
 lattice [--config lattice.config.mjs] [--mode mode] <command>
 ```
 
-| Command                                           | Description                                                                                  |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `lattice check <pipeline>`                        | Run a named pipeline from `pipelines`.                                                       |
-| `lattice paths generate`                          | Generate compatibility source paths for artifact-facing `workspace:*` exports.               |
-| `lattice paths check`                             | Check that generated compatibility path files are up to date.                                |
-| `lattice graph check`                             | Validate project references and architecture import rules.                                   |
-| `lattice proof check`                             | Prove workspace typecheck targets are covered by root graph, sidecars, or allowlist entries. |
-| `lattice package-boundary check`                  | Audit all configured published package boundary targets.                                     |
-| `lattice package-boundary check --package <name>` | Audit one package boundary target by configured `name`.                                      |
+| Command                                  | Description                                                                                  |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `lattice check <pipeline>`               | Run a named pipeline from `pipelines`.                                                       |
+| `lattice paths generate`                 | Generate compatibility source paths for artifact-facing `workspace:*` exports.               |
+| `lattice paths check`                    | Check that generated compatibility path files are up to date.                                |
+| `lattice graph check`                    | Validate project references and architecture import rules.                                   |
+| `lattice proof check`                    | Prove workspace typecheck targets are covered by root graph, sidecars, or allowlist entries. |
+| `lattice package check`                  | Run configured publint, ATTW, and boundary checks for published package outputs.             |
+| `lattice package check --package <name>` | Check one package target by configured `name`.                                               |
+| `lattice package check --tool <tool>`    | Run one package check tool: `publint`, `attw`, or `boundary`.                                |
 
-Graph, proof, and package-boundary checks are read-only. `lattice paths generate` writes generated config files; `lattice paths check` only reports stale generated files. `lattice paths apply` is kept as a compatibility alias for `generate`.
+Graph, proof, and package checks are read-only. `lattice paths generate` writes generated config files; `lattice paths check` only reports stale generated files. `lattice paths apply` is kept as a compatibility alias for `generate`.
 
 ## Configuration
 
@@ -151,11 +155,11 @@ Graph, proof, and package-boundary checks are read-only. `lattice paths generate
 
 ### `workspace`
 
-| Field             | Description                                                                             |
-| ----------------- | --------------------------------------------------------------------------------------- |
-| `rootDir`         | Repository root relative to the config file. Defaults to `.`.                           |
-| `packagePatterns` | Additional workspace package globs.                                                     |
-| `ignore`          | Extra glob ignores for workspace package discovery.                                     |
+| Field             | Description                                                   |
+| ----------------- | ------------------------------------------------------------- |
+| `rootDir`         | Repository root relative to the config file. Defaults to `.`. |
+| `packagePatterns` | Additional workspace package globs.                           |
+| `ignore`          | Extra glob ignores for workspace package discovery.           |
 
 Lattice prefers pnpm's recursive package list and also reads package globs from the fixed `pnpm-workspace.yaml` file for fallback discovery and extra configured patterns.
 
@@ -219,16 +223,19 @@ project validation and catches orphan build configs.
 | `allowlist`               | Explicit files allowed outside graph/sidecar coverage, each with a reason.              |
 | `sourceFilePattern`       | File pattern included in coverage accounting.                                           |
 
-### `packageBoundary`
+### `packageChecks`
 
-Package boundary checks inspect built JavaScript modules under configured dist directories.
+Package checks inspect built package outputs under configured dist directories.
 
-| Field                               | Description                                                                                  |
-| ----------------------------------- | -------------------------------------------------------------------------------------------- |
-| `targets[].name`                    | Target name used by `--package`. Usually the package name.                                   |
-| `targets[].distDir`                 | Directory containing built package files and `package.json`.                                 |
-| `targets[].environment`             | Fixed environment or function that classifies files as `browser`, `node`, or another string. |
-| `targets[].ignoredExternalPackages` | Extra package roots allowed even when not listed in the built manifest dependencies.         |
+| Field                                        | Description                                                                                  |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `targets[].name`                             | Target name used by `--package`. Usually the package name.                                   |
+| `targets[].distDir`                          | Directory containing built package files and `package.json`.                                 |
+| `targets[].checks`                           | Enabled tools: `publint`, `attw`, and/or `boundary`. Defaults to all three.                  |
+| `targets[].publint.strict`                   | Whether publint runs in strict mode. Defaults to `true`.                                     |
+| `targets[].attw.profile`                     | ATTW profile: `strict`, `node16`, or `esm-only`. Defaults to `esm-only`.                     |
+| `targets[].boundary.environment`             | Fixed environment or function that classifies files as `browser`, `node`, or another string. |
+| `targets[].boundary.ignoredExternalPackages` | Extra package roots allowed even when not listed in the built manifest dependencies.         |
 
 By default, files under `node/` or `plugin/` are treated as Node output; other files are treated as browser/runtime output.
 
@@ -254,7 +261,7 @@ Built-in task strings:
 
 - `graph:check`
 - `proof:check`
-- `package-boundary:check`
+- `package:check`
 
 Command steps run from `workspace.rootDir` by default and inherit `process.env`. Use `cwd` and `env` to override.
 

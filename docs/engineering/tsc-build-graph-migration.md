@@ -354,12 +354,8 @@ builds:
   `tsconfig.check.json` and includes `dist/**/*`.
 - `packages/vitepress/package.json` `build-types-check`, currently
   `tsc -p tsconfig.check.json`.
-- `packages/logger` package lint scripts:
-  `lint:package`, `lint:package:publint`, `lint:package:attw`, and
-  `lint:package:boundary`.
-- `packages/vitepress` package lint scripts:
-  `lint:package`, `lint:package:publint`, `lint:package:attw`, and
-  `lint:package:boundary`.
+- `lattice package check`, including its `publint`, `attw`, and `boundary`
+  package artifact checks.
 - Release checks that verify `dist/package.json` version and run
   `npm pack --dry-run`.
 - Smoke checks that intentionally consume packed or dist-linked outputs.

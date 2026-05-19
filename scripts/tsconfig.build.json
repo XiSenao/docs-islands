@@ -1,10 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   // Tools build leaf for root scripts; not a production library project.
-  "extends": [
-    "./tsconfig.json",
-    "../tsconfig.graph.base.json"
-  ],
+  "extends": ["./tsconfig.json", "../tsconfig.graph.base.json"],
   "compilerOptions": {
     "outDir": "./.tsbuild",
     "tsBuildInfoFile": "./.tsbuild/build.tsbuildinfo"
