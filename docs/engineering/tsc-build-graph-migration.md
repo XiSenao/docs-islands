@@ -14,27 +14,27 @@ Permanent ownership rules and the full tsconfig inventory now live in
 ## Current Typecheck Commands
 
 The root `pnpm typecheck` command is now the primary TypeScript source graph
-check. It checks graph path freshness, validates graph references, runs the
-full `tsc -b` graph, then runs the Vue SFC checks.
+check. It runs the full graph check, then runs the Vue SFC checks.
 
 - `pnpm typecheck`: primary local and CI check. It verifies graph path
   freshness, validates graph references, runs `tsc -b`, and then runs the Vue
   SFC checks.
-- `pnpm tsconfig:graph:paths`: regenerates the checked-in
+- `pnpm typecheck:paths`: regenerates the local
   `tsconfig.graph.paths.generated.json` file after package exports/imports or
   workspace layout changes.
-- `pnpm tsconfig:graph:paths:check`: verifies that the checked-in graph path map
-  is up to date without writing files.
-- `pnpm typecheck:graph`: fast graph build check. It verifies
-  `tsconfig.graph.paths.generated.json` freshness, then runs the default graph
-  build through `tsc -b tsconfig.graph.json --pretty false`.
-- `pnpm typecheck:graph:strict`: graph build check plus the integrity checker.
-  Use this when adding graph-owned cross-project imports or graph projects.
-- `pnpm typecheck:graph:lib`: production library/runtime declaration graph
-  check through `tsconfig.graph.lib.json`.
+- `pnpm typecheck:graph`: default graph check. It verifies
+  `tsconfig.graph.paths.generated.json` freshness, validates graph references
+  and architecture rules, then runs the default graph build through
+  `tsc -b tsconfig.graph.json --pretty false`.
+- `pnpm typecheck:lib`: production library/runtime declaration graph
+  check through `tsconfig.lib.graph.json`.
 - `pnpm typecheck:vue`: Vue SFC/template checks for `docs/tsconfig.json`,
   `packages/vitepress/docs/tsconfig.json`, and
   `packages/vitepress/theme/tsconfig.json`.
+
+Pass one-off build-mode flags directly to `typecheck:graph` when needed, for
+example `pnpm typecheck:graph -- --force` or
+`pnpm typecheck:graph -- --verbose`.
 
 Run `vue-tsc` through `pnpm typecheck:vue` or the package-local Vue scripts
 whenever changing `.vue` files, VitePress theme files, or docs theme code.
@@ -135,17 +135,17 @@ tsconfig.json
   -> tsconfig.graph.json
 
 tsconfig.graph.json
-  -> tsconfig.graph.lib.json
+  -> tsconfig.lib.graph.json
   -> scripts/tsconfig.build.json
   -> utils/tsconfig.graph.json
   -> packages/*/tsconfig.graph.json
 
-tsconfig.graph.lib.json
+tsconfig.lib.graph.json
   -> utils/tsconfig.lib.build.json
   -> packages/*/tsconfig.lib.build.json
-  -> packages/vitepress/tsconfig.graph.lib.json
+  -> packages/vitepress/tsconfig.lib.graph.json
 
-packages/vitepress/tsconfig.graph.lib.json
+packages/vitepress/tsconfig.lib.graph.json
   -> src/shared/tsconfig.build.json
   -> src/node/tsconfig.build.json
   -> src/client/tsconfig.build.json

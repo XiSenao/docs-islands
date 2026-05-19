@@ -358,8 +358,8 @@ function getProjectKind(configPath: string): ProjectKind {
 
   if (
     normalized === 'tsconfig.graph.json' ||
-    normalized === 'tsconfig.graph.lib.json' ||
-    normalized.endsWith('/tsconfig.graph.lib.json')
+    normalized === 'tsconfig.lib.graph.json' ||
+    normalized.endsWith('/tsconfig.lib.graph.json')
   ) {
     return 'solution';
   }
@@ -927,7 +927,7 @@ function main(): void {
                   `  file: ${toRelativePath(importRecord.filePath)}:${importRecord.line}`,
                   `  imported specifier: ${importRecord.specifier}`,
                   `  resolved file: ${toRelativePath(resolvedFilePath)}`,
-                  '  reason: generated TypeScript graph paths may be stale; run `pnpm tsconfig:graph:paths`.',
+                  '  reason: generated TypeScript graph paths may be stale; run `pnpm typecheck:paths`.',
                 ].join('\n'),
               );
             }

@@ -43,6 +43,7 @@ interface GeneratedConfig {
 }
 
 interface GenerateOptions {
+  check?: boolean;
   ensure?: boolean;
 }
 
@@ -80,6 +81,8 @@ const internalPackageScope = '@docs-islands/';
 const generatedFileMarker = 'GENERATED FILE - DO NOT EDIT BY HAND.';
 const stalePathsMessage =
   'TypeScript graph path state may be stale; updating generated paths and build config extends.\n';
+const stalePathsCheckMessage =
+  'TypeScript graph path state is stale; run `pnpm typecheck:paths` to update generated paths and build config extends.\n';
 const buildConfigPattern = '**/tsconfig*.build.json';
 const formatDiagnosticsHost: ts.FormatDiagnosticsHost = {
   getCanonicalFileName: (fileName) => fileName,
@@ -615,7 +618,7 @@ async function formatGeneratedConfig(
   /**
    * ${generatedFileMarker}
    *
-   * Run \`pnpm tsconfig:graph:paths\` to regenerate this file from pnpm-lock
+   * Run \`pnpm typecheck:paths\` to regenerate this file from pnpm-lock
    * importer workspace links and package exports/imports.
    */
   "compilerOptions": {
@@ -843,6 +846,36 @@ async function writeGeneratedConfigs(
   }
 
   return didChange;
+}
+
+async function checkGeneratedConfigs(
+  generatedConfigs: GeneratedConfig[],
+): Promise<boolean> {
+  const expectedOutputPaths = new Set(
+    generatedConfigs.map((config) => path.resolve(config.outputPath)),
+  );
+
+  for (const existingFile of await collectExistingGeneratedConfigPaths()) {
+    if (expectedOutputPaths.has(existingFile)) {
+      continue;
+    }
+
+    if (await isGeneratedTsconfigPathsFile(existingFile)) {
+      return true;
+    }
+  }
+
+  for (const generatedConfig of generatedConfigs) {
+    const currentContent = await readCurrentGeneratedConfig(
+      generatedConfig.outputPath,
+    );
+
+    if (currentContent !== generatedConfig.content) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 async function collectBuildConfigPaths(): Promise<string[]> {
@@ -1197,8 +1230,44 @@ async function updateBuildConfigExtends(
   };
 }
 
+async function checkBuildConfigExtends(
+  configPath: string,
+  expectedGeneratedConfigPath: string | null,
+): Promise<BuildConfigExtendsUpdateResult> {
+  const content = await readFile(configPath, 'utf8');
+  const sourceFile = parseJsonSourceFile(configPath, content);
+  const objectExpression = getTopLevelObjectExpression(sourceFile);
+  const extendsProperty = findPropertyAssignment(objectExpression, 'extends');
+  const existingValues = readExtendsValues(configPath, extendsProperty);
+  const existingGeneratedValues = existingValues.filter(
+    isGeneratedConfigExtendsReference,
+  );
+  const nonGeneratedValues = existingValues.filter(
+    (value) => !isGeneratedConfigExtendsReference(value),
+  );
+  const expectedGeneratedValue = expectedGeneratedConfigPath
+    ? toTsconfigExtendsPath(configPath, expectedGeneratedConfigPath)
+    : null;
+  const nextValues = expectedGeneratedValue
+    ? [expectedGeneratedValue, ...nonGeneratedValues]
+    : nonGeneratedValues;
+  const retainedGeneratedCount =
+    expectedGeneratedValue &&
+    existingGeneratedValues.includes(expectedGeneratedValue)
+      ? 1
+      : 0;
+
+  return {
+    changed: !areStringArraysEqual(existingValues, nextValues),
+    injectedCount:
+      expectedGeneratedValue && retainedGeneratedCount === 0 ? 1 : 0,
+    removedCount: existingGeneratedValues.length - retainedGeneratedCount,
+  };
+}
+
 async function maintainBuildConfigExtends(
   generatedConfigs: GeneratedConfig[],
+  options: { check?: boolean } = {},
 ): Promise<BuildConfigExtendsMaintenanceResult> {
   const [buildConfigPaths, importerDirectories] = await Promise.all([
     collectBuildConfigPaths(),
@@ -1219,7 +1288,9 @@ async function maintainBuildConfigExtends(
     const expectedGeneratedConfigPath = owningImporterDirectory
       ? path.resolve(rootDir, owningImporterDirectory, generatedConfigFileName)
       : null;
-    const updateResult = await updateBuildConfigExtends(
+    const updateResult = await (
+      options.check ? checkBuildConfigExtends : updateBuildConfigExtends
+    )(
       configPath,
       expectedGeneratedConfigPath &&
         expectedGeneratedConfigPaths.has(expectedGeneratedConfigPath)
@@ -1249,10 +1320,13 @@ export async function runGenerateTsconfigGraphPaths(
   options: GenerateOptions = {},
 ): Promise<GenerateResult> {
   const generatedConfigs = await collectGeneratedConfigs();
-  const generatedConfigsDidChange =
-    await writeGeneratedConfigs(generatedConfigs);
-  const buildConfigExtendsMaintenance =
-    await maintainBuildConfigExtends(generatedConfigs);
+  const generatedConfigsDidChange = options.check
+    ? await checkGeneratedConfigs(generatedConfigs)
+    : await writeGeneratedConfigs(generatedConfigs);
+  const buildConfigExtendsMaintenance = await maintainBuildConfigExtends(
+    generatedConfigs,
+    { check: options.check },
+  );
   const didChange =
     generatedConfigsDidChange || buildConfigExtendsMaintenance.changed;
   const aliasCount = generatedConfigs.reduce(
@@ -1264,16 +1338,28 @@ export async function runGenerateTsconfigGraphPaths(
     process.stdout.write(stalePathsMessage);
   }
 
-  const generatedConfigsAction = generatedConfigsDidChange
-    ? 'Generated'
-    : 'Skipped unchanged';
+  if (options.check && didChange) {
+    process.stdout.write(stalePathsCheckMessage);
+  }
+
+  const generatedConfigsAction = options.check
+    ? generatedConfigsDidChange
+      ? 'Would update'
+      : 'Checked unchanged'
+    : generatedConfigsDidChange
+      ? 'Generated'
+      : 'Skipped unchanged';
   process.stdout.write(
     `${generatedConfigsAction} ${generatedConfigs.length} TypeScript graph path config files with ${aliasCount} path aliases.\n`,
   );
 
-  const buildConfigExtendsAction = buildConfigExtendsMaintenance.changed
-    ? 'Updated'
-    : 'Skipped unchanged';
+  const buildConfigExtendsAction = options.check
+    ? buildConfigExtendsMaintenance.changed
+      ? 'Would update'
+      : 'Checked unchanged'
+    : buildConfigExtendsMaintenance.changed
+      ? 'Updated'
+      : 'Skipped unchanged';
   process.stdout.write(
     `${buildConfigExtendsAction} ${buildConfigExtendsMaintenance.checkedCount} TypeScript build config extends lists (${buildConfigExtendsMaintenance.injectedCount} injected, ${buildConfigExtendsMaintenance.removedCount} removed).\n`,
   );
@@ -1289,13 +1375,20 @@ export async function runGenerateTsconfigGraphPaths(
 
 function parseCliOptions(): GenerateOptions {
   const args = process.argv.slice(2);
-  const unknownArgs = args.filter((arg) => arg !== '--ensure');
+  const unknownArgs = args.filter(
+    (arg) => arg !== '--ensure' && arg !== '--check',
+  );
 
   if (unknownArgs.length > 0) {
     throw new Error(`Unknown option: ${unknownArgs.join(', ')}`);
   }
 
+  if (args.includes('--check') && args.includes('--ensure')) {
+    throw new Error('Use either --check or --ensure, not both.');
+  }
+
   return {
+    check: args.includes('--check'),
     ensure: args.includes('--ensure'),
   };
 }
@@ -1309,10 +1402,18 @@ function isDirectRun(): boolean {
 }
 
 if (isDirectRun()) {
-  runGenerateTsconfigGraphPaths(parseCliOptions()).catch((error: unknown) => {
-    process.stderr.write(
-      `${error instanceof Error ? error.message : String(error)}\n`,
-    );
-    process.exit(1);
-  });
+  const options = parseCliOptions();
+
+  runGenerateTsconfigGraphPaths(options)
+    .then((result) => {
+      if (options.check && result.changed) {
+        process.exit(1);
+      }
+    })
+    .catch((error: unknown) => {
+      process.stderr.write(
+        `${error instanceof Error ? error.message : String(error)}\n`,
+      );
+      process.exit(1);
+    });
 }

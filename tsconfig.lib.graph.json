@@ -19,7 +19,7 @@
       "path": "./packages/eslint-config/tsconfig.lib.build.json"
     },
     {
-      "path": "./packages/vitepress/tsconfig.graph.lib.json"
+      "path": "./packages/vitepress/tsconfig.lib.graph.json"
     }
   ]
 }

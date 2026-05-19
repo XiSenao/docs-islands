@@ -6,20 +6,19 @@ into each other.
 
 ## Commands
 
-- `pnpm typecheck` checks graph path freshness, validates graph references,
-  runs the full `tsc -b` graph, then runs the Vue SFC checks.
-- `pnpm tsconfig:graph:paths` regenerates the checked-in graph path map from
-  workspace package exports/imports.
-- `pnpm tsconfig:graph:paths:check` verifies that the checked-in graph path map
-  is up to date without writing files.
-- `pnpm typecheck:graph` checks graph path freshness and runs
-  `tsc -b tsconfig.graph.json --pretty false`.
-- `pnpm typecheck:graph:strict` checks graph path freshness, verifies graph
-  references and architecture rules, then runs the full graph check.
-- `pnpm typecheck:graph:lib` checks only the production library/runtime
-  declaration graph through `tsconfig.graph.lib.json`.
+- `pnpm typecheck` runs the full graph check, then runs the Vue SFC checks.
+- `pnpm typecheck:paths` regenerates the local graph path map from workspace
+  package exports/imports.
+- `pnpm typecheck:graph` checks graph path freshness, verifies graph references
+  and architecture rules, then runs `tsc -b tsconfig.graph.json --pretty false`.
+- `pnpm typecheck:lib` checks only the production library/runtime declaration
+  graph through `tsconfig.lib.graph.json`.
 - `pnpm typecheck:vue` runs `vue-tsc` for docs, VitePress docs, and the
   VitePress theme.
+
+Pass one-off build-mode flags directly to `typecheck:graph` when needed, for
+example `pnpm typecheck:graph -- --force` or
+`pnpm typecheck:graph -- --verbose`.
 
 Do not add dist artifact checks to normal `pnpm typecheck` unless the command
 also builds the corresponding dist output first.
@@ -36,7 +35,7 @@ packages/*/tsconfig.json
 tsconfig.graph.json
   default full TypeScript graph: production graph + tools + tests + fixtures
 
-tsconfig.graph.lib.json
+tsconfig.lib.graph.json
   production library/runtime declaration graph
 
 tsconfig.graph.base.json
@@ -75,10 +74,11 @@ paths, direct references, and any intentional source-boundary overrides.
 - `.tsbuild/` is transient graph cache only. Root tools use the root cache;
   workspace/package build leaves use owner-local `.tsbuild/` directories.
   These caches must stay ignored and must not be published or committed.
-- `tsconfig.graph.paths.generated.json` is a checked-in generated artifact.
-  Regenerate it with `pnpm tsconfig:graph:paths` after changing package
-  exports, package imports, or workspace package layout; typecheck commands
-  only verify freshness and do not write it.
+- `tsconfig.graph.paths.generated.json` is a local generated artifact.
+  `postinstall` regenerates it after dependency installs; run
+  `pnpm typecheck:paths` after changing package exports, package imports, or
+  workspace package layout. Typecheck commands only verify freshness and do not
+  write it.
 
 The `scripts/check-ts-project-graph.ts` checker enforces missing references,
 forbidden project references, forbidden graph imports, and forbidden Node
@@ -87,7 +87,7 @@ builtin imports for client/shared runtime graph leaves.
 ## Naming Policy
 
 - root `tsconfig.graph.json` is the default full-check graph aggregator.
-- `tsconfig.graph.lib.json` is an optional production lib graph aggregator.
+- `tsconfig.lib.graph.json` is an optional production lib graph aggregator.
 - package/domain `tsconfig.graph.json` files are package graph aggregators.
 - package-local `tsconfig.json` files are source/editor checks and package
   script entrypoints, not native build graph leaves.
@@ -114,7 +114,7 @@ native graph references the adjacent `tsconfig.build.json` files.
 | ------------------------------------------------------------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------- |
 | `tsconfig.json`                                                                                         | solution        | Editor-facing solution that points at `tsconfig.graph.json`.                             |
 | `tsconfig.graph.json`                                                                                   | solution        | Default full graph check entry for root scripts, packages, tests, playground, and smoke. |
-| `tsconfig.graph.lib.json`                                                                               | solution        | Production library/runtime declaration graph entry.                                      |
+| `tsconfig.lib.graph.json`                                                                               | solution        | Production library/runtime declaration graph entry.                                      |
 | `tsconfig.graph.base.json`                                                                              | build base      | Shared generated paths and build-mode overlay for build leaves.                          |
 | `tsconfig.graph.paths.generated.json`                                                                   | generated paths | Generated relative `paths` only.                                                         |
 | `scripts/tsconfig.build.json`                                                                           | tools leaf      | Root scripts tooling build leaf.                                                         |
@@ -127,7 +127,7 @@ native graph references the adjacent `tsconfig.build.json` files.
 | `packages/*/tsconfig.lib.build.json`                                                                    | lib leaf        | Package production source graph.                                                         |
 | `packages/*/tsconfig.tools.build.json`                                                                  | tools leaf      | Package tooling/build-config graph.                                                      |
 | `packages/*/tsconfig.test.build.json`                                                                   | test leaf       | Package test graph.                                                                      |
-| `packages/vitepress/tsconfig.graph.lib.json`                                                            | lib aggregator  | VitePress production runtime/type graph.                                                 |
+| `packages/vitepress/tsconfig.lib.graph.json`                                                            | lib aggregator  | VitePress production runtime/type graph.                                                 |
 | `packages/vitepress/tsconfig.test.build.json`                                                           | test leaf       | VitePress package test graph.                                                            |
 | `packages/vitepress/src/shared/tsconfig.build.json`                                                     | runtime leaf    | Universal shared runtime graph; no Node ambient types.                                   |
 | `packages/vitepress/src/node/tsconfig.build.json`                                                       | runtime leaf    | Node runtime graph.                                                                      |

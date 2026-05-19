@@ -4,7 +4,7 @@
   "files": [],
   "references": [
     {
-      "path": "./tsconfig.graph.lib.json"
+      "path": "./tsconfig.lib.graph.json"
     },
     {
       "path": "./scripts/tsconfig.build.json"
