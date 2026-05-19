@@ -27,7 +27,7 @@
     "vue-tsc": "catalog:dev",
     "http-proxy": "catalog:docs-dev",
     "magic-string": "catalog:dev",
-    "@docs-islands/utils": "workspace:*",
+    "@docs-islands/utils": "link:../utils/dist",
     "picocolors": "catalog:dev",
     "picomatch": "catalog:prod",
     "unplugin": "catalog:prod",

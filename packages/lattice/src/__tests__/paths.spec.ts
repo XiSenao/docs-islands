@@ -1,0 +1,215 @@
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { runGraphCheck } from '../commands/graph';
+import { runPaths } from '../commands/paths';
+import type { ResolvedLatticeConfig } from '../config';
+
+async function writeText(filePath: string, text: string): Promise<void> {
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, text);
+}
+
+async function createFixture(files: Record<string, string>): Promise<{
+  cleanup: () => Promise<void>;
+  config: ResolvedLatticeConfig;
+  rootDir: string;
+}> {
+  const rootDir = await realpath(
+    await mkdtemp(path.join(tmpdir(), 'lattice-paths-')),
+  );
+
+  for (const [relativePath, text] of Object.entries(files)) {
+    await writeText(path.join(rootDir, relativePath), text);
+  }
+
+  return {
+    cleanup: async () => {
+      await rm(rootDir, {
+        force: true,
+        recursive: true,
+      });
+    },
+    config: {
+      configPath: path.join(rootDir, 'lattice.config.mjs'),
+      graph: {
+        rootConfig: 'tsconfig.graph.json',
+      },
+      rootDir,
+      workspace: {
+        internalScopes: ['@example/'],
+      },
+    },
+    rootDir,
+  };
+}
+
+function stringifyConfig(value: unknown): string {
+  return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+const buildCompilerOptions = {
+  composite: true,
+  declaration: true,
+  emitDeclarationOnly: true,
+  module: 'ESNext',
+  moduleResolution: 'bundler',
+  noEmit: false,
+  outDir: './.tsbuild',
+  strict: true,
+  target: 'ES2023',
+  types: [],
+};
+
+function createWorkspaceExportFixture(): Record<string, string> {
+  return {
+    'packages/a/package.json': stringifyConfig({
+      dependencies: {
+        '@example/b': 'workspace:*',
+      },
+      name: '@example/a',
+      type: 'module',
+    }),
+    'packages/a/src/index.ts':
+      "import { value } from '@example/b';\nimport { feature } from '@example/b/features/foo';\nexport const result = value + feature;\n",
+    'packages/a/tsconfig.lib.build.json': stringifyConfig({
+      compilerOptions: {
+        ...buildCompilerOptions,
+        rootDir: 'src',
+        tsBuildInfoFile: './.tsbuild/lib.tsbuildinfo',
+      },
+      include: ['src/**/*.ts'],
+      references: [
+        {
+          path: '../b/tsconfig.lib.build.json',
+        },
+      ],
+    }),
+    'packages/b/dist/features/foo.d.ts':
+      'export declare const feature: number;\n',
+    'packages/b/dist/features/foo.js': 'export const feature = 1;\n',
+    'packages/b/dist/index.d.ts': 'export declare const value: number;\n',
+    'packages/b/dist/index.js': 'export const value = 1;\n',
+    'packages/b/package.json': stringifyConfig({
+      exports: {
+        '.': './dist/index.js',
+        './features/*': './dist/features/*.js',
+      },
+      name: '@example/b',
+      type: 'module',
+    }),
+    'packages/b/src/features/foo.ts': 'export const feature = 1;\n',
+    'packages/b/src/index.ts': 'export const value = 1;\n',
+    'packages/b/tsconfig.lib.build.json': stringifyConfig({
+      compilerOptions: {
+        ...buildCompilerOptions,
+        rootDir: 'src',
+        tsBuildInfoFile: './.tsbuild/lib.tsbuildinfo',
+      },
+      include: ['src/**/*.ts'],
+    }),
+    'pnpm-lock.yaml': `
+lockfileVersion: '9.0'
+importers:
+  .: {}
+  packages/a:
+    dependencies:
+      '@example/b':
+        specifier: workspace:*
+        version: link:../b
+  packages/b: {}
+`,
+    'pnpm-workspace.yaml': `
+packages:
+  - packages/*
+`,
+    'tsconfig.graph.json': stringifyConfig({
+      files: [],
+      references: [
+        {
+          path: './packages/b/tsconfig.lib.build.json',
+        },
+        {
+          path: './packages/a/tsconfig.lib.build.json',
+        },
+      ],
+    }),
+  };
+}
+
+describe('runPaths', () => {
+  it('generates source paths for referenced workspace deps whose exports point to dist', async () => {
+    const fixture = await createFixture(createWorkspaceExportFixture());
+    const generatedPath = path.join(
+      fixture.rootDir,
+      'packages/a/tsconfig.graph.paths.generated.json',
+    );
+    const aBuildConfigPath = path.join(
+      fixture.rootDir,
+      'packages/a/tsconfig.lib.build.json',
+    );
+
+    try {
+      await mkdir(
+        path.join(fixture.rootDir, 'packages/a/node_modules/@example'),
+        {
+          recursive: true,
+        },
+      );
+      await symlink(
+        '../../../b',
+        path.join(fixture.rootDir, 'packages/a/node_modules/@example/b'),
+      );
+
+      await expect(runGraphCheck(fixture.config)).resolves.toBe(false);
+
+      await expect(runPaths(fixture.config)).resolves.toMatchObject({
+        aliasCount: 2,
+        outputCount: 1,
+        suggestionCount: 1,
+      });
+
+      await expect(readFile(generatedPath, 'utf8')).resolves.toContain(
+        '"@example/b": ["../b/src/index.ts"]',
+      );
+      await expect(readFile(generatedPath, 'utf8')).resolves.toContain(
+        '"@example/b/features/*": ["../b/src/features/*.ts"]',
+      );
+      await expect(readFile(aBuildConfigPath, 'utf8')).resolves.not.toContain(
+        'tsconfig.graph.paths.generated.json',
+      );
+      await expect(runGraphCheck(fixture.config)).resolves.toBe(false);
+
+      await writeText(
+        aBuildConfigPath,
+        stringifyConfig({
+          extends: ['./tsconfig.graph.paths.generated.json'],
+          compilerOptions: {
+            ...buildCompilerOptions,
+            rootDir: 'src',
+            tsBuildInfoFile: './.tsbuild/lib.tsbuildinfo',
+          },
+          include: ['src/**/*.ts'],
+          references: [
+            {
+              path: '../b/tsconfig.lib.build.json',
+            },
+          ],
+        }),
+      );
+
+      await expect(runGraphCheck(fixture.config)).resolves.toBe(true);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+});

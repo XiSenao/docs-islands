@@ -268,7 +268,6 @@ function projectPriority(
     'types',
     'tools',
     'test',
-    'source',
     'solution',
     'unknown',
   ];
@@ -587,6 +586,44 @@ export async function runGraphCheck(
           continue;
         }
 
+        if (
+          targetPackage &&
+          shouldResolveThroughGraph(importer, targetPackage) &&
+          !fileOwnerLookup.has(resolvedFilePath)
+        ) {
+          const referencedProjectPath = inferPackageProject(
+            config,
+            resolvedFilePath,
+            targetPackage,
+            projectPaths,
+          );
+          const hasProjectReference =
+            referencedProjectPath &&
+            project.references.has(referencedProjectPath);
+
+          problems.push(
+            [
+              hasProjectReference
+                ? 'Referenced workspace dependency resolves through package exports to a build artifact:'
+                : 'Workspace source dependency resolved outside the source graph:',
+              `  importing project: ${toRelativePath(config.rootDir, project.configPath)}`,
+              ...(referencedProjectPath
+                ? [
+                    `  referenced project: ${toRelativePath(config.rootDir, referencedProjectPath)}`,
+                    `  project reference present: ${hasProjectReference ? 'yes' : 'no'}`,
+                  ]
+                : []),
+              `  file: ${toRelativePath(config.rootDir, importRecord.filePath)}:${importRecord.line}`,
+              `  imported specifier: ${importRecord.specifier}`,
+              `  resolved file: ${toRelativePath(config.rootDir, resolvedFilePath)}`,
+              '  reason: workspace:* internal dependencies are source dependencies, but TypeScript resolved this package export to a file not owned by the source graph. tsc -b does not rewrite package exports through project references.',
+              '  fix: expose source files from the dependency package exports, add a source paths config to this build config extends, or use link:/catalog:/semver when the dependency should consume built artifacts.',
+              '  hint: run `lattice paths generate` to create a compatibility paths file, then manually add it to the first position of the listed tsconfig*.build.json extends array.',
+            ].join('\n'),
+          );
+          continue;
+        }
+
         const targetProjectPath = findTargetProject({
           config,
           fileOwnerLookup,
@@ -613,7 +650,7 @@ export async function runGraphCheck(
                   `  file: ${toRelativePath(config.rootDir, importRecord.filePath)}:${importRecord.line}`,
                   `  imported specifier: ${importRecord.specifier}`,
                   `  resolved file: ${toRelativePath(config.rootDir, resolvedFilePath)}`,
-                  '  reason: generated TypeScript graph paths may be stale; run `lattice paths apply`.',
+                  '  reason: workspace:* internal dependencies must expose source files through package exports; use link:/catalog:/semver for artifact dependencies.',
                 ].join('\n'),
               );
             }

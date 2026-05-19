@@ -2,7 +2,6 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   // Library build leaf for plugin runtime source; tooling stays in tsconfig.tools.build.json.
   "extends": [
-    "./tsconfig.graph.paths.generated.json",
     "./tsconfig.lib.json",
     "../../../tsconfig.graph.base.json"
   ],

@@ -2,7 +2,6 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   // Test build leaf for core unit tests and test helpers.
   "extends": [
-    "./tsconfig.graph.paths.generated.json",
     "./tsconfig.test.json",
     "../../tsconfig.graph.base.json"
   ],

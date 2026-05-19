@@ -20,7 +20,6 @@ export type PipelineStep =
 export type BuiltinTaskName =
   | 'graph:check'
   | 'package-boundary:check'
-  | 'paths:check'
   | 'proof:check';
 
 export interface WorkspaceConfig {
@@ -31,10 +30,10 @@ export interface WorkspaceConfig {
 }
 
 export interface PathsConfig {
+  artifactDirectories?: string[];
   conditionPriority?: string[];
   generatedFileName?: string;
   generatedFileMarker?: string;
-  ignore?: string[];
   sourceExtensions?: string[];
 }
 
@@ -85,6 +84,7 @@ export interface ProofSidecarTarget {
 
 export interface ProofConfig {
   allowlist?: ProofAllowlistEntry[];
+  ignoredTypecheckTargets?: string[];
   rootSidecarScript?: string;
   sidecarTargets?: ProofSidecarTarget[];
   sourceFilePattern?: string;

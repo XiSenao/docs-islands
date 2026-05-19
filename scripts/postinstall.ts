@@ -30,24 +30,32 @@ function runCommand(
 }
 
 async function main(): Promise<void> {
-  // Graph paths are git-ignored and depend on pnpm's resolved workspace links,
-  // so each install refreshes them from the current lockfile.
-  await runCommand('lattice', ['paths', 'apply']);
+  for (const packageDir of ['utils', 'packages/lattice']) {
+    // These packages are consumed through link:*/dist during local installs.
+    // Build them before refreshing pnpm's generated bin shims below.
+    await runCommand('pnpm', [
+      '--dir',
+      packageDir,
+      'exec',
+      'rolldown',
+      '--config',
+      'rolldown.config.ts',
+    ]);
+  }
 
-  // Utils provides dist files consumed by local package-form imports after
-  // install, so keep the existing postinstall build behavior centralized here.
+  // The first install can run before link:*/dist package manifests exist, so
+  // pnpm cannot create their .bin shims. Re-run install without lifecycle
+  // scripts after the dist builds so commands like `lattice` are linked.
   await runCommand('pnpm', [
-    '--dir',
-    'utils',
-    'exec',
-    'rolldown',
-    '--config',
-    'rolldown.config.ts',
+    'install',
+    '--offline',
+    '--ignore-scripts',
+    '--frozen-lockfile',
   ]);
 
   // The agents package injects local AI tool skills during install; keeping it
   // here makes postinstall ordering explicit and easy to audit.
-  await runCommand('node', ['packages/agents/scripts/link.js'], {
+  await runCommand('pnpm', ['--dir', 'packages/agents', 'run', 'link'], {
     env: {
       ...process.env,
       FORCE_COLOR: '1',

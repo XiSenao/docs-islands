@@ -2,7 +2,6 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   // Tools build leaf. It must be split from lib, otherwise it will cause an error due to circular dependency.
   "extends": [
-    "./tsconfig.graph.paths.generated.json",
     "./tsconfig.tools.json",
     "../../tsconfig.graph.base.json"
   ],
@@ -17,9 +16,6 @@
     },
     {
       "path": "../../utils/tsconfig.lib.build.json"
-    },
-    {
-      "path": "../../packages/plugins/license/tsconfig.lib.build.json"
     }
   ]
 }

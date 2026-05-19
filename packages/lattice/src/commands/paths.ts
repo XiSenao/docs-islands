@@ -1,11 +1,14 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { glob } from 'tinyglobby';
 import ts from 'typescript';
 import type { ResolvedLatticeConfig } from '../config';
 import { PathsLogger } from '../logger';
+import { collectGraphProjectPaths, getRawReferencePaths } from '../tsconfig';
 import {
+  isPathInsideDirectory,
+  normalizeAbsolutePath,
   normalizeSlashes,
   normalizeWorkspacePath,
   toAbsolutePath,
@@ -13,48 +16,39 @@ import {
   toRelativePath,
 } from '../utils/path';
 import {
+  collectImporters,
   collectWorkspacePackages,
-  getDependencySections,
-  isWorkspaceLockfileDependency,
-  readJsonFile,
-  readPnpmLockfile,
-  type LockfileImporter,
-  type PackageManifest,
+  findPackageForSpecifier,
+  isInternalSpecifier,
+  type ImporterInfo,
   type WorkspacePackage,
 } from '../workspace';
 
+interface ProjectInfo {
+  configPath: string;
+  fileNames: string[];
+  options: ts.CompilerOptions;
+  references: Set<string>;
+}
+
+interface ImportRecord {
+  filePath: string;
+  line: number;
+  specifier: string;
+}
+
 interface GeneratedConfig {
   aliasCount: number;
+  configPaths: string[];
   content: string;
   outputPath: string;
 }
 
 interface PathsResult {
   aliasCount: number;
-  buildConfigCount: number;
-  buildConfigExtendsChangedCount: number;
   changed: boolean;
   outputCount: number;
-}
-
-interface TextEdit {
-  end: number;
-  replacement: string;
-  start: number;
-}
-
-interface BuildConfigExtendsUpdateResult {
-  changed: boolean;
-  injectedCount: number;
-  removedCount: number;
-}
-
-interface BuildConfigExtendsMaintenanceResult {
-  changed: boolean;
-  changedCount: number;
-  checkedCount: number;
-  injectedCount: number;
-  removedCount: number;
+  suggestionCount: number;
 }
 
 const defaultSourceExtensions = [
@@ -70,11 +64,20 @@ const defaultSourceExtensions = [
 const defaultConditionPriority = [
   'source',
   'development',
+  'types',
   'import',
   'module',
   'default',
-  'types',
   'require',
+];
+
+const defaultArtifactDirectories = [
+  'dist',
+  'build',
+  'lib',
+  'esm',
+  'cjs',
+  'out',
 ];
 
 function generatedFileName(config: ResolvedLatticeConfig): string {
@@ -89,7 +92,231 @@ function generatedFileMarker(config: ResolvedLatticeConfig): string {
   );
 }
 
-const buildConfigPattern = '**/tsconfig*.build.json';
+function parseProject(
+  config: ResolvedLatticeConfig,
+  configPath: string,
+): ProjectInfo {
+  const diagnostics: ts.Diagnostic[] = [];
+  const parsed = ts.getParsedCommandLineOfConfigFile(
+    configPath,
+    {},
+    {
+      ...ts.sys,
+      onUnRecoverableConfigFileDiagnostic: (diagnostic) => {
+        diagnostics.push(diagnostic);
+      },
+    },
+  );
+
+  if (!parsed) {
+    throw new Error(
+      ts.formatDiagnosticsWithColorAndContext(diagnostics, {
+        getCanonicalFileName: (fileName) => fileName,
+        getCurrentDirectory: () => config.rootDir,
+        getNewLine: () => '\n',
+      }),
+    );
+  }
+
+  if (parsed.errors.length > 0) {
+    throw new Error(
+      ts.formatDiagnosticsWithColorAndContext(parsed.errors, {
+        getCanonicalFileName: (fileName) => fileName,
+        getCurrentDirectory: () => config.rootDir,
+        getNewLine: () => '\n',
+      }),
+    );
+  }
+
+  return {
+    configPath: normalizeAbsolutePath(configPath),
+    fileNames: parsed.fileNames
+      .filter((fileName) => /\.(?:[cm]?tsx?|d\.[cm]?ts)$/u.test(fileName))
+      .map(normalizeAbsolutePath),
+    options: parsed.options,
+    references: new Set(getRawReferencePaths(config, configPath)),
+  };
+}
+
+function getSourceFileKind(filePath: string): ts.ScriptKind {
+  if (filePath.endsWith('.tsx')) {
+    return ts.ScriptKind.TSX;
+  }
+
+  if (filePath.endsWith('.jsx')) {
+    return ts.ScriptKind.JSX;
+  }
+
+  return ts.ScriptKind.TS;
+}
+
+function stringLiteralValue(node: ts.Node | undefined): string | null {
+  return node && ts.isStringLiteralLike(node) ? node.text : null;
+}
+
+function collectImportsFromFile(filePath: string): ImportRecord[] {
+  const sourceText = readFileSync(filePath, 'utf8');
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    getSourceFileKind(filePath),
+  );
+  const imports: ImportRecord[] = [];
+  const addImport = (specifier: string, node: ts.Node): void => {
+    const location = sourceFile.getLineAndCharacterOfPosition(
+      node.getStart(sourceFile),
+    );
+
+    imports.push({
+      filePath,
+      line: location.line + 1,
+      specifier,
+    });
+  };
+  const visit = (node: ts.Node): void => {
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+      const specifier = stringLiteralValue(node.moduleSpecifier);
+
+      if (specifier) {
+        addImport(specifier, node);
+      }
+    } else if (ts.isImportTypeNode(node)) {
+      const specifier = ts.isLiteralTypeNode(node.argument)
+        ? stringLiteralValue(node.argument.literal)
+        : null;
+
+      if (specifier) {
+        addImport(specifier, node);
+      }
+    } else if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword
+    ) {
+      const specifier = stringLiteralValue(node.arguments[0]);
+
+      if (specifier) {
+        addImport(specifier, node);
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+
+  return imports;
+}
+
+function resolveInternalImport(
+  specifier: string,
+  containingFile: string,
+  options: ts.CompilerOptions,
+): string | null {
+  const resolved = ts.resolveModuleName(
+    specifier,
+    containingFile,
+    options,
+    ts.sys,
+  ).resolvedModule;
+
+  return resolved?.resolvedFileName
+    ? normalizeAbsolutePath(resolved.resolvedFileName)
+    : null;
+}
+
+function createFileOwnerLookup(projects: ProjectInfo[]): Map<string, string[]> {
+  const ownerLookup = new Map<string, string[]>();
+
+  for (const project of projects) {
+    for (const fileName of project.fileNames) {
+      const owners = ownerLookup.get(fileName) ?? [];
+
+      owners.push(project.configPath);
+      ownerLookup.set(fileName, owners);
+    }
+  }
+
+  return ownerLookup;
+}
+
+function findImporterForFile(
+  filePath: string,
+  importers: ImporterInfo[],
+): ImporterInfo | null {
+  return (
+    importers.find((importer) =>
+      isPathInsideDirectory(filePath, importer.directory),
+    ) ?? null
+  );
+}
+
+function shouldResolveThroughGraph(
+  importer: ImporterInfo | null,
+  targetPackage: WorkspacePackage | null,
+): boolean {
+  if (!importer || !targetPackage) {
+    return false;
+  }
+
+  return (
+    importer.name === targetPackage.name ||
+    importer.workspaceDependencies.has(targetPackage.name)
+  );
+}
+
+function inferConfiguredProject(
+  config: ResolvedLatticeConfig,
+  resolvedFilePath: string,
+  targetPackage: WorkspacePackage,
+): string | null {
+  const relativePath = toRelativePath(config.rootDir, resolvedFilePath);
+
+  for (const rule of config.graph?.inferredProjects ?? []) {
+    if (rule.packageName && rule.packageName !== targetPackage.name) {
+      continue;
+    }
+
+    if (!relativePath.startsWith(rule.sourcePrefix)) {
+      continue;
+    }
+
+    return normalizeAbsolutePath(path.join(config.rootDir, rule.project));
+  }
+
+  return null;
+}
+
+function inferPackageProject(
+  config: ResolvedLatticeConfig,
+  resolvedFilePath: string,
+  workspacePackage: WorkspacePackage,
+  projectPaths: string[],
+): string | null {
+  if (!isPathInsideDirectory(resolvedFilePath, workspacePackage.directory)) {
+    return null;
+  }
+
+  const configured = inferConfiguredProject(
+    config,
+    resolvedFilePath,
+    workspacePackage,
+  );
+
+  if (configured) {
+    return configured;
+  }
+
+  return (
+    projectPaths.find((projectPath) => {
+      return (
+        projectPath.startsWith(`${workspacePackage.directory}/`) &&
+        projectPath.endsWith('/tsconfig.lib.build.json')
+      );
+    }) ?? null
+  );
+}
 
 function collectTargetCandidates(
   config: ResolvedLatticeConfig,
@@ -172,35 +399,101 @@ function removeKnownExtension(filePath: string): string {
   return filePath;
 }
 
+function configuredArtifactDirectories(
+  config: ResolvedLatticeConfig,
+): string[] {
+  return config.paths?.artifactDirectories ?? defaultArtifactDirectories;
+}
+
+function configuredSourceExtensions(config: ResolvedLatticeConfig): string[] {
+  return config.paths?.sourceExtensions ?? defaultSourceExtensions;
+}
+
+function hasConfiguredSourceExtension(
+  config: ResolvedLatticeConfig,
+  target: string,
+): boolean {
+  return configuredSourceExtensions(config).some((extension) =>
+    target.endsWith(extension),
+  );
+}
+
+function isInsideArtifactDirectory(
+  config: ResolvedLatticeConfig,
+  target: string,
+): boolean {
+  const normalizedTarget = normalizeSlashes(target);
+
+  return configuredArtifactDirectories(config).some((directoryName) => {
+    const normalizedDirectoryName = normalizeSlashes(directoryName).replace(
+      /\/+$/u,
+      '',
+    );
+
+    return (
+      normalizedTarget === normalizedDirectoryName ||
+      normalizedTarget.startsWith(`${normalizedDirectoryName}/`)
+    );
+  });
+}
+
+function isLikelySourceTarget(
+  config: ResolvedLatticeConfig,
+  target: string,
+): boolean {
+  return (
+    hasConfiguredSourceExtension(config, target) &&
+    !isInsideArtifactDirectory(config, target)
+  );
+}
+
+function stripArtifactPrefix(
+  config: ResolvedLatticeConfig,
+  target: string,
+): string {
+  const normalizedTarget = normalizeSlashes(target);
+
+  for (const directoryName of configuredArtifactDirectories(config)) {
+    const normalizedDirectoryName = normalizeSlashes(directoryName).replace(
+      /\/+$/u,
+      '',
+    );
+
+    if (normalizedTarget.startsWith(`${normalizedDirectoryName}/`)) {
+      return normalizedTarget.slice(normalizedDirectoryName.length + 1);
+    }
+  }
+
+  return normalizedTarget;
+}
+
 function sourceFileCandidates(
   config: ResolvedLatticeConfig,
   target: string,
 ): string[] {
   const normalizedTarget = normalizeSlashes(target);
   const withoutKnownExtension = removeKnownExtension(normalizedTarget);
-  const withoutDistPrefix = normalizedTarget.startsWith('dist/')
-    ? normalizedTarget.slice('dist/'.length)
-    : normalizedTarget;
-  const sourceBase = removeKnownExtension(withoutDistPrefix);
-  const bases = normalizedTarget.startsWith('dist/')
-    ? [
-        sourceBase,
-        `src/${sourceBase}`,
-        `${sourceBase}/index`,
-        `src/${sourceBase}/index`,
-      ]
-    : [
-        withoutKnownExtension,
-        sourceBase,
-        `src/${sourceBase}`,
-        `${sourceBase}/index`,
-        `src/${sourceBase}/index`,
-      ];
+  const withoutArtifactPrefix = stripArtifactPrefix(config, normalizedTarget);
+  const sourceBase = removeKnownExtension(withoutArtifactPrefix);
+  const bases =
+    withoutArtifactPrefix === normalizedTarget
+      ? [
+          withoutKnownExtension,
+          sourceBase,
+          `src/${sourceBase}`,
+          `${sourceBase}/index`,
+          `src/${sourceBase}/index`,
+        ]
+      : [
+          sourceBase,
+          `src/${sourceBase}`,
+          `${sourceBase}/index`,
+          `src/${sourceBase}/index`,
+        ];
   const candidates: string[] = [];
 
   for (const base of bases) {
-    for (const extension of config.paths?.sourceExtensions ??
-      defaultSourceExtensions) {
+    for (const extension of configuredSourceExtensions(config)) {
       candidates.push(`${base}${extension}`);
     }
   }
@@ -217,21 +510,26 @@ function wildcardBaseDirectory(pattern: string): string {
   return lastSlashIndex === -1 ? '.' : prefix.slice(0, lastSlashIndex);
 }
 
-function mapDistWildcardToSourcePattern(target: string): string[] {
-  if (!target.startsWith('dist/')) {
-    return [];
+function sourceWildcardPatternCandidates(
+  config: ResolvedLatticeConfig,
+  target: string,
+): string[] {
+  const strippedPattern = stripArtifactPrefix(config, target);
+  const sourcePattern = removeKnownExtension(strippedPattern);
+  const preferSrcPrefix = strippedPattern !== normalizeSlashes(target);
+  const candidates: string[] = [];
+
+  for (const extension of configuredSourceExtensions(config)) {
+    if (preferSrcPrefix) {
+      candidates.push(`src/${sourcePattern}${extension}`);
+      candidates.push(`${sourcePattern}${extension}`);
+    } else {
+      candidates.push(`${sourcePattern}${extension}`);
+      candidates.push(`src/${sourcePattern}${extension}`);
+    }
   }
 
-  const sourcePattern = removeKnownExtension(target.slice('dist/'.length));
-
-  return [
-    `${sourcePattern}.ts`,
-    `src/${sourcePattern}.ts`,
-    `${sourcePattern}.tsx`,
-    `src/${sourcePattern}.tsx`,
-    `${sourcePattern}.d.ts`,
-    `src/${sourcePattern}.d.ts`,
-  ];
+  return [...new Set(candidates)];
 }
 
 function resolveWildcardTarget(
@@ -239,7 +537,10 @@ function resolveWildcardTarget(
   packageDirectory: string,
   target: string,
 ): string | null {
-  const candidatePatterns = [target, ...mapDistWildcardToSourcePattern(target)];
+  const sourcePatterns = sourceWildcardPatternCandidates(config, target);
+  const candidatePatterns = isLikelySourceTarget(config, target)
+    ? [target, ...sourcePatterns]
+    : sourcePatterns;
 
   for (const candidatePattern of candidatePatterns) {
     const baseDirectory = wildcardBaseDirectory(candidatePattern);
@@ -262,19 +563,9 @@ function resolveExactTarget(
   packageDirectory: string,
   target: string,
 ): string | null {
-  if (target.startsWith('dist/')) {
-    for (const candidate of sourceFileCandidates(config, target)) {
-      const absoluteCandidate = path.join(packageDirectory, candidate);
-
-      if (existsSync(absoluteCandidate)) {
-        return normalizeWorkspacePath(config.rootDir, absoluteCandidate);
-      }
-    }
-  }
-
   const absoluteTarget = path.join(packageDirectory, target);
 
-  if (existsSync(absoluteTarget)) {
+  if (existsSync(absoluteTarget) && isLikelySourceTarget(config, target)) {
     return normalizeWorkspacePath(config.rootDir, absoluteTarget);
   }
 
@@ -352,41 +643,35 @@ function collectExportEntries(
   return entries;
 }
 
-function collectImportEntries(
-  config: ResolvedLatticeConfig,
-  packageDirectory: string,
-  manifest: PackageManifest,
-): [string, string][] {
-  const importsField = manifest.imports;
-
-  if (!importsField) {
-    return [];
+function aliasMatchesSpecifier(alias: string, specifier: string): boolean {
+  if (alias === specifier) {
+    return true;
   }
 
-  const entries: [string, string][] = [];
+  const wildcardIndex = alias.indexOf('*');
 
-  for (const [importKey, importValue] of Object.entries(importsField).sort(
-    ([left], [right]) => left.localeCompare(right),
-  )) {
-    if (!importKey.startsWith('#')) {
-      continue;
-    }
-
-    for (const candidate of collectTargetCandidates(config, importValue)) {
-      const resolvedTarget = resolvePackageTarget(
-        config,
-        packageDirectory,
-        candidate,
-      );
-
-      if (resolvedTarget) {
-        entries.push([importKey, resolvedTarget]);
-        break;
-      }
-    }
+  if (wildcardIndex === -1) {
+    return false;
   }
 
-  return entries;
+  const prefix = alias.slice(0, wildcardIndex);
+  const suffix = alias.slice(wildcardIndex + 1);
+
+  return specifier.startsWith(prefix) && specifier.endsWith(suffix);
+}
+
+function addPathEntry(
+  paths: Map<string, string[]>,
+  alias: string,
+  target: string,
+): void {
+  const targets = paths.get(alias) ?? [];
+
+  if (!targets.includes(target)) {
+    targets.push(target);
+  }
+
+  paths.set(alias, targets);
 }
 
 function compareAliases(left: string, right: string): number {
@@ -414,20 +699,6 @@ function compareAliases(left: string, right: string): number {
   }
 
   return left.localeCompare(right);
-}
-
-function addPathEntry(
-  paths: Map<string, string[]>,
-  alias: string,
-  target: string,
-): void {
-  const targets = paths.get(alias) ?? [];
-
-  if (!targets.includes(target)) {
-    targets.push(target);
-  }
-
-  paths.set(alias, targets);
 }
 
 function toTsconfigPathTarget(
@@ -496,8 +767,10 @@ function formatGeneratedConfig(
   /**
    * ${generatedFileMarker(config)}
    *
-   * Run \`lattice paths apply\` to regenerate this file from workspace
-   * importer links and package exports/imports.
+   * Compatibility paths for workspace:* source dependencies whose package
+   * exports resolve to build artifacts. Run \`lattice paths generate\` to
+   * refresh this file, then manually extend it from the relevant
+   * tsconfig*.build.json files.
    */
   "compilerOptions": {
     "paths": {
@@ -508,152 +781,133 @@ ${formatPaths(config, paths, outputDirectory)}
 `;
 }
 
-async function readImporterManifest(
-  config: ResolvedLatticeConfig,
-  importerDirectory: string,
-): Promise<PackageManifest | null> {
-  const packageJsonPath = path.join(
-    config.rootDir,
-    importerDirectory,
-    'package.json',
-  );
-
-  if (!existsSync(packageJsonPath)) {
-    return null;
-  }
-
-  return readJsonFile<PackageManifest>(packageJsonPath);
+interface GeneratedConfigDraft {
+  configPaths: Set<string>;
+  paths: Map<string, string[]>;
 }
 
-function collectWorkspaceDependencyNames(options: {
-  config: ResolvedLatticeConfig;
-  importer: LockfileImporter;
-  importerDirectory: string;
-  workspacePackagesByDirectory: Map<string, WorkspacePackage>;
-}): string[] {
-  const dependencyNames = new Set<string>();
+function getDraft(
+  drafts: Map<string, GeneratedConfigDraft>,
+  outputPath: string,
+): GeneratedConfigDraft {
+  const existing = drafts.get(outputPath);
 
-  for (const dependencies of getDependencySections(options.importer)) {
-    for (const [dependencyName, dependency] of Object.entries(dependencies)) {
-      if (
-        !options.config.workspace?.internalScopes?.some((scope) =>
-          dependencyName.startsWith(scope),
-        ) ||
-        !isWorkspaceLockfileDependency(dependency)
-      ) {
-        continue;
-      }
-
-      const linkedPackageDirectory = normalizeWorkspacePath(
-        options.config.rootDir,
-        path.resolve(
-          options.config.rootDir,
-          options.importerDirectory,
-          dependency.version!.slice('link:'.length),
-        ),
-      );
-      const linkedPackage = options.workspacePackagesByDirectory.get(
-        linkedPackageDirectory,
-      );
-
-      if (linkedPackage?.name === dependencyName) {
-        dependencyNames.add(dependencyName);
-      }
-    }
+  if (existing) {
+    return existing;
   }
 
-  return [...dependencyNames].sort();
+  const created = {
+    configPaths: new Set<string>(),
+    paths: new Map<string, string[]>(),
+  };
+
+  drafts.set(outputPath, created);
+  return created;
+}
+
+function createGeneratedConfigs(
+  config: ResolvedLatticeConfig,
+  drafts: Map<string, GeneratedConfigDraft>,
+): GeneratedConfig[] {
+  return [...drafts.entries()]
+    .map(([outputPath, draft]) => ({
+      aliasCount: draft.paths.size,
+      configPaths: [...draft.configPaths].sort((left, right) =>
+        left.localeCompare(right),
+      ),
+      content: formatGeneratedConfig(config, draft.paths, outputPath),
+      outputPath,
+    }))
+    .filter((generatedConfig) => generatedConfig.aliasCount > 0)
+    .sort((left, right) => left.outputPath.localeCompare(right.outputPath));
 }
 
 async function collectGeneratedConfigs(
   config: ResolvedLatticeConfig,
 ): Promise<GeneratedConfig[]> {
-  const [lockfile, workspacePackages] = await Promise.all([
-    Promise.resolve(readPnpmLockfile(config)),
-    collectWorkspacePackages(config),
-  ]);
-  const workspacePackagesByName = new Map(
-    workspacePackages.map((workspacePackage) => [
-      workspacePackage.name,
-      workspacePackage,
-    ]),
+  const projectPaths = collectGraphProjectPaths(config);
+  const projects = projectPaths.map((projectPath) =>
+    parseProject(config, projectPath),
   );
-  const workspacePackagesByDirectory = new Map(
-    workspacePackages.map((workspacePackage) => [
-      normalizeWorkspacePath(config.rootDir, workspacePackage.directory),
-      workspacePackage,
-    ]),
-  );
-  const generatedConfigs: GeneratedConfig[] = [];
+  const fileOwnerLookup = createFileOwnerLookup(projects);
+  const packages = await collectWorkspacePackages(config);
+  const importers = collectImporters(config, packages);
+  const exportEntriesByPackage = new Map<string, [string, string][]>();
+  const drafts = new Map<string, GeneratedConfigDraft>();
 
-  for (const [rawImporterDirectory, importer] of Object.entries(
-    lockfile.importers!,
-  ).sort(([left], [right]) => left.localeCompare(right))) {
-    const importerDirectory =
-      rawImporterDirectory === '.' ? '.' : rawImporterDirectory;
-    const importerManifest = await readImporterManifest(
-      config,
-      importerDirectory,
-    );
+  for (const project of projects) {
+    for (const filePath of project.fileNames) {
+      for (const importRecord of collectImportsFromFile(filePath)) {
+        if (!isInternalSpecifier(importRecord.specifier, config)) {
+          continue;
+        }
 
-    if (!importerManifest) {
-      continue;
-    }
+        const targetPackage = findPackageForSpecifier(
+          importRecord.specifier,
+          packages,
+        );
+        const importer = targetPackage
+          ? findImporterForFile(importRecord.filePath, importers)
+          : null;
 
-    const paths = new Map<string, string[]>();
-    const absoluteImporterDirectory = path.resolve(
-      config.rootDir,
-      importerDirectory,
-    );
+        if (
+          !targetPackage ||
+          !shouldResolveThroughGraph(importer, targetPackage)
+        ) {
+          continue;
+        }
 
-    for (const [alias, target] of collectImportEntries(
-      config,
-      absoluteImporterDirectory,
-      importerManifest,
-    )) {
-      addPathEntry(paths, alias, target);
-    }
+        const resolvedFilePath = resolveInternalImport(
+          importRecord.specifier,
+          filePath,
+          project.options,
+        );
 
-    for (const dependencyName of collectWorkspaceDependencyNames({
-      config,
-      importer,
-      importerDirectory,
-      workspacePackagesByDirectory,
-    })) {
-      const workspacePackage = workspacePackagesByName.get(dependencyName);
+        if (!resolvedFilePath || fileOwnerLookup.has(resolvedFilePath)) {
+          continue;
+        }
 
-      if (!workspacePackage) {
-        continue;
+        const targetProjectPath = inferPackageProject(
+          config,
+          resolvedFilePath,
+          targetPackage,
+          projectPaths,
+        );
+
+        if (!targetProjectPath || !project.references.has(targetProjectPath)) {
+          continue;
+        }
+
+        const exportEntries =
+          exportEntriesByPackage.get(targetPackage.name) ??
+          collectExportEntries(config, targetPackage);
+
+        exportEntriesByPackage.set(targetPackage.name, exportEntries);
+
+        if (
+          !exportEntries.some(([alias]) =>
+            aliasMatchesSpecifier(alias, importRecord.specifier),
+          )
+        ) {
+          continue;
+        }
+
+        const outputPath = path.join(
+          importer!.directory,
+          generatedFileName(config),
+        );
+        const draft = getDraft(drafts, outputPath);
+
+        draft.configPaths.add(project.configPath);
+
+        for (const [alias, target] of exportEntries) {
+          addPathEntry(draft.paths, alias, target);
+        }
       }
-
-      for (const [alias, target] of collectExportEntries(
-        config,
-        workspacePackage,
-      )) {
-        addPathEntry(paths, alias, target);
-      }
     }
-
-    if (paths.size === 0) {
-      continue;
-    }
-
-    const outputPath = path.join(
-      config.rootDir,
-      importerDirectory,
-      generatedFileName(config),
-    );
-
-    generatedConfigs.push({
-      aliasCount: paths.size,
-      content: formatGeneratedConfig(config, paths, outputPath),
-      outputPath,
-    });
   }
 
-  return generatedConfigs.sort((left, right) =>
-    left.outputPath.localeCompare(right.outputPath),
-  );
+  return createGeneratedConfigs(config, drafts);
 }
 
 async function isGeneratedTsconfigPathsFile(
@@ -757,75 +1011,6 @@ async function checkGeneratedConfigs(
   return false;
 }
 
-async function collectBuildConfigPaths(
-  config: ResolvedLatticeConfig,
-): Promise<string[]> {
-  const files = await glob(buildConfigPattern, {
-    cwd: config.rootDir,
-    absolute: true,
-    ignore: ['**/node_modules/**', '**/dist/**', '**/.tsbuild/**'],
-  });
-
-  return files.map((filePath) => path.resolve(filePath)).sort();
-}
-
-async function collectImporterDirectories(
-  config: ResolvedLatticeConfig,
-): Promise<string[]> {
-  const lockfile = readPnpmLockfile(config);
-  const importerDirectories = new Set<string>();
-
-  for (const rawImporterDirectory of Object.keys(lockfile.importers!).sort()) {
-    const importerDirectory =
-      rawImporterDirectory === '.'
-        ? '.'
-        : normalizeSlashes(rawImporterDirectory.replace(/\/$/u, ''));
-
-    if (await readImporterManifest(config, importerDirectory)) {
-      importerDirectories.add(importerDirectory);
-    }
-  }
-
-  return [...importerDirectories];
-}
-
-function isWorkspacePathInsideDirectory(
-  workspacePath: string,
-  directory: string,
-): boolean {
-  if (directory === '.') {
-    return true;
-  }
-
-  return (
-    workspacePath === directory || workspacePath.startsWith(`${directory}/`)
-  );
-}
-
-function findOwningImporterDirectory(
-  config: ResolvedLatticeConfig,
-  configPath: string,
-  importerDirectories: string[],
-): string | null {
-  const configDirectory = normalizeWorkspacePath(
-    config.rootDir,
-    path.dirname(configPath),
-  );
-  let owner: string | null = null;
-
-  for (const importerDirectory of importerDirectories) {
-    if (!isWorkspacePathInsideDirectory(configDirectory, importerDirectory)) {
-      continue;
-    }
-
-    if (!owner || importerDirectory.length > owner.length) {
-      owner = importerDirectory;
-    }
-  }
-
-  return owner;
-}
-
 function toTsconfigExtendsPath(configPath: string, targetPath: string): string {
   const relativeTarget = toPosixPath(
     path.relative(path.dirname(configPath), targetPath),
@@ -838,326 +1023,37 @@ function toTsconfigExtendsPath(configPath: string, targetPath: string): string {
   return `./${relativeTarget}`;
 }
 
-function parseJsonSourceFile(
-  configPath: string,
-  content: string,
-): ts.JsonSourceFile {
-  const parsedConfig = ts.parseConfigFileTextToJson(configPath, content);
-
-  if (parsedConfig.error) {
-    throw new Error(
-      ts.formatDiagnostic(parsedConfig.error, {
-        getCanonicalFileName: (fileName) => fileName,
-        getCurrentDirectory: () => path.dirname(configPath),
-        getNewLine: () => '\n',
-      }),
-    );
-  }
-
-  return ts.parseJsonText(configPath, content);
-}
-
-function getTopLevelObjectExpression(
-  sourceFile: ts.JsonSourceFile,
-): ts.ObjectLiteralExpression {
-  const statement = sourceFile.statements[0];
-
-  if (
-    !statement ||
-    !ts.isExpressionStatement(statement) ||
-    !ts.isObjectLiteralExpression(statement.expression)
-  ) {
-    throw new Error(`${sourceFile.fileName} must contain a top-level object.`);
-  }
-
-  return statement.expression;
-}
-
-function getPropertyNameText(name: ts.PropertyName): string | null {
-  if (
-    ts.isIdentifier(name) ||
-    ts.isStringLiteral(name) ||
-    ts.isNumericLiteral(name)
-  ) {
-    return name.text;
-  }
-
-  return null;
-}
-
-function findPropertyAssignment(
-  objectExpression: ts.ObjectLiteralExpression,
-  propertyName: string,
-): ts.PropertyAssignment | null {
-  for (const property of objectExpression.properties) {
-    if (
-      ts.isPropertyAssignment(property) &&
-      getPropertyNameText(property.name) === propertyName
-    ) {
-      return property;
-    }
-  }
-
-  return null;
-}
-
-function readExtendsValues(
-  configPath: string,
-  extendsProperty: ts.PropertyAssignment | null,
-): string[] {
-  if (!extendsProperty) {
-    return [];
-  }
-
-  const { initializer } = extendsProperty;
-
-  if (ts.isStringLiteral(initializer)) {
-    return [initializer.text];
-  }
-
-  if (!ts.isArrayLiteralExpression(initializer)) {
-    throw new Error(`${configPath} has an unsupported extends value.`);
-  }
-
-  return initializer.elements.map((element) => {
-    if (!ts.isStringLiteral(element)) {
-      throw new Error(`${configPath} has a non-string extends entry.`);
-    }
-
-    return element.text;
-  });
-}
-
-function isGeneratedConfigExtendsReference(
-  config: ResolvedLatticeConfig,
-  reference: string,
-): boolean {
-  return (
-    path.posix.basename(normalizeSlashes(reference)) ===
-    generatedFileName(config)
-  );
-}
-
-function areStringArraysEqual(left: string[], right: string[]): boolean {
-  return (
-    left.length === right.length &&
-    left.every((value, index) => value === right[index])
-  );
-}
-
-function formatExtendsInitializer(values: string[]): string {
-  return `[${values.map((value) => JSON.stringify(value)).join(', ')}]`;
-}
-
-function applyTextEdits(content: string, edits: TextEdit[]): string {
-  return [...edits]
-    .sort((left, right) => right.start - left.start)
-    .reduce(
-      (nextContent, edit) =>
-        `${nextContent.slice(0, edit.start)}${edit.replacement}${nextContent.slice(edit.end)}`,
-      content,
-    );
-}
-
-function nextNonWhitespaceIndex(content: string, start: number): number {
-  let index = start;
-
-  while (index < content.length && /\s/u.test(content[index]!)) {
-    index += 1;
-  }
-
-  return index;
-}
-
-function createInsertExtendsEdit(options: {
-  content: string;
-  objectExpression: ts.ObjectLiteralExpression;
-  sourceFile: ts.JsonSourceFile;
-  values: string[];
-}): TextEdit {
-  const propertyText = `"extends": ${formatExtendsInitializer(options.values)}`;
-  const schemaProperty = findPropertyAssignment(
-    options.objectExpression,
-    '$schema',
-  );
-
-  if (schemaProperty) {
-    const afterSchema = schemaProperty.getEnd();
-    const commaIndex = nextNonWhitespaceIndex(options.content, afterSchema);
-    const hasSchemaComma = options.content[commaIndex] === ',';
-    const insertionPoint = hasSchemaComma ? commaIndex + 1 : afterSchema;
-
-    return {
-      end: insertionPoint,
-      replacement: `${hasSchemaComma ? '' : ','}\n  ${propertyText},`,
-      start: insertionPoint,
-    };
-  }
-
-  const objectStart = options.objectExpression.getStart(options.sourceFile);
-
-  return {
-    end: objectStart + 1,
-    replacement: `\n  ${propertyText},`,
-    start: objectStart + 1,
-  };
-}
-
-function createRemoveExtendsEdit(options: {
-  objectExpression: ts.ObjectLiteralExpression;
-  property: ts.PropertyAssignment;
-  sourceFile: ts.JsonSourceFile;
-}): TextEdit {
-  const properties = [...options.objectExpression.properties];
-  const propertyIndex = properties.indexOf(options.property);
-  const nextProperty = properties[propertyIndex + 1];
-  const previousProperty = properties[propertyIndex - 1];
-
-  if (nextProperty) {
-    return {
-      end: nextProperty.getStart(options.sourceFile),
-      replacement: '',
-      start: options.property.getStart(options.sourceFile),
-    };
-  }
-
-  if (previousProperty) {
-    return {
-      end: options.property.getEnd(),
-      replacement: '',
-      start: previousProperty.getEnd(),
-    };
-  }
-
-  return {
-    end: options.property.getEnd(),
-    replacement: '',
-    start: options.property.getStart(options.sourceFile),
-  };
-}
-
-async function updateBuildConfigExtends(
-  config: ResolvedLatticeConfig,
-  configPath: string,
-  expectedGeneratedConfigPath: string | null,
-  check: boolean,
-): Promise<BuildConfigExtendsUpdateResult> {
-  const content = await readFile(configPath, 'utf8');
-  const sourceFile = parseJsonSourceFile(configPath, content);
-  const objectExpression = getTopLevelObjectExpression(sourceFile);
-  const extendsProperty = findPropertyAssignment(objectExpression, 'extends');
-  const existingValues = readExtendsValues(configPath, extendsProperty);
-  const existingGeneratedValues = existingValues.filter((value) =>
-    isGeneratedConfigExtendsReference(config, value),
-  );
-  const nonGeneratedValues = existingValues.filter(
-    (value) => !isGeneratedConfigExtendsReference(config, value),
-  );
-  const expectedGeneratedValue = expectedGeneratedConfigPath
-    ? toTsconfigExtendsPath(configPath, expectedGeneratedConfigPath)
-    : null;
-  const nextValues = expectedGeneratedValue
-    ? [expectedGeneratedValue, ...nonGeneratedValues]
-    : nonGeneratedValues;
-  const retainedGeneratedCount =
-    expectedGeneratedValue &&
-    existingGeneratedValues.includes(expectedGeneratedValue)
-      ? 1
-      : 0;
-  const result = {
-    changed: !areStringArraysEqual(existingValues, nextValues),
-    injectedCount:
-      expectedGeneratedValue && retainedGeneratedCount === 0 ? 1 : 0,
-    removedCount: existingGeneratedValues.length - retainedGeneratedCount,
-  };
-
-  if (check || !result.changed) {
-    return result;
-  }
-
-  const edit =
-    extendsProperty && nextValues.length > 0
-      ? {
-          end: extendsProperty.initializer.getEnd(),
-          replacement: formatExtendsInitializer(nextValues),
-          start: extendsProperty.initializer.getStart(sourceFile),
-        }
-      : extendsProperty
-        ? createRemoveExtendsEdit({
-            objectExpression,
-            property: extendsProperty,
-            sourceFile,
-          })
-        : createInsertExtendsEdit({
-            content,
-            objectExpression,
-            sourceFile,
-            values: nextValues,
-          });
-  const nextContent = applyTextEdits(content, [edit]);
-
-  await writeFile(configPath, nextContent);
-
-  return result;
-}
-
-async function maintainBuildConfigExtends(
+function logManualExtendsSuggestions(
   config: ResolvedLatticeConfig,
   generatedConfigs: GeneratedConfig[],
-  options: { check?: boolean } = {},
-): Promise<BuildConfigExtendsMaintenanceResult> {
-  const [buildConfigPaths, importerDirectories] = await Promise.all([
-    collectBuildConfigPaths(config),
-    collectImporterDirectories(config),
-  ]);
-  const expectedGeneratedConfigPaths = new Set(
-    generatedConfigs.map((generatedConfig) =>
-      path.resolve(generatedConfig.outputPath),
-    ),
+): void {
+  const suggestionCount = generatedConfigs.reduce(
+    (total, generatedConfig) => total + generatedConfig.configPaths.length,
+    0,
   );
-  let changedCount = 0;
-  let injectedCount = 0;
-  let removedCount = 0;
 
-  for (const configPath of buildConfigPaths) {
-    const owningImporterDirectory = findOwningImporterDirectory(
-      config,
-      configPath,
-      importerDirectories,
+  if (suggestionCount === 0) {
+    PathsLogger.info(
+      'No workspace:* artifact-export compatibility paths are needed.',
     );
-    const expectedGeneratedConfigPath = owningImporterDirectory
-      ? path.resolve(
-          config.rootDir,
-          owningImporterDirectory,
-          generatedFileName(config),
-        )
-      : null;
-    const updateResult = await updateBuildConfigExtends(
-      config,
-      configPath,
-      expectedGeneratedConfigPath &&
-        expectedGeneratedConfigPaths.has(expectedGeneratedConfigPath)
-        ? expectedGeneratedConfigPath
-        : null,
-      Boolean(options.check),
-    );
-
-    if (!updateResult.changed) {
-      continue;
-    }
-
-    changedCount += 1;
-    injectedCount += updateResult.injectedCount;
-    removedCount += updateResult.removedCount;
+    return;
   }
 
-  return {
-    changed: changedCount > 0,
-    changedCount,
-    checkedCount: buildConfigPaths.length,
-    injectedCount,
-    removedCount,
-  };
+  PathsLogger.info(
+    'Generated path configs are not injected automatically. Add them manually to the first position of each listed extends array:',
+  );
+
+  for (const generatedConfig of generatedConfigs) {
+    PathsLogger.info(
+      `  ${toRelativePath(config.rootDir, generatedConfig.outputPath)} (${generatedConfig.aliasCount} aliases)`,
+    );
+
+    for (const configPath of generatedConfig.configPaths) {
+      PathsLogger.info(
+        `    - ${toRelativePath(config.rootDir, configPath)} extends ${toTsconfigExtendsPath(configPath, generatedConfig.outputPath)}`,
+      );
+    }
+  }
 }
 
 export async function runPaths(
@@ -1165,53 +1061,40 @@ export async function runPaths(
   options: { check?: boolean } = {},
 ): Promise<PathsResult> {
   const generatedConfigs = await collectGeneratedConfigs(config);
-  const generatedConfigsDidChange = options.check
+  const didChange = options.check
     ? await checkGeneratedConfigs(config, generatedConfigs)
     : await writeGeneratedConfigs(config, generatedConfigs);
-  const buildConfigExtendsMaintenance = await maintainBuildConfigExtends(
-    config,
-    generatedConfigs,
-    { check: options.check },
-  );
-  const didChange =
-    generatedConfigsDidChange || buildConfigExtendsMaintenance.changed;
   const aliasCount = generatedConfigs.reduce(
     (total, generatedConfig) => total + generatedConfig.aliasCount,
     0,
   );
-  const generatedConfigsAction = options.check
-    ? generatedConfigsDidChange
+  const suggestionCount = generatedConfigs.reduce(
+    (total, generatedConfig) => total + generatedConfig.configPaths.length,
+    0,
+  );
+  const action = options.check
+    ? didChange
       ? 'Would update'
       : 'Checked unchanged'
-    : generatedConfigsDidChange
+    : didChange
       ? 'Generated'
-      : 'Skipped unchanged';
-  const buildConfigExtendsAction = options.check
-    ? buildConfigExtendsMaintenance.changed
-      ? 'Would update'
-      : 'Checked unchanged'
-    : buildConfigExtendsMaintenance.changed
-      ? 'Updated'
       : 'Skipped unchanged';
 
   PathsLogger.info(
-    `${generatedConfigsAction} ${generatedConfigs.length} TypeScript graph path config files with ${aliasCount} path aliases.`,
+    `${action} ${generatedConfigs.length} TypeScript graph path config files with ${aliasCount} path aliases.`,
   );
-  PathsLogger.info(
-    `${buildConfigExtendsAction} ${buildConfigExtendsMaintenance.checkedCount} TypeScript build config extends lists (${buildConfigExtendsMaintenance.injectedCount} injected, ${buildConfigExtendsMaintenance.removedCount} removed).`,
-  );
+  logManualExtendsSuggestions(config, generatedConfigs);
 
   if (options.check && didChange) {
     PathsLogger.error(
-      'TypeScript graph path state is stale; run `lattice paths apply` to update generated paths and build config extends.',
+      'TypeScript graph path state is stale; run `lattice paths generate`, then manually extend the listed tsconfig*.build.json files.',
     );
   }
 
   return {
     aliasCount,
-    buildConfigCount: buildConfigExtendsMaintenance.checkedCount,
-    buildConfigExtendsChangedCount: buildConfigExtendsMaintenance.changedCount,
     changed: didChange,
     outputCount: generatedConfigs.length,
+    suggestionCount,
   };
 }

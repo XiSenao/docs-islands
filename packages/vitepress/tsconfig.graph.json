@@ -11,18 +11,6 @@
     },
     {
       "path": "./tsconfig.test.build.json"
-    },
-    {
-      "path": "./playground/tsconfig.source.build.json"
-    },
-    {
-      "path": "./playground/tsconfig.test.build.json"
-    },
-    {
-      "path": "./smoke/tsconfig.source.build.json"
-    },
-    {
-      "path": "./smoke/tsconfig.test.build.json"
     }
   ]
 }

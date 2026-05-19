@@ -8,11 +8,11 @@ describe('defineConfig', () => {
         internalScopes: ['@example/'],
       },
       pipelines: {
-        typecheck: ['paths:check'],
+        typecheck: ['graph:check'],
       },
     });
 
     expect(config.workspace?.internalScopes).toEqual(['@example/']);
-    expect(config.pipelines?.typecheck).toEqual(['paths:check']);
+    expect(config.pipelines?.typecheck).toEqual(['graph:check']);
   });
 });

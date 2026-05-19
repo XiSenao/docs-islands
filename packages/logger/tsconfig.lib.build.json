@@ -2,7 +2,6 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   // Library build leaf. Keep logger tooling out to avoid logger/tools cycles.
   "extends": [
-    "./tsconfig.graph.paths.generated.json",
     "./tsconfig.lib.json",
     "../../tsconfig.graph.base.json"
   ],

@@ -9,14 +9,14 @@
 
 [English](./README.md) | 简体中文
 
-`@docs-islands/lattice` 是面向 TypeScript project references monorepo 的可配置架构治理 CLI。它把分散且冗长的根脚本收束为一个显式规则文件和一个 `lattice` 命令，用来检查生成的路径别名、项目图架构、局部 typecheck 覆盖证明、发布产物包边界，以及自定义 pipeline。
+`@docs-islands/lattice` 是面向 TypeScript project references monorepo 的可配置架构治理 CLI。它把分散且冗长的根脚本收束为一个显式规则文件和一个 `lattice` 命令，用来检查项目图架构、局部 typecheck 覆盖证明、发布产物包边界，以及自定义 pipeline。
 
 ## 特性
 
 - **单一治理入口**：用 `lattice check <pipeline>` 替代冗长的根 `package.json` 脚本。
 - **显式配置**：所有架构规则都写在 `lattice.config.mjs` 中，不依赖隐藏 preset。
-- **生成 TypeScript paths**：根据 pnpm workspace link、package `exports` / `imports` 生成 `tsconfig.graph.paths.generated.json`。
-- **项目图校验**：约束 project reference 边、包导入边界、推断项目归属和 Node builtin 导入规则。
+- **项目图校验**：约束 project reference 边、包导入边界、package exports 源码归属、推断项目归属和 Node builtin 导入规则。
+- **兼容 paths 生成**：为 package exports 仍指向构建产物的 `workspace:*` 依赖生成可选的源码 `paths` 文件。
 - **Typecheck 覆盖证明**：确认 package 级 typecheck 脚本都被根图、配置的 sidecar 或带理由的 allowlist 覆盖。
 - **发布产物包边界审计**：扫描构建后的 `.js` 文件，确认 runtime import 与 dependencies、自身 exports、browser/node 环境匹配。
 - **Pipeline 组合**：在 `typecheck`、`package`、`publish` 等命名 pipeline 中组合内置检查和 shell 命令。
@@ -59,9 +59,6 @@ export default defineConfig({
   workspace: {
     internalScopes: ['@acme/'],
   },
-  paths: {
-    generatedFileName: 'tsconfig.graph.paths.generated.json',
-  },
   graph: {
     rootConfig: 'tsconfig.graph.json',
     productionKinds: ['lib', 'runtime-client', 'runtime-node'],
@@ -103,7 +100,6 @@ export default defineConfig({
   },
   pipelines: {
     typecheck: [
-      'paths:check',
       'graph:check',
       'proof:check',
       {
@@ -122,8 +118,7 @@ export default defineConfig({
 ```json
 {
   "scripts": {
-    "typecheck": "lattice check typecheck",
-    "typecheck:paths": "lattice paths apply"
+    "typecheck": "lattice check typecheck"
   }
 }
 ```
@@ -132,7 +127,6 @@ export default defineConfig({
 
 ```sh
 pnpm typecheck
-pnpm exec lattice paths apply
 pnpm exec lattice package-boundary check --package @acme/core
 ```
 
@@ -142,17 +136,17 @@ pnpm exec lattice package-boundary check --package @acme/core
 lattice [--config lattice.config.mjs] <command>
 ```
 
-| 命令                                              | 说明                                                                            |
-| ------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `lattice check <pipeline>`                        | 运行 `pipelines` 中的命名 pipeline。                                            |
-| `lattice paths check`                             | 只读检查生成的 TypeScript graph paths 配置。                                    |
-| `lattice paths apply`                             | 写入生成的 TypeScript graph paths 配置，并维护 build config 的 `extends` 列表。 |
-| `lattice graph check`                             | 校验 project references 和架构导入规则。                                        |
-| `lattice proof check`                             | 证明 workspace typecheck 目标被根图、sidecar 或 allowlist 覆盖。                |
-| `lattice package-boundary check`                  | 审计所有配置的发布产物包边界目标。                                              |
-| `lattice package-boundary check --package <name>` | 按配置的 `name` 审计单个包边界目标。                                            |
+| 命令                                              | 说明                                                             |
+| ------------------------------------------------- | ---------------------------------------------------------------- |
+| `lattice check <pipeline>`                        | 运行 `pipelines` 中的命名 pipeline。                             |
+| `lattice paths generate`                          | 为产物导向的 `workspace:*` exports 生成兼容源码 paths。          |
+| `lattice paths check`                             | 检查生成的兼容 paths 文件是否是最新状态。                        |
+| `lattice graph check`                             | 校验 project references 和架构导入规则。                         |
+| `lattice proof check`                             | 证明 workspace typecheck 目标被根图、sidecar 或 allowlist 覆盖。 |
+| `lattice package-boundary check`                  | 审计所有配置的发布产物包边界目标。                               |
+| `lattice package-boundary check --package <name>` | 按配置的 `name` 审计单个包边界目标。                             |
 
-`check` 命令都是只读的。会写文件的行为必须放在显式 apply 类命令中，目前是 `lattice paths apply`。
+graph、proof 和 package-boundary 检查都是只读的。`lattice paths generate` 会写入生成的配置文件；`lattice paths check` 只报告生成文件是否过期。`lattice paths apply` 保留为 `generate` 的兼容别名。
 
 ## 配置
 
@@ -169,26 +163,11 @@ lattice [--config lattice.config.mjs] <command>
 
 Lattice 固定从 `pnpm-workspace.yaml` 和 `pnpm-lock.yaml` 读取 pnpm workspace 元数据。
 
-### `paths`
-
-paths 命令会根据以下信息生成每个 importer 的 `tsconfig.graph.paths.generated.json`：
-
-- package `imports`
-- 依赖 package 的 `exports`
-- pnpm lockfile importer link
-- 配置的内部 scope
-
-| 字段                  | 说明                                                                 |
-| --------------------- | -------------------------------------------------------------------- |
-| `generatedFileName`   | 生成的 tsconfig 文件名，默认 `tsconfig.graph.paths.generated.json`。 |
-| `generatedFileMarker` | 用来识别可维护生成文件的标记。                                       |
-| `conditionPriority`   | package export/import condition 优先级。                             |
-| `sourceExtensions`    | 从 dist target 映射回 source 时尝试的源码扩展名。                    |
-| `ignore`              | 额外忽略 glob。                                                      |
-
 ### `graph`
 
-graph 检查会解析从 `rootConfig` 可达的 TypeScript project references，并检查每个项目中的 import。
+graph 检查会解析从 `rootConfig` 可达的 TypeScript project references，并检查每个项目中的 import。内部 `workspace:*` 依赖必须通过 package `exports` 解析到 source graph 覆盖的源码文件；产物依赖应使用 `link:`、`catalog:` 或普通 semver，并且不能用 project reference 表示。
+
+如果 A 包通过 `workspace:*` 依赖 B 包，并且 A 的 `tsconfig*.build.json` reference 了 B，那么 TypeScript 仍然会按照 B 的 package exports 做模块解析。`tsc -b` 不会因为存在 project reference 就把产物 exports 自动改写成源码项目。如果 B 暴露的是 `./dist/index.js`，而 A 没有源码 `paths` 映射，`lattice graph check` 会直接失败并解释原因和修复方式。
 
 | 字段               | 说明                                                                             |
 | ------------------ | -------------------------------------------------------------------------------- |
@@ -199,6 +178,20 @@ graph 检查会解析从 `rootConfig` 可达的 TypeScript project references，
 | `nodeBuiltinRules` | 禁止导入 Node builtin 的项目 kind。                                              |
 | `inferredProjects` | 当直接文件归属不足时，用 source path prefix 推断所属 project config。            |
 
+### `paths`
+
+大多数仓库不需要 generated `paths`：让 workspace package exports 指向源码入口，然后用 `workspace:*` 加 project reference 表达源码依赖即可。`paths` 命令是为兼容 exports 仍指向构建产物的 monorepo 提供的过渡工具。
+
+`lattice paths generate` 会扫描 graph 管理的 import。当某个 `workspace:*` 依赖同时被 importing build config reference，但 TypeScript 通过 package exports 解析到了构建产物时，它会在 importing package 内写入 `tsconfig.graph.paths.generated.json`，把对应 package exports 映射回源码文件。它不会修改任何 `tsconfig*.build.json`；请按命令输出提示，手动把生成文件放到对应 `extends` 数组的第一项。
+
+| 字段                  | 说明                                                                                                     |
+| --------------------- | -------------------------------------------------------------------------------------------------------- |
+| `generatedFileName`   | 生成配置文件名，默认 `tsconfig.graph.paths.generated.json`。                                             |
+| `generatedFileMarker` | 用于识别可刷新或可删除生成文件的标记。                                                                   |
+| `conditionPriority`   | 选择源码目标时使用的 package export condition 优先级，默认从 `source`、`development` 再到 `types` 开始。 |
+| `sourceExtensions`    | 将产物 exports 映射回源码时尝试的源码扩展名。                                                            |
+| `artifactDirectories` | 被视为构建产物的目录前缀，例如 `dist`、`build`、`lib`、`esm`、`cjs`、`out`。                             |
+
 ### `proof`
 
 proof 检查会把 package 级 typecheck 脚本与根图覆盖范围对齐。它还会把
@@ -208,20 +201,21 @@ root graph 可达的每个 `tsconfig*.build.json` 与严格同名的本地配置
 - `tsconfig.build.json` 对比 `tsconfig.json`
 - `tsconfig.lib.build.json` 对比 `tsconfig.lib.json`
 - `tsconfig.test.build.json` 对比 `tsconfig.test.json`
-- `tools`、`source` 等其他后缀遵循同一规则
+- `tools`、`types` 等其他后缀遵循同一规则
 
 build config 必须与本地配置保持相同的最终文件集合和类型检查
 `compilerOptions`。`composite`、`noEmit`、`declaration`、`outDir`、
 `rootDir`、`tsBuildInfoFile` 等 build-only 选项允许不同。`paths` 和
-`baseUrl` 由 generated paths 命令负责检查，不在 proof 中比较。
+`baseUrl` 属于模块解析策略，不在 proof 中比较。
 
-| 字段                    | 说明                                                             |
-| ----------------------- | ---------------------------------------------------------------- |
-| `typecheckScriptPrefix` | 扫描 package scripts 时使用的脚本名前缀，默认 `typecheck`。      |
-| `sidecarTargets`        | 根 typecheck 在 `tsc -b` 外额外覆盖的配置，例如 `vue-tsc` 项目。 |
-| `rootSidecarScript`     | 可选；从根脚本中解析 sidecar target。                            |
-| `allowlist`             | 显式允许在 graph/sidecar 覆盖外的文件，每项都必须写 reason。     |
-| `sourceFilePattern`     | 计入覆盖统计的文件 pattern。                                     |
+| 字段                      | 说明                                                             |
+| ------------------------- | ---------------------------------------------------------------- |
+| `typecheckScriptPrefix`   | 扫描 package scripts 时使用的脚本名前缀，默认 `typecheck`。      |
+| `sidecarTargets`          | 根 typecheck 在 `tsc -b` 外额外覆盖的配置，例如 `vue-tsc` 项目。 |
+| `ignoredTypecheckTargets` | 由其他 pipeline 拥有的 typecheck config，例如 dist consumer。    |
+| `rootSidecarScript`       | 可选；从根脚本中解析 sidecar target。                            |
+| `allowlist`               | 显式允许在 graph/sidecar 覆盖外的文件，每项都必须写 reason。     |
+| `sourceFilePattern`       | 计入覆盖统计的文件 pattern。                                     |
 
 ### `packageBoundary`
 
@@ -243,7 +237,6 @@ Pipeline 可以组合内置任务和命令步骤：
 ```js
 pipelines: {
   typecheck: [
-    'paths:check',
     'graph:check',
     'proof:check',
     {
@@ -257,22 +250,11 @@ pipelines: {
 
 内置任务字符串：
 
-- `paths:check`
 - `graph:check`
 - `proof:check`
 - `package-boundary:check`
 
 命令步骤默认在 `workspace.rootDir` 下运行，并继承 `process.env`。可以用 `cwd` 和 `env` 覆盖。
-
-## 生成文件
-
-生成的 path config 适合加入 `.gitignore`：
-
-```gitignore
-**/tsconfig.graph.paths.generated.json
-```
-
-安装后、或 package exports/imports 变化后运行 `lattice paths apply`。CI 中运行 `lattice paths check`，在不写文件的前提下让过期生成状态失败。
 
 ## CI 示例
 
@@ -305,7 +287,7 @@ import { defineConfig, loadConfig } from '@docs-islands/lattice';
 
 export default defineConfig({
   pipelines: {
-    typecheck: ['paths:check'],
+    typecheck: ['graph:check'],
   },
 });
 

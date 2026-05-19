@@ -36,10 +36,6 @@ async function runBuiltinTask(
   taskName: BuiltinTaskName,
 ): Promise<boolean> {
   switch (taskName) {
-    case 'paths:check': {
-      const result = await runPaths(config, { check: true });
-      return !result.changed;
-    }
     case 'graph:check': {
       return runGraphCheck(config);
     }
@@ -58,7 +54,6 @@ function normalizePipelineStep(step: PipelineStep): NormalizedPipelineStep {
   }
 
   if (
-    step === 'paths:check' ||
     step === 'graph:check' ||
     step === 'proof:check' ||
     step === 'package-boundary:check'
@@ -148,15 +143,15 @@ async function main(): Promise<void> {
   cli
     .command(
       'paths <action>',
-      'Check or write generated TypeScript graph paths',
+      'Generate source paths for workspace dependency artifact exports',
     )
     .action(async (action: string, flags: GlobalFlags) => {
-      const config = await load(flags);
-      if (action !== 'check' && action !== 'apply') {
+      if (action !== 'generate' && action !== 'apply' && action !== 'check') {
         throw new Error(
-          `Unknown paths action "${action}". Expected check or apply.`,
+          `Unknown paths action "${action}". Expected generate, apply, or check.`,
         );
       }
+      const config = await load(flags);
       const result = await runPaths(config, { check: action === 'check' });
 
       if (action === 'check' && result.changed) {

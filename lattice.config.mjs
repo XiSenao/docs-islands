@@ -8,21 +8,11 @@ const productionKinds = [
   'types',
 ];
 
-const nonSolutionKinds = [
-  ...productionKinds,
-  'source',
-  'test',
-  'tools',
-  'unknown',
-];
+const nonSolutionKinds = [...productionKinds, 'test', 'tools', 'unknown'];
 
 export default defineConfig({
   workspace: {
     internalScopes: ['@docs-islands/'],
-  },
-  paths: {
-    generatedFileName: 'tsconfig.graph.paths.generated.json',
-    generatedFileMarker: 'GENERATED FILE - DO NOT EDIT BY HAND.',
   },
   graph: {
     rootConfig: 'tsconfig.graph.json',
@@ -64,10 +54,6 @@ export default defineConfig({
       {
         kind: 'test',
         suffixes: ['/tsconfig.test.build.json'],
-      },
-      {
-        kind: 'source',
-        suffixes: ['/tsconfig.source.build.json'],
       },
     ],
     inferredProjects: [
@@ -138,15 +124,17 @@ export default defineConfig({
     ],
   },
   proof: {
+    ignoredTypecheckTargets: [
+      'packages/vitepress/docs/tsconfig.json',
+      'packages/vitepress/playground/tsconfig.json',
+      'packages/vitepress/playground/tsconfig.test.json',
+      'packages/vitepress/smoke/tsconfig.json',
+      'packages/vitepress/smoke/tsconfig.test.json',
+    ],
     sidecarTargets: [
       {
         config: 'docs/tsconfig.json',
         label: 'docs vue typecheck',
-        tool: 'vue-tsc',
-      },
-      {
-        config: 'packages/vitepress/docs/tsconfig.json',
-        label: 'vitepress docs vue typecheck',
         tool: 'vue-tsc',
       },
       {
@@ -178,7 +166,11 @@ export default defineConfig({
   },
   pipelines: {
     typecheck: [
-      'paths:check',
+      {
+        type: 'command',
+        command: 'pnpm',
+        args: ['--filter', '@docs-islands/plugin-license', 'build'],
+      },
       'graph:check',
       'proof:check',
       {
@@ -194,20 +186,47 @@ export default defineConfig({
       {
         type: 'command',
         command: 'vue-tsc',
-        args: ['-p', 'packages/vitepress/docs/tsconfig.json', '--noEmit'],
-      },
-      {
-        type: 'command',
-        command: 'vue-tsc',
         args: ['-p', 'packages/vitepress/theme/tsconfig.json', '--noEmit'],
       },
     ],
-    package: ['package-boundary:check'],
-    publish: [
-      'paths:check',
-      'graph:check',
-      'proof:check',
-      'package-boundary:check',
+    consumer: [
+      {
+        type: 'command',
+        command: 'pnpm',
+        args: ['--filter', '@docs-islands/plugin-license', 'build'],
+      },
+      {
+        type: 'command',
+        command: 'pnpm',
+        args: ['--filter', '@docs-islands/vitepress', 'build'],
+      },
+      {
+        type: 'command',
+        command: 'pnpm',
+        args: ['--dir', 'packages/vitepress/docs', 'typecheck'],
+      },
+      {
+        type: 'command',
+        command: 'pnpm',
+        args: ['--dir', 'packages/vitepress/playground', 'typecheck'],
+      },
+      {
+        type: 'command',
+        command: 'pnpm',
+        args: ['--dir', 'packages/vitepress/playground', 'typecheck:test'],
+      },
+      {
+        type: 'command',
+        command: 'pnpm',
+        args: ['--dir', 'packages/vitepress/smoke', 'typecheck'],
+      },
+      {
+        type: 'command',
+        command: 'pnpm',
+        args: ['--dir', 'packages/vitepress/smoke', 'typecheck:test'],
+      },
     ],
+    package: ['package-boundary:check'],
+    publish: ['graph:check', 'proof:check', 'package-boundary:check'],
   },
 });

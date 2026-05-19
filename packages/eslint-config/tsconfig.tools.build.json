@@ -2,7 +2,6 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   // Tools build leaf for package build/config files.
   "extends": [
-    "./tsconfig.graph.paths.generated.json",
     "./tsconfig.tools.json",
     "../../tsconfig.graph.base.json"
   ],

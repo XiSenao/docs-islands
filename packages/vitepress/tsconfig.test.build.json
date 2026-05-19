@@ -2,7 +2,6 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   // Test build leaf. Tests may depend on runtime/tools projects; runtime projects must not depend on tests.
   "extends": [
-    "./tsconfig.graph.paths.generated.json",
     "./tsconfig.test.json",
     "../../tsconfig.graph.base.json"
   ],

@@ -1,5 +1,6 @@
 import { defineConfig, type RolldownOptions } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
+import packagePlugin from './packagePlugin';
 
 const external = [/^[\w@][^:]/, /^node:/];
 
@@ -8,10 +9,12 @@ const moduleConfig: RolldownOptions = defineConfig({
     cli: 'src/cli.ts',
     index: 'src/index.ts',
     config: 'src/config.ts',
+    'bin/lattice': 'bin/lattice.js',
   },
   platform: 'node',
   preserveEntrySignatures: 'strict',
   external,
+  plugins: [packagePlugin()],
   output: {
     dir: 'dist',
     entryFileNames: '[name].js',

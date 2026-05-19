@@ -2,7 +2,6 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   // Test build leaf for eslint-config unit tests.
   "extends": [
-    "./tsconfig.graph.paths.generated.json",
     "./tsconfig.test.json",
     "../../tsconfig.graph.base.json"
   ],

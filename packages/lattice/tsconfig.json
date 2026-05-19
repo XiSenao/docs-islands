@@ -7,5 +7,5 @@
     "lib": ["ESNext"],
     "types": ["node"],
   },
-  "include": ["src/", "rolldown.config.ts"],
+  "include": ["src/", "packagePlugin.ts", "rolldown.config.ts", "package.json"],
 }

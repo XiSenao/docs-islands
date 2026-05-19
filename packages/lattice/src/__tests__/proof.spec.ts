@@ -180,7 +180,7 @@ describe('runProofCheck build config semantics', () => {
     }
   });
 
-  it('ignores paths and baseUrl drift because generated graph paths are checked separately', async () => {
+  it('ignores paths and baseUrl drift because module resolution is checked by graph validation', async () => {
     const fixture = await createFixture(
       createPassingFiles({
         'packages/pkg/tsconfig.lib.build.json': JSON.stringify({
@@ -249,6 +249,44 @@ describe('runProofCheck build config semantics', () => {
 
     try {
       await expect(runProofCheck(fixture.config)).resolves.toBe(true);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it('ignores configured artifact consumer typecheck targets', async () => {
+    const fixture = await createFixture({
+      'packages/pkg/package.json': JSON.stringify({
+        scripts: {
+          typecheck: 'tsc -p tsconfig.json --noEmit',
+        },
+      }),
+      'packages/pkg/src/index.ts': 'export const value = 1;\n',
+      'packages/pkg/tsconfig.json': JSON.stringify({
+        compilerOptions: {
+          module: 'ESNext',
+          moduleResolution: 'bundler',
+          strict: true,
+          target: 'ES2023',
+          types: [],
+        },
+        include: ['src/**/*.ts'],
+      }),
+      'tsconfig.graph.json': JSON.stringify({
+        files: [],
+        references: [],
+      }),
+    });
+
+    try {
+      await expect(
+        runProofCheck({
+          ...fixture.config,
+          proof: {
+            ignoredTypecheckTargets: ['packages/pkg/tsconfig.json'],
+          },
+        }),
+      ).resolves.toBe(true);
     } finally {
       await fixture.cleanup();
     }

@@ -2,7 +2,6 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   // Package-level public/helper declaration build leaf.
   "extends": [
-    "../tsconfig.graph.paths.generated.json",
     "./tsconfig.json",
     "../../../tsconfig.graph.base.json"
   ],

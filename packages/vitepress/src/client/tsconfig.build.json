@@ -2,7 +2,6 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   // Client runtime build leaf; keep Node ambient types out.
   "extends": [
-    "../../tsconfig.graph.paths.generated.json",
     "./tsconfig.json",
     "../../../../tsconfig.graph.base.json"
   ],

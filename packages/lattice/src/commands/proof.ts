@@ -195,6 +195,9 @@ async function collectWorkspaceTypecheckTargets(
 ): Promise<TypecheckTarget[]> {
   const targets: TypecheckTarget[] = [];
   const scriptPrefix = config.proof?.typecheckScriptPrefix ?? 'typecheck';
+  const ignoredTypecheckTargets = new Set(
+    config.proof?.ignoredTypecheckTargets ?? [],
+  );
 
   for (const manifestPath of await collectWorkspacePackageManifestPaths(
     config,
@@ -218,17 +221,24 @@ async function collectWorkspaceTypecheckTargets(
     }
   }
 
-  return targets.sort((left, right) => {
-    const manifestDelta = left.manifestPath.localeCompare(right.manifestPath);
-    const scriptDelta =
-      manifestDelta === 0
-        ? left.scriptName.localeCompare(right.scriptName)
-        : manifestDelta;
+  return targets
+    .filter(
+      (target) =>
+        !ignoredTypecheckTargets.has(
+          toRelativePath(config.rootDir, target.configPath),
+        ),
+    )
+    .sort((left, right) => {
+      const manifestDelta = left.manifestPath.localeCompare(right.manifestPath);
+      const scriptDelta =
+        manifestDelta === 0
+          ? left.scriptName.localeCompare(right.scriptName)
+          : manifestDelta;
 
-    return scriptDelta === 0
-      ? left.configPath.localeCompare(right.configPath)
-      : scriptDelta;
-  });
+      return scriptDelta === 0
+        ? left.configPath.localeCompare(right.configPath)
+        : scriptDelta;
+    });
 }
 
 function collectConfiguredSidecarTargets(

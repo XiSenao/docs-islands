@@ -1,5 +1,5 @@
 {
-  // Smoke-local source/editor check. Build leaf: tsconfig.source.build.json.
+  // Smoke-local source/editor check. Dist consumer pipeline owns this config.
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "lib": ["ESNext", "DOM", "DOM.Iterable"],

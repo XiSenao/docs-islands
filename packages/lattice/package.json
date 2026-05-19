@@ -1,5 +1,6 @@
 {
   "name": "@docs-islands/lattice",
+  "private": true,
   "version": "0.0.1",
   "type": "module",
   "license": "MIT",
@@ -34,7 +35,7 @@
     "access": "public"
   },
   "bin": {
-    "lattice": "./bin/lattice.mjs"
+    "lattice": "./bin/lattice.js"
   },
   "scripts": {
     "build": "rolldown --config rolldown.config.ts",
@@ -65,9 +66,10 @@
   "peerDependencies": {
     "typescript": "catalog:dev"
   },
+  "types": "./src/index.ts",
   "exports": {
-    ".": "./dist/index.js",
-    "./config": "./dist/config.js",
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts",
     "./package.json": "./package.json"
   },
   "sideEffects": false
