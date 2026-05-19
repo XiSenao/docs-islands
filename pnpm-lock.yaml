@@ -351,8 +351,8 @@ importers:
         specifier: workspace:*
         version: link:packages/logger
       '@docs-islands/utils':
-        specifier: link:./utils/dist
-        version: link:utils/dist
+        specifier: workspace:*
+        version: link:utils
       '@playwright/test':
         specifier: catalog:test
         version: 1.58.2
@@ -525,8 +525,8 @@ importers:
         specifier: workspace:*
         version: link:../eslint-config
       '@docs-islands/utils':
-        specifier: link:../../utils/dist
-        version: link:../../utils/dist
+        specifier: workspace:*
+        version: link:../../utils
       '@types/babel__generator':
         specifier: catalog:dev
         version: 7.27.0
@@ -744,14 +744,14 @@ importers:
         specifier: workspace:*
         version: link:../eslint-config
       '@docs-islands/lattice':
-        specifier: link:../packages/lattice/dist
-        version: link:../packages/lattice/dist
+        specifier: link:../lattice/dist
+        version: link:../lattice/dist
       '@docs-islands/plugin-license':
         specifier: link:../plugins/license
         version: link:../plugins/license
       '@docs-islands/utils':
-        specifier: link:../../utils/dist
-        version: link:../../utils/dist
+        specifier: workspace:*
+        version: link:../../utils
       '@publint/pack':
         specifier: catalog:lint
         version: 0.1.4
@@ -900,8 +900,8 @@ importers:
         specifier: workspace:*
         version: link:../eslint-config
       '@docs-islands/lattice':
-        specifier: link:../packages/lattice/dist
-        version: link:../packages/lattice/dist
+        specifier: link:../lattice/dist
+        version: link:../lattice/dist
       '@docs-islands/plugin-license':
         specifier: link:../plugins/license
         version: link:../plugins/license

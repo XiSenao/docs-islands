@@ -74,7 +74,7 @@
     "@docs-islands/eslint-config": "workspace:*",
     "@docs-islands/lattice": "link:./packages/lattice/dist",
     "@docs-islands/logger": "workspace:*",
-    "@docs-islands/utils": "link:./utils/dist",
+    "@docs-islands/utils": "workspace:*",
     "prettier": "catalog:format",
     "prettier-plugin-organize-imports": "catalog:format",
     "typescript": "catalog:dev",

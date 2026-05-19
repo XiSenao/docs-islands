@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 import path from 'node:path';
 import ts from 'typescript';
@@ -18,7 +18,6 @@ import {
   collectImporters,
   collectWorkspacePackages,
   findPackageForSpecifier,
-  isInternalSpecifier,
   type ImporterInfo,
   type WorkspacePackage,
 } from '../workspace';
@@ -36,6 +35,61 @@ interface ImportRecord {
   specifier: string;
 }
 
+const buildConfigFilePattern = /^tsconfig(?:\..+)?\.build\.json$/u;
+
+const requiredBuildCompilerOptions: [keyof ts.CompilerOptions, unknown][] = [
+  ['composite', true],
+  ['incremental', true],
+  ['noEmit', false],
+  ['declaration', true],
+  ['emitDeclarationOnly', true],
+];
+
+const requiredBuildPathOptions: (keyof ts.CompilerOptions)[] = [
+  'rootDir',
+  'outDir',
+  'tsBuildInfoFile',
+];
+
+const comparableTypecheckOptions: (keyof ts.CompilerOptions)[] = [
+  'allowArbitraryExtensions',
+  'allowImportingTsExtensions',
+  'allowJs',
+  'allowSyntheticDefaultImports',
+  'checkJs',
+  'customConditions',
+  'esModuleInterop',
+  'exactOptionalPropertyTypes',
+  'forceConsistentCasingInFileNames',
+  'isolatedDeclarations',
+  'isolatedModules',
+  'jsx',
+  'jsxImportSource',
+  'lib',
+  'module',
+  'moduleDetection',
+  'moduleResolution',
+  'noFallthroughCasesInSwitch',
+  'noImplicitAny',
+  'noImplicitOverride',
+  'noImplicitReturns',
+  'noImplicitThis',
+  'noPropertyAccessFromIndexSignature',
+  'noUncheckedIndexedAccess',
+  'resolveJsonModule',
+  'skipLibCheck',
+  'strict',
+  'strictBindCallApply',
+  'strictFunctionTypes',
+  'strictNullChecks',
+  'strictPropertyInitialization',
+  'target',
+  'typeRoots',
+  'types',
+  'useDefineForClassFields',
+  'verbatimModuleSyntax',
+];
+
 const nodeBuiltinSpecifiers = new Set(
   builtinModules.flatMap((specifier) =>
     specifier.startsWith('node:')
@@ -51,6 +105,21 @@ function isRelativeSpecifier(specifier: string): boolean {
     specifier.startsWith('./') ||
     specifier.startsWith('../')
   );
+}
+
+function isBuildProjectConfig(configPath: string): boolean {
+  return buildConfigFilePattern.test(path.basename(configPath));
+}
+
+function getTypecheckConfigPath(buildConfigPath: string): string {
+  const directory = path.dirname(buildConfigPath);
+  const fileName = path.basename(buildConfigPath);
+  const typecheckFileName =
+    fileName === 'tsconfig.build.json'
+      ? 'tsconfig.json'
+      : fileName.replace(/\.build\.json$/u, '.json');
+
+  return path.join(directory, typecheckFileName);
 }
 
 function parseProject(
@@ -97,6 +166,134 @@ function parseProject(
     options: parsed.options,
     references: new Set(getRawReferencePaths(config, configPath)),
   };
+}
+
+function formatCompilerOptionValue(value: unknown): string {
+  if (value === undefined) {
+    return 'undefined';
+  }
+
+  return JSON.stringify(value);
+}
+
+function compilerOptionEquals(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function addBuildOptionProblems(
+  config: ResolvedLatticeConfig,
+  project: ProjectInfo,
+  problems: string[],
+): void {
+  if (!isBuildProjectConfig(project.configPath)) {
+    return;
+  }
+
+  for (const [optionName, expected] of requiredBuildCompilerOptions) {
+    const actual = project.options[optionName];
+
+    if (actual === expected) {
+      continue;
+    }
+
+    problems.push(
+      [
+        'Invalid build project compiler option:',
+        `  project: ${toRelativePath(config.rootDir, project.configPath)}`,
+        `  option: compilerOptions.${optionName}`,
+        `  expected: ${formatCompilerOptionValue(expected)}`,
+        `  actual: ${formatCompilerOptionValue(actual)}`,
+        '  reason: tsconfig*.build.json projects are consumed by tsc -b and must emit declarations through composite incremental builds.',
+      ].join('\n'),
+    );
+  }
+
+  for (const optionName of requiredBuildPathOptions) {
+    if (project.options[optionName]) {
+      continue;
+    }
+
+    problems.push(
+      [
+        'Missing build project output option:',
+        `  project: ${toRelativePath(config.rootDir, project.configPath)}`,
+        `  option: compilerOptions.${optionName}`,
+        '  reason: build graph leaves need explicit root/output state so declaration output and tsbuildinfo files do not collide.',
+      ].join('\n'),
+    );
+  }
+}
+
+function addTypecheckParityProblems(
+  config: ResolvedLatticeConfig,
+  buildProject: ProjectInfo,
+  problems: string[],
+): void {
+  if (!isBuildProjectConfig(buildProject.configPath)) {
+    return;
+  }
+
+  const typecheckConfigPath = getTypecheckConfigPath(buildProject.configPath);
+
+  if (!existsSync(typecheckConfigPath)) {
+    problems.push(
+      [
+        'Missing typecheck companion config:',
+        `  build project: ${toRelativePath(config.rootDir, buildProject.configPath)}`,
+        `  expected typecheck config: ${toRelativePath(config.rootDir, typecheckConfigPath)}`,
+        '  reason: every tsconfig*.build.json project should have a matching tsconfig*.json file with the same typechecking semantics.',
+      ].join('\n'),
+    );
+    return;
+  }
+
+  const typecheckProject = parseProject(config, typecheckConfigPath);
+
+  for (const optionName of comparableTypecheckOptions) {
+    const buildValue = buildProject.options[optionName];
+    const typecheckValue = typecheckProject.options[optionName];
+
+    if (compilerOptionEquals(buildValue, typecheckValue)) {
+      continue;
+    }
+
+    problems.push(
+      [
+        'Typecheck option mismatch between build and companion config:',
+        `  build project: ${toRelativePath(config.rootDir, buildProject.configPath)}`,
+        `  typecheck config: ${toRelativePath(config.rootDir, typecheckConfigPath)}`,
+        `  option: compilerOptions.${optionName}`,
+        `  build value: ${formatCompilerOptionValue(buildValue)}`,
+        `  typecheck value: ${formatCompilerOptionValue(typecheckValue)}`,
+        '  reason: tsconfig*.build.json should emit with the same typechecking semantics as its matching tsconfig*.json companion.',
+      ].join('\n'),
+    );
+  }
+
+  const typecheckFiles = new Set(typecheckProject.fileNames);
+  const missingFiles = buildProject.fileNames.filter(
+    (fileName) => !typecheckFiles.has(fileName),
+  );
+
+  if (missingFiles.length === 0) {
+    return;
+  }
+
+  problems.push(
+    [
+      'Build project includes files missing from its companion typecheck config:',
+      `  build project: ${toRelativePath(config.rootDir, buildProject.configPath)}`,
+      `  typecheck config: ${toRelativePath(config.rootDir, typecheckConfigPath)}`,
+      '  files:',
+      ...missingFiles
+        .slice(0, 10)
+        .map((fileName) => `    - ${toRelativePath(config.rootDir, fileName)}`),
+      ...(missingFiles.length > 10
+        ? [`    ...and ${missingFiles.length - 10} more`]
+        : []),
+      '  reason: a build leaf must not emit declarations for files that are not covered by the matching typecheck target.',
+    ].join('\n'),
+  );
 }
 
 function getSourceFileKind(filePath: string): ts.ScriptKind {
@@ -335,6 +532,14 @@ function shouldResolveThroughGraph(
   );
 }
 
+function formatArtifactDependencyPolicy(
+  targetPackage: WorkspacePackage,
+): string {
+  return targetPackage.manifest.private === true
+    ? 'private workspace packages cannot be consumed from a registry, so artifact consumers should use link: and should not keep a project reference.'
+    : 'artifact consumers should use link: for local dist output, or catalog:/semver to consume the published production package, and should not keep a project reference.';
+}
+
 function inferConfiguredProject(
   config: ResolvedLatticeConfig,
   resolvedFilePath: string,
@@ -416,10 +621,6 @@ function findTargetProject(options: {
     return chooseOwningProject(options.config, ownerProjects);
   }
 
-  if (!isInternalSpecifier(options.specifier, options.config)) {
-    return null;
-  }
-
   const workspacePackage = findPackageForSpecifier(
     options.specifier,
     options.packages,
@@ -469,6 +670,57 @@ function addForbiddenReferenceProblems(
   }
 }
 
+function addWorkspaceReferenceDependencyProblems(
+  config: ResolvedLatticeConfig,
+  project: ProjectInfo,
+  projectsByPath: Map<string, ProjectInfo>,
+  packages: WorkspacePackage[],
+  importers: ImporterInfo[],
+  problems: string[],
+): void {
+  if (!isBuildProjectConfig(project.configPath)) {
+    return;
+  }
+
+  const sourcePackage = findPackageForFile(project.configPath, packages);
+  const importer = sourcePackage
+    ? findImporterForFile(project.configPath, importers)
+    : null;
+
+  if (!sourcePackage) {
+    return;
+  }
+
+  for (const referencePath of project.references) {
+    if (!projectsByPath.has(referencePath)) {
+      continue;
+    }
+
+    const targetPackage = findPackageForFile(referencePath, packages);
+
+    if (!targetPackage || targetPackage.name === sourcePackage.name) {
+      continue;
+    }
+
+    if (importer?.workspaceDependencies.has(targetPackage.name)) {
+      continue;
+    }
+
+    problems.push(
+      [
+        'Project reference crosses workspace packages without a workspace:* dependency:',
+        `  referencing project: ${toRelativePath(config.rootDir, project.configPath)}`,
+        `  referenced project: ${toRelativePath(config.rootDir, referencePath)}`,
+        `  referencing package: ${sourcePackage.name}`,
+        `  referenced package: ${targetPackage.name}`,
+        `  package manifest: ${toRelativePath(config.rootDir, path.join(sourcePackage.directory, 'package.json'))}`,
+        `  reason: a cross-package tsconfig*.build.json reference is a source dependency edge, so ${sourcePackage.name} must declare ${targetPackage.name} with the workspace: protocol.`,
+        `  fix: add "${targetPackage.name}": "workspace:*" to dependencies, devDependencies, peerDependencies, or optionalDependencies in the referencing package manifest. If this package intentionally consumes built artifacts, remove the project reference; ${formatArtifactDependencyPolicy(targetPackage)}`,
+      ].join('\n'),
+    );
+  }
+}
+
 export async function runGraphCheck(
   config: ResolvedLatticeConfig,
 ): Promise<boolean> {
@@ -485,7 +737,17 @@ export async function runGraphCheck(
   const problems: string[] = [];
 
   for (const project of projects) {
+    addBuildOptionProblems(config, project, problems);
+    addTypecheckParityProblems(config, project, problems);
     addForbiddenReferenceProblems(config, project, projectsByPath, problems);
+    addWorkspaceReferenceDependencyProblems(
+      config,
+      project,
+      projectsByPath,
+      packages,
+      importers,
+      problems,
+    );
 
     for (const filePath of project.fileNames) {
       for (const importRecord of collectImportsFromFile(filePath)) {
@@ -515,27 +777,26 @@ export async function runGraphCheck(
           filePath,
           project.options,
         );
-        const targetPackage = isInternalSpecifier(
+        const targetPackage = findPackageForSpecifier(
           importRecord.specifier,
-          config,
-        )
-          ? findPackageForSpecifier(importRecord.specifier, packages)
-          : null;
+          packages,
+        );
         const importer = targetPackage
           ? findImporterForFile(importRecord.filePath, importers)
           : null;
 
         if (!resolvedFilePath) {
-          if (!isInternalSpecifier(importRecord.specifier, config)) {
+          if (!targetPackage) {
             continue;
           }
 
           problems.push(
             [
-              'Unresolved internal import:',
+              'Unresolved workspace import:',
               `  importing project: ${toRelativePath(config.rootDir, project.configPath)}`,
               `  file: ${toRelativePath(config.rootDir, importRecord.filePath)}:${importRecord.line}`,
               `  imported specifier: ${importRecord.specifier}`,
+              `  matched workspace package: ${targetPackage.name}`,
               `  current references: ${formatReferences(config.rootDir, project.references)}`,
             ].join('\n'),
           );
@@ -616,8 +877,8 @@ export async function runGraphCheck(
               `  file: ${toRelativePath(config.rootDir, importRecord.filePath)}:${importRecord.line}`,
               `  imported specifier: ${importRecord.specifier}`,
               `  resolved file: ${toRelativePath(config.rootDir, resolvedFilePath)}`,
-              '  reason: workspace:* internal dependencies are source dependencies, but TypeScript resolved this package export to a file not owned by the source graph. tsc -b does not rewrite package exports through project references.',
-              '  fix: expose source files from the dependency package exports, add a source paths config to this build config extends, or use link:/catalog:/semver when the dependency should consume built artifacts.',
+              '  reason: workspace:* dependencies are source dependencies, but TypeScript resolved this package export to a file not owned by the source graph. tsc -b does not rewrite package exports through project references.',
+              `  fix: expose source files from the dependency package exports, add a source paths config to this build config extends, or stop using workspace:* plus project references for artifact consumption; ${formatArtifactDependencyPolicy(targetPackage)}`,
               '  hint: run `lattice paths generate` to create a compatibility paths file, then manually add it to the first position of the listed tsconfig*.build.json extends array.',
             ].join('\n'),
           );
@@ -634,7 +895,7 @@ export async function runGraphCheck(
         });
 
         if (!targetProjectPath) {
-          if (!isInternalSpecifier(importRecord.specifier, config)) {
+          if (!targetPackage) {
             continue;
           }
 
@@ -645,12 +906,12 @@ export async function runGraphCheck(
             ) {
               problems.push(
                 [
-                  'Workspace internal import resolved outside the workspace graph:',
+                  'Workspace source import resolved outside the workspace graph:',
                   `  importing project: ${toRelativePath(config.rootDir, project.configPath)}`,
                   `  file: ${toRelativePath(config.rootDir, importRecord.filePath)}:${importRecord.line}`,
                   `  imported specifier: ${importRecord.specifier}`,
                   `  resolved file: ${toRelativePath(config.rootDir, resolvedFilePath)}`,
-                  '  reason: workspace:* internal dependencies must expose source files through package exports; use link:/catalog:/semver for artifact dependencies.',
+                  `  reason: workspace:* dependencies are source dependency edges and must resolve to files owned by the source graph; ${formatArtifactDependencyPolicy(targetPackage)}`,
                 ].join('\n'),
               );
             }
@@ -659,7 +920,7 @@ export async function runGraphCheck(
 
           problems.push(
             [
-              'Unable to map internal import to a graph project:',
+              'Unable to map workspace import to a graph project:',
               `  importing project: ${toRelativePath(config.rootDir, project.configPath)}`,
               `  file: ${toRelativePath(config.rootDir, importRecord.filePath)}:${importRecord.line}`,
               `  imported specifier: ${importRecord.specifier}`,
@@ -709,7 +970,7 @@ export async function runGraphCheck(
         if (!project.references.has(targetProjectPath)) {
           problems.push(
             [
-              'Missing project reference for internal import:',
+              'Missing project reference for workspace import:',
               `  importing project: ${toRelativePath(config.rootDir, project.configPath)}`,
               `  file: ${toRelativePath(config.rootDir, importRecord.filePath)}:${importRecord.line}`,
               `  imported specifier: ${importRecord.specifier}`,

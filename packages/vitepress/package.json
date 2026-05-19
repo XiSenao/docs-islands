@@ -70,7 +70,7 @@
     "@babel/types": "catalog:dev",
     "@docs-islands/core": "workspace:*",
     "@docs-islands/eslint-config": "workspace:*",
-    "@docs-islands/lattice": "link:../packages/lattice/dist",
+    "@docs-islands/lattice": "link:../lattice/dist",
     "@docs-islands/plugin-license": "link:../plugins/license",
     "@docs-islands/utils": "link:../../utils/dist",
     "@publint/pack": "catalog:lint",

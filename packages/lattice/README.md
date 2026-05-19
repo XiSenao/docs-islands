@@ -27,10 +27,10 @@ English | [简体中文](./README.zh-CN.md)
 
 - Node.js `^20.19.0 || >=22.12.0`
 - TypeScript, installed by the consuming repository
-- A pnpm workspace with `pnpm-workspace.yaml` and `pnpm-lock.yaml`
+- A pnpm workspace with `pnpm-workspace.yaml`
 - ESM config file support
 
-Lattice is pnpm-only by design. It always reads `pnpm-workspace.yaml` and `pnpm-lock.yaml`; these file names are not user-configurable.
+Lattice is pnpm-only by design. It prefers `pnpm recursive list --depth -1 --json` for package discovery, then merges in `pnpm-workspace.yaml` and configured package globs as a fallback. Package manifests define `workspace:*` dependency semantics.
 
 ## Installation
 
@@ -56,9 +56,6 @@ Create `lattice.config.mjs` at the repository root:
 import { defineConfig } from '@docs-islands/lattice/config';
 
 export default defineConfig({
-  workspace: {
-    internalScopes: ['@acme/'],
-  },
   graph: {
     rootConfig: 'tsconfig.graph.json',
     productionKinds: ['lib', 'runtime-client', 'runtime-node'],
@@ -133,7 +130,7 @@ pnpm exec lattice package-boundary check --package @acme/core
 ## CLI
 
 ```sh
-lattice [--config lattice.config.mjs] <command>
+lattice [--config lattice.config.mjs] [--mode mode] <command>
 ```
 
 | Command                                           | Description                                                                                  |
@@ -150,24 +147,37 @@ Graph, proof, and package-boundary checks are read-only. `lattice paths generate
 
 ## Configuration
 
-`lattice.config.mjs` must default-export a config object. Use `defineConfig(...)` for editor hints and typed package exports.
+`lattice.config.mjs` must default-export a config object, a Promise for one, or a function receiving `{ command, mode }`. Use `defineConfig(...)` for editor hints and typed package exports. `--mode` is forwarded to config functions; when omitted, Lattice uses `process.env.NODE_ENV` or `default`.
 
 ### `workspace`
 
 | Field             | Description                                                                             |
 | ----------------- | --------------------------------------------------------------------------------------- |
 | `rootDir`         | Repository root relative to the config file. Defaults to `.`.                           |
-| `internalScopes`  | Package name prefixes treated as internal workspace packages, for example `['@acme/']`. |
 | `packagePatterns` | Additional workspace package globs.                                                     |
 | `ignore`          | Extra glob ignores for workspace package discovery.                                     |
 
-Lattice always reads pnpm workspace metadata from fixed `pnpm-workspace.yaml` and `pnpm-lock.yaml` files.
+Lattice prefers pnpm's recursive package list and also reads package globs from the fixed `pnpm-workspace.yaml` file for fallback discovery and extra configured patterns.
 
 ### `graph`
 
-Graph checks parse TypeScript project references reachable from `rootConfig`, then inspect imports in each project. Internal `workspace:*` dependencies must resolve through package `exports` to files covered by the source graph; artifact dependencies should use `link:`, `catalog:`, or normal semver and must not be represented as project references.
+Graph checks parse TypeScript project references reachable from `rootConfig`, then inspect imports in each project. Workspace packages declared through `workspace:*` are source dependencies and should expose source entries from package `exports`. Artifact dependencies must not be represented as project references: use `link:` for local built output, or `catalog:`/normal semver to consume a published production package. If the target package is `private: true`, it has no published production package, so artifact consumers must use `link:`.
 
 If package A depends on package B through `workspace:*` and A references B in a `tsconfig*.build.json`, TypeScript still resolves B through B's package exports. `tsc -b` does not rewrite artifact exports to referenced source projects. If B exports `./dist/index.js` and A has no source `paths` mapping, `lattice graph check` fails with an explanation and fix hint.
+
+Graph checks also validate every `tsconfig*.build.json` reachable from
+`rootConfig` against its strict same-name local config:
+
+- `tsconfig.build.json` compares with `tsconfig.json`
+- `tsconfig.lib.build.json` compares with `tsconfig.lib.json`
+- `tsconfig.test.build.json` compares with `tsconfig.test.json`
+- the same rule applies to other suffixes such as `tools` and `types`
+
+The build config must use the same typecheck compiler options as the local
+config, and every emitted build file must be covered by that companion
+typecheck config. Build-only options such as `composite`, `noEmit`,
+`declaration`, `outDir`, `rootDir`, and `tsBuildInfoFile` may differ. `paths`
+and `baseUrl` are treated as module-resolution policy and are not compared.
 
 | Field              | Description                                                                                             |
 | ------------------ | ------------------------------------------------------------------------------------------------------- |
@@ -182,7 +192,7 @@ If package A depends on package B through `workspace:*` and A references B in a 
 
 Most repositories should not need generated `paths`: make workspace package exports point at source entries, then express source dependencies with `workspace:*` plus project references. The `paths` command is a compatibility bridge for monorepos whose workspace package exports still point at build artifacts.
 
-`lattice paths generate` scans graph-owned imports. When it finds a `workspace:*` dependency that is also referenced by the importing build config, but TypeScript resolves the package export to a build artifact, it writes a package-local `tsconfig.graph.paths.generated.json` mapping the package exports back to source files. It never edits `tsconfig*.build.json`; add the generated file manually to the first position of the listed `extends` arrays.
+`lattice paths generate` scans graph-owned imports. When it finds a `workspace:*` dependency that is also referenced by the importing build config, but TypeScript resolves the package export to a build artifact, it writes `tsconfig.graph.paths.generated.json` next to the importing build config and maps the package exports back to source files. It never edits `tsconfig*.build.json`; add the generated file manually to the first position of the listed `extends` arrays.
 
 | Field                 | Description                                                                                                            |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------- |
@@ -195,18 +205,10 @@ Most repositories should not need generated `paths`: make workspace package expo
 ### `proof`
 
 Proof checks compare package-level typecheck scripts with root graph coverage.
-They also validate every `tsconfig*.build.json` reachable from the root graph
-against its strict same-name local config:
-
-- `tsconfig.build.json` compares with `tsconfig.json`
-- `tsconfig.lib.build.json` compares with `tsconfig.lib.json`
-- `tsconfig.test.build.json` compares with `tsconfig.test.json`
-- the same rule applies to other suffixes such as `tools` and `types`
-
-The build config must keep the same final file set and typecheck compiler
-options as the local config. Build-only options such as `composite`, `noEmit`,
-`declaration`, `outDir`, `rootDir`, and `tsBuildInfoFile` may differ. `paths`
-and `baseUrl` are treated as module-resolution policy and are ignored by proof.
+It also keeps a repository-wide guard for discovered `tsconfig*.build.json`
+files: every build config must be reachable from the root graph and must match
+its strict same-name local typecheck config. This mirrors graph's reachable
+project validation and catches orphan build configs.
 
 | Field                     | Description                                                                             |
 | ------------------------- | --------------------------------------------------------------------------------------- |

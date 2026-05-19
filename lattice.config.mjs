@@ -1,5 +1,7 @@
-import { defineConfig } from './packages/lattice/config.mjs';
+import { defineConfig } from '@docs-islands/lattice/config';
 
+// Project kinds that are part of published or runtime builds. The graph rules
+// reuse this list to keep production code away from tests and tooling code.
 const productionKinds = [
   'lib',
   'runtime-client',
@@ -8,39 +10,49 @@ const productionKinds = [
   'types',
 ];
 
+// Project kinds that are not solution aggregators. Build leaf projects should
+// depend on other leaves, not on tsconfig.graph.json-style aggregator configs.
 const nonSolutionKinds = [...productionKinds, 'test', 'tools', 'unknown'];
 
 export default defineConfig({
-  workspace: {
-    internalScopes: ['@docs-islands/'],
-  },
+  // TypeScript project graph policy. This checks project references,
+  // cross-project imports, package exports, and dependency direction by kind.
   graph: {
+    // Root solution tsconfig used to discover governed projects.
     rootConfig: 'tsconfig.graph.json',
+    // Production project kinds reused by rules such as forbiddenEdges.
     productionKinds,
+    // Ordered matchers for classifying each tsconfig. Put specific rules first.
     projectKinds: [
       {
+        // Solution configs aggregate references and should not be leaf deps.
         kind: 'solution',
         paths: ['tsconfig.graph.json', 'tsconfig.lib.graph.json'],
         suffixes: ['/tsconfig.graph.json', '/tsconfig.lib.graph.json'],
       },
       {
+        // Tooling configs cover scripts such as build and migration utilities.
         kind: 'tools',
         paths: ['scripts/tsconfig.build.json'],
         suffixes: ['/tsconfig.tools.build.json'],
       },
       {
+        // Shared runtime code must stay independent of node/client specifics.
         kind: 'runtime-shared',
         paths: ['packages/vitepress/src/shared/tsconfig.build.json'],
       },
       {
+        // Node runtime code may use Node.js built-ins.
         kind: 'runtime-node',
         paths: ['packages/vitepress/src/node/tsconfig.build.json'],
       },
       {
+        // Client runtime code runs in browsers and must not use Node-only APIs.
         kind: 'runtime-client',
         paths: ['packages/vitepress/src/client/tsconfig.build.json'],
       },
       {
+        // Type entry projects usually only carry public declarations.
         kind: 'types',
         paths: [
           'packages/vitepress/src/types/tsconfig.build.json',
@@ -48,14 +60,18 @@ export default defineConfig({
         ],
       },
       {
+        // Regular publishable library projects.
         kind: 'lib',
         suffixes: ['/tsconfig.lib.build.json'],
       },
       {
+        // Test projects should only be used by test flows.
         kind: 'test',
         suffixes: ['/tsconfig.test.build.json'],
       },
     ],
+    // Manual source ownership hints for folders that tsconfig includes cannot
+    // describe clearly enough.
     inferredProjects: [
       {
         packageName: '@docs-islands/vitepress',
@@ -83,6 +99,8 @@ export default defineConfig({
         sourcePrefix: 'packages/vitepress/src/client/',
       },
     ],
+    // Dependency directions that are not allowed. Each reason is shown in
+    // failure output so the fix is easier to understand.
     forbiddenEdges: [
       {
         fromKinds: productionKinds,
@@ -112,6 +130,7 @@ export default defineConfig({
         reason: 'shared runtime must stay independent of node/client runtime',
       },
     ],
+    // Project kinds that must not import Node.js built-ins such as fs or path.
     nodeBuiltinRules: [
       {
         kinds: ['runtime-client'],
@@ -123,7 +142,10 @@ export default defineConfig({
       },
     ],
   },
+  // Typecheck coverage proof. Source files must be covered by the root graph,
+  // a sidecar typecheck, or an explicit allowlist entry.
   proof: {
+    // Consumer and fixture typecheck targets are verified by separate flows.
     ignoredTypecheckTargets: [
       'packages/vitepress/docs/tsconfig.json',
       'packages/vitepress/playground/tsconfig.json',
@@ -131,6 +153,7 @@ export default defineConfig({
       'packages/vitepress/smoke/tsconfig.json',
       'packages/vitepress/smoke/tsconfig.test.json',
     ],
+    // Extra typecheck targets outside the root graph, such as Vue SFC checks.
     sidecarTargets: [
       {
         config: 'docs/tsconfig.json',
@@ -143,6 +166,7 @@ export default defineConfig({
         tool: 'vue-tsc',
       },
     ],
+    // Intentional exceptions. Each entry must explain why it is safe.
     allowlist: [
       {
         file: 'packages/vitepress/src/shared/internal/client-runtime.d.ts',
@@ -151,7 +175,10 @@ export default defineConfig({
       },
     ],
   },
+  // Published package boundary checks. These scan dist output to make sure
+  // runtime imports match package.json and browser/node boundaries.
   packageBoundary: {
+    // Each target is one built package output to audit.
     targets: [
       {
         name: '@docs-islands/logger',
@@ -160,11 +187,16 @@ export default defineConfig({
       {
         name: '@docs-islands/vitepress',
         distDir: 'packages/vitepress/dist',
+        // vitepress dist currently references utils, but this dependency is
+        // handled separately at the publish boundary.
         ignoredExternalPackages: ['@docs-islands/utils'],
       },
     ],
   },
+  // Reusable command pipelines. Run them with `lattice check <name>`.
   pipelines: {
+    // Main typecheck pipeline: build required plugins, then run graph checks,
+    // proof checks, and the actual tsc/vue-tsc commands.
     typecheck: [
       {
         type: 'command',
@@ -189,6 +221,7 @@ export default defineConfig({
         args: ['-p', 'packages/vitepress/theme/tsconfig.json', '--noEmit'],
       },
     ],
+    // Validation pipeline for consumer docs, playground, and smoke projects.
     consumer: [
       {
         type: 'command',
@@ -226,7 +259,9 @@ export default defineConfig({
         args: ['--dir', 'packages/vitepress/smoke', 'typecheck:test'],
       },
     ],
+    // Package-boundary-only audit for dist output.
     package: ['package-boundary:check'],
+    // Governance checks to run before publishing.
     publish: ['graph:check', 'proof:check', 'package-boundary:check'],
   },
 });

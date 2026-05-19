@@ -5,7 +5,11 @@ import { glob } from 'tinyglobby';
 import ts from 'typescript';
 import type { ResolvedLatticeConfig } from '../config';
 import { PathsLogger } from '../logger';
-import { collectGraphProjectPaths, getRawReferencePaths } from '../tsconfig';
+import {
+  collectGraphProjectPaths,
+  getRawReferencePaths,
+  readJsonConfig,
+} from '../tsconfig';
 import {
   isPathInsideDirectory,
   normalizeAbsolutePath,
@@ -19,7 +23,6 @@ import {
   collectImporters,
   collectWorkspacePackages,
   findPackageForSpecifier,
-  isInternalSpecifier,
   type ImporterInfo,
   type WorkspacePackage,
 } from '../workspace';
@@ -226,6 +229,28 @@ function resolveInternalImport(
     : null;
 }
 
+function resolveImportWithoutMatchingPaths(
+  specifier: string,
+  containingFile: string,
+  options: ts.CompilerOptions,
+): string | null {
+  if (!options.paths) {
+    return resolveInternalImport(specifier, containingFile, options);
+  }
+
+  const paths = Object.fromEntries(
+    Object.entries(options.paths).filter(
+      ([alias]) => !aliasMatchesSpecifier(alias, specifier),
+    ),
+  );
+  const nextOptions: ts.CompilerOptions = {
+    ...options,
+    paths: Object.keys(paths).length > 0 ? paths : undefined,
+  };
+
+  return resolveInternalImport(specifier, containingFile, nextOptions);
+}
+
 function createFileOwnerLookup(projects: ProjectInfo[]): Map<string, string[]> {
   const ownerLookup = new Map<string, string[]>();
 
@@ -239,6 +264,26 @@ function createFileOwnerLookup(projects: ProjectInfo[]): Map<string, string[]> {
   }
 
   return ownerLookup;
+}
+
+function projectExtendsGeneratedConfig(
+  config: ResolvedLatticeConfig,
+  configPath: string,
+): boolean {
+  const configObject = readJsonConfig(config, configPath);
+  const extendsValue = configObject.extends;
+  const extendsEntries =
+    typeof extendsValue === 'string'
+      ? [extendsValue]
+      : Array.isArray(extendsValue)
+        ? extendsValue
+        : [];
+
+  return extendsEntries.some(
+    (entry) =>
+      typeof entry === 'string' &&
+      path.basename(entry) === generatedFileName(config),
+  );
 }
 
 function findImporterForFile(
@@ -836,12 +881,13 @@ async function collectGeneratedConfigs(
   const drafts = new Map<string, GeneratedConfigDraft>();
 
   for (const project of projects) {
+    const keepsGeneratedPaths = projectExtendsGeneratedConfig(
+      config,
+      project.configPath,
+    );
+
     for (const filePath of project.fileNames) {
       for (const importRecord of collectImportsFromFile(filePath)) {
-        if (!isInternalSpecifier(importRecord.specifier, config)) {
-          continue;
-        }
-
         const targetPackage = findPackageForSpecifier(
           importRecord.specifier,
           packages,
@@ -863,13 +909,31 @@ async function collectGeneratedConfigs(
           project.options,
         );
 
-        if (!resolvedFilePath || fileOwnerLookup.has(resolvedFilePath)) {
+        if (!resolvedFilePath) {
+          continue;
+        }
+
+        const resolvedThroughGraph = fileOwnerLookup.has(resolvedFilePath);
+
+        const artifactResolvedFilePath =
+          resolvedThroughGraph && keepsGeneratedPaths
+            ? resolveImportWithoutMatchingPaths(
+                importRecord.specifier,
+                filePath,
+                project.options,
+              )
+            : resolvedFilePath;
+
+        if (
+          !artifactResolvedFilePath ||
+          fileOwnerLookup.has(artifactResolvedFilePath)
+        ) {
           continue;
         }
 
         const targetProjectPath = inferPackageProject(
           config,
-          resolvedFilePath,
+          artifactResolvedFilePath,
           targetPackage,
           projectPaths,
         );
@@ -893,7 +957,7 @@ async function collectGeneratedConfigs(
         }
 
         const outputPath = path.join(
-          importer!.directory,
+          path.dirname(project.configPath),
           generatedFileName(config),
         );
         const draft = getDraft(drafts, outputPath);

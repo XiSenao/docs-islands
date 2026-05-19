@@ -27,10 +27,10 @@
 
 - Node.js `^20.19.0 || >=22.12.0`
 - 由接入仓库安装 TypeScript
-- pnpm workspace，并包含 `pnpm-workspace.yaml` 和 `pnpm-lock.yaml`
+- pnpm workspace，并包含 `pnpm-workspace.yaml`
 - 支持 ESM 配置文件
 
-Lattice 专门为 pnpm 设计。它固定读取 `pnpm-workspace.yaml` 和 `pnpm-lock.yaml`，这些文件名不作为用户配置项暴露。
+Lattice 专门为 pnpm 设计。它优先通过 `pnpm recursive list --depth -1 --json` 做包发现，再合并 `pnpm-workspace.yaml` 和配置里的 package glob 作为兜底。各 package manifest 用来判断 `workspace:*` 依赖语义。
 
 ## 安装
 
@@ -56,9 +56,6 @@ pnpm add -D @docs-islands/lattice typescript
 import { defineConfig } from '@docs-islands/lattice/config';
 
 export default defineConfig({
-  workspace: {
-    internalScopes: ['@acme/'],
-  },
   graph: {
     rootConfig: 'tsconfig.graph.json',
     productionKinds: ['lib', 'runtime-client', 'runtime-node'],
@@ -133,7 +130,7 @@ pnpm exec lattice package-boundary check --package @acme/core
 ## CLI
 
 ```sh
-lattice [--config lattice.config.mjs] <command>
+lattice [--config lattice.config.mjs] [--mode mode] <command>
 ```
 
 | 命令                                              | 说明                                                             |
@@ -150,24 +147,37 @@ graph、proof 和 package-boundary 检查都是只读的。`lattice paths genera
 
 ## 配置
 
-`lattice.config.mjs` 必须 default export 一个配置对象。推荐使用 `defineConfig(...)` 获得编辑器提示和类型导出。
+`lattice.config.mjs` 必须 default export 一个配置对象、配置对象的 Promise，或接收 `{ command, mode }` 的配置函数。推荐使用 `defineConfig(...)` 获得编辑器提示和类型导出。`--mode` 会传给配置函数；省略时使用 `process.env.NODE_ENV`，再回退到 `default`。
 
 ### `workspace`
 
 | 字段              | 说明                                                       |
 | ----------------- | ---------------------------------------------------------- |
 | `rootDir`         | 相对配置文件的仓库根目录，默认 `.`。                       |
-| `internalScopes`  | 视为内部 workspace package 的包名前缀，例如 `['@acme/']`。 |
 | `packagePatterns` | 额外 workspace package glob。                              |
 | `ignore`          | workspace package 发现时的额外忽略 glob。                  |
 
-Lattice 固定从 `pnpm-workspace.yaml` 和 `pnpm-lock.yaml` 读取 pnpm workspace 元数据。
+Lattice 优先使用 pnpm recursive package list，也会读取固定的 `pnpm-workspace.yaml` package globs，用于兜底发现和额外配置的 pattern。
 
 ### `graph`
 
-graph 检查会解析从 `rootConfig` 可达的 TypeScript project references，并检查每个项目中的 import。内部 `workspace:*` 依赖必须通过 package `exports` 解析到 source graph 覆盖的源码文件；产物依赖应使用 `link:`、`catalog:` 或普通 semver，并且不能用 project reference 表示。
+graph 检查会解析从 `rootConfig` 可达的 TypeScript project references，并检查每个项目中的 import。通过 `workspace:*` 声明的 workspace package 是源码依赖，package `exports` 应该暴露源码入口。产物依赖不能再用 project reference 表达：本地构建产物使用 `link:`，已发布生产包使用 `catalog:` 或普通 semver。如果目标包是 `private: true`，它没有可消费的发布版本，产物消费者只能使用 `link:`。
 
 如果 A 包通过 `workspace:*` 依赖 B 包，并且 A 的 `tsconfig*.build.json` reference 了 B，那么 TypeScript 仍然会按照 B 的 package exports 做模块解析。`tsc -b` 不会因为存在 project reference 就把产物 exports 自动改写成源码项目。如果 B 暴露的是 `./dist/index.js`，而 A 没有源码 `paths` 映射，`lattice graph check` 会直接失败并解释原因和修复方式。
+
+graph 检查还会把 root graph 可达的每个 `tsconfig*.build.json` 与严格
+同名的本地配置做最终语义对比：
+
+- `tsconfig.build.json` 对比 `tsconfig.json`
+- `tsconfig.lib.build.json` 对比 `tsconfig.lib.json`
+- `tsconfig.test.build.json` 对比 `tsconfig.test.json`
+- `tools`、`types` 等其他后缀遵循同一规则
+
+build config 必须与本地配置保持相同的类型检查 `compilerOptions`，并且
+build 会 emit 的每个文件都必须被 companion typecheck config 覆盖。
+`composite`、`noEmit`、`declaration`、`outDir`、`rootDir`、
+`tsBuildInfoFile` 等 build-only 选项允许不同。`paths` 和 `baseUrl`
+属于模块解析策略，不参与对比。
 
 | 字段               | 说明                                                                             |
 | ------------------ | -------------------------------------------------------------------------------- |
@@ -182,7 +192,7 @@ graph 检查会解析从 `rootConfig` 可达的 TypeScript project references，
 
 大多数仓库不需要 generated `paths`：让 workspace package exports 指向源码入口，然后用 `workspace:*` 加 project reference 表达源码依赖即可。`paths` 命令是为兼容 exports 仍指向构建产物的 monorepo 提供的过渡工具。
 
-`lattice paths generate` 会扫描 graph 管理的 import。当某个 `workspace:*` 依赖同时被 importing build config reference，但 TypeScript 通过 package exports 解析到了构建产物时，它会在 importing package 内写入 `tsconfig.graph.paths.generated.json`，把对应 package exports 映射回源码文件。它不会修改任何 `tsconfig*.build.json`；请按命令输出提示，手动把生成文件放到对应 `extends` 数组的第一项。
+`lattice paths generate` 会扫描 graph 管理的 import。当某个 `workspace:*` 依赖同时被 importing build config reference，但 TypeScript 通过 package exports 解析到了构建产物时，它会在 importing build config 旁边写入 `tsconfig.graph.paths.generated.json`，把对应 package exports 映射回源码文件。它不会修改任何 `tsconfig*.build.json`；请按命令输出提示，手动把生成文件放到对应 `extends` 数组的第一项。
 
 | 字段                  | 说明                                                                                                     |
 | --------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -194,19 +204,11 @@ graph 检查会解析从 `rootConfig` 可达的 TypeScript project references，
 
 ### `proof`
 
-proof 检查会把 package 级 typecheck 脚本与根图覆盖范围对齐。它还会把
-root graph 可达的每个 `tsconfig*.build.json` 与严格同名的本地配置做最终
-语义对比：
-
-- `tsconfig.build.json` 对比 `tsconfig.json`
-- `tsconfig.lib.build.json` 对比 `tsconfig.lib.json`
-- `tsconfig.test.build.json` 对比 `tsconfig.test.json`
-- `tools`、`types` 等其他后缀遵循同一规则
-
-build config 必须与本地配置保持相同的最终文件集合和类型检查
-`compilerOptions`。`composite`、`noEmit`、`declaration`、`outDir`、
-`rootDir`、`tsBuildInfoFile` 等 build-only 选项允许不同。`paths` 和
-`baseUrl` 属于模块解析策略，不在 proof 中比较。
+proof 检查会把 package 级 typecheck 脚本与根图覆盖范围对齐。
+它还保留一个仓库级兜底：扫描发现的所有 `tsconfig*.build.json`，要求
+每个 build config 都能从 root graph 到达，并且与严格同名的本地
+typecheck config 保持语义一致。这与 graph 的可达项目校验互相补位，
+用于抓出游离的 build config。
 
 | 字段                      | 说明                                                             |
 | ------------------------- | ---------------------------------------------------------------- |

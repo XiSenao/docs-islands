@@ -11,7 +11,11 @@ import {
   resolveProjectConfigPath,
 } from '../tsconfig';
 import { normalizeAbsolutePath, toRelativePath } from '../utils/path';
-import { readJsonFile, type PackageManifest } from '../workspace';
+import {
+  collectWorkspacePackages,
+  readJsonFile,
+  type PackageManifest,
+} from '../workspace';
 
 type TypecheckTool = 'tsc' | 'vue-tsc' | string;
 
@@ -150,21 +154,15 @@ function collectTypecheckTargetsFromCommand(options: {
 async function collectWorkspacePackageManifestPaths(
   config: ResolvedLatticeConfig,
 ): Promise<string[]> {
-  const manifestPaths = await glob('**/package.json', {
-    cwd: config.rootDir,
-    absolute: true,
-    ignore: [
-      '**/.git/**',
-      '**/.tsbuild/**',
-      '**/coverage/**',
-      '**/dist/**',
-      '**/node_modules/**',
-    ],
-  });
   const rootManifestPath = path.join(config.rootDir, 'package.json');
+  const packages = await collectWorkspacePackages(config);
 
-  return manifestPaths
-    .map(normalizeAbsolutePath)
+  return packages
+    .map((workspacePackage) =>
+      normalizeAbsolutePath(
+        path.join(workspacePackage.directory, 'package.json'),
+      ),
+    )
     .filter(
       (manifestPath) =>
         manifestPath !== normalizeAbsolutePath(rootManifestPath),

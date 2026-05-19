@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -15,7 +15,9 @@ async function createFixture(files: Record<string, string>): Promise<{
   config: ResolvedLatticeConfig;
   rootDir: string;
 }> {
-  const rootDir = await mkdtemp(path.join(tmpdir(), 'lattice-proof-'));
+  const rootDir = await realpath(
+    await mkdtemp(path.join(tmpdir(), 'lattice-proof-')),
+  );
 
   for (const [relativePath, text] of Object.entries(files)) {
     await writeText(path.join(rootDir, relativePath), text);
@@ -209,6 +211,7 @@ describe('runProofCheck build config semantics', () => {
   it('allows different typecheck tools to cover the same file', async () => {
     const fixture = await createFixture({
       'packages/pkg/package.json': JSON.stringify({
+        name: '@example/pkg',
         scripts: {
           typecheck: 'tsc -p tsconfig.test.json --noEmit',
           'typecheck:vue': 'vue-tsc -p tsconfig.vue.json --noEmit',
@@ -237,6 +240,10 @@ describe('runProofCheck build config semantics', () => {
       'packages/pkg/tsconfig.vue.json': JSON.stringify({
         extends: './tsconfig.test.json',
       }),
+      'pnpm-workspace.yaml': `
+packages:
+  - packages/*
+`,
       'tsconfig.graph.json': JSON.stringify({
         files: [],
         references: [
@@ -257,6 +264,7 @@ describe('runProofCheck build config semantics', () => {
   it('ignores configured artifact consumer typecheck targets', async () => {
     const fixture = await createFixture({
       'packages/pkg/package.json': JSON.stringify({
+        name: '@example/pkg',
         scripts: {
           typecheck: 'tsc -p tsconfig.json --noEmit',
         },
@@ -272,6 +280,10 @@ describe('runProofCheck build config semantics', () => {
         },
         include: ['src/**/*.ts'],
       }),
+      'pnpm-workspace.yaml': `
+packages:
+  - packages/*
+`,
       'tsconfig.graph.json': JSON.stringify({
         files: [],
         references: [],

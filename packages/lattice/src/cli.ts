@@ -9,6 +9,7 @@ import { runProofCheck } from './commands/proof';
 import {
   loadConfig,
   type BuiltinTaskName,
+  type LatticeCommand,
   type PipelineStep,
   type ResolvedLatticeConfig,
 } from './config';
@@ -16,6 +17,7 @@ import { CliLogger, formatErrorMessage } from './logger';
 
 interface GlobalFlags {
   config?: string;
+  mode?: string;
 }
 
 interface PackageBoundaryFlags extends GlobalFlags {
@@ -24,10 +26,15 @@ interface PackageBoundaryFlags extends GlobalFlags {
 
 type NormalizedPipelineStep = Exclude<PipelineStep, string>;
 
-async function load(flags: GlobalFlags): Promise<ResolvedLatticeConfig> {
+async function load(
+  flags: GlobalFlags,
+  command: LatticeCommand,
+): Promise<ResolvedLatticeConfig> {
   return loadConfig({
+    command,
     configPath: flags.config,
     cwd: process.cwd(),
+    mode: flags.mode,
   });
 }
 
@@ -127,12 +134,13 @@ async function main(): Promise<void> {
   const cli = cac('lattice');
 
   cli.option('--config <path>', 'Path to lattice.config.mjs');
+  cli.option('--mode <mode>', 'Mode passed to lattice config functions');
   cli.help();
 
   cli
     .command('check <pipeline>', 'Run a configured governance pipeline')
     .action(async (pipeline: string, flags: GlobalFlags) => {
-      const config = await load(flags);
+      const config = await load(flags, 'check');
       const passed = await runPipeline(config, pipeline);
 
       if (!passed) {
@@ -151,7 +159,7 @@ async function main(): Promise<void> {
           `Unknown paths action "${action}". Expected generate, apply, or check.`,
         );
       }
-      const config = await load(flags);
+      const config = await load(flags, 'paths');
       const result = await runPaths(config, { check: action === 'check' });
 
       if (action === 'check' && result.changed) {
@@ -165,7 +173,7 @@ async function main(): Promise<void> {
       if (action !== 'check') {
         throw new Error(`Unknown graph action "${action}". Expected check.`);
       }
-      const config = await load(flags);
+      const config = await load(flags, 'graph');
 
       if (!(await runGraphCheck(config))) {
         process.exitCode = 1;
@@ -178,7 +186,7 @@ async function main(): Promise<void> {
       if (action !== 'check') {
         throw new Error(`Unknown proof action "${action}". Expected check.`);
       }
-      const config = await load(flags);
+      const config = await load(flags, 'proof');
 
       if (!(await runProofCheck(config))) {
         process.exitCode = 1;
@@ -197,7 +205,7 @@ async function main(): Promise<void> {
           `Unknown package-boundary action "${action}". Expected check.`,
         );
       }
-      const config = await load(flags);
+      const config = await load(flags, 'package-boundary');
 
       if (
         !(await runPackageBoundaryCheck({

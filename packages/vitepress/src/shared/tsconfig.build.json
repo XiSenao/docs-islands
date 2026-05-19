@@ -1,10 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   // Shared runtime build leaf; node/client runtime projects depend on this leaf.
-  "extends": [
-    "./tsconfig.json",
-    "../../../../tsconfig.graph.base.json"
-  ],
+  "extends": ["./tsconfig.json", "../../../../tsconfig.graph.base.json"],
   "compilerOptions": {
     "rootDir": "..",
     "outDir": "./.tsbuild",
@@ -16,9 +13,6 @@
     },
     {
       "path": "../../../logger/tsconfig.lib.build.json"
-    },
-    {
-      "path": "../../../../utils/tsconfig.lib.build.json"
     },
     {
       "path": "../../../core/tsconfig.lib.build.json"

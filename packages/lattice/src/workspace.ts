@@ -1,12 +1,12 @@
+import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { glob } from 'tinyglobby';
-import { parse } from 'yaml';
 import type { ResolvedLatticeConfig } from './config';
-import { normalizeAbsolutePath, normalizeWorkspacePath } from './utils/path';
+import { normalizeAbsolutePath } from './utils/path';
 
 const pnpmWorkspaceFileName = 'pnpm-workspace.yaml';
-const pnpmLockfileName = 'pnpm-lock.yaml';
+const pnpmWorkspaceListTimeoutMs = 3000;
 
 export interface PackageManifest {
   dependencies?: Record<string, string>;
@@ -27,20 +27,9 @@ export interface WorkspacePackage {
   name: string;
 }
 
-export interface LockfileDependency {
-  specifier?: string;
-  version?: string;
-}
-
-export interface LockfileImporter {
-  dependencies?: Record<string, LockfileDependency>;
-  devDependencies?: Record<string, LockfileDependency>;
-  optionalDependencies?: Record<string, LockfileDependency>;
-  peerDependencies?: Record<string, LockfileDependency>;
-}
-
-export interface Lockfile {
-  importers?: Record<string, LockfileImporter>;
+export interface PnpmWorkspaceListEntry {
+  name?: string;
+  path?: string;
 }
 
 export interface ImporterInfo {
@@ -51,17 +40,6 @@ export interface ImporterInfo {
 
 export function readJsonFile<T>(filePath: string): T {
   return JSON.parse(readFileSync(filePath, 'utf8')) as T;
-}
-
-export function getInternalScopes(config: ResolvedLatticeConfig): string[] {
-  return config.workspace?.internalScopes ?? [];
-}
-
-export function isInternalSpecifier(
-  specifier: string,
-  config: ResolvedLatticeConfig,
-): boolean {
-  return getInternalScopes(config).some((scope) => specifier.startsWith(scope));
 }
 
 export function stripYamlQuotes(value: string): string {
@@ -111,6 +89,35 @@ export function collectPnpmWorkspacePatterns(source: string): string[] {
   return patterns;
 }
 
+export function parsePnpmWorkspaceListJson(
+  source: string,
+): PnpmWorkspaceListEntry[] {
+  const parsed = JSON.parse(source) as unknown;
+
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      return [];
+    }
+
+    const record = entry as Record<string, unknown>;
+
+    if (typeof record.name !== 'string' || typeof record.path !== 'string') {
+      return [];
+    }
+
+    return [
+      {
+        name: record.name,
+        path: record.path,
+      },
+    ];
+  });
+}
+
 export function collectWorkspacePatterns(
   config: ResolvedLatticeConfig,
 ): string[] {
@@ -140,7 +147,125 @@ export function collectWorkspacePatterns(
   return [...patterns].sort();
 }
 
-export async function collectWorkspacePackages(
+function runTextCommand(
+  command: string,
+  args: string[],
+  cwd: string,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      command,
+      args,
+      {
+        cwd,
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024,
+        timeout: pnpmWorkspaceListTimeoutMs,
+      },
+      (error, stdout) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve(stdout);
+      },
+    );
+  });
+}
+
+function getPnpmCommandCandidates(): {
+  argsPrefix: string[];
+  command: string;
+}[] {
+  const candidates: { argsPrefix: string[]; command: string }[] = [];
+  const npmExecPath = process.env.npm_execpath;
+
+  if (npmExecPath?.includes('pnpm')) {
+    candidates.push({
+      argsPrefix: [npmExecPath],
+      command: process.execPath,
+    });
+  }
+
+  candidates.push(
+    {
+      argsPrefix: ['pnpm'],
+      command: 'corepack',
+    },
+    {
+      argsPrefix: [],
+      command: 'pnpm',
+    },
+  );
+
+  const seen = new Set<string>();
+
+  return candidates.filter((candidate) => {
+    const key = `${candidate.command}\0${candidate.argsPrefix.join('\0')}`;
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+async function collectPnpmListedPackages(
+  config: ResolvedLatticeConfig,
+): Promise<WorkspacePackage[]> {
+  const args = ['recursive', 'list', '--depth', '-1', '--json'];
+
+  for (const candidate of getPnpmCommandCandidates()) {
+    try {
+      const source = await runTextCommand(
+        candidate.command,
+        [...candidate.argsPrefix, ...args],
+        config.rootDir,
+      );
+      const entries = parsePnpmWorkspaceListJson(source);
+      const packages: WorkspacePackage[] = [];
+
+      for (const entry of entries) {
+        if (!entry.path) {
+          continue;
+        }
+
+        const directory = normalizeAbsolutePath(entry.path);
+        const packageJsonPath = path.join(directory, 'package.json');
+
+        if (!existsSync(packageJsonPath)) {
+          continue;
+        }
+
+        const manifest = readJsonFile<PackageManifest>(packageJsonPath);
+        const name = manifest.name ?? entry.name;
+
+        if (!name) {
+          continue;
+        }
+
+        packages.push({
+          directory,
+          manifest,
+          name,
+        });
+      }
+
+      if (packages.length > 0) {
+        return packages;
+      }
+    } catch {
+      // Fall through to the next pnpm launcher, then to glob-based discovery.
+    }
+  }
+
+  return [];
+}
+
+async function collectWorkspacePackagesFromPatterns(
   config: ResolvedLatticeConfig,
 ): Promise<WorkspacePackage[]> {
   const workspacePatterns = collectWorkspacePatterns(config);
@@ -161,19 +286,11 @@ export async function collectWorkspacePackages(
     ],
   });
   const packages: WorkspacePackage[] = [];
-  const internalScopes = getInternalScopes(config);
 
   for (const packageJsonPath of [...new Set(packageJsonPaths)].sort()) {
     const manifest = readJsonFile<PackageManifest>(
       path.join(config.rootDir, packageJsonPath),
     );
-
-    if (
-      internalScopes.length > 0 &&
-      !internalScopes.some((scope) => manifest.name?.startsWith(scope))
-    ) {
-      continue;
-    }
 
     if (!manifest.name) {
       continue;
@@ -188,40 +305,49 @@ export async function collectWorkspacePackages(
     });
   }
 
-  return packages.sort((left, right) => left.name.localeCompare(right.name));
+  return packages;
 }
 
-export function readPnpmLockfile(config: ResolvedLatticeConfig): Lockfile {
-  const lockfilePath = path.join(config.rootDir, pnpmLockfileName);
-  const lockfile = parse(readFileSync(lockfilePath, 'utf8')) as Lockfile;
+function mergeWorkspacePackages(
+  packages: WorkspacePackage[],
+): WorkspacePackage[] {
+  const byDirectory = new Map<string, WorkspacePackage>();
 
-  if (!lockfile.importers || typeof lockfile.importers !== 'object') {
-    throw new Error(`${pnpmLockfileName} does not contain importers.`);
+  for (const workspacePackage of packages) {
+    byDirectory.set(workspacePackage.directory, workspacePackage);
   }
 
-  return lockfile;
+  return [...byDirectory.values()].sort((left, right) =>
+    left.name.localeCompare(right.name),
+  );
+}
+
+export async function collectWorkspacePackages(
+  config: ResolvedLatticeConfig,
+): Promise<WorkspacePackage[]> {
+  const [pnpmPackages, patternPackages] = await Promise.all([
+    collectPnpmListedPackages(config),
+    collectWorkspacePackagesFromPatterns(config),
+  ]);
+
+  return mergeWorkspacePackages([...pnpmPackages, ...patternPackages]);
 }
 
 export function getDependencySections(
-  importer: LockfileImporter,
-): Record<string, LockfileDependency>[] {
+  importer: PackageManifest,
+): Record<string, string>[] {
   return [
     importer.dependencies,
     importer.devDependencies,
     importer.optionalDependencies,
     importer.peerDependencies,
-  ].filter((section): section is Record<string, LockfileDependency> =>
+  ].filter((section): section is Record<string, string> =>
     Boolean(section),
   );
 }
 
-export function isWorkspaceLockfileDependency(
-  dependency: LockfileDependency,
-): boolean {
-  return (
-    dependency.specifier?.startsWith('workspace:') === true &&
-    dependency.version?.startsWith('link:') === true
-  );
+export function isWorkspaceDependencySpecifier(specifier: string): boolean {
+  return specifier.startsWith('workspace:');
 }
 
 export function getPackageRootSpecifier(specifier: string): string {
@@ -261,53 +387,41 @@ export function collectImporters(
   config: ResolvedLatticeConfig,
   packages: WorkspacePackage[],
 ): ImporterInfo[] {
-  const lockfile = readPnpmLockfile(config);
-  const packagesByDirectory = new Map(
-    packages.map((workspacePackage) => [
-      normalizeWorkspacePath(config.rootDir, workspacePackage.directory),
-      workspacePackage,
-    ]),
+  const workspacePackageNames = new Set(
+    packages.map((workspacePackage) => workspacePackage.name),
   );
+  const importerDirectories = new Set<string>([
+    config.rootDir,
+    ...packages.map((workspacePackage) => workspacePackage.directory),
+  ]);
   const importers: ImporterInfo[] = [];
 
-  for (const [rawImporterDirectory, importer] of Object.entries(
-    lockfile.importers!,
-  )) {
-    const importerDirectory =
-      rawImporterDirectory === '.'
-        ? config.rootDir
-        : normalizeAbsolutePath(
-            path.join(config.rootDir, rawImporterDirectory),
-          );
+  for (const importerDirectory of importerDirectories) {
+    const packageJsonPath = path.join(importerDirectory, 'package.json');
+
+    if (!existsSync(packageJsonPath)) {
+      continue;
+    }
+
+    const manifest = readJsonFile<PackageManifest>(packageJsonPath);
     const workspaceDependencies = new Set<string>();
 
-    for (const dependencies of getDependencySections(importer)) {
-      for (const [dependencyName, dependency] of Object.entries(dependencies)) {
+    for (const dependencies of getDependencySections(manifest)) {
+      for (const [dependencyName, specifier] of Object.entries(dependencies)) {
         if (
-          !isInternalSpecifier(dependencyName, config) ||
-          !isWorkspaceLockfileDependency(dependency)
+          !workspacePackageNames.has(dependencyName) ||
+          !isWorkspaceDependencySpecifier(specifier)
         ) {
           continue;
         }
 
-        const linkedPackageDirectory = normalizeWorkspacePath(
-          config.rootDir,
-          path.resolve(
-            importerDirectory,
-            dependency.version!.slice('link:'.length),
-          ),
-        );
-        const linkedPackage = packagesByDirectory.get(linkedPackageDirectory);
-
-        if (linkedPackage?.name === dependencyName) {
-          workspaceDependencies.add(dependencyName);
-        }
+        workspaceDependencies.add(dependencyName);
       }
     }
 
     importers.push({
       directory: importerDirectory,
-      name: readPackageName(importerDirectory),
+      name: manifest.name,
       workspaceDependencies,
     });
   }
