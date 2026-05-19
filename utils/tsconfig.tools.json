@@ -1,0 +1,10 @@
+{
+  // Package-local tooling check. Build leaf: tsconfig.tools.build.json.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "isolatedDeclarations": false,
+    "lib": ["ES2023"]
+  },
+  "include": ["rolldown.config.ts"],
+  "exclude": ["**/.tsbuild/**", ".eslintcache", "dist"]
+}

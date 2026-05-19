@@ -3,7 +3,7 @@
   // Library build leaf. Keep tooling, tests, docs, playground, and smoke files out.
   "extends": [
     "./tsconfig.graph.paths.generated.json",
-    "./tsconfig.json",
+    "./tsconfig.lib.json",
     "../tsconfig.graph.base.json"
   ],
   "compilerOptions": {

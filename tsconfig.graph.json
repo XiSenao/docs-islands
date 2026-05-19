@@ -25,6 +25,9 @@
       "path": "./packages/eslint-config/tsconfig.graph.json"
     },
     {
+      "path": "./packages/lattice/tsconfig.graph.json"
+    },
+    {
       "path": "./packages/vitepress/tsconfig.graph.json"
     }
   ]

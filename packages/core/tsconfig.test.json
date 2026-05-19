@@ -2,7 +2,13 @@
   // Local package-script test check. Build graph leaf: tsconfig.test.build.json.
   "extends": "../../tsconfig.test.base.json",
   "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src/**/__tests__/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
+  "include": [
+    "src/**/__tests__/**/*.ts",
+    "src/**/__tests__/**/*.tsx",
+    "tests/**/*.ts",
+    "vitest.config.ts"
+  ]
 }

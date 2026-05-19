@@ -1,0 +1,19 @@
+{
+  // Package-local library check. Build leaf: tsconfig.lib.build.json.
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "dist",
+    "cache",
+    "**/*cache*/**",
+    "coverage",
+    "node_modules",
+    ".eslintcache",
+    "packagePlugin.ts",
+    "rolldown.config.ts",
+    "scripts",
+    "vitest.config.ts",
+    "**/__tests__/**",
+    "**/*.spec.ts",
+    "**/*.test.ts"
+  ]
+}

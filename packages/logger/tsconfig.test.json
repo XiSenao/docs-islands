@@ -2,6 +2,7 @@
   // Local package-script test check. Build graph leaf: tsconfig.test.build.json.
   "extends": "../../tsconfig.test.base.json",
   "compilerOptions": {
+    "lib": ["ES2023"],
     "types": ["node", "vitest/globals"]
   },
   "include": [

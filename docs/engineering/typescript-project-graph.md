@@ -32,6 +32,9 @@ tsconfig.json
 packages/*/tsconfig.json
   package-local source/editor check entry
 
+tsconfig.<kind>.json
+  strict same-name local typecheck entry for tsconfig.<kind>.build.json
+
 tsconfig.graph.json
   default full TypeScript graph: production graph + tools + tests + fixtures
 
@@ -39,7 +42,7 @@ tsconfig.lib.graph.json
   production library/runtime declaration graph
 
 tsconfig.graph.base.json
-  shared build-mode overlay for build leaves
+  optional shared build-mode overlay for build leaves
 
 tsconfig.graph.paths.generated.json
   generated relative paths only
@@ -47,14 +50,14 @@ tsconfig.graph.paths.generated.json
 packages/*/tsconfig.graph.json
   package/domain-level graph aggregator
 
-tsconfig.*.build.json
-  build leaf; owns output/cache paths, references, and any intentional source-boundary overrides
+tsconfig*.build.json
+  build leaf; owns output/cache paths and references
 ```
 
 Root graph entries should only know first-class domains. Package graph
-aggregators own package internals. Build leaf configs usually inherit source
-semantics from their adjacent source/test config, then add build-mode output
-paths, direct references, and any intentional source-boundary overrides.
+aggregators own package internals. Build leaf configs inherit typecheck
+semantics from their strict same-name local config, then add build-mode output
+paths and direct references.
 
 ## Permanent Rules
 
@@ -74,6 +77,13 @@ paths, direct references, and any intentional source-boundary overrides.
 - `.tsbuild/` is transient graph cache only. Root tools use the root cache;
   workspace/package build leaves use owner-local `.tsbuild/` directories.
   These caches must stay ignored and must not be published or committed.
+- Every `tsconfig*.build.json` file must have a strict same-name local config.
+  For example, `tsconfig.lib.build.json` pairs with `tsconfig.lib.json`, and
+  `tsconfig.build.json` pairs with `tsconfig.json`.
+- Build leaves must preserve the paired local config's final file set and
+  typecheck compiler options. Only build-mode options such as `composite`,
+  `noEmit`, declaration emit, `rootDir`, `outDir`, and `tsBuildInfoFile` may
+  differ. Generated `paths` and `baseUrl` are checked separately.
 - `tsconfig.graph.paths.generated.json` is a local generated artifact.
   `postinstall` regenerates it after dependency installs; run
   `pnpm typecheck:paths` after changing package exports, package imports, or
@@ -93,15 +103,20 @@ builtin imports for client/shared runtime graph leaves.
   script entrypoints, not native build graph leaves.
 - `tsconfig.lib.build.json` is the canonical production library/runtime build
   leaf.
+- `tsconfig.lib.json` is the strict same-name production local check for
+  `tsconfig.lib.build.json`.
 - `src/<runtime>/tsconfig.build.json` is the canonical VitePress
   runtime-specific declaration build leaf.
+- `src/<runtime>/tsconfig.json` is the strict same-name runtime local check.
 - `tsconfig.tools.build.json` is the canonical tooling/build-config build leaf.
+- `tsconfig.tools.json` is the strict same-name tooling local check.
 - `tsconfig.test.build.json` is the canonical test build leaf.
+- `tsconfig.test.json` is the strict same-name test local check.
 - `tsconfig.source.build.json` is for fixture/app source build leaves such as
   playground and smoke projects.
+- `tsconfig.source.json` is the strict same-name fixture/app source local check.
 
-Legacy library/tool wrapper configs are removed. Build-leaf references should
-point at canonical `tsconfig.*.build.json` names.
+Build-leaf references should point at canonical `tsconfig*.build.json` names.
 
 VitePress runtime local configs under `packages/vitepress/src/*/tsconfig.json`
 stay next to their runtime build leaves. Package scripts and
@@ -115,16 +130,20 @@ native graph references the adjacent `tsconfig.build.json` files.
 | `tsconfig.json`                                                                                         | solution        | Editor-facing solution that points at `tsconfig.graph.json`.                             |
 | `tsconfig.graph.json`                                                                                   | solution        | Default full graph check entry for root scripts, packages, tests, playground, and smoke. |
 | `tsconfig.lib.graph.json`                                                                               | solution        | Production library/runtime declaration graph entry.                                      |
-| `tsconfig.graph.base.json`                                                                              | build base      | Shared generated paths and build-mode overlay for build leaves.                          |
+| `tsconfig.graph.base.json`                                                                              | build base      | Optional shared build-mode overlay for build leaves.                                     |
 | `tsconfig.graph.paths.generated.json`                                                                   | generated paths | Generated relative `paths` only.                                                         |
 | `scripts/tsconfig.build.json`                                                                           | tools leaf      | Root scripts tooling build leaf.                                                         |
 | `utils/tsconfig.json`                                                                                   | local source    | Utils package-local source/editor check.                                                 |
 | `utils/tsconfig.graph.json`                                                                             | aggregator      | Utils package graph.                                                                     |
+| `utils/tsconfig.lib.json`                                                                               | local lib       | Strict same-name local check for the utils lib leaf.                                     |
 | `utils/tsconfig.lib.build.json`                                                                         | lib leaf        | Utils production source graph.                                                           |
+| `utils/tsconfig.tools.json`                                                                             | local tools     | Strict same-name local check for the utils tools leaf.                                   |
 | `utils/tsconfig.tools.build.json`                                                                       | tools leaf      | Utils package tooling graph.                                                             |
 | `packages/*/tsconfig.json`                                                                              | local source    | Package-local source/editor check and package script entrypoint.                         |
 | `packages/*/tsconfig.graph.json`                                                                        | aggregator      | Package/domain graph entry.                                                              |
+| `packages/*/tsconfig.lib.json`                                                                          | local lib       | Strict same-name local check for package lib leaves.                                     |
 | `packages/*/tsconfig.lib.build.json`                                                                    | lib leaf        | Package production source graph.                                                         |
+| `packages/*/tsconfig.tools.json`                                                                        | local tools     | Strict same-name local check for package tools leaves.                                   |
 | `packages/*/tsconfig.tools.build.json`                                                                  | tools leaf      | Package tooling/build-config graph.                                                      |
 | `packages/*/tsconfig.test.build.json`                                                                   | test leaf       | Package test graph.                                                                      |
 | `packages/vitepress/tsconfig.lib.graph.json`                                                            | lib aggregator  | VitePress production runtime/type graph.                                                 |
@@ -147,13 +166,13 @@ dist files.
 
 ## Follow-Ups
 
-The graph base intentionally only defines generated paths plus build-mode
-options such as `composite`, `incremental`, declaration emit, and
-`noEmit: false`. It does not define source-checking semantics such as `strict`,
-`lib`, `types`, or `include`/`exclude`; build leaves inherit those from their
-adjacent source/test config where possible. It also does not define `rootDir`,
-`outDir`, or `tsBuildInfoFile`; every build leaf owns those paths. The legacy
-`tsconfig.base.json` still defines `rootDir: "."` because existing local checks
-and package scripts extend it. Removing that root directory from the legacy base
-should be a separate compatibility task after the graph and legacy checks have
-proven stable.
+The graph base intentionally only defines build-mode options such as
+`composite`, `incremental`, declaration emit, and `noEmit: false`. It is a
+convenience file, not a proof requirement. It does not define source-checking
+semantics such as `strict`, `lib`, `types`, or `include`/`exclude`; build leaves
+inherit those from their strict same-name local config. It also does not define
+`rootDir`, `outDir`, or `tsBuildInfoFile`; every build leaf owns those paths.
+The legacy `tsconfig.base.json` still defines `rootDir: "."` because existing
+local checks and package scripts extend it. Removing that root directory from
+the legacy base should be a separate compatibility task after the graph and
+legacy checks have proven stable.

@@ -3,28 +3,12 @@
   // Library build leaf. Keep rolldown config and tests out.
   "extends": [
     "./tsconfig.graph.paths.generated.json",
-    "./tsconfig.json",
+    "./tsconfig.lib.json",
     "../../tsconfig.graph.base.json"
   ],
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "./.tsbuild",
-    "tsBuildInfoFile": "./.tsbuild/lib.tsbuildinfo",
-    "lib": ["ES2023"]
-  },
-  "exclude": [
-    "dist",
-    "cache",
-    "**/*cache*/**",
-    "coverage",
-    "node_modules",
-    ".eslintcache",
-    "packagePlugin.ts",
-    "rolldown.config.ts",
-    "scripts",
-    "vitest.config.ts",
-    "**/__tests__/**",
-    "**/*.spec.ts",
-    "**/*.test.ts"
-  ]
+    "tsBuildInfoFile": "./.tsbuild/lib.tsbuildinfo"
+  }
 }

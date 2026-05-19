@@ -3,7 +3,7 @@
   // Smoke source build leaf. Smoke projects stay above runtime projects.
   "extends": [
     "./tsconfig.graph.paths.generated.json",
-    "./tsconfig.json",
+    "./tsconfig.source.json",
     "../../../tsconfig.graph.base.json"
   ],
   "compilerOptions": {

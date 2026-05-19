@@ -1,0 +1,4 @@
+{
+  // Playground-local source check. Build leaf: tsconfig.source.build.json.
+  "extends": "./tsconfig.json"
+}

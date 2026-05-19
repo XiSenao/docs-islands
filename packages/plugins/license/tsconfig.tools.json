@@ -1,0 +1,22 @@
+{
+  // Package-local tooling check. Build leaf: tsconfig.tools.build.json.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "isolatedDeclarations": false,
+    "lib": ["ES2023"]
+  },
+  "exclude": [
+    "src",
+    "dist",
+    "cache",
+    "**/*cache*/**",
+    "coverage",
+    "node_modules",
+    ".eslintcache",
+    "eslint.config.mjs",
+    "vitest.config.ts",
+    "**/__tests__/**",
+    "**/*.spec.ts",
+    "**/*.test.ts"
+  ]
+}

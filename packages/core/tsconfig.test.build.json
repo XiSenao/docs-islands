@@ -9,8 +9,7 @@
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "./.tsbuild",
-    "tsBuildInfoFile": "./.tsbuild/test.tsbuildinfo",
-    "lib": ["ESNext", "DOM", "DOM.Iterable"]
+    "tsBuildInfoFile": "./.tsbuild/test.tsbuildinfo"
   },
   "references": [
     {
@@ -19,11 +18,5 @@
     {
       "path": "../../utils/tsconfig.lib.build.json"
     }
-  ],
-  "include": [
-    "src/**/__tests__/**/*.ts",
-    "src/**/__tests__/**/*.tsx",
-    "tests/**/*.ts",
-    "vitest.config.ts"
   ]
 }

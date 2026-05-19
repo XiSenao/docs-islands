@@ -6,8 +6,10 @@
   },
   "include": [
     "src/**/__tests__/**/*.ts",
+    "src/**/__tests__/**/*.tsx",
     "scripts/**/__tests__/**/*.ts",
     "tests/**/*.ts",
-    "vitest.config.ts"
+    "vitest.config.ts",
+    "theme/*.ts"
   ]
 }

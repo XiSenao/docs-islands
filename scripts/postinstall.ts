@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import { runGenerateTsconfigGraphPaths } from './generate-tsconfig-graph-paths';
 
 function runCommand(
   command: string,
@@ -33,7 +32,7 @@ function runCommand(
 async function main(): Promise<void> {
   // Graph paths are git-ignored and depend on pnpm's resolved workspace links,
   // so each install refreshes them from the current lockfile.
-  await runGenerateTsconfigGraphPaths({ ensure: true });
+  await runCommand('lattice', ['paths', 'apply']);
 
   // Utils provides dist files consumed by local package-form imports after
   // install, so keep the existing postinstall build behavior centralized here.

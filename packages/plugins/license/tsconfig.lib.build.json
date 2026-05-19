@@ -3,34 +3,17 @@
   // Library build leaf for plugin runtime source; tooling stays in tsconfig.tools.build.json.
   "extends": [
     "./tsconfig.graph.paths.generated.json",
-    "./tsconfig.json",
+    "./tsconfig.lib.json",
     "../../../tsconfig.graph.base.json"
   ],
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "./.tsbuild",
     "tsBuildInfoFile": "./.tsbuild/lib.tsbuildinfo",
-    "lib": ["ES2023"],
   },
   "references": [
     {
       "path": "../../../utils/tsconfig.lib.build.json",
     },
-  ],
-  "exclude": [
-    "dist",
-    "cache",
-    "**/*cache*/**",
-    "coverage",
-    "node_modules",
-    ".eslintcache",
-    "eslint.config.mjs",
-    "packagePlugin.ts",
-    "rolldown.config.ts",
-    "scripts",
-    "vitest.config.ts",
-    "**/__tests__/**",
-    "**/*.spec.ts",
-    "**/*.test.ts",
   ],
 }

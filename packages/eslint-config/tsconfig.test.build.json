@@ -9,8 +9,7 @@
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "./.tsbuild",
-    "tsBuildInfoFile": "./.tsbuild/test.tsbuildinfo",
-    "lib": ["ES2023"]
+    "tsBuildInfoFile": "./.tsbuild/test.tsbuildinfo"
   },
   "references": [
     {

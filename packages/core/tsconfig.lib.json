@@ -1,0 +1,4 @@
+{
+  // Package-local library check. Build leaf: tsconfig.lib.build.json.
+  "extends": "./tsconfig.json"
+}

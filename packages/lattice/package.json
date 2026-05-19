@@ -1,0 +1,74 @@
+{
+  "name": "@docs-islands/lattice",
+  "version": "0.0.1",
+  "type": "module",
+  "license": "MIT",
+  "author": "Senao Xi",
+  "description": "Configurable monorepo architecture and TypeScript graph governance CLI",
+  "files": [
+    "README.md",
+    "README.zh-CN.md",
+    "bin",
+    "dist"
+  ],
+  "keywords": [
+    "monorepo",
+    "typescript",
+    "project-references",
+    "workspace",
+    "architecture"
+  ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/XiSenao/docs-islands.git",
+    "directory": "packages/lattice"
+  },
+  "bugs": {
+    "url": "https://github.com/XiSenao/docs-islands/issues"
+  },
+  "homepage": "https://docs.senao.me/docs-islands",
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "lattice": "./bin/lattice.mjs"
+  },
+  "scripts": {
+    "build": "rolldown --config rolldown.config.ts",
+    "build:watch": "rolldown --config rolldown.config.ts --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
+    "test": "vitest run",
+    "clean": "del-cli .tsbuild .eslintcache dist coverage node_modules"
+  },
+  "dependencies": {
+    "@docs-islands/logger": "catalog:prod",
+    "cac": "catalog:dev",
+    "es-module-lexer": "catalog:dev",
+    "tinyglobby": "catalog:prod",
+    "yaml": "catalog:dev"
+  },
+  "devDependencies": {
+    "@docs-islands/eslint-config": "workspace:*",
+    "@types/node": "catalog:dev",
+    "del-cli": "catalog:dev",
+    "eslint": "catalog:lint",
+    "rolldown": "catalog:dev",
+    "rolldown-plugin-dts": "catalog:dev",
+    "tsx": "catalog:dev",
+    "typescript": "catalog:dev",
+    "vitest": "catalog:test"
+  },
+  "peerDependencies": {
+    "typescript": "catalog:dev"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./config": "./dist/config.js",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false
+}

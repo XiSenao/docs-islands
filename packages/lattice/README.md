@@ -1,0 +1,326 @@
+# @docs-islands/lattice
+
+<p align="center">
+  <a href="https://npmjs.com/package/@docs-islands/lattice"><img src="https://img.shields.io/npm/v/@docs-islands/lattice.svg" alt="npm package"></a>
+  <a href="https://nodejs.org/en/about/previous-releases"><img src="https://img.shields.io/node/v/@docs-islands/lattice.svg" alt="node compatibility"></a>
+  <a href="https://github.com/XiSenao/docs-islands/actions/workflows/ci.yml"><img src="https://github.com/XiSenao/docs-islands/actions/workflows/ci.yml/badge.svg?branch=main" alt="build status"></a>
+  <a href="https://github.com/XiSenao/docs-islands/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/@docs-islands/lattice.svg" alt="license"></a>
+</p>
+
+English | [简体中文](./README.zh-CN.md)
+
+`@docs-islands/lattice` is a configurable monorepo governance CLI for TypeScript project-reference graphs. It turns scattered root scripts into an explicit rules file plus one `lattice` command that can check generated path aliases, graph architecture, local typecheck coverage, published package boundaries, and custom pipelines.
+
+## Features
+
+- **Single governance entrypoint**: use `lattice check <pipeline>` instead of long root `package.json` scripts.
+- **Explicit config**: keep all architecture rules in `lattice.config.mjs`; there is no hidden preset.
+- **Generated TypeScript paths**: derive `tsconfig.graph.paths.generated.json` files from pnpm workspace links and package `exports` / `imports`.
+- **Project graph validation**: enforce project-reference edges, package import boundaries, inferred project ownership, and Node builtin restrictions.
+- **Typecheck coverage proof**: verify that package-level typecheck scripts are covered by the root graph, configured sidecars, or documented allowlist entries.
+- **Published package boundary audit**: inspect built `.js` files and ensure runtime imports match package dependencies, self exports, and browser/node environments.
+- **Pipeline composition**: combine built-in checks and shell commands in named pipelines such as `typecheck`, `package`, and `publish`.
+- **First-class logs**: command output uses `@docs-islands/logger` with stable `@docs-islands/lattice[task.*]` groups.
+- **TypeScript first**: ships ESM, type declarations, a CLI bin, and `defineConfig(...)`.
+
+## Requirements
+
+- Node.js `^20.19.0 || >=22.12.0`
+- TypeScript, installed by the consuming repository
+- A pnpm workspace with `pnpm-workspace.yaml` and `pnpm-lock.yaml`
+- ESM config file support
+
+Lattice is pnpm-only by design. It always reads `pnpm-workspace.yaml` and `pnpm-lock.yaml`; these file names are not user-configurable.
+
+## Installation
+
+```sh
+pnpm add -D @docs-islands/lattice typescript
+```
+
+For a workspace package that calls `lattice` from its own scripts, add the package as a workspace dependency:
+
+```json
+{
+  "devDependencies": {
+    "@docs-islands/lattice": "workspace:*"
+  }
+}
+```
+
+## Quick Start
+
+Create `lattice.config.mjs` at the repository root:
+
+```js
+import { defineConfig } from '@docs-islands/lattice/config';
+
+export default defineConfig({
+  workspace: {
+    internalScopes: ['@acme/'],
+  },
+  paths: {
+    generatedFileName: 'tsconfig.graph.paths.generated.json',
+  },
+  graph: {
+    rootConfig: 'tsconfig.graph.json',
+    productionKinds: ['lib', 'runtime-client', 'runtime-node'],
+    projectKinds: [
+      { kind: 'solution', paths: ['tsconfig.graph.json'] },
+      { kind: 'lib', suffixes: ['/tsconfig.lib.build.json'] },
+      { kind: 'test', suffixes: ['/tsconfig.test.build.json'] },
+    ],
+    forbiddenEdges: [
+      {
+        fromKinds: ['lib', 'runtime-client', 'runtime-node'],
+        toKinds: ['test'],
+        reason: 'production graph must not depend on tests',
+      },
+    ],
+  },
+  proof: {
+    sidecarTargets: [
+      {
+        config: 'docs/tsconfig.json',
+        label: 'docs vue typecheck',
+        tool: 'vue-tsc',
+      },
+    ],
+    allowlist: [
+      {
+        file: 'src/generated/runtime.d.ts',
+        reason: 'Declaration-only runtime shim checked by a sidecar target.',
+      },
+    ],
+  },
+  packageBoundary: {
+    targets: [
+      {
+        name: '@acme/core',
+        distDir: 'packages/core/dist',
+      },
+    ],
+  },
+  pipelines: {
+    typecheck: [
+      'paths:check',
+      'graph:check',
+      'proof:check',
+      {
+        type: 'command',
+        command: 'tsc',
+        args: ['-b', 'tsconfig.graph.json', '--pretty', 'false'],
+      },
+    ],
+    package: ['package-boundary:check'],
+  },
+});
+```
+
+Wire the root script:
+
+```json
+{
+  "scripts": {
+    "typecheck": "lattice check typecheck",
+    "typecheck:paths": "lattice paths apply"
+  }
+}
+```
+
+Run checks:
+
+```sh
+pnpm typecheck
+pnpm exec lattice paths apply
+pnpm exec lattice package-boundary check --package @acme/core
+```
+
+## CLI
+
+```sh
+lattice [--config lattice.config.mjs] <command>
+```
+
+| Command                                           | Description                                                                                  |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `lattice check <pipeline>`                        | Run a named pipeline from `pipelines`.                                                       |
+| `lattice paths check`                             | Check generated TypeScript graph path configs without writing files.                         |
+| `lattice paths apply`                             | Write generated TypeScript graph path configs and maintain build-config `extends` lists.     |
+| `lattice graph check`                             | Validate project references and architecture import rules.                                   |
+| `lattice proof check`                             | Prove workspace typecheck targets are covered by root graph, sidecars, or allowlist entries. |
+| `lattice package-boundary check`                  | Audit all configured published package boundary targets.                                     |
+| `lattice package-boundary check --package <name>` | Audit one package boundary target by configured `name`.                                      |
+
+`check` commands are read-only. Write behavior is intentionally limited to explicit apply-style commands, currently `lattice paths apply`.
+
+## Configuration
+
+`lattice.config.mjs` must default-export a config object. Use `defineConfig(...)` for editor hints and typed package exports.
+
+### `workspace`
+
+| Field             | Description                                                                             |
+| ----------------- | --------------------------------------------------------------------------------------- |
+| `rootDir`         | Repository root relative to the config file. Defaults to `.`.                           |
+| `internalScopes`  | Package name prefixes treated as internal workspace packages, for example `['@acme/']`. |
+| `packagePatterns` | Additional workspace package globs.                                                     |
+| `ignore`          | Extra glob ignores for workspace package discovery.                                     |
+
+Lattice always reads pnpm workspace metadata from fixed `pnpm-workspace.yaml` and `pnpm-lock.yaml` files.
+
+### `paths`
+
+The paths command generates per-importer `tsconfig.graph.paths.generated.json` files from:
+
+- package `imports`
+- dependency package `exports`
+- pnpm lockfile importer links
+- configured internal scopes
+
+| Field                 | Description                                                                     |
+| --------------------- | ------------------------------------------------------------------------------- |
+| `generatedFileName`   | Generated tsconfig filename. Defaults to `tsconfig.graph.paths.generated.json`. |
+| `generatedFileMarker` | Marker used to identify generated files safe to maintain.                       |
+| `conditionPriority`   | Package export/import condition preference.                                     |
+| `sourceExtensions`    | Source extensions used when mapping dist targets back to source.                |
+| `ignore`              | Additional ignore globs.                                                        |
+
+### `graph`
+
+Graph checks parse TypeScript project references reachable from `rootConfig`, then inspect imports in each project.
+
+| Field              | Description                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------- |
+| `rootConfig`       | Root solution config. Defaults to `tsconfig.graph.json`.                                                |
+| `projectKinds`     | Ordered matchers that classify config paths into kinds such as `lib`, `test`, or `runtime-client`.      |
+| `productionKinds`  | Kinds treated as production graph leaves for stricter import checks.                                    |
+| `forbiddenEdges`   | Disallowed project-reference or inferred-import edges with human-readable reasons.                      |
+| `nodeBuiltinRules` | Project kinds that must not import Node builtins.                                                       |
+| `inferredProjects` | Rules that map source path prefixes to owning project configs when direct file ownership is not enough. |
+
+### `proof`
+
+Proof checks compare package-level typecheck scripts with root graph coverage.
+They also validate every `tsconfig*.build.json` reachable from the root graph
+against its strict same-name local config:
+
+- `tsconfig.build.json` compares with `tsconfig.json`
+- `tsconfig.lib.build.json` compares with `tsconfig.lib.json`
+- `tsconfig.test.build.json` compares with `tsconfig.test.json`
+- the same rule applies to other suffixes such as `tools` and `source`
+
+The build config must keep the same final file set and typecheck compiler
+options as the local config. Build-only options such as `composite`, `noEmit`,
+`declaration`, `outDir`, `rootDir`, and `tsBuildInfoFile` may differ. `paths`
+and `baseUrl` are checked by the generated paths command instead of proof.
+
+| Field                   | Description                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------------- |
+| `typecheckScriptPrefix` | Package script prefix to scan. Defaults to `typecheck`.                               |
+| `sidecarTargets`        | Extra configs covered by root typecheck outside `tsc -b`, such as `vue-tsc` projects. |
+| `rootSidecarScript`     | Optional root script to parse for sidecar targets.                                    |
+| `allowlist`             | Explicit files allowed outside graph/sidecar coverage, each with a reason.            |
+| `sourceFilePattern`     | File pattern included in coverage accounting.                                         |
+
+### `packageBoundary`
+
+Package boundary checks inspect built JavaScript modules under configured dist directories.
+
+| Field                               | Description                                                                                  |
+| ----------------------------------- | -------------------------------------------------------------------------------------------- |
+| `targets[].name`                    | Target name used by `--package`. Usually the package name.                                   |
+| `targets[].distDir`                 | Directory containing built package files and `package.json`.                                 |
+| `targets[].environment`             | Fixed environment or function that classifies files as `browser`, `node`, or another string. |
+| `targets[].ignoredExternalPackages` | Extra package roots allowed even when not listed in the built manifest dependencies.         |
+
+By default, files under `node/` or `plugin/` are treated as Node output; other files are treated as browser/runtime output.
+
+### `pipelines`
+
+Pipelines combine built-in tasks and command steps:
+
+```js
+pipelines: {
+  typecheck: [
+    'paths:check',
+    'graph:check',
+    'proof:check',
+    {
+      type: 'command',
+      command: 'tsc',
+      args: ['-b', 'tsconfig.graph.json', '--pretty', 'false'],
+    },
+  ],
+}
+```
+
+Built-in task strings:
+
+- `paths:check`
+- `graph:check`
+- `proof:check`
+- `package-boundary:check`
+
+Command steps run from `workspace.rootDir` by default and inherit `process.env`. Use `cwd` and `env` to override.
+
+## Generated Files
+
+Generated path configs are intentionally suitable for `.gitignore`:
+
+```gitignore
+**/tsconfig.graph.paths.generated.json
+```
+
+Run `lattice paths apply` after install or when package exports/imports change. Run `lattice paths check` in CI to make stale generated state fail loudly without writing files.
+
+## CI Example
+
+```yaml
+name: Typecheck
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec lattice check typecheck
+```
+
+## API
+
+```ts
+import { defineConfig, loadConfig } from '@docs-islands/lattice';
+
+export default defineConfig({
+  pipelines: {
+    typecheck: ['paths:check'],
+  },
+});
+
+const config = await loadConfig();
+```
+
+Most users only need `defineConfig(...)`. `loadConfig(...)` is available for custom wrappers and tests.
+
+## Design Notes
+
+- Lattice is a governance tool, not a replacement for `tsc`, `vue-tsc`, test runners, or package publish tooling.
+- Lattice does not publish packages. Put release automation in your own scripts and call `lattice check publish` as a gate.
+- Lattice keeps policy explicit. Prefer copying rules into `lattice.config.mjs` over relying on implicit conventions.
+- Read-only checks and mutating commands are separate by design.
+
+## License
+
+MIT

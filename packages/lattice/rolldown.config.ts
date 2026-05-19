@@ -1,0 +1,43 @@
+import { defineConfig, type RolldownOptions } from 'rolldown';
+import { dts } from 'rolldown-plugin-dts';
+
+const external = [/^[\w@][^:]/, /^node:/];
+
+const moduleConfig: RolldownOptions = defineConfig({
+  input: {
+    cli: 'src/cli.ts',
+    index: 'src/index.ts',
+    config: 'src/config.ts',
+  },
+  platform: 'node',
+  preserveEntrySignatures: 'strict',
+  external,
+  output: {
+    dir: 'dist',
+    entryFileNames: '[name].js',
+    chunkFileNames: 'chunks/dep-[hash].js',
+    exports: 'named',
+    format: 'esm',
+  },
+});
+
+const dtsConfig: RolldownOptions = defineConfig({
+  input: {
+    index: 'src/index.ts',
+    config: 'src/config.ts',
+  },
+  platform: 'node',
+  preserveEntrySignatures: 'strict',
+  external,
+  output: {
+    dir: 'dist',
+  },
+  plugins: [
+    dts({
+      tsconfig: 'tsconfig.json',
+      emitDtsOnly: true,
+    }),
+  ],
+});
+
+export default [moduleConfig, dtsConfig];

@@ -3,15 +3,13 @@
   // Tools build leaf for the plugin package build config.
   "extends": [
     "./tsconfig.graph.paths.generated.json",
-    "./tsconfig.json",
+    "./tsconfig.tools.json",
     "../../../tsconfig.graph.base.json"
   ],
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "./.tsbuild",
     "tsBuildInfoFile": "./.tsbuild/tools.tsbuildinfo",
-    "isolatedDeclarations": false,
-    "lib": ["ES2023"],
   },
   "references": [
     {
@@ -20,19 +18,5 @@
     {
       "path": "../../../utils/tsconfig.lib.build.json",
     },
-  ],
-  "exclude": [
-    "src",
-    "dist",
-    "cache",
-    "**/*cache*/**",
-    "coverage",
-    "node_modules",
-    ".eslintcache",
-    "eslint.config.mjs",
-    "vitest.config.ts",
-    "**/__tests__/**",
-    "**/*.spec.ts",
-    "**/*.test.ts",
   ],
 }

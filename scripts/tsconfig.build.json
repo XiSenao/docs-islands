@@ -3,15 +3,12 @@
   // Tools build leaf for root scripts; not a production library project.
   "extends": [
     "../tsconfig.graph.paths.generated.json",
-    "../tsconfig.base.json",
+    "./tsconfig.json",
     "../tsconfig.graph.base.json"
   ],
   "compilerOptions": {
     "outDir": "./.tsbuild",
-    "tsBuildInfoFile": "./.tsbuild/build.tsbuildinfo",
-    "isolatedDeclarations": false,
-    "lib": ["ES2023"],
-    "types": ["node"]
+    "tsBuildInfoFile": "./.tsbuild/build.tsbuildinfo"
   },
   "references": [
     {

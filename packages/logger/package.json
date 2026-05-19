@@ -28,7 +28,7 @@
     "lint:package": "tsx scripts/lint-package.ts",
     "lint:package:publint": "tsx scripts/lint-package.ts --tool publint",
     "lint:package:attw": "tsx scripts/lint-package.ts --tool attw",
-    "lint:package:boundary": "tsx scripts/lint-package.ts --tool boundary",
+    "lint:package:boundary": "lattice --config ../../lattice.config.mjs package-boundary check --package @docs-islands/logger",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "build": "rolldown --config rolldown.config.ts",
@@ -47,6 +47,7 @@
   "devDependencies": {
     "@arethetypeswrong/core": "catalog:lint",
     "@docs-islands/eslint-config": "workspace:*",
+    "@docs-islands/lattice": "workspace:*",
     "@rollup/plugin-replace": "catalog:dev",
     "@publint/pack": "catalog:lint",
     "@types/babel__traverse": "catalog:dev",

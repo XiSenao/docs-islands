@@ -3,7 +3,7 @@
   // Library build leaf. Keep tests and package tooling out.
   "extends": [
     "./tsconfig.graph.paths.generated.json",
-    "./tsconfig.json",
+    "./tsconfig.lib.json",
     "../../tsconfig.graph.base.json"
   ],
   "compilerOptions": {
