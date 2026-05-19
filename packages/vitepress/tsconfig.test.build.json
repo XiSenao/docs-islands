@@ -13,6 +13,9 @@
   },
   "references": [
     {
+      "path": "./src/types/tsconfig.build.json"
+    },
+    {
       "path": "./src/shared/tsconfig.build.json"
     },
     {
@@ -39,8 +42,6 @@
     "src/**/__tests__/**/*.tsx",
     "scripts/**/__tests__/**/*.ts",
     "tests/**/*.ts",
-    "src/types/**/*.d.ts",
-    "types/**/*.d.ts",
     "vitest.config.ts",
     "theme/*.ts"
   ]

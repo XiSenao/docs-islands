@@ -387,6 +387,13 @@ function getProjectKind(configPath: string): ProjectKind {
     return 'runtime-client';
   }
 
+  if (
+    normalized === 'packages/vitepress/src/types/tsconfig.build.json' ||
+    normalized === 'packages/vitepress/types/tsconfig.build.json'
+  ) {
+    return 'types';
+  }
+
   if (normalized.endsWith('/tsconfig.lib.build.json')) {
     return 'lib';
   }
@@ -654,12 +661,14 @@ function inferVitePressProject(resolvedFilePath: string): string | null {
 
   if (relativePath.startsWith('packages/vitepress/src/types/')) {
     return normalizeAbsolutePath(
-      path.join(rootDir, 'packages/vitepress/src/shared/tsconfig.build.json'),
+      path.join(rootDir, 'packages/vitepress/src/types/tsconfig.build.json'),
     );
   }
 
   if (relativePath.startsWith('packages/vitepress/types/')) {
-    return null;
+    return normalizeAbsolutePath(
+      path.join(rootDir, 'packages/vitepress/types/tsconfig.build.json'),
+    );
   }
 
   if (relativePath.startsWith('packages/vitepress/src/shared/')) {

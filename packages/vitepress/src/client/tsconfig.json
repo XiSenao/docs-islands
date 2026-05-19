@@ -8,5 +8,5 @@
     "types": [],
     "jsx": "preserve",
   },
-  "include": ["./", "../types"],
+  "include": ["./"],
 }

@@ -1,5 +1,5 @@
 {
   // Package-local source/editor check and rolldown-plugin-dts input.
   "extends": "../../tsconfig.base.json",
-  "include": ["*.ts", "src/"],
+  "include": ["rolldown.config.ts", "src/"],
 }

@@ -4,10 +4,5 @@
   "compilerOptions": {
     "types": ["node", "vitest/globals"]
   },
-  "include": [
-    "src/**/__tests__/**/*.ts",
-    "tests/**/*.ts",
-    "**/types/**/*.d.ts",
-    "vitest.config.ts"
-  ]
+  "include": ["src/**/__tests__/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
 }
