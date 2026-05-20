@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@docs-islands/logger": "catalog:prod",
-    "@docs-islands/utils": "workspace:*"
+    "@docs-islands/utils": "link:../../utils/dist"
   },
   "devDependencies": {
     "del-cli": "catalog:dev"

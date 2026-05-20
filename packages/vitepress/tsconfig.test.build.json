@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Test build leaf. Tests may depend on runtime/tools projects; runtime projects must not depend on tests.
+  "extends": ["./tsconfig.test.json", "../../tsconfig.graph.base.json"],
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./.tsbuild",
+    "tsBuildInfoFile": "./.tsbuild/test.tsbuildinfo"
+  },
+  "references": [
+    {
+      "path": "./src/types/tsconfig.build.json"
+    },
+    {
+      "path": "./src/shared/tsconfig.build.json"
+    },
+    {
+      "path": "./src/node/tsconfig.build.json"
+    },
+    {
+      "path": "./src/client/tsconfig.build.json"
+    },
+    {
+      "path": "./tsconfig.tools.build.json"
+    },
+    {
+      "path": "../../packages/logger/tsconfig.lib.build.json"
+    },
+    {
+      "path": "../../packages/core/tsconfig.lib.build.json"
+    }
+  ]
+}

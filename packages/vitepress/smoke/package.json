@@ -5,10 +5,9 @@
   "scripts": {
     "test": "pnpm smoke",
     "smoke": "playwright test",
-    "typecheck": "tsc -p tsconfig.source.json --noEmit",
-    "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
+    "typecheck": "lattice tsc",
     "lint": "eslint . --config ./eslint.config.mjs --fix --cache",
-    "clean": "del-cli .eslintcache node_modules"
+    "clean": "del-cli .tsbuild .eslintcache node_modules"
   },
   "dependencies": {
     "@docs-islands/logger": "catalog:prod",
@@ -17,7 +16,7 @@
   },
   "devDependencies": {
     "@docs-islands/eslint-config": "workspace:*",
-    "@docs-islands/utils": "workspace:*",
+    "@docs-islands/utils": "link:../../../utils/dist",
     "@typescript-eslint/parser": "catalog:lint",
     "@vitejs/plugin-react-swc": "catalog:dev",
     "@playwright/test": "catalog:test",

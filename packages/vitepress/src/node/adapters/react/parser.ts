@@ -110,17 +110,9 @@ export function createReactFrameworkParser(
       try {
         [imports] = parse(script.content);
       } catch (parseError) {
-        Logger.error(
-          `failed to parse JavaScript in ${id}: ${formatErrorMessage(parseError)}`,
-          parseElapsed(),
-        );
-
-        return {
-          componentReferences: maybeComponentReferenceMap,
-          metadata: {
-            inlineComponentReferenceMap,
-          },
-        };
+        const message = `Failed to parse JavaScript in <script lang="${REACT_FRAMEWORK}"> for ${id}: ${formatErrorMessage(parseError)}`;
+        Logger.error(message, parseElapsed());
+        throw new Error(message);
       }
 
       for (const _importSpecifier of imports) {
@@ -137,11 +129,9 @@ export function createReactFrameworkParser(
         try {
           importSets = travelImports(exp) || [];
         } catch (importParseError) {
-          Logger.warn(
-            `failed to parse import statement in ${id}: ${formatErrorMessage(importParseError)}`,
-            parseElapsed(),
-          );
-          continue;
+          const message = `Failed to parse import statement in <script lang="${REACT_FRAMEWORK}"> for ${id}: ${formatErrorMessage(importParseError)}`;
+          Logger.error(message, parseElapsed());
+          throw new Error(message);
         }
 
         for (const importSet of importSets) {
@@ -159,11 +149,9 @@ export function createReactFrameworkParser(
             );
 
           if (!finalImportReference) {
-            Logger.error(
-              `Failed to resolve final import reference ${rawIdentifier}#${importedName} in ${id}, skipping component registration`,
-              parseElapsed(),
-            );
-            continue;
+            const message = `Failed to resolve final import reference ${rawIdentifier}#${importedName} in ${id} while registering React component "${localName}".`;
+            Logger.error(message, parseElapsed());
+            throw new Error(message);
           }
 
           for (const warning of finalImportReference.warnings) {

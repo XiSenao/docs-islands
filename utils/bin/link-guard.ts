@@ -16,7 +16,7 @@
 import { createElapsedTimer } from '@docs-islands/logger/helper';
 import { execSync, spawn } from 'node:child_process';
 import path from 'node:path';
-import { createLogger } from '../logger';
+import { createLogger } from '../src/logger';
 
 const Log = createLogger({
   main: '@docs-islands/utils',

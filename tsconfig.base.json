@@ -1,5 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
+  // Shared legacy/local defaults. Build leaves extend tsconfig.graph.base.json instead.
   "compilerOptions": {
     "rootDir": ".",
     "strict": true,
@@ -22,5 +23,5 @@
     "skipLibCheck": true,
     "stripInternal": true
   },
-  "exclude": ["**/*cache", "**/*dist", "**/__tests__/**"]
+  "exclude": ["**/.tsbuild/**", "**/*cache", "**/*dist", "**/__tests__/**"]
 }

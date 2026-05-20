@@ -3,7 +3,6 @@ import type {
   UsedSnippetContainerType,
 } from '#dep-types/component';
 import type { ConfigType } from '#dep-types/utils';
-import { resolveConfig } from '#shared/config';
 import {
   resetScopedLoggerConfig,
   setScopedLoggerConfig as setLoggerConfigForScope,
@@ -13,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'pathe';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { reactAdapter } from '../../adapters/react/adapter';
+import { resolveConfig } from '../../core/resolve-config';
 import { setVitePressLoggerTreeShakingEnabled } from '../../core/vite-plugin-logger-tree-shaking';
 import type { UIFrameworkBuildAdapter } from '../adapter';
 import { bundleUIComponentsForBrowser } from '../bundleUIComponentsForBrowser';

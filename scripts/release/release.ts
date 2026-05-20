@@ -49,6 +49,19 @@ function getPackageScriptRunner(
   });
 }
 
+function runPackageArtifactChecks(config: ResolvedReleasePackageConfig): void {
+  ReleaseLogger.info(`Running package checks for ${config.packageName}`);
+  runCommand(
+    getPnpmCommand(),
+    ['exec', 'lattice', 'package', 'check', '--package', config.packageName],
+    {
+      cwd: REPO_ROOT,
+      stdio: 'inherit',
+      logger: ReleaseLogger,
+    },
+  );
+}
+
 function getWorkspaceDependencies(manifest: ReleasePackageManifest): string[] {
   const dependencies: string[] = [];
   const candidates = [manifest.dependencies, manifest.devDependencies];
@@ -144,7 +157,7 @@ function runPackageReleaseChecks(
     if (!options.skipBuild) {
       getPackageScriptRunner(config, 'build');
       verifyDistVersion(plan);
-      getPackageScriptRunner(config, 'lint:package');
+      runPackageArtifactChecks(config);
       runCommand(getNpmCommand(), ['pack', '--dry-run'], {
         cwd: config.publishDir,
         stdio: 'inherit',
@@ -165,7 +178,7 @@ function runPackageReleaseChecks(
   if (!options.skipBuild) {
     buildVitepressProject(config);
     verifyDistVersion(plan);
-    getPackageScriptRunner(config, 'lint:package');
+    runPackageArtifactChecks(config);
     runCommand(getNpmCommand(), ['pack', '--dry-run'], {
       cwd: config.publishDir,
       stdio: 'inherit',

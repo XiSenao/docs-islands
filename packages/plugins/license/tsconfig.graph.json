@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Plugin-license package graph aggregator.
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.lib.build.json",
+    },
+    {
+      "path": "./tsconfig.tools.build.json",
+    },
+  ],
+}

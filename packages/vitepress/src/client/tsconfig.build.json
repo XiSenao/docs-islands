@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Client runtime build leaf; keep Node ambient types out.
+  "extends": ["./tsconfig.json", "../../../../tsconfig.graph.base.json"],
+  "compilerOptions": {
+    "rootDir": "..",
+    "outDir": "./.tsbuild",
+    "tsBuildInfoFile": "./.tsbuild/build.tsbuildinfo"
+  },
+  "references": [
+    {
+      "path": "../types/tsconfig.build.json"
+    },
+    {
+      "path": "../shared/tsconfig.build.json"
+    },
+    {
+      "path": "../../../logger/tsconfig.lib.build.json"
+    },
+    {
+      "path": "../../../core/tsconfig.lib.build.json"
+    }
+  ]
+}

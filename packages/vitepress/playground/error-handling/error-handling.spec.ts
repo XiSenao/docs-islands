@@ -9,6 +9,14 @@ import {
 const TestLogger = getPlaygroundLogger('test.playground.error-handling');
 const { test: TEST } = loadEnv();
 
+async function expectDevPageFailure(pathname: string, expectedMessage: string) {
+  const response = await page.goto(`http://localhost:${TEST.port}${pathname}`);
+
+  expect(response).toBeTruthy();
+  expect(response!.status()).toBeGreaterThanOrEqual(500);
+  await expect(page.locator('body')).toContainText(expectedMessage);
+}
+
 describe('Error Handling and Edge Cases', () => {
   beforeEach(() => {
     allowBrowserRuntimeFailures();
@@ -41,34 +49,19 @@ describe('Error Handling and Edge Cases', () => {
       await expect(content).toBeVisible();
     });
 
-    test('Should not cause page crash', async () => {
-      await goto('/error-handling/invalid-syntax');
-
-      // The page should load despite syntax errors.
-      const heading = page.locator('h1');
-      await expect(heading).toBeVisible();
-      expect(await heading.textContent()).toContain('Invalid Syntax');
-
-      // The rest of the page should still be functional.
-      const content = page.locator('.vp-doc');
-      await expect(content).toBeVisible();
+    test('Should surface missing imports as a dev page failure', async () => {
+      await expectDevPageFailure(
+        '/error-handling/invalid-syntax',
+        'Failed to resolve final import reference',
+      );
     });
   });
 
   describe('Script Processing Guardrails', () => {
-    test('Should gracefully handle multiple react scripts by stripping them and rendering the page', async () => {
-      const response = await page.goto(
-        `http://localhost:${TEST.port}/error-handling/multiple-react-scripts`,
-      );
-
-      expect(response).toBeTruthy();
-      expect(response!.status()).toBe(200);
-
-      // The page should still load and show static content.
-      const heading = page.locator('h1');
-      await expect(heading).toBeVisible();
-      expect(await heading.textContent()).toContain(
-        'Error Handling Test - Multiple React Scripts',
+    test('Should surface multiple react scripts as a dev page failure', async () => {
+      await expectDevPageFailure(
+        '/error-handling/multiple-react-scripts',
+        'can contain only one <script lang="react"> element per file',
       );
     });
   });
@@ -169,10 +162,8 @@ describe('Error Handling and Edge Cases', () => {
       await expect(heading).toBeVisible();
     });
 
-    test('should handle rapid navigation between error pages', async () => {
-      // Test rapid navigation between different error scenarios.
+    test('should handle rapid navigation between recoverable edge-case pages', async () => {
       await goto('/error-handling/missing-component');
-      await goto('/error-handling/invalid-syntax');
       await goto('/error-handling/component-name-mismatch');
       await goto('/error-handling/invalid-directive');
 
