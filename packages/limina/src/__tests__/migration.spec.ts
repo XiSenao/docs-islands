@@ -5,6 +5,7 @@ import {
   link,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   realpath,
   rm,
@@ -18,6 +19,7 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { createLiminaCli } from '../cli';
 import { runMigration } from '../commands/migration';
+import { LiminaFlowReporter } from '../flow';
 import { createFixturePathResolver, toPortablePaths } from './helpers/path';
 
 const execFileAsync = promisify(execFile);
@@ -99,6 +101,83 @@ async function commitFixture(rootDir: string): Promise<void> {
       cwd: rootDir,
     },
   );
+}
+
+async function collectMigrationTransactionDirectories(
+  rootDir: string,
+): Promise<string[]> {
+  const output: string[] = [];
+  async function visit(directory: string): Promise<void> {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const entryPath = path.join(directory, entry.name);
+      if (entry.name.startsWith('.limina-migration-')) {
+        output.push(entryPath);
+      }
+      await visit(entryPath);
+    }
+  }
+  await visit(rootDir);
+  return output.sort();
+}
+
+async function createHardlinkMigrationFixture(count: number): Promise<{
+  aliases: string[];
+  cleanup: () => Promise<void>;
+  config: ResolvedLiminaConfig;
+  rootDir: string;
+  targets: string[];
+}> {
+  const files: Record<string, string> = {
+    'limina.config.mjs': 'export default {};\n',
+  };
+  for (let index = 0; index < count; index += 1) {
+    files[`packages/pkg-${index}/package.json`] = json({
+      name: `@example/pkg-${index}`,
+      private: true,
+      type: 'module',
+    });
+    files[`packages/pkg-${index}/src/index.ts`] = 'export {};\n';
+    files[`packages/pkg-${index}/tsconfig.json`] = json({
+      compilerOptions: {
+        outDir: './dist',
+        rootDir: './src',
+        target: 'ES2023',
+      },
+      include: ['src/**/*.ts'],
+    });
+  }
+  const fixture = await createFixture(files);
+  const targets: string[] = [];
+  const aliases: string[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const targetPath = fixture.path(
+      'packages',
+      `pkg-${index}`,
+      'tsconfig.json',
+    );
+    const aliasPath = fixture.path('aliases', `pkg-${index}.json`);
+    await mkdir(path.dirname(aliasPath), { recursive: true });
+    await link(targetPath, aliasPath);
+    targets.push(targetPath);
+    aliases.push(aliasPath);
+  }
+  await commitFixture(fixture.rootDir);
+  return {
+    aliases,
+    cleanup: fixture.cleanup,
+    config: createResolvedConfig(fixture.rootDir, {
+      checkers: {
+        tsc: {
+          include: targets.map((targetPath) =>
+            path.relative(fixture.rootDir, targetPath),
+          ),
+        },
+      },
+    }),
+    rootDir: fixture.rootDir,
+    targets,
+  };
 }
 
 function createResolvedConfig(
@@ -204,7 +283,6 @@ describe('runMigration', () => {
       'packages/pkg/tsconfig.json',
     );
     const before = await readFile(tsconfigPath, 'utf8');
-
     try {
       await expect(runMigration(config)).rejects.toThrow(
         /Unable to resolve the Git worktree/u,
@@ -240,6 +318,21 @@ describe('runMigration', () => {
       'packages/pkg/tsconfig.json',
     );
     const before = await readFile(tsconfigPath, 'utf8');
+    const flowOutput: string[] = [];
+    const flow = new LiminaFlowReporter({
+      env: {},
+      forceTty: true,
+      output: {
+        write: (message) => {
+          flowOutput.push(message);
+        },
+      },
+      stdout: {
+        columns: 80,
+        isTTY: true,
+      },
+    });
+    let promptFlowLine: string | undefined;
 
     try {
       await commitFixture(fixture.rootDir);
@@ -251,8 +344,11 @@ describe('runMigration', () => {
       const confirmationMessages: string[] = [];
       await expect(
         runMigration(config, {
+          flow,
+          flowDepth: 1,
           confirmDirtyWorkspace: async (message) => {
             confirmationMessages.push(message);
+            promptFlowLine = flowOutput.at(-1);
             return false;
           },
         }),
@@ -262,6 +358,8 @@ describe('runMigration', () => {
         /Continue and write the planned tsconfig\*\.json changes\?/u,
       );
       expect(confirmationMessages[0]).toContain(' M packages/pkg/src/index.ts');
+      expect(promptFlowLine).toBe('\r\u001B[1A\u001B[J');
+      expect(flowOutput.join('')).toContain('migration failed');
       await expect(readFile(tsconfigPath, 'utf8')).resolves.toBe(before);
     } finally {
       await fixture.cleanup();
@@ -559,6 +657,157 @@ describe('runMigration', () => {
       );
       await expect(readFile(firstPath)).resolves.toEqual(firstBefore);
       await expect(readFile(laterPath)).resolves.toEqual(laterBefore);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it('cancels a hardlink migration before creating transaction artifacts', async () => {
+    const fixture = await createHardlinkMigrationFixture(1);
+    const before = await readFile(fixture.targets[0]!);
+    const beforeStat = await stat(fixture.targets[0]!, { bigint: true });
+    const messages: string[] = [];
+    const flowOutput: string[] = [];
+    const flow = new LiminaFlowReporter({
+      env: {},
+      forceTty: true,
+      output: {
+        write: (message) => {
+          flowOutput.push(message);
+        },
+      },
+      stdout: {
+        columns: 80,
+        isTTY: true,
+      },
+    });
+    let promptFlowLine: string | undefined;
+
+    try {
+      await expect(
+        runMigration(fixture.config, {
+          flow,
+          flowDepth: 1,
+          selectHardlinkStrategy: async (message) => {
+            messages.push(message);
+            promptFlowLine = flowOutput.at(-1);
+            return 'cancel';
+          },
+        }),
+      ).rejects.toThrow(/canceled before writing/u);
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toContain('packages/pkg-0/tsconfig.json');
+      expect(promptFlowLine).toBe('\r\u001B[1A\u001B[J');
+      expect(await readFile(fixture.targets[0]!)).toEqual(before);
+      expect((await stat(fixture.targets[0]!, { bigint: true })).ino).toBe(
+        beforeStat.ino,
+      );
+      expect(
+        await collectMigrationTransactionDirectories(fixture.rootDir),
+      ).toEqual([]);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it('shows at most five hardlink paths in one strategy prompt', async () => {
+    const fixture = await createHardlinkMigrationFixture(6);
+    const messages: string[] = [];
+
+    try {
+      await expect(
+        runMigration(fixture.config, {
+          selectHardlinkStrategy: async (message) => {
+            messages.push(message);
+            return 'cancel';
+          },
+        }),
+      ).rejects.toThrow(/canceled before writing/u);
+      expect(messages).toHaveLength(1);
+      for (let index = 0; index < 5; index += 1) {
+        expect(messages[0]).toContain(`packages/pkg-${index}/tsconfig.json`);
+      }
+      expect(messages[0]).not.toContain('packages/pkg-5/tsconfig.json');
+      expect(messages[0]).toContain('... and 1 more');
+      expect(
+        await collectMigrationTransactionDirectories(fixture.rootDir),
+      ).toEqual([]);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it('fails without writes when hardlink policy cannot be requested non-interactively', async () => {
+    const fixture = await createHardlinkMigrationFixture(1);
+    const before = await readFile(fixture.targets[0]!);
+
+    try {
+      await expect(runMigration(fixture.config)).rejects.toThrow(
+        /cannot request a write strategy in a non-interactive environment/u,
+      );
+      expect(await readFile(fixture.targets[0]!)).toEqual(before);
+      expect(
+        await collectMigrationTransactionDirectories(fixture.rootDir),
+      ).toEqual([]);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it('reports hardlink skips separately while migrating ordinary configs', async () => {
+    const fixture = await createHardlinkMigrationFixture(2);
+    await rm(fixture.aliases[1]!);
+    const hardlinkBefore = await readFile(fixture.targets[0]!);
+    const ordinaryBeforeStat = await stat(fixture.targets[1]!, {
+      bigint: true,
+    });
+
+    try {
+      const result = await runMigration(fixture.config, {
+        confirmDirtyWorkspace: async () => true,
+        selectHardlinkStrategy: async () => 'skip',
+      });
+
+      expect(result.hardlinkSkippedFiles).toEqual(
+        toPortablePaths([fixture.targets[0]!]),
+      );
+      expect(result.hardlinkRewrittenFiles).toEqual([]);
+      expect(result.modifiedFiles).toEqual(
+        toPortablePaths([fixture.targets[1]!]),
+      );
+      expect(result.skippedFiles).toEqual([]);
+      expect(await readFile(fixture.targets[0]!)).toEqual(hardlinkBefore);
+      expect((await stat(fixture.targets[1]!, { bigint: true })).ino).not.toBe(
+        ordinaryBeforeStat.ino,
+      );
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it('reports hardlink rewrites and preserves every alias', async () => {
+    const fixture = await createHardlinkMigrationFixture(1);
+    const before = await stat(fixture.targets[0]!, { bigint: true });
+
+    try {
+      const result = await runMigration(fixture.config, {
+        selectHardlinkStrategy: async () => 'rewrite',
+      });
+      const targetAfter = await stat(fixture.targets[0]!, { bigint: true });
+      const aliasAfter = await stat(fixture.aliases[0]!, { bigint: true });
+
+      expect(result.hardlinkRewrittenFiles).toEqual(
+        toPortablePaths([fixture.targets[0]!]),
+      );
+      expect(result.hardlinkSkippedFiles).toEqual([]);
+      expect(result.modifiedFiles).toEqual(
+        toPortablePaths([fixture.targets[0]!]),
+      );
+      expect(targetAfter.ino).toBe(before.ino);
+      expect(aliasAfter.ino).toBe(before.ino);
+      expect(await readFile(fixture.aliases[0]!)).toEqual(
+        await readFile(fixture.targets[0]!),
+      );
     } finally {
       await fixture.cleanup();
     }

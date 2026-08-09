@@ -160,11 +160,25 @@ Every migration target must belong to a Git worktree. External activated package
 
 - If every involved worktree is clean, migration continues without a confirmation prompt.
 - If any worktree contains changes, Limina summarizes every worktree that has changes and asks once whether to continue. The prompt defaults to “no.”
-- If the user confirms, Limina then creates and executes the `tsconfig*.json` write plan. Confirmation does not commit, stash, remove, or restore existing changes.
+- If the user confirms, Limina continues with filesystem preflight and execution of the already completed `tsconfig*.json` write plan. Confirmation does not commit, stash, remove, or restore existing changes.
 - Declining or canceling stops migration without writing any target and tells the user to keep the Git worktrees clean.
 - A non-interactive environment cannot display the prompt, so migration stops without writing when changes are present. Clean every involved worktree before rerunning the command.
 
 After confirmation, migration can still write only the planned config files inside the canonical roots of the target worktrees. Approving a dirty worktree does not expand the selected targets or write scope.
+
+#### Filesystem write strategies
+
+After transformation planning and Git confirmation, Limina performs a read-only filesystem preflight for every config that actually needs a change. Configs whose transformation is already a no-op are not inspected for links and do not trigger a hard-link prompt. Preflight continues to reject logical paths containing symbolic links or junctions, targets outside the canonical worktree roots, non-regular or non-writable files, and multiple planned paths that resolve to the same physical file.
+
+For a regular config with one hard link, migration retains its atomic replacement transaction. For a config with multiple hard links, the link count selects a different write capability instead of making the target invalid. When at least one such config needs a change, Limina lists up to five paths and asks once, before creating transaction directories or mutating any target:
+
+- **Rewrite hard-linked files in place** is the default. It stages complete next content and an immutable backup before the first target mutation, then writes through the existing inode. Every alias to that inode observes the new content. This preserves the device, inode, link count, permissions, and supported ownership metadata, but it does not provide atomic replacement guarantees; a concurrent reader can observe intermediate content. Its private transaction artifacts use mode `0600` inside the transaction directory and are verified independently; they do not copy the live target's ownership, mode, or timestamps.
+- **Skip hard-linked files and migrate the rest** leaves these files unchanged and reports them separately from transformation no-ops.
+- **Cancel migration** stops before any target mutation or transaction artifact is created.
+
+A non-interactive environment cannot choose a hard-link strategy, so migration stops without writes and asks the user to rerun interactively. There is currently no command-line hard-link policy flag.
+
+The preflight snapshot remains authoritative after the prompt. If the canonical path, device, inode, link count, mode, ownership, timestamps, or content changes before commit, migration fails closed instead of changing strategies automatically. Limina does not acquire a cross-process write lease or coordinate concurrent writers. If an in-place hard-link mutation fails after writing may have started, Limina does not overwrite uncertain current content. When the target still validates as the same physical file and its content is still original, no recovery write is needed. Otherwise, migration preserves the current target and immutable backup and reports the recovery path. Post-write verification drift is handled the same way. If a later item fails, previously committed ordinary targets use atomic replacement rollback, while previously committed hard-linked targets are rolled back through the same inode only after strict drift validation.
 
 #### Migration scope and output fields
 

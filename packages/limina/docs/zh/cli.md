@@ -160,11 +160,25 @@ pnpm exec limina migration
 
 - 所有相关 worktree 都是 clean 状态时，迁移直接继续，不显示确认提示。
 - 任一 worktree 存在变更时，Limina 会汇总所有存在变更的 worktree，并只询问一次。确认提示默认选择“否”。
-- 选择继续后，Limina 才会创建并执行本次 `tsconfig*.json` 写入计划。这个确认不会 commit、stash、删除或还原已有变更。
+- 选择继续后，Limina 会继续执行只读文件系统预检，并执行已经完成规划的 `tsconfig*.json` 写入计划。这个确认不会 commit、stash、删除或还原已有变更。
 - 拒绝或取消确认时，迁移停止且不会写入任何目标，并提示先保持 Git 工作区干净。
 - 非交互环境无法显示确认提示，因此发现变更时会停止且不会写入。请先整理所有相关 worktree，再重新运行迁移。
 
 确认继续后，迁移仍只会在目标所属的规范 worktree 根目录内写入计划中的配置文件。确认脏工作区不会扩大迁移目标或写入范围。
+
+#### 文件系统写入策略
+
+完成 transform 规划与 Git 确认后，Limina 会对每个确实需要变更的配置执行只读文件系统预检。transform 后已经是 no-op 的配置不会接受 link 检查，也不会触发 hard-link 提示。预检仍会拒绝包含 symbolic link 或 junction 的逻辑路径、位于规范 worktree 根之外的目标、非普通文件或不可写文件，以及解析到同一 physical file 的多个计划路径。
+
+普通配置只有一个 hard link 时，迁移继续使用 atomic replacement transaction。配置有多个 hard link 时，link count 会选择另一种写入能力，而不再让目标直接失效。只要至少一个这样的配置需要变更，Limina 就会在创建 transaction directory 或修改任何目标前统一提示一次，并最多展示五个路径：
+
+- **Rewrite hard-linked files in place** 是默认选择。它会在第一次目标修改前准备完整的新内容和 immutable backup，然后通过现有 inode 写入。指向该 inode 的所有 alias 都会看到新内容。此模式会保持 device、inode、link count、权限和受支持的 ownership metadata，但不提供 atomic replacement guarantee；并发 reader 可能观察到中间内容。transaction directory 中的私有 transaction artifact 使用 `0600` mode 并独立校验，不复制 live target 的 ownership、mode 或 timestamp。
+- **Skip hard-linked files and migrate the rest** 会让这些文件保持不变，并与 transform no-op 分开报告。
+- **Cancel migration** 会在任何目标修改或 transaction artifact 创建前停止迁移。
+
+非交互环境无法选择 hard-link 策略，因此迁移会以零写入停止，并提示用户在交互环境重新运行。目前没有用于指定 hard-link policy 的命令行参数。
+
+提示结束后，预检 snapshot 仍是执行依据。如果 canonical path、device、inode、link count、mode、ownership、timestamp 或内容在 commit 前发生变化，迁移会 fail closed，而不会自动改选策略。Limina 不会取得跨进程 write lease，也不会协调并发 writer。hard-link 原地修改在可能已经开始写入后失败时，Limina 不会覆盖无法确认来源的当前内容。如果 target 仍通过同一 physical file 的校验，且内容仍是 original，就不需要执行 recovery write；否则迁移会保留当前 target、immutable backup，并报告 recovery path。post-write verification drift 采用相同的保守处理。如果后续 item 失败，已经提交的普通目标使用 atomic replacement rollback；已经提交的 hard-linked 目标只有通过严格 drift validation 后，才会通过同一 inode 回滚。
 
 #### 迁移范围与输出字段
 

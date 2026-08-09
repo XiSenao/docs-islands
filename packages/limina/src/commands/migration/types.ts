@@ -8,10 +8,17 @@ export interface RunMigrationOptions extends PreflightCapableOptions {
   confirmDirtyWorkspace?: (message: string) => Promise<boolean>;
   flow?: LiminaFlowReporter;
   flowDepth?: number;
+  selectHardlinkStrategy?: (
+    message: string,
+  ) => Promise<HardlinkMigrationDecision>;
 }
+
+export type HardlinkMigrationDecision = 'cancel' | 'rewrite' | 'skip';
 
 export interface RunMigrationResult {
   checkerEntryCount: number;
+  hardlinkRewrittenFiles: string[];
+  hardlinkSkippedFiles: string[];
   modifiedFiles: string[];
   recursiveReferenceCount: number;
   rootDir: string;
