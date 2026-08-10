@@ -1,3 +1,4 @@
+import { resolveVueSourceProfile } from '#checkers';
 import { collectImportsFromFile } from '#core/import-graph/context';
 import { shouldInferDeclarationReferenceFromImportRecord } from '../import-graph/declaration-reference-evidence';
 import { getFrameworkFilePackageRoot } from './framework-file-root';
@@ -53,6 +54,10 @@ function processProjectFileImports(options: {
       fileName: options.fileName,
     }),
     options.context.importAnalysis,
+    resolveVueSourceProfile({
+      fileName: options.fileName,
+      identity: options.project.context.vueSemanticIdentity,
+    }),
   );
   for (const importRecord of imports) {
     if (shouldInferDeclarationReferenceFromImportRecord(importRecord)) {

@@ -10,7 +10,10 @@ import {
   type ResolvedCheckerConfig,
   type ResolvedLiminaConfig,
 } from '#config/runner';
-import type { GeneratedTsconfigGraphResult } from '#core/build-graph/runner';
+import type {
+  GeneratedTsconfigGraphResult,
+  GovernedSourceUnit,
+} from '#core/build-graph/runner';
 import {
   type CheckerGraphProjectRoute,
   isDtsConfigPath,
@@ -51,13 +54,16 @@ export function createCheckerProjectContext(options: {
   extensions: string[];
   preset: ResolvedCheckerConfig['name'];
   virtualFiles?: ReadonlyMap<string, string>;
+  vueSemanticIdentity?: CheckerProjectParseContext['vueSemanticIdentity'];
 }): CheckerProjectParseContext {
-  const adapterExtensions = resolveCheckerProjectExtensions({
-    configPath: options.configPath,
-    preset: options.preset,
-    projectRootDir: options.config.rootDir,
-    virtualFiles: options.virtualFiles,
-  });
+  const adapterExtensions =
+    options.vueSemanticIdentity?.extensions ??
+    resolveCheckerProjectExtensions({
+      configPath: options.configPath,
+      preset: options.preset,
+      projectRootDir: options.config.rootDir,
+      virtualFiles: options.virtualFiles,
+    });
 
   return {
     checkerPresets: [options.preset],
@@ -65,6 +71,7 @@ export function createCheckerProjectContext(options: {
       ...options.extensions,
       ...adapterExtensions,
     ]),
+    vueSemanticIdentity: options.vueSemanticIdentity,
   };
 }
 
@@ -122,16 +129,13 @@ interface RouteProjectContext {
 }
 
 function createRouteProjectContexts(
-  config: ResolvedLiminaConfig,
   route: CheckerGraphProjectRoute,
 ): RouteProjectContext[] {
   return route.projectPaths.filter(isDtsConfigPath).map((projectPath) => ({
-    context: createCheckerProjectContext({
-      config,
-      configPath: projectPath,
-      extensions: route.extensions,
-      preset: route.checkerPreset,
-    }),
+    context: {
+      checkerPresets: [route.checkerPreset],
+      extensions: normalizeExtensions(route.extensions),
+    },
     projectPath,
   }));
 }
@@ -140,7 +144,10 @@ function mergeProjectContext(
   existing: CheckerProjectParseContext | undefined,
   incoming: CheckerProjectParseContext,
 ): CheckerProjectParseContext {
-  const current = existing ?? { checkerPresets: [], extensions: [] };
+  const current = getProjectContext(existing);
+  const currentIdentity = current.vueSemanticIdentity;
+  const incomingIdentity = incoming.vueSemanticIdentity;
+  assertCompatibleVueIdentities(currentIdentity, incomingIdentity);
 
   return {
     checkerPresets: uniqueValues([
@@ -151,16 +158,81 @@ function mergeProjectContext(
       ...current.extensions,
       ...incoming.extensions,
     ]),
+    vueSemanticIdentity: currentIdentity || incomingIdentity,
   };
 }
 
-export function collectProjectContextsByPath(
-  config: ResolvedLiminaConfig,
-  routes: CheckerGraphProjectRoute[],
-): Map<string, CheckerProjectParseContext> {
-  const contexts = routes.flatMap((route) =>
-    createRouteProjectContexts(config, route),
+function getProjectContext(
+  context: CheckerProjectParseContext | undefined,
+): CheckerProjectParseContext {
+  if (context !== undefined) return context;
+  return { checkerPresets: [], extensions: [] };
+}
+
+function assertCompatibleVueIdentities(
+  current: CheckerProjectParseContext['vueSemanticIdentity'],
+  incoming: CheckerProjectParseContext['vueSemanticIdentity'],
+): void {
+  const currentId = getVueSemanticIdentityId(current);
+  const incomingId = getVueSemanticIdentityId(incoming);
+  const conflicts = [
+    currentId !== undefined,
+    incomingId !== undefined,
+    currentId !== incomingId,
+  ].every(Boolean);
+  if (!conflicts) return;
+  throw new Error(
+    'Generated proof project received conflicting Vue semantic identities.',
   );
+}
+
+function getVueSemanticIdentityId(
+  identity: CheckerProjectParseContext['vueSemanticIdentity'],
+): string | undefined {
+  if (identity === undefined) return undefined;
+  return identity.id;
+}
+
+function getGovernedProjectionPaths(unit: GovernedSourceUnit): string[] {
+  const projection = unit.buildProjection;
+  if (projection.kind === 'declaration-project') {
+    return [projection.dtsConfigPath];
+  }
+  if (projection.kind === 'transparent-solution') {
+    return [projection.buildConfigPath];
+  }
+  return [projection.buildConfigPath, projection.dtsConfigPath];
+}
+
+function createGovernedProjectContexts(
+  generatedGraph: GeneratedTsconfigGraphResult | undefined,
+): RouteProjectContext[] {
+  if (generatedGraph === undefined) return [];
+  return [...generatedGraph.governedSources.values()].flatMap(
+    (governedSources) =>
+      [...governedSources.values()].flatMap((unit) =>
+        unit.context.vueSemanticIdentity === undefined
+          ? []
+          : getGovernedProjectionPaths(unit).map((projectPath) => ({
+              context: {
+                checkerPresets: [unit.primaryCheckerName],
+                extensions: [],
+                vueSemanticIdentity: unit.context.vueSemanticIdentity,
+              },
+              projectPath,
+            })),
+      ),
+  );
+}
+
+export function collectProjectContextsByPath(
+  routes: CheckerGraphProjectRoute[],
+  generatedGraph?: GeneratedTsconfigGraphResult,
+): Map<string, CheckerProjectParseContext> {
+  const contexts = [
+    ...routes.flatMap(createRouteProjectContexts),
+    ...createGovernedProjectContexts(generatedGraph),
+  ];
   const contextsByPath = new Map<string, CheckerProjectParseContext>();
 
   for (const entry of contexts) {

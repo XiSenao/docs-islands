@@ -1,3 +1,4 @@
+import { resolveVueSourceProfile } from '#checkers';
 import {
   collectImportsFromFile,
   type ImportRecord,
@@ -139,6 +140,10 @@ function collectExpectedReferencesForFile(options: {
     options.filePath,
     options.context.config.rootDir,
     options.context.importAnalysis,
+    resolveVueSourceProfile({
+      fileName: options.filePath,
+      identity: options.project.vueSemanticIdentity,
+    }),
   );
 
   for (const importRecord of imports) {

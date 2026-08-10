@@ -232,5 +232,6 @@ export function parseProject(...args: ParseProjectArgs): ProjectInfo {
       getProjectReferencePaths({ config, configPath, virtualFiles }),
     ),
     resolverConfigPath,
+    vueSemanticIdentity: ownedParsed.vueSemanticIdentity,
   };
 }

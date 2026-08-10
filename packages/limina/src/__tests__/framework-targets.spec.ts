@@ -99,6 +99,7 @@ function createGovernedSource(options: {
       kind: 'transparent-solution',
     },
     configPath: options.configPath,
+    context: { checkerPresets: ['tsc'], extensions: [] },
     declarationFileNames: [],
     declarationReferences: new Set(),
     frameworkCapabilities: options.capabilities,

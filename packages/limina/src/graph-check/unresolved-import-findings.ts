@@ -8,7 +8,10 @@ import type { WorkspacePackage } from '#core/workspace/actions';
 import { toRelativePath } from '#utils/path';
 import { LIMINA_CHECK_ISSUE_CODES } from '../check-reporting/codes';
 import { createGraphImportFact, getProjectCheckerName } from './finding-utils';
-import type { GraphWorkspaceImportUnresolvedFinding } from './findings';
+import type {
+  GraphImportTargetUnmappedFinding,
+  GraphWorkspaceImportUnresolvedFinding,
+} from './findings';
 import type { ExpectedReferenceCollectionContext } from './reference-types';
 
 const GRAPH_CHECK_DEFAULT_REASON =
@@ -164,4 +167,62 @@ export function addOxcOnlyDeclarationProviderProblem(options: {
     },
     task: 'graph:check',
   } satisfies GraphWorkspaceImportUnresolvedFinding);
+}
+
+export function addVueSemanticDependencyProblem(options: {
+  context: ExpectedReferenceCollectionContext;
+  importRecord: ImportRecord;
+  project: ProjectInfo;
+  reason: string;
+}): void {
+  const detailLines = [
+    'Unable to resolve Vue semantic dependency:',
+    `  importing project: ${toRelativePath(options.context.config.rootDir, options.project.configPath)}`,
+    `  file: ${formatImportRecordLocation(options.context.config.rootDir, options.importRecord)}`,
+    `  source specifier: ${options.importRecord.specifier}`,
+    `  reason: ${options.reason}`,
+    '  fix: use a supported Vue checker tuple and ensure the source dependency has one strict Language Core mapping.',
+  ];
+
+  options.context.findings.push({
+    checkerName: getProjectCheckerName(
+      options.context.projectCheckerNamesByPath,
+      options.project.configPath,
+    ),
+    code: LIMINA_CHECK_ISSUE_CODES.graphImportTargetUnmapped,
+    evidence: [
+      {
+        label: 'import',
+        lines: [
+          `file: ${options.importRecord.filePath}`,
+          `line: ${options.importRecord.line}`,
+          `kind: ${options.importRecord.kind}`,
+        ],
+        value: options.importRecord.specifier,
+      },
+      { label: 'semantic failure', value: options.reason },
+    ],
+    facts: {
+      import: createGraphImportFact(options.importRecord),
+      importingProjectPath: options.project.configPath,
+      kind: 'vue-semantic-dependency',
+      reason: options.reason,
+    },
+    filePath: options.importRecord.filePath,
+    locations: [
+      {
+        filePath: options.importRecord.filePath,
+        label: 'import',
+        line: options.importRecord.line,
+      },
+      { filePath: options.project.configPath, label: 'importing project' },
+    ],
+    presentation: {
+      detailLines,
+      fix: 'Use a supported Vue checker tuple and restore strict source-map provenance.',
+      reason: options.reason,
+      title: 'Unable to resolve Vue semantic dependency',
+    },
+    task: 'graph:check',
+  } satisfies GraphImportTargetUnmappedFinding);
 }

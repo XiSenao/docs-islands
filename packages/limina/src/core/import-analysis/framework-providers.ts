@@ -1,4 +1,4 @@
-import type { VueImportParser } from '#config/runner';
+import type { VueSourceProfile } from '#checkers';
 import { getAstroParserIdentity } from './astro-compiler';
 import { collectAstroImports } from './astro-imports';
 import {
@@ -9,35 +9,24 @@ import type {
   FrameworkImportParserIdentity,
   FrameworkImportProvider,
 } from './types';
-import { collectVueImports, resolveVueCompilerSfc } from './vue-imports';
+import { collectVueImports } from './vue-imports';
 
-function getVueParserIdentity(options: {
-  packageRootDir: string;
-  parser: VueImportParser;
-}): FrameworkImportParserIdentity {
-  if (options.parser === 'compiler-sfc') {
-    return {
-      kind: '@vue/compiler-sfc',
-      mode: options.parser,
-      version:
-        resolveVueCompilerSfc(options.packageRootDir).version ?? 'unknown',
-    };
-  }
-  return { kind: 'vue-heuristic', mode: options.parser, version: '1' };
-}
+const vueParserIdentity: FrameworkImportParserIdentity = {
+  kind: 'vue-lightweight-source',
+  mode: 'source-profile',
+  version: '3',
+};
 
-function createVueProvider(parser: VueImportParser): FrameworkImportProvider {
+function createVueProvider(): FrameworkImportProvider {
   return {
     collectionMode: 'sync',
     collectImports: (options) =>
       collectVueImports({
         ...options,
-        parser,
-        projectRootDir: options.packageRootDir,
+        sourceProfile: options.sourceProfile ?? 'vue-sfc',
       }),
     extension: '.vue',
-    getParserIdentity: ({ packageRootDir }) =>
-      getVueParserIdentity({ packageRootDir, parser }),
+    getParserIdentity: () => vueParserIdentity,
   };
 }
 
@@ -55,23 +44,31 @@ const astroProvider: FrameworkImportProvider = {
   getParserIdentity: getAstroParserIdentity,
 };
 
-export function createFrameworkImportProviderRegistry(options: {
-  vueParser: VueImportParser;
-}): ReadonlyMap<string, FrameworkImportProvider> {
-  const providers = [
-    astroProvider,
-    createVueProvider(options.vueParser),
-    svelteProvider,
-  ];
+export function createFrameworkImportProviderRegistry(): ReadonlyMap<
+  string,
+  FrameworkImportProvider
+> {
+  const providers = [astroProvider, createVueProvider(), svelteProvider];
   return new Map(providers.map((provider) => [provider.extension, provider]));
 }
 
 export function getFrameworkImportProvider(options: {
   filePath: string;
   providers: ReadonlyMap<string, FrameworkImportProvider>;
+  sourceProfile?: VueSourceProfile;
 }): FrameworkImportProvider | null {
+  if (options.sourceProfile !== undefined) {
+    return getProvider(options.providers, '.vue');
+  }
   const extension = options.filePath.slice(options.filePath.lastIndexOf('.'));
-  return options.providers.get(extension) ?? null;
+  return getProvider(options.providers, extension);
+}
+
+function getProvider(
+  providers: ReadonlyMap<string, FrameworkImportProvider>,
+  extension: string,
+): FrameworkImportProvider | null {
+  return providers.get(extension) ?? null;
 }
 
 export function getTypeScriptParserIdentity(): FrameworkImportParserIdentity {

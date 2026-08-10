@@ -51,12 +51,6 @@ export type CheckerConfigMode =
   | AutoCheckerConfig
   | Partial<Record<CheckerName, CheckerScope>>;
 
-export type VueImportParser = 'compiler-sfc' | 'heuristic';
-
-export interface ImportAnalysisConfig {
-  vue?: VueImportParser;
-}
-
 export interface ResolvedCheckerConfig {
   exclude: string[];
   extensions: string[];

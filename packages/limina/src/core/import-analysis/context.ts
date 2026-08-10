@@ -23,6 +23,7 @@ export function createImportAnalysisContext(
     caches,
     metrics: options.metrics,
     requests,
+    vueSemanticContexts: options.vueSemanticContexts,
   });
   return {
     clearOxcResolverCaches: () => clearOxcResolverCaches(caches),

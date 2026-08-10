@@ -1,3 +1,4 @@
+import { resolveVueSourceProfile } from '#checkers';
 import type { ResolvedLiminaConfig } from '#config/runner';
 import type { AnalysisProviderSet } from '#core';
 import {
@@ -94,6 +95,10 @@ function processSourceFile(options: {
     options.filePath,
     options.base.config.rootDir,
     options.base.importAnalysis,
+    resolveVueSourceProfile({
+      fileName: options.filePath,
+      identity: options.project.vueSemanticIdentity,
+    }),
   );
   for (const importRecord of imports) {
     processImportRecord({ ...options, importRecord, owner });

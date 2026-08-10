@@ -4,7 +4,6 @@ Limina 的配置入口是工作区内部的 `limina.config.mts`。具体字段�
 
 - [配置文件](./config-file.md)：`defineConfig`、函数配置、`mode` 和 `command`。
 - [检查器配置](./checkers.md)：auto 模式、固定检查器 key、`useTsgo`、`include`、`exclude` 和补充 target 策略。
-- [检查器入口](./checkers.md#vue-import-解析)：`config.imports.vue`——`Vue SFC import` 解析模式。
 - [源码边界](./source-boundary.md)：`config.source.include` / `exclude`——覆盖证明使用的受治理文件边界。
 - [治理区域](./regions.md)：工作区包治理、嵌套包作用域扩展和区域裁剪。
 - [源码检查](./source-checks.md)：顶层 `source.knip`——依赖、模块和普通 `tsconfig` 归属检查。

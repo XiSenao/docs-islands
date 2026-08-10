@@ -2438,25 +2438,7 @@ export default {
     });
   });
 
-  it('accepts Vue import analysis config', () => {
-    expect(
-      defineConfig({
-        config: {
-          imports: {
-            vue: 'compiler-sfc',
-          },
-        },
-      }),
-    ).toEqual({
-      config: {
-        imports: {
-          vue: 'compiler-sfc',
-        },
-      },
-    });
-  });
-
-  it('rejects invalid Vue import analysis config', async () => {
+  it('rejects the removed Vue import analysis config with migration guidance', async () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), 'limina-config-'));
 
     try {
@@ -2470,7 +2452,7 @@ export default {
 export default {
   config: {
     imports: {
-      vue: true,
+      vue: 'compiler-sfc',
     },
   },
 };
@@ -2478,7 +2460,7 @@ export default {
       );
 
       await expect(loadConfig({ cwd: rootDir })).rejects.toThrow(
-        /config\.imports\.vue must be "heuristic" or "compiler-sfc"/u,
+        /config\.imports\.vue was removed[\s\S]*Delete config\.imports\.vue; there is no replacement field/u,
       );
     } finally {
       await rm(rootDir, {

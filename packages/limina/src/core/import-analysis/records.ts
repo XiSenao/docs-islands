@@ -10,11 +10,15 @@ export type ImportRecordKind =
   | 'triple-slash-path'
   | 'triple-slash-types'
   | 'jsx-import-source'
-  | 'environment-pragma';
+  | 'environment-pragma'
+  | 'vue-script-src'
+  | 'vue-generic-type';
 
 export type ImportDomain =
   | 'typescript'
   | 'vue-script'
+  | 'vue-script-attribute'
+  | 'vue-generic-attribute'
   | 'svelte-instance-script'
   | 'svelte-module-script'
   | 'astro-frontmatter'

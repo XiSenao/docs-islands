@@ -1,4 +1,7 @@
-import type { CheckerProjectParseContext } from '#checkers';
+import type {
+  CheckerProjectParseContext,
+  VueProjectSemanticIdentity,
+} from '#checkers';
 import type ts from 'typescript';
 
 export interface ProjectInfo {
@@ -13,6 +16,7 @@ export interface ProjectInfo {
   options: ts.CompilerOptions;
   references: Set<string>;
   resolverConfigPath: string;
+  vueSemanticIdentity?: VueProjectSemanticIdentity;
 }
 
 export interface ProjectGraphLabelDiagnostic {

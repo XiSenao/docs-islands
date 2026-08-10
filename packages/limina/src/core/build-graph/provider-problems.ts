@@ -95,3 +95,19 @@ export function formatOxcOnlyDeclarationProviderProblem(options: {
     '  fix: check moduleResolution, exports.types/types conditions, paths, customConditions, and package boundaries.',
   ].join('\n');
 }
+
+export function formatVueSemanticDependencyProblem(options: {
+  config: ResolvedLiminaConfig;
+  importRecord: ImportRecord;
+  project: SourceProject;
+  reason: string;
+}): string {
+  return [
+    'Unable to resolve Vue semantic dependency:',
+    `  importing config: ${toRelativePath(options.config.rootDir, options.project.configPath)}`,
+    `  file: ${formatImportRecordLocation(options.config.rootDir, options.importRecord)}`,
+    `  source specifier: ${options.importRecord.specifier}`,
+    `  reason: ${options.reason}`,
+    '  fix: use a supported Vue checker tuple and ensure the source dependency has one strict Language Core mapping.',
+  ].join('\n');
+}

@@ -72,7 +72,6 @@
     "@docs-islands/eslint-config": "workspace:*",
     "@docs-islands/utils": "workspace:*",
     "@docs-islands/plugin-license": "workspace:*",
-    "@vue/compiler-sfc": "catalog:dev",
     "@types/node": "catalog:dev",
     "@arethetypeswrong/core": "catalog:lint",
     "@clack/prompts": "catalog:dev",
@@ -110,14 +109,13 @@
     "@arethetypeswrong/core": "^0.18.0",
     "@astrojs/compiler": ">=2.0.0 <5.0.0",
     "@typescript/native-preview": ">=7.0.0-dev.20260421.2 <7.0.0",
-    "@vue/compiler-sfc": ">=3.0.0 <4.0.0",
     "knip": ">=6.0.0 <7.0.0",
     "npm-package-json-lint": ">=9.1.0 <10.0.0",
     "publint": ">=0.3.0 <0.4.0",
     "svelte-check": ">=4.0.0 <5.0.0",
     "tsx": "^4.9.0",
-    "typescript": "^5.4.0 || ^6.0.0",
-    "vue-tsc": "^2.1.2 || ^3.0.0"
+    "typescript": ">=5.4.0 <5.10.0 || >=6.0.0 <6.1.0",
+    "vue-tsc": ">=2.2.0 <=2.2.12 || >=3.2.0 <=3.2.4"
   },
   "peerDependenciesMeta": {
     "@arethetypeswrong/core": {
@@ -127,9 +125,6 @@
       "optional": true
     },
     "@typescript/native-preview": {
-      "optional": true
-    },
-    "@vue/compiler-sfc": {
       "optional": true
     },
     "knip": {

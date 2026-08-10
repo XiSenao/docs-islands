@@ -12,7 +12,10 @@ import {
 import { isDeclarationFile } from './declaration-classifier';
 
 export interface DeclarationProviderProjectContext
-  extends Pick<CheckerProjectParseContext, 'checkerPresets' | 'extensions'> {
+  extends Pick<
+    CheckerProjectParseContext,
+    'checkerPresets' | 'extensions' | 'vueSemanticIdentity'
+  > {
   configPath: string;
   resolverConfigPath: string;
 }
@@ -40,6 +43,12 @@ export type DeclarationProviderResolution =
   | {
       kind: 'oxc-only';
       oxcResolvedFilePath: string;
+      typeScriptResolution: null;
+    }
+  | {
+      kind: 'semantic-failure';
+      oxcResolvedFilePath: string | null;
+      reason: string;
       typeScriptResolution: null;
     }
   | {
@@ -113,6 +122,30 @@ function createTypeScriptResolution(options: {
   };
 }
 
+function createNonResourceResolution(options: {
+  fileOwnerLookup: Map<string, string[]>;
+  oxcResolvedFilePath: string | null;
+  semanticFailure: string | undefined;
+  typeScriptResolution: ResolvedCheckerModuleName | null;
+}): DeclarationProviderResolution {
+  if (options.semanticFailure !== undefined) {
+    return {
+      kind: 'semantic-failure',
+      oxcResolvedFilePath: options.oxcResolvedFilePath,
+      reason: options.semanticFailure,
+      typeScriptResolution: null,
+    };
+  }
+  if (options.typeScriptResolution === null) {
+    return createMissingTypeScriptResolution(options.oxcResolvedFilePath);
+  }
+  return createTypeScriptResolution({
+    fileOwnerLookup: options.fileOwnerLookup,
+    oxcResolvedFilePath: options.oxcResolvedFilePath,
+    typeScriptResolution: options.typeScriptResolution,
+  });
+}
+
 export function resolveDeclarationProvider(options: {
   compilerOptions: ts.CompilerOptions;
   containingFile: string;
@@ -121,13 +154,16 @@ export function resolveDeclarationProvider(options: {
   importRecord: ImportRecord;
   project: DeclarationProviderProjectContext;
 }): DeclarationProviderResolution {
-  const { oxc: oxcResolvedFilePath, typescript: typeScriptResolution } =
-    options.importAnalysis.resolveModulePair(
-      options.importRecord.specifier,
-      options.containingFile,
-      options.compilerOptions,
-      options.project,
-    );
+  const {
+    oxc: oxcResolvedFilePath,
+    semanticFailure,
+    typescript: typeScriptResolution,
+  } = options.importAnalysis.resolveModulePairForImport(
+    options.importRecord,
+    options.containingFile,
+    options.compilerOptions,
+    options.project,
+  );
   const evidence = classifyImportRuntimeEvidence({
     compilerOptions: options.compilerOptions,
     containingFile: options.containingFile,
@@ -145,13 +181,10 @@ export function resolveDeclarationProvider(options: {
     });
   }
 
-  if (typeScriptResolution === null) {
-    return createMissingTypeScriptResolution(oxcResolvedFilePath);
-  }
-
-  return createTypeScriptResolution({
+  return createNonResourceResolution({
     fileOwnerLookup: options.fileOwnerLookup,
     oxcResolvedFilePath,
+    semanticFailure,
     typeScriptResolution,
   });
 }

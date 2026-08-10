@@ -13,6 +13,7 @@ import type {
 import {
   addOxcOnlyDeclarationProviderProblem,
   addUnresolvedWorkspaceImportProblem,
+  addVueSemanticDependencyProblem,
 } from './unresolved-import-findings';
 import {
   addWorkspacePackageExportWithoutTypeEntryProblem,
@@ -47,31 +48,55 @@ function getProviderResolvedPath(options: {
   return options.workspaceResolvedPath;
 }
 
+function reportOxcOnlyProvider(options: {
+  provider: DeclarationProvider;
+  resolutionOptions: ImportResolutionOptions;
+}): void {
+  if (options.provider.kind !== 'oxc-only') return;
+  addOxcOnlyDeclarationProviderProblem({
+    context: options.resolutionOptions.context,
+    importRecord: options.resolutionOptions.importRecord,
+    oxcResolvedFilePath: options.provider.oxcResolvedFilePath,
+    project: options.resolutionOptions.project,
+  });
+}
+
+function reportUnresolvedProvider(options: {
+  provider: DeclarationProvider;
+  resolutionOptions: ImportResolutionOptions;
+}): void {
+  if (options.provider.kind !== 'unresolved') return;
+  addUnresolvedWorkspaceImportProblem({
+    context: options.resolutionOptions.context,
+    importRecord: options.resolutionOptions.importRecord,
+    project: options.resolutionOptions.project,
+    targetPackage:
+      options.resolutionOptions.context.workspaceLookup.findPackageForSpecifier(
+        options.resolutionOptions.importRecord.specifier,
+      ),
+  });
+}
+
+function reportSemanticFailureProvider(options: {
+  provider: DeclarationProvider;
+  resolutionOptions: ImportResolutionOptions;
+}): void {
+  if (options.provider.kind !== 'semantic-failure') return;
+  addVueSemanticDependencyProblem({
+    context: options.resolutionOptions.context,
+    importRecord: options.resolutionOptions.importRecord,
+    project: options.resolutionOptions.project,
+    reason: options.provider.reason,
+  });
+}
+
 function reportMissingProvider(options: {
   provider: DeclarationProvider;
   resolutionOptions: ImportResolutionOptions;
 }): void {
-  if (options.provider.kind === 'oxc-only') {
-    addOxcOnlyDeclarationProviderProblem({
-      context: options.resolutionOptions.context,
-      importRecord: options.resolutionOptions.importRecord,
-      oxcResolvedFilePath: options.provider.oxcResolvedFilePath,
-      project: options.resolutionOptions.project,
-    });
-    return;
-  }
-
-  if (options.provider.kind === 'unresolved') {
-    addUnresolvedWorkspaceImportProblem({
-      context: options.resolutionOptions.context,
-      importRecord: options.resolutionOptions.importRecord,
-      project: options.resolutionOptions.project,
-      targetPackage:
-        options.resolutionOptions.context.workspaceLookup.findPackageForSpecifier(
-          options.resolutionOptions.importRecord.specifier,
-        ),
-    });
-  }
+  reportOxcOnlyProvider(options);
+  reportUnresolvedProvider(options);
+  reportSemanticFailureProvider(options);
 }
 
 function isUnstableWorkspaceExport(

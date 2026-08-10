@@ -1,4 +1,4 @@
-import { getActiveCheckers, type ImportAnalysisConfig } from '#config/runner';
+import { getActiveCheckers } from '#config/runner';
 import type { GeneratedTsconfigGraphResult } from '#core/build-graph/runner';
 import { normalizeAbsolutePath, toRelativePath } from '#utils/path';
 import path from 'pathe';
@@ -244,12 +244,6 @@ async function runConfiguredTypecheck(
   );
 }
 
-function getTypecheckImports(
-  context: CheckerTypecheckContext,
-): ImportAnalysisConfig | undefined {
-  return context.options.config.config?.imports;
-}
-
 async function runMaterializedTypecheck(
   context: CheckerTypecheckContext,
   targets: TypecheckTarget[],
@@ -258,7 +252,6 @@ async function runMaterializedTypecheck(
     checkerPackageResolver: context.options.checkerPackageResolver,
     checkers: context.checkers,
     flowDepth: context.flowDepth,
-    imports: getTypecheckImports(context),
     projectRootDir: context.projectRootDir,
     request: context.options,
     targets,

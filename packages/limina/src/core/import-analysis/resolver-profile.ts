@@ -33,6 +33,7 @@ function normalizeFieldContext(
     configPath: getNormalizedPath(context.configPath),
     extensions: context.extensions,
     resolverConfigPath: getNormalizedPath(context.resolverConfigPath),
+    vueSemanticIdentity: context.vueSemanticIdentity,
   };
 }
 

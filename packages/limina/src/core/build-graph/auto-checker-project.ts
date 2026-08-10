@@ -3,7 +3,6 @@ import {
   type CheckerProjectParseContext,
   getBuildCheckerSupportedExtensions,
   parseCheckerProjectConfigForContext,
-  resolveCheckerProjectExtensions,
 } from '#checkers';
 import type { ResolvedLiminaConfig } from '#config/runner';
 import { normalizeAbsolutePath } from '#utils/path';
@@ -83,24 +82,24 @@ function parseVueProject(options: {
       parsed: undefined,
     };
   }
-  const extensions = resolveCheckerProjectExtensions({
+  const parseContext: CheckerProjectParseContext = {
+    checkerPresets: ['vue-tsc'],
+    extensions: [],
+  };
+  const parsed = parseCheckerProjectConfigForContext({
+    allowNoInputDiagnostics: true,
+    cache: options.projectConfigCache,
     configPath: options.configPath,
-    preset: 'vue-tsc',
+    context: parseContext,
     projectRootDir: options.config.rootDir,
   });
-  const context: CheckerProjectParseContext = {
-    checkerPresets: ['vue-tsc'],
-    extensions,
-  };
   return {
-    context,
-    parsed: parseCheckerProjectConfigForContext({
-      allowNoInputDiagnostics: true,
-      cache: options.projectConfigCache,
-      configPath: options.configPath,
-      context,
-      projectRootDir: options.config.rootDir,
-    }),
+    context: {
+      ...parseContext,
+      extensions: [...parsed.extensions],
+      vueSemanticIdentity: parsed.vueSemanticIdentity,
+    },
+    parsed,
   };
 }
 
@@ -111,16 +110,36 @@ function getParsedFileNames(
   return parsed.fileNames;
 }
 
+function getSemanticVueFileNames(
+  parsed: ParsedCheckerProject | undefined,
+): string[] | null {
+  const identity = parsed?.vueSemanticIdentity;
+  if (identity === undefined) return null;
+  return [...identity.profilesByFileName.keys()].sort();
+}
+
+function assertNoUnclassifiedVueMembers(fileNames: readonly string[]): void {
+  if (fileNames.length === 0) return;
+  throw new Error(
+    'Vue project members were found without a Vue semantic identity.',
+  );
+}
+
 function collectVueFileNames(
   parsed: ParsedCheckerProject | undefined,
 ): string[] {
+  const semanticFileNames = getSemanticVueFileNames(parsed);
+  if (semanticFileNames !== null) return semanticFileNames;
   const typeScriptExtensions = new Set(
     getBuildCheckerSupportedExtensions('tsc'),
   );
-  return getParsedFileNames(parsed)
+  const unclassified = getParsedFileNames(parsed)
     .map(normalizeAbsolutePath)
-    .filter((fileName) => !typeScriptExtensions.has(getFileExtension(fileName)))
-    .sort();
+    .filter(
+      (fileName) => !typeScriptExtensions.has(getFileExtension(fileName)),
+    );
+  assertNoUnclassifiedVueMembers(unclassified);
+  return [];
 }
 
 function selectProjectContext(options: {

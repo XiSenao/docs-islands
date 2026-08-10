@@ -81,6 +81,18 @@ async function linkAstroCompiler(rootDir: string): Promise<void> {
   );
 }
 
+async function linkVueToolchain(rootDir: string): Promise<void> {
+  const vueTscPackagePath = requireFromTest.resolve('vue-tsc/package.json');
+  const nodeModulesDir = path.join(rootDir, 'node_modules');
+
+  await mkdir(nodeModulesDir, { recursive: true });
+  await symlink(
+    path.dirname(vueTscPackagePath),
+    path.join(nodeModulesDir, 'vue-tsc'),
+    'junction',
+  );
+}
+
 async function createFixture(
   files: Record<string, string>,
   options: {
@@ -123,6 +135,7 @@ async function createFixture(
   for (const [relativePath, text] of Object.entries(fixtureFiles)) {
     await writeText(path.join(rootDir, relativePath), text);
   }
+  await linkVueToolchain(rootDir);
   if (
     options.astroCompiler !== false &&
     Object.keys(files).some((filePath) => filePath.endsWith('.astro'))
@@ -252,6 +265,12 @@ describe('prepareGeneratedTsconfigGraph', () => {
       expect(
         result.manifest.checkers.tsc?.sourceToDts['packages/pkg/tsconfig.json'],
       ).toBeDefined();
+      const generatedConfig = JSON.parse(
+        await readFile(generatedConfigPath!, 'utf8'),
+      ) as { compilerOptions: Record<string, unknown> };
+      expect(
+        generatedConfig.compilerOptions.rewriteRelativeImportExtensions,
+      ).toBeUndefined();
       expect(result.manifest.checkers.tsc?.roots).toEqual([
         'packages/pkg/tsconfig.json',
       ]);
@@ -4625,6 +4644,93 @@ describe('prepareGeneratedTsconfigGraph', () => {
           },
         }),
       ).rejects.toThrow('Ambiguous inherited checker ownership');
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it('ignores VitePress fenced imports while retaining real generated references', async () => {
+    const fixture = await createFixture({
+      'packages/app/package.json': json({
+        name: '@fixture/app',
+        private: true,
+      }),
+      'packages/app/src/Page.md': [
+        '# Page',
+        '',
+        '```vue',
+        "<script setup>import '../../missing/src/value';</script>",
+        '```',
+        '',
+        '<script setup lang="ts">',
+        "import { value } from '../../shared/src/value';",
+        'void value;',
+        '</script>',
+        '',
+      ].join('\n'),
+      'packages/app/tsconfig.json': json({
+        compilerOptions: {
+          module: 'ESNext',
+          moduleResolution: 'bundler',
+          strict: true,
+          target: 'ES2023',
+          types: [],
+        },
+        include: ['src/**/*'],
+        vueCompilerOptions: { vitePressExtensions: ['.md'] },
+      }),
+      'packages/shared/package.json': json({
+        name: '@fixture/shared',
+        private: true,
+      }),
+      'packages/shared/src/value.ts': 'export const value = true;\n',
+      'packages/shared/tsconfig.json': json({
+        compilerOptions: {
+          module: 'ESNext',
+          moduleResolution: 'bundler',
+          strict: true,
+          target: 'ES2023',
+          types: [],
+        },
+        include: ['src/**/*.ts'],
+      }),
+    });
+
+    try {
+      const result = await prepareGeneratedTsconfigGraph({
+        ...fixture.config,
+        config: {
+          checkers: {
+            tsc: { include: ['packages/shared/tsconfig.json'] },
+            'vue-tsc': { include: ['packages/app/tsconfig.json'] },
+          },
+        },
+      });
+
+      expect(
+        result.manifest.dependencyEdges.map((edge) => ({
+          fromChecker: edge.fromChecker,
+          importedSpecifier: edge.importedSpecifier,
+          toChecker: edge.toChecker,
+        })),
+      ).toEqual([
+        {
+          fromChecker: 'vue-tsc',
+          importedSpecifier: '../../shared/src/value',
+          toChecker: 'tsc',
+        },
+      ]);
+      expect(
+        await readGeneratedReferences({
+          checkerName: 'vue-tsc',
+          projectRelativePath: 'packages/app',
+          rootDir: fixture.rootDir,
+        }),
+      ).toEqual([
+        {
+          path: '../../../../tsc/projects/packages/shared/tsconfig.dts.json',
+        },
+      ]);
     } finally {
       await fixture.cleanup();
     }

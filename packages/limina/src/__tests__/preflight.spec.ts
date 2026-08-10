@@ -4,7 +4,15 @@ import type {
 } from '#config/runner';
 import { type AnalysisProviderSet, createAnalysisProviders } from '#core';
 import type { GeneratedTsconfigGraphResult } from '#core/build-graph/runner';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -21,6 +29,8 @@ import { LiminaPreflightManager } from '../preflight';
 import { createProfilingMetricsRecorder } from '../profiling/metrics';
 import { createFixturePathResolver, toPortablePath } from './helpers/path';
 import { createPreflightGenerationController } from './helpers/preflight-generation';
+
+const requireFromTest = createRequire(import.meta.url);
 
 vi.mock('../core/build-graph/materializer', async (importOriginal) => {
   const actual =
@@ -111,6 +121,13 @@ async function createFixture(): Promise<{
   await writeFile(
     path.join(rootDir, 'packages/pkg/package.json'),
     '{"name":"@fixture/pkg","private":true}\n',
+  );
+  const vueTscManifest = requireFromTest.resolve('vue-tsc/package.json');
+  await mkdir(path.join(rootDir, 'node_modules'), { recursive: true });
+  await symlink(
+    path.dirname(vueTscManifest),
+    path.join(rootDir, 'node_modules/vue-tsc'),
+    'junction',
   );
 
   return {

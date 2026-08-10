@@ -61,9 +61,9 @@ Limina 的自动引用图生成，就是为了把这些判断放到一个可重�
 
 第一步只收集源码里可以静态识别的模块标识符，例如静态导入、再导出、类型导入、动态导入中的模块字符串，以及部分可以静态识别的 `CommonJS` 形式。这个阶段只记录源码事实，例如哪个文件、哪种导入形式、哪个模块标识符。到这里还不会判断是否合法，也不会判断是否需要生成 `references`。
 
-如果项目配置了 `Vue` 文件的导入解析，Limina 可以从 `<script>` 内容中收集导入记录。这仍然只是导入收集，不等于 `Vue` 编译，也不替代 `vue-tsc` 这类检查器的类型检查。
+对于归属于 Vue project 的源码，Limina 还会从 inline script、`<script src>` 和 `generic` attribute 的 `import()` 表达式收集轻量证据。当 project toolchain 位于受支持的 adapter matrix 内时，Limina 会先把每条源码记录映射为 checker semantic literal，再交给 TypeScript 做声明解析。映射可以修正 specifier，例如源码 `<script src="./entry.ts">` 可能映射成 virtual `./entry.js` literal；但没有源码记录的 service-script synthetic import 不会被纳入。这项分析不替代 `vue-tsc` 的类型检查。
 
-第二步会在当前检查器和 `tsconfig` 上下文中，让 `TypeScript` 判断这条导入的类型入口。这里的结果可以粗略分成几类：
+第二步会在当前检查器和 `tsconfig` 上下文中，让 `TypeScript` 判断这条导入的类型入口。Vue semantic record 使用映射后的 literal 与 Volar-aware checker host；普通源码记录使用 direct TypeScript path。这里的结果可以粗略分成几类：
 
 | `TypeScript` 类型解析结果      | Limina 的理解            | 是否生成声明项目引用 |
 | ------------------------------ | ------------------------ | -------------------- |

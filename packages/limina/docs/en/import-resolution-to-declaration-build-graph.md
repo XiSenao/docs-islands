@@ -61,9 +61,9 @@ Source file
 
 The first step only collects statically identifiable module specifiers from source code, such as static imports, re-exports, type-only imports, module strings in dynamic imports, and some statically recognizable `CommonJS` forms. At this stage, Limina only records source facts: which file contains the import, what kind of import it is, and which module specifier it uses. It does not decide whether the import is valid, and it does not decide whether a `reference` should be generated.
 
-If the project configures import collection for `Vue` files, Limina can collect imports from `<script>` content. This is still only import collection. It is not Vue compilation, and it does not replace type checking by tools such as `vue-tsc`.
+For Vue-owned sources, Limina also collects lightweight evidence from inline scripts, `<script src>`, and `generic` attribute `import()` expressions. When the project toolchain is in the supported adapter matrix, Limina maps each source record to its checker-semantic literal before TypeScript declaration resolution. The mapping can refine the specifier—for example, a source `<script src="./entry.ts">` may map to a virtual `./entry.js` literal—but it does not admit synthetic service-script imports that have no source record. This analysis does not replace type checking by `vue-tsc`.
 
-The second step asks TypeScript, under the current checker and `tsconfig` context, where the type entry for the import resolves. The result can be roughly classified as follows:
+The second step asks TypeScript, under the current checker and `tsconfig` context, where the type entry for the import resolves. Vue semantic records use the mapped literal and the Volar-aware checker host; ordinary source records use the direct TypeScript path. The result can be roughly classified as follows:
 
 | TypeScript type resolution result                      | Limina interpretation                                | Generate declaration project reference? |
 | ------------------------------------------------------ | ---------------------------------------------------- | --------------------------------------- |

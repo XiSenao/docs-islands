@@ -4,7 +4,6 @@ Limina configuration starts from `limina.config.mts` inside the workspace. Read 
 
 - [Config File](./config-file.md): `defineConfig`, function config, `mode`, and `command`.
 - [Checker Configuration](./checkers.md): auto mode, fixed checker keys, `useTsgo`, `include`, `exclude`, and supplemental target policy.
-- [Checker Entries](./checkers.md#vue-import-parsing): `config.imports.vue` — Vue SFC import parsing mode.
 - [Source Boundary](./source-boundary.md): `config.source.include` / `exclude` — the managed source boundary for source coverage checks.
 - [Regions](./regions.md): workspace package governance, nested package-scope extension, and region exclusion.
 - [Source Checks](./source-checks.md): top-level `source.knip` — dependency, module, and ordinary tsconfig ownership checks.

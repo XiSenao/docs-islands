@@ -89,6 +89,7 @@ export function cloneParsedCheckerProjectConfig(
     extensions: [...parsedConfig.extensions],
     fileNames: [...parsedConfig.fileNames],
     options: { ...parsedConfig.options },
+    vueSemanticIdentity: parsedConfig.vueSemanticIdentity,
   };
 }
 

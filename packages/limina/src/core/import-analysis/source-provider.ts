@@ -1,3 +1,4 @@
+import type { VueSourceProfile } from '#checkers';
 import { normalizeAbsolutePath } from '#utils/path';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -16,8 +17,16 @@ import type {
 } from './types';
 
 interface SourceProvider {
-  collectImportsFromFile(filePath: string, rootDir: string): ImportRecord[];
-  prewarmImportsFromFile(filePath: string, rootDir: string): Promise<void>;
+  collectImportsFromFile(
+    filePath: string,
+    rootDir: string,
+    sourceProfile?: VueSourceProfile,
+  ): ImportRecord[];
+  prewarmImportsFromFile(
+    filePath: string,
+    rootDir: string,
+    sourceProfile?: VueSourceProfile,
+  ): Promise<void>;
 }
 
 interface SourceCollectionRequest {
@@ -25,6 +34,7 @@ interface SourceCollectionRequest {
   filePath: string;
   packageRootDir: string;
   provider: FrameworkImportProvider | null;
+  sourceProfile?: VueSourceProfile;
 }
 
 function recordCacheAccess(options: {
@@ -80,6 +90,7 @@ function createImportsCacheKey(options: {
   parserKind: string;
   parserMode: string;
   parserVersion: string;
+  sourceProfile?: VueSourceProfile;
 }): string {
   return JSON.stringify(options);
 }
@@ -89,12 +100,14 @@ function collectFileImports(options: {
   packageRootDir: string;
   provider: ReturnType<typeof getFrameworkImportProvider>;
   sourceText: string;
+  sourceProfile?: VueSourceProfile;
 }): ImportRecord[] | Promise<ImportRecord[]> {
   if (options.provider !== null) {
     return options.provider.collectImports({
       filePath: options.filePath,
       packageRootDir: options.packageRootDir,
       sourceText: options.sourceText,
+      sourceProfile: options.sourceProfile,
     });
   }
   return collectSourceTextImports({
@@ -138,13 +151,6 @@ function collectSyncFileImports(options: {
   return imports;
 }
 
-function getVueParser(
-  value: CreateImportAnalysisContextOptions['vueParser'],
-): NonNullable<CreateImportAnalysisContextOptions['vueParser']> {
-  if (value !== undefined) return value;
-  return 'heuristic';
-}
-
 function getParserIdentity(options: {
   packageRootDir: string;
   provider: FrameworkImportProvider | null;
@@ -157,13 +163,18 @@ function getParserIdentity(options: {
 
 function createSourceCollectionRequestFactory(
   providers: ReadonlyMap<string, FrameworkImportProvider>,
-): (filePath: string, rootDir: string) => SourceCollectionRequest {
-  return (filePath, rootDir) => {
+): (
+  filePath: string,
+  rootDir: string,
+  sourceProfile?: VueSourceProfile,
+) => SourceCollectionRequest {
+  return (filePath, rootDir, sourceProfile) => {
     const normalizedFilePath = normalizeAbsolutePath(filePath);
     const packageRootDir = normalizeAbsolutePath(rootDir);
     const provider = getFrameworkImportProvider({
       filePath: normalizedFilePath,
       providers,
+      sourceProfile,
     });
     const parserIdentity = getParserIdentity({ packageRootDir, provider });
     return {
@@ -173,10 +184,12 @@ function createSourceCollectionRequestFactory(
         parserKind: parserIdentity.kind,
         parserMode: parserIdentity.mode,
         parserVersion: parserIdentity.version,
+        sourceProfile,
       }),
       filePath: normalizedFilePath,
       packageRootDir,
       provider,
+      sourceProfile,
     };
   };
 }
@@ -190,8 +203,7 @@ export function createSourceProvider(options: {
     caches: options.caches,
     metrics,
   });
-  const vueParser = getVueParser(options.contextOptions.vueParser);
-  const providers = createFrameworkImportProviderRegistry({ vueParser });
+  const providers = createFrameworkImportProviderRegistry();
   const createRequest = createSourceCollectionRequestFactory(providers);
 
   function getCachedImports(request: SourceCollectionRequest) {
@@ -220,8 +232,9 @@ export function createSourceProvider(options: {
   async function prewarmImportsFromFile(
     filePath: string,
     rootDir: string,
+    sourceProfile?: VueSourceProfile,
   ): Promise<void> {
-    const request = createRequest(filePath, rootDir);
+    const request = createRequest(filePath, rootDir, sourceProfile);
     if (getCachedImports(request) !== undefined) return;
     const pending = options.caches.importsPromiseCache.get(request.cacheKey);
     if (pending !== undefined) {
@@ -243,8 +256,8 @@ export function createSourceProvider(options: {
   }
 
   return {
-    collectImportsFromFile: (filePath, rootDir) => {
-      const request = createRequest(filePath, rootDir);
+    collectImportsFromFile: (filePath, rootDir, sourceProfile) => {
+      const request = createRequest(filePath, rootDir, sourceProfile);
       const cached = getCachedImports(request);
       if (cached !== undefined) return cached;
       const imports = collectSyncFileImports({

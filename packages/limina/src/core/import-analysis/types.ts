@@ -1,19 +1,26 @@
 import type {
   CheckerProjectParseContext,
   ResolvedCheckerModuleName,
+  VueSourceProfile,
 } from '#checkers';
-import type { VueImportParser } from '#config/runner';
 import type { ResolverFactory } from 'oxc-resolver';
 import type ts from 'typescript';
+import type { VueSemanticContextManager } from '../vue-semantic/context';
+import type { SemanticDependencyEvidence } from '../vue-semantic/dependency';
 import type { ImportRecord } from './records';
 
 export interface ModuleResolutionPair {
   oxc: string | null;
+  semanticEvidence?: SemanticDependencyEvidence;
+  semanticFailure?: string;
   typescript: ResolvedCheckerModuleName | null;
 }
 
 export interface ImportResolveContextFields
-  extends Pick<CheckerProjectParseContext, 'checkerPresets' | 'extensions'> {
+  extends Pick<
+    CheckerProjectParseContext,
+    'checkerPresets' | 'extensions' | 'vueSemanticIdentity'
+  > {
   configPath?: string;
   resolverConfigPath?: string;
 }
@@ -22,6 +29,13 @@ export type ImportResolveContextInput = ImportResolveContextFields | string[];
 
 export type ImportResolutionArguments = [
   specifier: string,
+  containingFile: string,
+  options: ts.CompilerOptions,
+  contextOrExtensions?: ImportResolveContextInput,
+];
+
+export type ImportRecordResolutionArguments = [
+  importRecord: ImportRecord,
   containingFile: string,
   options: ts.CompilerOptions,
   contextOrExtensions?: ImportResolveContextInput,
@@ -40,15 +54,20 @@ export interface ImportAnalysisContext {
   collectImportsFromFile: (
     filePath: string,
     packageRootDir: string,
+    sourceProfile?: VueSourceProfile,
   ) => ImportRecord[];
   prewarmImportsFromFile?: (
     filePath: string,
     packageRootDir: string,
+    sourceProfile?: VueSourceProfile,
   ) => Promise<void>;
   resolveInternalImport: (...args: ImportResolutionArguments) => string | null;
   resolveOxcImport: (...args: ImportResolutionArguments) => string | null;
   resolveModulePair: (
     ...args: ImportResolutionArguments
+  ) => ModuleResolutionPair;
+  resolveModulePairForImport: (
+    ...args: ImportRecordResolutionArguments
   ) => ModuleResolutionPair;
   resolveTypeScriptImport: (
     ...args: ImportResolutionArguments
@@ -58,7 +77,7 @@ export interface ImportAnalysisContext {
 export interface CreateImportAnalysisContextOptions {
   metrics?: ImportAnalysisMetricsRecorder;
   projectRootDir?: string;
-  vueParser?: VueImportParser;
+  vueSemanticContexts?: VueSemanticContextManager;
 }
 
 export interface ImportAnalysisMetricsRecorder {
@@ -128,37 +147,11 @@ export interface ImportAnalysisCaches {
   typeScriptModuleResolutionCache: Map<string, ts.ModuleResolutionCache>;
 }
 
-export interface VueCompilerSfcBlock {
-  attrs?: Record<string, string | true>;
-  content: string;
-  lang?: string;
-  loc?: {
-    start?: {
-      line?: number;
-      offset?: number;
-    };
-  };
-  src?: string;
-}
-
-export interface VueCompilerSfc {
-  parse: (
-    source: string,
-    options?: { filename?: string },
-  ) => {
-    descriptor: {
-      script: VueCompilerSfcBlock | null;
-      scriptSetup: VueCompilerSfcBlock | null;
-    };
-    errors: unknown[];
-  };
-  version?: string;
-}
-
 export interface FrameworkImportCollectionOptions {
   filePath: string;
   packageRootDir: string;
   sourceText: string;
+  sourceProfile?: VueSourceProfile;
 }
 
 export interface FrameworkImportParserIdentity {

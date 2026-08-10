@@ -15,6 +15,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { TypeEvidenceCore } from '../core/type-evidence';
 import { isSupportedVueTypeEvidenceVersionTuple } from '../core/type-evidence/vue-provider';
+import { VueSemanticContextManager } from '../core/vue-semantic/context';
 import {
   type AnalysisMetricAggregate,
   createProfilingMetricsRecorder,
@@ -92,6 +93,7 @@ function createVueProject(
   | 'fileNames'
   | 'options'
   | 'resolverConfigPath'
+  | 'vueSemanticIdentity'
 > {
   const configPath = path.join(rootDir, 'tsconfig.json');
   const parsed = parseCheckerProjectConfigForContext({
@@ -110,6 +112,7 @@ function createVueProject(
     fileNames: parsed.fileNames,
     options: parsed.options,
     resolverConfigPath: configPath,
+    vueSemanticIdentity: parsed.vueSemanticIdentity,
   };
 }
 
@@ -134,6 +137,25 @@ function tsconfig(types: string[] = []): string {
 describe('Vue resource type evidence', () => {
   it('accepts only the approved version tuple', () => {
     expect(
+      ['2.4.10', '2.4.11', '2.4.14', '2.4.28', '2.4.29'].map(
+        (volarTypeScript) =>
+          isSupportedVueTypeEvidenceVersionTuple({
+            languageCore: '2.2.0',
+            typeScript: '5.4.5',
+            volarTypeScript,
+            vueTsc: '2.2.0',
+          }),
+      ),
+    ).toEqual([false, true, true, true, false]);
+    expect(
+      isSupportedVueTypeEvidenceVersionTuple({
+        languageCore: '2.2.12',
+        typeScript: '5.9.3',
+        volarTypeScript: '2.4.28',
+        vueTsc: '2.2.12',
+      }),
+    ).toBe(true);
+    expect(
       isSupportedVueTypeEvidenceVersionTuple({
         languageCore: '3.2.4',
         typeScript: '6.0.3',
@@ -141,6 +163,30 @@ describe('Vue resource type evidence', () => {
         vueTsc: '3.2.4',
       }),
     ).toBe(true);
+    expect(
+      isSupportedVueTypeEvidenceVersionTuple({
+        languageCore: '3.2.4',
+        typeScript: '6.0.3',
+        volarTypeScript: '2.4.28',
+        vueTsc: '3.2.4',
+      }),
+    ).toBe(false);
+    expect(
+      isSupportedVueTypeEvidenceVersionTuple({
+        languageCore: '2.1.2',
+        typeScript: '5.4.5',
+        volarTypeScript: '2.4.1',
+        vueTsc: '2.1.2',
+      }),
+    ).toBe(false);
+    expect(
+      isSupportedVueTypeEvidenceVersionTuple({
+        languageCore: '3.2.5',
+        typeScript: '6.0.3',
+        volarTypeScript: '2.4.28',
+        vueTsc: '3.2.5',
+      }),
+    ).toBe(false);
     expect(
       isSupportedVueTypeEvidenceVersionTuple({
         languageCore: '3.3.0',
@@ -156,7 +202,23 @@ describe('Vue resource type evidence', () => {
         volarTypeScript: '2.4.28',
         vueTsc: '3.2.6',
       }),
-    ).toBe(true);
+    ).toBe(false);
+    expect(
+      isSupportedVueTypeEvidenceVersionTuple({
+        languageCore: '3.2.4',
+        typeScript: '5.10.0',
+        volarTypeScript: '2.4.27',
+        vueTsc: '3.2.4',
+      }),
+    ).toBe(false);
+    expect(
+      isSupportedVueTypeEvidenceVersionTuple({
+        languageCore: '3.2.4',
+        typeScript: '6.1.0',
+        volarTypeScript: '2.4.27',
+        vueTsc: '3.2.4',
+      }),
+    ).toBe(false);
   });
 
   it('maps script-setup duplicates and query imports to canonical ambient symbols', async () => {
@@ -187,9 +249,11 @@ describe('Vue resource type evidence', () => {
       const project = createVueProject(fixture.rootDir);
       const filePath = path.join(fixture.rootDir, 'src/App.vue');
       const metrics = createProfilingMetricsRecorder();
+      const contexts = new VueSemanticContextManager(metrics);
       const importAnalysis = createImportAnalysisContext({
         metrics,
         projectRootDir: fixture.rootDir,
+        vueSemanticContexts: contexts,
       });
       const imports = importAnalysis.collectImportsFromFile(
         filePath,
@@ -199,6 +263,7 @@ describe('Vue resource type evidence', () => {
         generation: 0,
         importAnalysis,
         metrics,
+        vueSemanticContexts: contexts,
       });
       const evidence = imports.map((importRecord) =>
         core!.resolveImportEvidence({
@@ -219,7 +284,7 @@ describe('Vue resource type evidence', () => {
         ),
       ).toEqual(['*.css', '*.css', '*?raw']);
       expect(core.cache.typeEvidenceProviderCache.size).toBe(1);
-      expect(core.cache.programCache.size).toBe(1);
+      expect(core.cache.programCache.size).toBe(0);
       expect(core.cache.importTypeEvidenceCache.size).toBe(3);
       const metricSnapshot = metrics.snapshot();
       expect(metricCount(metricSnapshot, 'vue-program-create')).toBe(1);
@@ -257,14 +322,20 @@ describe('Vue resource type evidence', () => {
       await linkVueToolchain(fixture.rootDir);
       const project = createVueProject(fixture.rootDir);
       const filePath = path.join(fixture.rootDir, 'src/App.vue');
+      const contexts = new VueSemanticContextManager();
       const importAnalysis = createImportAnalysisContext({
         projectRootDir: fixture.rootDir,
+        vueSemanticContexts: contexts,
       });
       const [importRecord] = importAnalysis.collectImportsFromFile(
         filePath,
         fixture.rootDir,
       );
-      core = new TypeEvidenceCore({ generation: 0, importAnalysis });
+      core = new TypeEvidenceCore({
+        generation: 0,
+        importAnalysis,
+        vueSemanticContexts: contexts,
+      });
 
       expect(
         core.resolveImportEvidence({
@@ -293,9 +364,11 @@ describe('Vue resource type evidence', () => {
       const project = createVueProject(fixture.rootDir);
       const filePath = path.join(fixture.rootDir, 'src/index.ts');
       const metrics = createProfilingMetricsRecorder();
+      const contexts = new VueSemanticContextManager(metrics);
       const importAnalysis = createImportAnalysisContext({
         metrics,
         projectRootDir: fixture.rootDir,
+        vueSemanticContexts: contexts,
       });
       const [importRecord] = importAnalysis.collectImportsFromFile(
         filePath,
@@ -305,6 +378,7 @@ describe('Vue resource type evidence', () => {
         generation: 0,
         importAnalysis,
         metrics,
+        vueSemanticContexts: contexts,
       });
 
       expect(

@@ -22,7 +22,7 @@ const execFileMock = vi.hoisted(() => vi.fn());
 const liminaPackageManifestPath = fileURLToPath(
   new URL('../../package.json', import.meta.url),
 );
-const releasedTypeScriptPeerRange = '^5.4.0 || ^6.0.0';
+const releasedTypeScriptPeerRange = '>=5.4.0 <5.10.0 || >=6.0.0 <6.1.0';
 
 vi.mock('@clack/prompts', () => ({
   confirm: confirmMock,

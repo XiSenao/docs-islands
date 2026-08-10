@@ -32,7 +32,6 @@ export type {
   GraphRuleDepDenyEntry,
   GraphRuleRefAllowEntry,
   GraphRuleRefDenyEntry,
-  ImportAnalysisConfig,
   LiminaCommand,
   LiminaConfig,
   LiminaConfigEnv,
@@ -76,5 +75,4 @@ export type {
   SourceKnipIgnoredDependencyConfig,
   SourceKnipIgnoredFileConfig,
   SourceKnipWorkspaceConfig,
-  VueImportParser,
 } from '#config/runner';

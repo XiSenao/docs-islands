@@ -79,8 +79,8 @@ async function addRouteFindings(state: ProofRunState): Promise<void> {
 
 function addProjectConfigFindings(state: ProofRunState): void {
   const projectContexts = collectProjectContextsByPath(
-    state.config,
     state.entryRoutes,
+    state.generatedGraph,
   );
   const solutionConfigPaths = collectSolutionConfigPaths(state.generatedGraph);
   const defaultTsconfigPaths = state.ordinaryConfigPaths.filter(

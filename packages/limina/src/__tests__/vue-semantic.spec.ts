@@ -1,0 +1,407 @@
+import { parseCheckerProjectConfigForContext } from '#checkers';
+import { createImportAnalysisContext } from '#core/import-analysis/runner';
+import {
+  mkdir,
+  mkdtemp,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { VueSemanticContextManager } from '../core/vue-semantic/context';
+import { collectSemanticDependencyEvidence } from '../core/vue-semantic/dependency';
+import { resolveVueSemanticImport } from '../core/vue-semantic/resolution';
+import { createProfilingMetricsRecorder } from '../profiling/metrics';
+
+const requireFromTest = createRequire(import.meta.url);
+
+async function writeText(filePath: string, text: string): Promise<void> {
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, text);
+}
+
+async function createFixture(files: Record<string, string>): Promise<{
+  cleanup: () => Promise<void>;
+  path: (...segments: string[]) => string;
+  rootDir: string;
+}> {
+  const rootDir = await realpath(
+    await mkdtemp(path.join(tmpdir(), 'limina-vue-semantic-')),
+  );
+  for (const [relativePath, text] of Object.entries({
+    'node_modules/vue/index.d.ts': 'export {}\n',
+    'node_modules/vue/package.json':
+      '{"name":"vue","version":"3.5.0","types":"index.d.ts"}\n',
+    'package.json': '{"name":"fixture","private":true}\n',
+    ...files,
+  })) {
+    await writeText(path.join(rootDir, relativePath), text);
+  }
+  const vueTscManifest = requireFromTest.resolve('vue-tsc/package.json');
+  const vueTscTarget = path.dirname(vueTscManifest);
+  const vueTscLink = path.join(rootDir, 'node_modules/vue-tsc');
+  await mkdir(path.dirname(vueTscLink), { recursive: true });
+  await symlink(vueTscTarget, vueTscLink, 'junction');
+  return {
+    cleanup: () => rm(rootDir, { force: true, recursive: true }),
+    path: (...segments) => path.join(rootDir, ...segments),
+    rootDir,
+  };
+}
+
+function config(
+  options: {
+    target?: string;
+    vueCompilerOptions?: Record<string, unknown>;
+  } = {},
+): string {
+  return `${JSON.stringify(
+    {
+      compilerOptions: {
+        allowArbitraryExtensions: true,
+        module: 'ESNext',
+        moduleResolution: 'Bundler',
+        strict: true,
+        target: options.target ?? 'ES2022',
+        types: [],
+      },
+      include: ['src/**/*'],
+      vueCompilerOptions: options.vueCompilerOptions,
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+function parseIdentity(options: {
+  rootDir: string;
+  virtualFiles?: ReadonlyMap<string, string>;
+}) {
+  const configPath = path.join(options.rootDir, 'tsconfig.json');
+  const parsed = parseCheckerProjectConfigForContext({
+    configPath,
+    context: { checkerPresets: ['vue-tsc'], extensions: [] },
+    projectRootDir: options.rootDir,
+    virtualFiles: options.virtualFiles,
+  });
+  if (parsed.vueSemanticIdentity === undefined) {
+    throw new Error('Fixture did not create a Vue semantic identity.');
+  }
+  return parsed.vueSemanticIdentity;
+}
+
+describe('Vue semantic architecture', () => {
+  it('uses one overlay-aware identity for profiles and Program options', async () => {
+    const fixture = await createFixture({
+      'src/App.component': '<script setup lang="ts">const value = 1</script>\n',
+      'src/Page.md':
+        '# Page\n\n<script setup lang="ts">const value = 1</script>\n',
+      'src/Widget.html': '<div v-scope="{ value: 1 }"></div>\n',
+      'tsconfig.json': config({ target: 'ES2022' }),
+    });
+    const configPath = fixture.path('tsconfig.json');
+    const virtualConfig = config({
+      target: 'ES5',
+      vueCompilerOptions: {
+        extensions: ['.vue', '.component'],
+        petiteVueExtensions: ['.html'],
+        vitePressExtensions: ['.md'],
+      },
+    });
+    const manager = new VueSemanticContextManager();
+
+    try {
+      const identity = parseIdentity({
+        rootDir: fixture.rootDir,
+        virtualFiles: new Map([[configPath, virtualConfig]]),
+      });
+      const context = manager.acquire(identity);
+
+      expect(identity.options.target).toBe(
+        identity.toolchain.tsModule.ScriptTarget.ES5,
+      );
+      expect(context.program.getCompilerOptions().target).toBe(
+        identity.toolchain.tsModule.ScriptTarget.ES5,
+      );
+      expect(
+        [...identity.profilesByFileName.entries()].map(
+          ([fileName, profile]) => [path.basename(fileName), profile],
+        ),
+      ).toEqual([
+        ['App.component', 'vue-sfc'],
+        ['Page.md', 'vitepress-markdown'],
+        ['Widget.html', 'petite-vue-html'],
+      ]);
+      expect(context.languageServiceHost.getProjectVersion?.()).toBe(
+        `${identity.generation}:${identity.id}`,
+      );
+    } finally {
+      manager.dispose();
+      await fixture.cleanup();
+    }
+  });
+
+  it('reuses the finalized identity for generated overlays and keeps upstream profile precedence', async () => {
+    const fixture = await createFixture({
+      'src/App.custom': '<script setup lang="ts">export {}</script>\n',
+      'tsconfig.json': config({
+        vueCompilerOptions: {
+          extensions: ['.vue', '.custom'],
+          petiteVueExtensions: ['.custom'],
+          vitePressExtensions: ['.custom'],
+        },
+      }),
+    });
+    const generatedConfigPath = fixture.path('tsconfig.generated.json');
+
+    try {
+      const identity = parseIdentity({ rootDir: fixture.rootDir });
+      const generatedConfig = `${JSON.stringify({
+        compilerOptions: {
+          module: 'NodeNext',
+          moduleResolution: 'NodeNext',
+          target: 'ES5',
+          types: [],
+        },
+        files: [fixture.path('src/App.custom')],
+      })}\n`;
+      const parsed = parseCheckerProjectConfigForContext({
+        configPath: generatedConfigPath,
+        context: {
+          checkerPresets: ['vue-tsc'],
+          extensions: [],
+          vueSemanticIdentity: identity,
+        },
+        projectRootDir: fixture.rootDir,
+        virtualFiles: new Map([[generatedConfigPath, generatedConfig]]),
+      });
+
+      expect(
+        identity.profilesByFileName.get(fixture.path('src/App.custom')),
+      ).toBe('vue-sfc');
+      expect(parsed.vueSemanticIdentity).toBe(identity);
+      expect(parsed.options.target).toBe(
+        identity.toolchain.tsModule.ScriptTarget.ES5,
+      );
+      expect(identity.options.target).toBe(
+        identity.toolchain.tsModule.ScriptTarget.ES2022,
+      );
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it('maps script src and generic imports without admitting synthetic helpers', async () => {
+    const fixture = await createFixture({
+      'src/App.vue': ['<script lang="ts" src="./entry.ts"></script>', ''].join(
+        '\n',
+      ),
+      'src/Generic.vue': [
+        '<script setup lang="ts" generic="T extends import(\'./types\').Thing">',
+        'const value = 1',
+        '</script>',
+        '',
+      ].join('\n'),
+      'src/entry.ts': 'export default {}\n',
+      'src/types.ts': 'export interface Thing { value: string }\n',
+      'tsconfig.json': config(),
+    });
+    const metrics = createProfilingMetricsRecorder();
+    const manager = new VueSemanticContextManager(metrics);
+
+    try {
+      const identity = parseIdentity({ rootDir: fixture.rootDir });
+      const filePath = fixture.path('src/App.vue');
+      const importAnalysis = createImportAnalysisContext({
+        projectRootDir: fixture.rootDir,
+      });
+      const imports = [
+        ...importAnalysis.collectImportsFromFile(
+          filePath,
+          fixture.rootDir,
+          'vue-sfc',
+        ),
+        ...importAnalysis.collectImportsFromFile(
+          fixture.path('src/Generic.vue'),
+          fixture.rootDir,
+          'vue-sfc',
+        ),
+      ];
+      const context = manager.acquire(identity);
+
+      expect(imports.map((record) => record.kind)).toEqual([
+        'vue-script-src',
+        'vue-generic-type',
+      ]);
+      const mapped = imports.map((importRecord) =>
+        collectSemanticDependencyEvidence({ context, importRecord }),
+      );
+      expect(mapped.every((result) => result.kind === 'supported')).toBe(true);
+      expect(
+        mapped.flatMap((result) =>
+          result.kind === 'supported'
+            ? result.candidates.map((candidate) => [
+                candidate.sourceSpecifier,
+                candidate.semanticSpecifier,
+                candidate.provenance,
+              ])
+            : [],
+        ),
+      ).toEqual([
+        ['./entry.ts', './entry.js', 'strict-source-map'],
+        ['./types', './types', 'strict-source-map'],
+      ]);
+      expect(
+        imports.map((importRecord) =>
+          resolveVueSemanticImport({ identity, importRecord, manager }),
+        ),
+      ).toMatchObject([
+        {
+          kind: 'resolved',
+          resolution: { resolvedFileName: fixture.path('src/entry.ts') },
+        },
+        {
+          kind: 'resolved',
+          resolution: { resolvedFileName: fixture.path('src/types.ts') },
+        },
+      ]);
+      expect(
+        metrics
+          .snapshot()
+          .filter((metric) => metric.name === 'vue-program-create')
+          .reduce((total, metric) => total + metric.count, 0),
+      ).toBe(0);
+      expect(context.program.getSourceFiles().length).toBeGreaterThan(0);
+      expect(
+        metrics
+          .snapshot()
+          .filter((metric) => metric.name === 'vue-program-create')
+          .reduce((total, metric) => total + metric.count, 0),
+      ).toBe(1);
+    } finally {
+      manager.dispose();
+      await fixture.cleanup();
+    }
+  });
+
+  it('resolves Vue-to-Vue imports through the checker source projection', async () => {
+    const fixture = await createFixture({
+      'src/App.vue': [
+        '<script setup lang="ts">',
+        "import Component from './Component.vue';",
+        'void Component;',
+        '</script>',
+        '',
+      ].join('\n'),
+      'src/Component.vue': '<script lang="ts">export default {}</script>\n',
+      'tsconfig.json': config(),
+    });
+    const manager = new VueSemanticContextManager();
+
+    try {
+      const identity = parseIdentity({ rootDir: fixture.rootDir });
+      const [importRecord] = createImportAnalysisContext({
+        projectRootDir: fixture.rootDir,
+      }).collectImportsFromFile(
+        fixture.path('src/App.vue'),
+        fixture.rootDir,
+        'vue-sfc',
+      );
+
+      expect(
+        resolveVueSemanticImport({
+          identity,
+          importRecord: importRecord!,
+          manager,
+        }),
+      ).toMatchObject({
+        kind: 'resolved',
+        resolution: {
+          resolvedBy: 'checker-source',
+          resolvedFileName: fixture.path('src/Component.vue'),
+        },
+      });
+    } finally {
+      manager.dispose();
+      await fixture.cleanup();
+    }
+  });
+
+  it('reuses one identity, disposes on project switches, and fails closed on an unmapped locator', async () => {
+    const fixture = await createFixture({
+      'src/App.vue': '<script setup lang="ts">import \'./dep\'</script>\n',
+      'src/dep.ts': 'export {}\n',
+      'tsconfig.json': config(),
+    });
+    const manager = new VueSemanticContextManager();
+
+    try {
+      const identity = parseIdentity({ rootDir: fixture.rootDir });
+      const first = manager.acquire(identity);
+      expect(manager.acquire(identity)).toBe(first);
+      const [record] = createImportAnalysisContext({
+        projectRootDir: fixture.rootDir,
+      }).collectImportsFromFile(
+        fixture.path('src/App.vue'),
+        fixture.rootDir,
+        'vue-sfc',
+      );
+      const unsupported = collectSemanticDependencyEvidence({
+        context: first,
+        importRecord: {
+          ...record!,
+          locator: { occurrence: 0, sourceEnd: 1, sourceStart: 0 },
+        },
+      });
+      expect(unsupported).toMatchObject({ kind: 'unsupported' });
+
+      const second = manager.acquire({
+        ...identity,
+        generation: identity.generation + 1,
+        id: `${identity.id}:next`,
+      });
+      expect(second).not.toBe(first);
+      expect(() => first.assertActive()).toThrow('disposed');
+      manager.release(second.identity);
+      expect(() => second.assertActive()).toThrow('disposed');
+    } finally {
+      manager.dispose();
+      await fixture.cleanup();
+    }
+  });
+
+  it('keeps one process-wide heavy context across independent managers', async () => {
+    const fixture = await createFixture({
+      'src/App.vue': '<script setup lang="ts">export {}</script>\n',
+      'tsconfig.json': config(),
+    });
+    const firstManager = new VueSemanticContextManager();
+    const secondManager = new VueSemanticContextManager();
+
+    try {
+      const identity = parseIdentity({ rootDir: fixture.rootDir });
+      const first = firstManager.acquire(identity);
+      expect(secondManager.acquire(identity)).toBe(first);
+
+      const switched = secondManager.acquire({
+        ...identity,
+        generation: identity.generation + 1,
+        id: `${identity.id}:other-manager`,
+      });
+      expect(() => first.assertActive()).toThrow('disposed');
+
+      firstManager.dispose();
+      expect(() => switched.assertActive()).not.toThrow();
+      secondManager.dispose();
+      expect(() => switched.assertActive()).toThrow('disposed');
+    } finally {
+      firstManager.dispose();
+      secondManager.dispose();
+      await fixture.cleanup();
+    }
+  });
+});

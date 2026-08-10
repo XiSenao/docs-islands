@@ -7,7 +7,10 @@ import {
   resolveDeclarationProvider,
 } from '../import-graph/declaration-provider';
 import { getDtsProjectsForSourcePath } from './project-indexes';
-import { formatOxcOnlyDeclarationProviderProblem } from './provider-problems';
+import {
+  formatOxcOnlyDeclarationProviderProblem,
+  formatVueSemanticDependencyProblem,
+} from './provider-problems';
 import { formatReferenceBoundaryProblem } from './reference-boundary';
 import type {
   ReferenceImportOptions,
@@ -34,6 +37,22 @@ function addOxcOnlyProblem(options: {
   return true;
 }
 
+function addSemanticFailureProblem(options: {
+  base: ReferenceImportOptions;
+  provider: DeclarationProviderResolution;
+}): boolean {
+  if (options.provider.kind !== 'semantic-failure') return false;
+  options.base.context.problems.push(
+    formatVueSemanticDependencyProblem({
+      config: options.base.context.config,
+      importRecord: options.base.importRecord,
+      project: options.base.project,
+      reason: options.provider.reason,
+    }),
+  );
+  return true;
+}
+
 function isResolvedProvider(
   provider: DeclarationProviderResolution,
 ): provider is ResolvedProvider {
@@ -55,10 +74,13 @@ export function resolveUsableProvider(
       resolverConfigPath: options.project.configPath,
     },
   });
-  if (addOxcOnlyProblem({ base: options, provider })) {
-    return null;
-  }
-  return isResolvedProvider(provider) ? provider : null;
+  const hasProblem = [
+    addOxcOnlyProblem({ base: options, provider }),
+    addSemanticFailureProblem({ base: options, provider }),
+  ].some(Boolean);
+  if (hasProblem) return null;
+  if (!isResolvedProvider(provider)) return null;
+  return provider;
 }
 
 function chooseSourceOwner(options: {

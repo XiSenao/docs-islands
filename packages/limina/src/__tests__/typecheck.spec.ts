@@ -53,6 +53,18 @@ async function linkAstroCompiler(rootDir: string): Promise<void> {
   );
 }
 
+async function linkVueToolchain(rootDir: string): Promise<void> {
+  const vueTscPackagePath = requireFromTest.resolve('vue-tsc/package.json');
+  const nodeModulesDir = path.join(rootDir, 'node_modules');
+
+  await mkdir(nodeModulesDir, { recursive: true });
+  await symlink(
+    path.dirname(vueTscPackagePath),
+    path.join(nodeModulesDir, 'vue-tsc'),
+    'junction',
+  );
+}
+
 async function createFixture(files: Record<string, string>): Promise<{
   cleanup: () => Promise<void>;
   rootDir: string;
@@ -92,6 +104,7 @@ async function createFixture(files: Record<string, string>): Promise<{
   for (const [relativePath, text] of Object.entries(fixtureFiles)) {
     await writeText(path.join(rootDir, relativePath), text);
   }
+  await linkVueToolchain(rootDir);
   if (Object.keys(files).some((filePath) => filePath.endsWith('.astro'))) {
     await linkAstroCompiler(rootDir);
   }
@@ -705,57 +718,6 @@ describe('runCheckerBuild', () => {
       expect(result.passed).toBe(true);
       expect(calls.map((target) => target.command)).toEqual(['tsc', 'vue-tsc']);
       expect(errorSpy).not.toHaveBeenCalled();
-    } finally {
-      errorSpy.mockRestore();
-      await fixture.cleanup();
-    }
-  });
-
-  it('requires the Vue SFC compiler when compiler-sfc import analysis is enabled', async () => {
-    const calls: TypecheckTarget[] = [];
-    const errorSpy = vi
-      .spyOn(TypecheckLogger, 'error')
-      .mockImplementation(() => {});
-    const fixture = await createFixture({
-      'tsconfig.build.json': tsconfig({ files: [] }),
-      'tsconfig.vue.build.json': tsconfig({ files: [] }),
-    });
-
-    try {
-      const result = await runCheckerBuild({
-        checkerPackageResolver: ({ packageName }) =>
-          packageName === 'typescript' || packageName === 'vue-tsc'
-            ? packageName
-            : undefined,
-        config: {
-          config: {
-            checkers: {
-              tsc: {
-                include: ['tsconfig.json'],
-              },
-              'vue-tsc': {
-                include: ['vue/tsconfig.json'],
-              },
-            },
-            imports: {
-              vue: 'compiler-sfc',
-            },
-          },
-          configPath: path.join(fixture.rootDir, 'limina.config.mjs'),
-          rootDir: fixture.rootDir,
-        },
-        cwd: fixture.rootDir,
-        runner: passingRunner(calls),
-      });
-
-      expect(result.passed).toBe(false);
-      expect(calls).toHaveLength(0);
-      expect(errorSpy.mock.calls.join('\n')).toContain('@vue/compiler-sfc');
-      expect(errorSpy.mock.calls.join('\n')).toContain('config.imports.vue');
-      expect(errorSpy.mock.calls.join('\n')).toContain('"compiler-sfc"');
-      expect(errorSpy.mock.calls.join('\n')).toContain(
-        'Fix: pnpm add -D @vue/compiler-sfc',
-      );
     } finally {
       errorSpy.mockRestore();
       await fixture.cleanup();

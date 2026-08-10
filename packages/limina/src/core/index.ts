@@ -11,6 +11,7 @@ import { PackageDomainCore } from './packages';
 import { TsconfigCore } from './tsconfig';
 import { TypeEvidenceCore } from './type-evidence';
 import type { TypeEvidenceMetricsRecorder } from './type-evidence/cache';
+import { VueSemanticContextManager } from './vue-semantic/context';
 import {
   WorkspaceCore,
   type WorkspaceCoreDependencies,
@@ -61,19 +62,27 @@ export class AnalysisProviderSet {
   readonly tsconfig: TsconfigCore;
   readonly typeEvidence: TypeEvidenceCore;
   readonly workspace: WorkspaceCore;
+  readonly vueSemanticContexts: VueSemanticContextManager;
 
   constructor(options: AnalysisProviderSetOptions) {
     let buildGraph: BuildGraphCore;
 
     this.artifactNamespace = options.artifactNamespace;
     this.config = options.config;
-    this.projectConfigs = new CheckerProjectConfigCache();
+    this.projectConfigs = new CheckerProjectConfigCache(
+      options.artifactNamespace.generation,
+    );
     this.workspace = new WorkspaceCore(
       options.config,
       options.metrics,
       options.dependencies.workspace,
     );
-    this.imports = new ImportCore(options.config, options.metrics);
+    this.vueSemanticContexts = new VueSemanticContextManager(options.metrics);
+    this.imports = new ImportCore(
+      options.config,
+      options.metrics,
+      this.vueSemanticContexts,
+    );
     this.tsconfig = new TsconfigCore({
       config: options.config,
       generatedGraphProvider: () => buildGraph.getGraph(),
@@ -84,6 +93,7 @@ export class AnalysisProviderSet {
       generation: options.artifactNamespace.generation,
       importAnalysis: this.imports.context,
       metrics: options.metrics,
+      vueSemanticContexts: this.vueSemanticContexts,
     });
     buildGraph = new BuildGraphCore({
       artifactNamespace: options.artifactNamespace,
@@ -101,6 +111,7 @@ export class AnalysisProviderSet {
 
   dispose(): void {
     this.typeEvidence.dispose();
+    this.vueSemanticContexts.dispose();
   }
 }
 

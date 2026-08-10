@@ -170,6 +170,11 @@ function cloneGovernedSource(unit: GovernedSourceUnit): GovernedSourceUnit {
   return {
     ...unit,
     buildProjection: { ...unit.buildProjection },
+    context: {
+      checkerPresets: [...unit.context.checkerPresets],
+      extensions: [...unit.context.extensions],
+      vueSemanticIdentity: unit.context.vueSemanticIdentity,
+    },
     declarationFileNames: [...unit.declarationFileNames],
     declarationReferences: new Set(unit.declarationReferences),
     frameworkCapabilities: unit.frameworkCapabilities.map((capability) => ({

@@ -1,3 +1,4 @@
+import { resolveVueSourceProfile } from '#checkers';
 import type { ImportRecord, ProjectInfo } from '#core/import-graph/context';
 import { collectImportsFromFile } from '#core/import-graph/context';
 import {
@@ -163,6 +164,10 @@ function collectFileEdges(options: {
     options.fileName,
     options.context.config.rootDir,
     options.context.importAnalysis,
+    resolveVueSourceProfile({
+      fileName: options.fileName,
+      identity: options.project.vueSemanticIdentity,
+    }),
   );
 
   for (const importRecord of imports) {

@@ -24,11 +24,13 @@ export interface ResolveImportEvidenceOptions {
     | 'fileNames'
     | 'options'
     | 'resolverConfigPath'
+    | 'vueSemanticIdentity'
   >;
 }
 
 export interface ResolvedImportPair {
   runtimeEvidence: ImportRuntimeResolutionEvidence;
+  semanticFailure?: string;
   typeScriptResolution: ReturnType<
     ImportAnalysisContext['resolveTypeScriptImport']
   >;
@@ -38,8 +40,8 @@ export function resolveImportPair(options: {
   importAnalysis: ImportAnalysisContext;
   request: ResolveImportEvidenceOptions;
 }): ResolvedImportPair {
-  const pair = options.importAnalysis.resolveModulePair(
-    options.request.importRecord.specifier,
+  const pair = options.importAnalysis.resolveModulePairForImport(
+    options.request.importRecord,
     options.request.importRecord.filePath,
     options.request.project.options,
     options.request.project,
@@ -54,6 +56,7 @@ export function resolveImportPair(options: {
       specifier: options.request.importRecord.specifier,
       typeScriptResolution: pair.typescript,
     }),
+    semanticFailure: pair.semanticFailure,
     typeScriptResolution: pair.typescript,
   };
 }

@@ -181,6 +181,7 @@ export type SourceBuildProjection =
 export interface GovernedSourceUnit {
   buildProjection: SourceBuildProjection;
   configPath: string;
+  context: CheckerProjectParseContext;
   declarationFileNames: string[];
   declarationReferences: Set<string>;
   frameworkCapabilities: FrameworkCapabilityDescriptor[];

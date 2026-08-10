@@ -2,7 +2,6 @@ import {
   type CheckerProjectConfigCache,
   type CheckerProjectParseContext,
   parseCheckerProjectConfigForContext,
-  resolveCheckerProjectExtensions,
 } from '#checkers';
 import type { ResolvedLiminaConfig } from '#config/runner';
 import { uniqueCodeUnitSortedStrings as uniqueSortedStrings } from '#utils/collections';
@@ -40,22 +39,22 @@ export function createSourceProject(options: {
   projectConfigCache?: CheckerProjectConfigCache;
   sourceConfigPath: string;
 }): SourceProject {
-  const extensions = resolveCheckerProjectExtensions({
-    configPath: options.sourceConfigPath,
-    preset: options.checkerPreset,
-    projectRootDir: options.config.rootDir,
-  });
-  const context: CheckerProjectParseContext = {
+  const parseContext: CheckerProjectParseContext = {
     checkerPresets: [options.checkerPreset],
-    extensions,
+    extensions: [],
   };
   const parsed = parseCheckerProjectConfigForContext({
     allowNoInputDiagnostics: true,
     cache: options.projectConfigCache,
     configPath: options.sourceConfigPath,
-    context,
+    context: parseContext,
     projectRootDir: options.config.rootDir,
   });
+  const context: CheckerProjectParseContext = {
+    ...parseContext,
+    extensions: [...parsed.extensions],
+    vueSemanticIdentity: parsed.vueSemanticIdentity,
+  };
   const ownedFileNames = parsed.fileNames
     .map(normalizeAbsolutePath)
     .filter((fileName) => !isInsideNodeModules(fileName))

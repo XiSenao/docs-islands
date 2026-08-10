@@ -1,7 +1,15 @@
 import type { ResolvedLiminaConfig } from '#config/runner';
 import type { GeneratedTsconfigGraphResult } from '#core/build-graph/runner';
 import { normalizeAbsolutePath } from '#utils/path';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -24,6 +32,8 @@ import {
 } from '../source-check/snapshot';
 import { prepareAndMaterializeGeneratedTsconfigGraph } from './helpers/generated-graph';
 import { toPortablePath } from './helpers/path';
+
+const requireFromTest = createRequire(import.meta.url);
 
 async function writeText(filePath: string, text: string): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
@@ -154,6 +164,13 @@ async function createFixture(files: Record<string, string>): Promise<{
   for (const [relativePath, text] of Object.entries(fixtureFiles)) {
     await writeText(path.join(rootDir, relativePath), text);
   }
+  const vueTscManifest = requireFromTest.resolve('vue-tsc/package.json');
+  await mkdir(path.join(rootDir, 'node_modules'), { recursive: true });
+  await symlink(
+    path.dirname(vueTscManifest),
+    path.join(rootDir, 'node_modules/vue-tsc'),
+    'junction',
+  );
 
   return {
     cleanup: async () => {

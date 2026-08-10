@@ -213,13 +213,6 @@ async function createCliBuildFixture(): Promise<CliBuildFixture> {
     }),
   );
   await writeText(
-    path.join(rootDir, 'node_modules/@vue/compiler-sfc/package.json'),
-    stringifyConfig({
-      name: '@vue/compiler-sfc',
-      version: '0.0.0-test',
-    }),
-  );
-  await writeText(
     path.join(rootDir, 'packages/pkg/src/index.ts'),
     'export const value = 1;\n',
   );

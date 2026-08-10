@@ -128,6 +128,14 @@ async function createFixture(
   for (const [relativePath, text] of Object.entries(fixtureFiles)) {
     await writeText(path.join(rootDir, relativePath), text);
   }
+  const vueTscPackagePath = requireFromTest.resolve('vue-tsc/package.json');
+  const nodeModulesDir = path.join(rootDir, 'node_modules');
+  await mkdir(nodeModulesDir, { recursive: true });
+  await symlink(
+    path.dirname(vueTscPackagePath),
+    path.join(nodeModulesDir, 'vue-tsc'),
+    'junction',
+  );
 
   return {
     cleanup: async () => {
@@ -166,21 +174,6 @@ async function linkWorkspacePackage(
   await symlink(
     path.relative(nodeModulesDir, path.join(rootDir, target)),
     path.join(nodeModulesDir, name ?? packageName),
-  );
-}
-
-async function linkCompilerSfc(rootDir: string): Promise<void> {
-  const compilerPackagePath = requireFromTest.resolve(
-    '@vue/compiler-sfc/package.json',
-  );
-  const nodeModulesDir = path.join(rootDir, 'node_modules', '@vue');
-
-  await mkdir(nodeModulesDir, {
-    recursive: true,
-  });
-  await symlink(
-    path.relative(nodeModulesDir, path.dirname(compilerPackagePath)),
-    path.join(nodeModulesDir, 'compiler-sfc'),
   );
 }
 
@@ -3232,7 +3225,6 @@ describe('runGraphCheck graph rules', () => {
     );
 
     try {
-      await linkCompilerSfc(fixture.rootDir);
       await linkWorkspacePackage(
         fixture.rootDir,
         'packages/app',
@@ -3263,7 +3255,6 @@ describe('runGraphCheck graph rules', () => {
     );
 
     try {
-      await linkCompilerSfc(fixture.rootDir);
       await linkWorkspacePackage(
         fixture.rootDir,
         'packages/app',
@@ -3317,8 +3308,6 @@ describe('runGraphCheck graph rules', () => {
     );
 
     try {
-      await linkCompilerSfc(fixture.rootDir);
-
       await expect(runGraphCheck(fixture.config)).rejects.toThrow(
         /Ambiguous inherited checker ownership[\s\S]*first checker: tsc[\s\S]*conflicting checker: vue-tsc/u,
       );
@@ -3345,7 +3334,6 @@ describe('runGraphCheck graph rules', () => {
     );
 
     try {
-      await linkCompilerSfc(fixture.rootDir);
       await linkWorkspacePackage(
         fixture.rootDir,
         'packages/app',
@@ -3378,7 +3366,6 @@ describe('runGraphCheck graph rules', () => {
     );
 
     try {
-      await linkCompilerSfc(fixture.rootDir);
       await linkWorkspacePackage(
         fixture.rootDir,
         'packages/app',
@@ -3425,7 +3412,6 @@ describe('runGraphCheck graph rules', () => {
     );
 
     try {
-      await linkCompilerSfc(fixture.rootDir);
       await linkWorkspacePackage(
         fixture.rootDir,
         'packages/app',
@@ -3458,8 +3444,6 @@ describe('runGraphCheck graph rules', () => {
     );
 
     try {
-      await linkCompilerSfc(fixture.rootDir);
-
       await expect(runGraphCheck(fixture.config)).resolves.toBe(true);
     } finally {
       await fixture.cleanup();
@@ -3484,7 +3468,6 @@ describe('runGraphCheck graph rules', () => {
     );
 
     try {
-      await linkCompilerSfc(fixture.rootDir);
       await linkWorkspacePackage(
         fixture.rootDir,
         'packages/app',

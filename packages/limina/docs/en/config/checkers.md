@@ -120,24 +120,26 @@ Astro import analysis also resolves `@astrojs/compiler` from the leaf; Svelte im
 
 `checker typecheck` is a full rerun, not framework watch mode. Stable target IDs preserve target identity between runs but do not provide incremental invalidation.
 
-## Vue import parsing
+## Vue source and semantic import analysis
 
-- **Type:** `config.imports.vue?: 'heuristic' | 'compiler-sfc'`
-- **Default:** `'heuristic'`
+Vue import collection has no configuration field. Limina always collects lightweight source evidence from inline `<script>` and `<script setup>` content, a `<script src>` attribute, and `import()` expressions in a `generic` attribute. For the `vitepress-markdown` source profile, inline backtick code and fenced backtick code blocks are excluded from this evidence while source offsets and line endings remain unchanged; tilde fences are not excluded. This file-oriented collection does not initialize `vue-tsc` and remains available to standalone import analysis.
 
-Limina extracts imports from Vue SFC `<script>` and `<script setup>` blocks when building the source graph. The default heuristic parser needs no additional package. To parse these blocks through Vue's compiler, use:
+For a source owned by a `vue-tsc` project, generated-reference preparation and `graph:check` can enrich that source record with checker-semantic evidence. Limina resolves `vue-tsc`, Vue Language Core, Volar TypeScript, and TypeScript from the source config's dependency tree, uses that same toolchain and any virtual config overlay for project membership and semantic analysis, and accepts only a strict source-to-virtual mapping. Synthetic service-script imports without source evidence never become graph edges. TypeScript/declaration resolution uses the mapped semantic literal; Oxc/runtime and resource evidence continues to use the original source specifier.
 
-```js
-export default defineConfig({
-  config: {
-    imports: {
-      vue: 'compiler-sfc',
-    },
-  },
-});
-```
+The supported adapter matrix is deliberately bounded:
 
-This mode requires `@vue/compiler-sfc` in the workspace running Limina. A missing compiler package fails preflight before checker processes start.
+| `vue-tsc` family | Matching `@vue/language-core` | `@volar/typescript` | TypeScript           |
+| ---------------- | ----------------------------- | ------------------- | -------------------- |
+| 2.2.0–2.2.12     | same version as `vue-tsc`     | 2.4.11–2.4.28       | 5.4.x–5.9.x or 6.0.x |
+| 3.2.0–3.2.4      | same version as `vue-tsc`     | 2.4.27              | 5.4.x–5.9.x or 6.0.x |
+
+An unsupported tuple does not disable lightweight source collection. Operations that require checker-parity semantic dependency or reference resolution fail closed instead of falling back to an approximate Vue extension resolver.
+
+### Breaking migration from `config.imports.vue`
+
+Delete `config.imports.vue`; there is no replacement field. Loading a configuration that still contains `config.imports` reports this migration directly. The public `VueImportParser` type and Limina's direct/optional `@vue/compiler-sfc` dependency have also been removed.
+
+Limina no longer provides compiler-sfc-specific structural diagnostics for duplicate script blocks or `<script setup src>`. Vue checkers and editor tooling remain responsible for SFC validity. Limina reports only source-provenance, resolution, and graph failures within its own analysis boundary.
 
 ## Cross-checker dependencies and cache reuse
 

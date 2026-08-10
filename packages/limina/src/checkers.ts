@@ -52,6 +52,23 @@ export type {
   ResolvedCheckerModuleName,
   VueLanguageCore,
 } from './checker/types';
+export {
+  isSupportedVueSemanticVersionTuple,
+  resolveVueSemanticAdapter,
+  resolveVueSourceProfile,
+} from './checker/vue-semantic-identity';
+export type {
+  VolarLanguage,
+  VolarSourceScript,
+  VueLanguageServiceHost,
+  VueProjectSemanticIdentity,
+  VueResolvedModule,
+  VueSemanticAdapter,
+  VueSemanticAdapterFamily,
+  VueSemanticToolchain,
+  VueSemanticVersionTuple,
+  VueSourceProfile,
+} from './checker/vue-semantic-types';
 
 export function resolveCheckerProjectExtensions(options: {
   configPath: string;

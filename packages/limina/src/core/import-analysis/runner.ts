@@ -1,3 +1,4 @@
+import type { VueSourceProfile } from '#checkers';
 import { createImportAnalysisContext } from './context';
 import type { ImportRecord } from './records';
 import type {
@@ -26,12 +27,16 @@ export type {
 } from './types';
 
 export function collectImportsFromFile(
-  filePath: string,
-  rootDir: string,
-  context?: ImportAnalysisContext,
+  ...args: [
+    filePath: string,
+    rootDir: string,
+    context?: ImportAnalysisContext,
+    sourceProfile?: VueSourceProfile,
+  ]
 ): ImportRecord[] {
+  const [filePath, rootDir, context, sourceProfile] = args;
   const provider = context ?? createImportAnalysisContext();
-  return provider.collectImportsFromFile(filePath, rootDir);
+  return provider.collectImportsFromFile(filePath, rootDir, sourceProfile);
 }
 
 export function resolveInternalImport(

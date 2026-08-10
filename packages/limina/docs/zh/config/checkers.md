@@ -120,24 +120,26 @@ Astro import analysis 还会从叶子包解析 `@astrojs/compiler`；Svelte impo
 
 `checker typecheck` 是完整重跑，不是框架 watch 模式。稳定 target ID 只表示多次运行之间的 target identity 稳定，不提供增量失效能力。
 
-## Vue import 解析
+## Vue 源码与语义 import 分析
 
-- **类型：** `config.imports.vue?: 'heuristic' | 'compiler-sfc'`
-- **默认值：** `'heuristic'`
+Vue import 收集不再提供配置字段。Limina 始终从 inline `<script>`、`<script setup>`、`<script src>` attribute，以及 `generic` attribute 内的 `import()` 表达式收集轻量源码证据。对于 `vitepress-markdown` source profile，行内反引号代码与反引号围栏代码块不会成为这类证据，同时源码 offset 与换行保持不变；波浪号围栏不会被排除。这条面向文件的收集路径不会初始化 `vue-tsc`，standalone import analysis 仍可使用它。
 
-构建源码图时，Limina 会从 Vue SFC 的 `<script>` 与 `<script setup>` 中提取 import。默认启发式 parser 不需要额外 package。若要使用 Vue 编译器解析这些 block，可以配置：
+当源码归属于 `vue-tsc` project 时，生成 reference 准备和 `graph:check` 可以把源码记录增强为 checker 语义证据。Limina 会从源码配置所在依赖树解析 `vue-tsc`、Vue Language Core、Volar TypeScript 和 TypeScript，并以同一套 toolchain 和 virtual config overlay 完成 project membership 与语义分析；只有严格的 source-to-virtual mapping 才会被接受。没有源码证据的 service-script synthetic import 永远不会成为 graph edge。TypeScript/declaration resolution 使用映射后的 semantic literal；Oxc/runtime 与 resource evidence 继续使用原始 source specifier。
 
-```js
-export default defineConfig({
-  config: {
-    imports: {
-      vue: 'compiler-sfc',
-    },
-  },
-});
-```
+支持的 adapter matrix 有明确边界：
 
-这个模式要求运行 Limina 的工作区安装 `@vue/compiler-sfc`。缺少编译器 package 时，预检会在启动检查器进程前失败。
+| `vue-tsc` family | 对应 `@vue/language-core` | `@volar/typescript` | TypeScript           |
+| ---------------- | ------------------------- | ------------------- | -------------------- |
+| 2.2.0–2.2.12     | 与 `vue-tsc` 版本相同     | 2.4.11–2.4.28       | 5.4.x–5.9.x 或 6.0.x |
+| 3.2.0–3.2.4      | 与 `vue-tsc` 版本相同     | 2.4.27              | 5.4.x–5.9.x 或 6.0.x |
+
+不受支持的 tuple 不会关闭轻量源码收集；需要 checker-parity semantic dependency 或 reference resolution 的操作会 fail closed，不会回退到近似的 Vue extension resolver。
+
+### 从 `config.imports.vue` 迁移的 breaking change
+
+删除 `config.imports.vue`，不需要添加替代字段。仍包含 `config.imports` 的配置会在加载时直接报告这项迁移。公共 `VueImportParser` 类型以及 Limina 对 `@vue/compiler-sfc` 的直接/可选依赖也已删除。
+
+Limina 不再提供 compiler-sfc 专属的 duplicate script block 或 `<script setup src>` 结构诊断；SFC 是否有效由 Vue checker 与 editor tooling 负责。Limina 只在自身分析边界内报告源码 provenance、resolution 与 graph failure。
 
 ## 跨检查器依赖与缓存复用
 

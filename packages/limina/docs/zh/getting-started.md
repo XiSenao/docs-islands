@@ -199,4 +199,4 @@ export default defineConfig({
 
 检查器入口始终是 `tsconfig.json`。如果包里还有 `tsconfig.lib.json` 或 `tsconfig.test.json`，应由这个包的 `tsconfig.json` 通过 `references` 配置声明项目引用；即使引用路径匹配 checker `exclude`，Limina 仍会继续跟随这些项目引用。所有被引用的普通源码配置都应位于已激活区域内。
 
-构建检查器 identity 是 `tsc`、`tsgo` 和 `vue-tsc`，补充检查器 identity 是 `astro` 和 `svelte-check`。启用检查器或发现 target 时，请安装对应 package；`tsgo` 需要 `@typescript/native-preview`。Astro 检查要求所属叶子包安装 `astro`、`@astrojs/check` 和 `typescript`；Svelte 检查要求安装 `svelte-check`、`svelte` 和 `typescript`。Astro import analysis 还需要叶子包内的 `@astrojs/compiler`。Limina 默认用内置启发式规则解析 `Vue SFC` 的 import；只有显式启用 `config.imports.vue: 'compiler-sfc'` 时，才需要再安装 `@vue/compiler-sfc`。
+构建检查器 identity 是 `tsc`、`tsgo` 和 `vue-tsc`，补充检查器 identity 是 `astro` 和 `svelte-check`。启用检查器或发现 target 时，请安装对应 package；`tsgo` 需要 `@typescript/native-preview`。Astro 检查要求所属叶子包安装 `astro`、`@astrojs/check` 和 `typescript`；Svelte 检查要求安装 `svelte-check`、`svelte` 和 `typescript`。Astro import analysis 还需要叶子包内的 `@astrojs/compiler`。Vue 源码证据不需要单独的 parser package；Vue 语义图分析使用从源码配置所在依赖树解析到的受支持 `vue-tsc` toolchain，Limina 不直接依赖 `@vue/compiler-sfc`。

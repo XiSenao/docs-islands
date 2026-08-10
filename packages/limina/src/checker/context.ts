@@ -1,8 +1,9 @@
 import type { CheckerPreset } from '#config/runner';
 import { compareCodeUnits, uniqueValues } from '#utils/collections';
-import { normalizeAbsolutePath } from '#utils/path';
-import { createHash } from 'node:crypto';
-import { statSync } from 'node:fs';
+import {
+  createParsedProjectConfigCacheKey,
+  resolveContextCheckerPresets,
+} from './context-cache-key';
 import { normalizeExtensions } from './extensions';
 import { cloneParsedCheckerProjectConfig } from './project-base';
 import { getCheckerAdapter } from './registry';
@@ -13,6 +14,11 @@ import type {
 
 export class CheckerProjectConfigCache {
   readonly #entries = new Map<string, ParsedCheckerProjectConfig>();
+  readonly generation: number;
+
+  constructor(generation = 0) {
+    this.generation = generation;
+  }
 
   get(cacheKey: string): ParsedCheckerProjectConfig | undefined {
     const cached = this.#entries.get(cacheKey);
@@ -28,84 +34,6 @@ export class CheckerProjectConfigCache {
     this.#entries.set(cacheKey, cloneParsedCheckerProjectConfig(config));
     return cloneParsedCheckerProjectConfig(config);
   }
-}
-
-function uniqueSortedPresets(
-  presets: readonly CheckerPreset[],
-): CheckerPreset[] {
-  return uniqueValues([...presets]).sort(compareCodeUnits);
-}
-
-function resolveContextCheckerPresets(
-  context: CheckerProjectParseContext,
-): CheckerPreset[] {
-  if (context.checkerPresets.length > 0) {
-    return uniqueSortedPresets(context.checkerPresets);
-  }
-  return ['tsc'];
-}
-
-function getVirtualConfigContent(options: {
-  configPath: string;
-  virtualFiles?: ReadonlyMap<string, string>;
-}): string | undefined {
-  if (options.virtualFiles === undefined) return undefined;
-  return options.virtualFiles.get(normalizeAbsolutePath(options.configPath));
-}
-
-function createVirtualFilesIdentity(
-  virtualFiles: ReadonlyMap<string, string> | undefined,
-): string | undefined {
-  if (virtualFiles === undefined) return undefined;
-  const hash = createHash('sha256');
-  for (const [filePath, content] of [...virtualFiles.entries()].sort(
-    ([left], [right]) => compareCodeUnits(left, right),
-  )) {
-    hash.update(normalizeAbsolutePath(filePath));
-    hash.update('\0');
-    hash.update(content);
-    hash.update('\0');
-  }
-  return hash.digest('hex');
-}
-
-function getConfigIdentity(options: {
-  configPath: string;
-  virtualContent: string | undefined;
-}): { size: number; time: number | string } {
-  if (options.virtualContent !== undefined) {
-    return {
-      size: options.virtualContent.length,
-      time: options.virtualContent,
-    };
-  }
-  const stats = statSync(options.configPath);
-  return { size: stats.size, time: stats.mtimeMs };
-}
-
-function createParsedProjectConfigCacheKey(options: {
-  allowNoInputDiagnostics?: boolean;
-  checkerPresets: CheckerPreset[];
-  configPath: string;
-  extensions: string[];
-  projectRootDir: string;
-  virtualFiles?: ReadonlyMap<string, string>;
-}): string {
-  const virtualContent = getVirtualConfigContent(options);
-  const identity = getConfigIdentity({
-    configPath: options.configPath,
-    virtualContent,
-  });
-  return JSON.stringify({
-    allowNoInputDiagnostics: options.allowNoInputDiagnostics,
-    checkerPresets: options.checkerPresets,
-    configPath: normalizeAbsolutePath(options.configPath),
-    configSize: identity.size,
-    configTime: identity.time,
-    extensions: normalizeExtensions(options.extensions),
-    projectRootDir: normalizeAbsolutePath(options.projectRootDir),
-    virtualFilesIdentity: createVirtualFilesIdentity(options.virtualFiles),
-  });
 }
 
 function requireFirstParsedConfig(
@@ -130,6 +58,9 @@ function mergeParsedProjectConfigs(options: {
       options.parsedConfigs.flatMap((config) => config.fileNames),
     ).sort(compareCodeUnits),
     options: firstConfig.options,
+    vueSemanticIdentity: options.parsedConfigs.find(
+      (config) => config.vueSemanticIdentity !== undefined,
+    )?.vueSemanticIdentity,
   };
 }
 
@@ -137,9 +68,11 @@ function parseWithPreset(options: {
   allowNoInputDiagnostics?: boolean;
   configPath: string;
   extensions: string[];
+  generation: number;
   preset: CheckerPreset;
   projectRootDir: string;
   virtualFiles?: ReadonlyMap<string, string>;
+  vueSemanticIdentity?: CheckerProjectParseContext['vueSemanticIdentity'];
 }): ParsedCheckerProjectConfig {
   const adapter = getCheckerAdapter(options.preset);
   if (adapter === null) {
@@ -149,8 +82,10 @@ function parseWithPreset(options: {
     allowNoInputDiagnostics: options.allowNoInputDiagnostics,
     configPath: options.configPath,
     extensions: options.extensions,
+    generation: options.generation,
     projectRootDir: options.projectRootDir,
     virtualFiles: options.virtualFiles,
+    vueSemanticIdentity: options.vueSemanticIdentity,
   });
 }
 
@@ -160,6 +95,7 @@ function parseContextConfigs(options: {
   configPath: string;
   context: CheckerProjectParseContext;
   projectRootDir: string;
+  generation: number;
   virtualFiles?: ReadonlyMap<string, string>;
 }): ParsedCheckerProjectConfig[] {
   return options.checkerPresets.map((preset) =>
@@ -167,9 +103,11 @@ function parseContextConfigs(options: {
       allowNoInputDiagnostics: options.allowNoInputDiagnostics,
       configPath: options.configPath,
       extensions: options.context.extensions,
+      generation: options.generation,
       preset,
       projectRootDir: options.projectRootDir,
       virtualFiles: options.virtualFiles,
+      vueSemanticIdentity: options.context.vueSemanticIdentity,
     }),
   );
 }
@@ -195,6 +133,7 @@ function createParsedProjectConfig(options: {
   configPath: string;
   context: CheckerProjectParseContext;
   projectRootDir: string;
+  generation: number;
   virtualFiles?: ReadonlyMap<string, string>;
 }): ParsedCheckerProjectConfig {
   const parsedConfigs = parseContextConfigs(options);
@@ -212,6 +151,7 @@ function resolveCacheMiss(options: {
   configPath: string;
   context: CheckerProjectParseContext;
   projectRootDir: string;
+  generation: number;
   virtualFiles?: ReadonlyMap<string, string>;
 }): ParsedCheckerProjectConfig {
   const parsedConfig = createParsedProjectConfig(options);
@@ -227,6 +167,7 @@ function resolveCachedProjectConfig(options: {
   configPath: string;
   context: CheckerProjectParseContext;
   projectRootDir: string;
+  generation: number;
   virtualFiles?: ReadonlyMap<string, string>;
 }): ParsedCheckerProjectConfig {
   if (options.cached !== undefined) return options.cached;
@@ -241,6 +182,7 @@ function resolveParsedProjectConfig(options: {
   configPath: string;
   context: CheckerProjectParseContext;
   projectRootDir: string;
+  generation: number;
   virtualFiles?: ReadonlyMap<string, string>;
 }): ParsedCheckerProjectConfig {
   const cached = getCachedConfig(options.cache, options.cacheKey);
@@ -249,6 +191,7 @@ function resolveParsedProjectConfig(options: {
 
 function createContextParseRequest(options: {
   allowNoInputDiagnostics?: boolean;
+  cache?: CheckerProjectConfigCache;
   configPath: string;
   context: CheckerProjectParseContext;
   projectRootDir: string;
@@ -259,19 +202,23 @@ function createContextParseRequest(options: {
   checkerPresets: CheckerPreset[];
   configPath: string;
   context: CheckerProjectParseContext;
+  generation: number;
   projectRootDir: string;
   virtualFiles?: ReadonlyMap<string, string>;
 } {
   const checkerPresets = resolveContextCheckerPresets(options.context);
+  const generation = options.cache?.generation ?? 0;
   const cacheKey = createParsedProjectConfigCacheKey({
     allowNoInputDiagnostics: options.allowNoInputDiagnostics,
     checkerPresets,
     configPath: options.configPath,
     extensions: options.context.extensions,
+    generation,
     projectRootDir: options.projectRootDir,
     virtualFiles: options.virtualFiles,
+    vueSemanticIdentity: options.context.vueSemanticIdentity,
   });
-  return { ...options, cacheKey, checkerPresets };
+  return { ...options, cacheKey, checkerPresets, generation };
 }
 
 export function parseCheckerProjectConfigForContext(options: {

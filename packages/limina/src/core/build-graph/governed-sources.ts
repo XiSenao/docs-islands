@@ -3,7 +3,6 @@ import {
   isBuildCapablePreset,
   normalizeExtensions,
   parseCheckerProjectConfigForContext,
-  resolveCheckerProjectExtensions,
 } from '#checkers';
 import type { ResolvedLiminaConfig } from '#config/runner';
 import { uniqueCodeUnitSortedStrings as uniqueSortedStrings } from '#utils/collections';
@@ -108,11 +107,7 @@ export function createGovernedSourceUnit(options: {
 }): GovernedSourceUnit {
   const discoveryExtensions = normalizeExtensions([
     ...capabilityDiscoveryExtensions,
-    ...resolveCheckerProjectExtensions({
-      configPath: options.project.configPath,
-      preset: options.project.context.checkerPresets[0]!,
-      projectRootDir: options.config.rootDir,
-    }),
+    ...options.project.context.extensions,
   ]);
   const parsed = parseCheckerProjectConfigForContext({
     allowNoInputDiagnostics: true,
@@ -121,6 +116,7 @@ export function createGovernedSourceUnit(options: {
     context: {
       checkerPresets: [...options.project.context.checkerPresets],
       extensions: discoveryExtensions,
+      vueSemanticIdentity: options.project.context.vueSemanticIdentity,
     },
     projectRootDir: options.config.rootDir,
   });
@@ -146,6 +142,11 @@ export function createGovernedSourceUnit(options: {
       project: options.project,
     }),
     configPath: options.project.configPath,
+    context: {
+      checkerPresets: [...options.project.context.checkerPresets],
+      extensions: [...parsed.extensions],
+      vueSemanticIdentity: options.project.context.vueSemanticIdentity,
+    },
     declarationFileNames,
     declarationReferences: options.project.references,
     frameworkCapabilities,

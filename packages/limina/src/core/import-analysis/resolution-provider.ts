@@ -8,7 +8,10 @@ import {
   resolveRelativeModuleCandidate,
 } from '#utils/module-resolution';
 import { resolveModuleNameWithOxcCaches } from './oxc-resolution';
-import type { ModuleResolutionRequestIndex } from './request-index';
+import type {
+  ProviderDependencies,
+  ResolutionProvider,
+} from './resolution-provider-types';
 import {
   cloneTypeScriptResolution,
   getTypeScriptModuleResolutionCache,
@@ -18,27 +21,16 @@ import {
   hasTypeScriptOnlyResolutionOptions,
 } from './resolver-profile';
 import type {
-  ImportAnalysisCaches,
   ImportAnalysisContext,
   ImportAnalysisMetricsRecorder,
   ImportResolutionArguments,
   ModuleResolutionPair,
   NormalizedModuleResolutionRequest,
 } from './types';
-
-type ResolutionProvider = Pick<
-  ImportAnalysisContext,
-  | 'resolveInternalImport'
-  | 'resolveModulePair'
-  | 'resolveOxcImport'
-  | 'resolveTypeScriptImport'
->;
-
-interface ProviderDependencies {
-  caches: ImportAnalysisCaches;
-  metrics: ImportAnalysisMetricsRecorder | undefined;
-  requests: ModuleResolutionRequestIndex;
-}
+import {
+  resolveVueSemanticPair,
+  shouldUseVueSemanticResolution,
+} from './vue-pair-resolution';
 
 function resolveTypeScriptRaw(
   dependencies: ProviderDependencies,
@@ -248,6 +240,36 @@ function createPairResolver(
   };
 }
 
+function createImportPairResolver(
+  dependencies: ProviderDependencies,
+): ImportAnalysisContext['resolveModulePairForImport'] {
+  return (...args): ModuleResolutionPair => {
+    const [importRecord, containingFile, compilerOptions, context] = args;
+    const request = getRequest(dependencies, [
+      importRecord.specifier,
+      containingFile,
+      compilerOptions,
+      context,
+    ]);
+    dependencies.requests.recordRequest('oxc');
+    const oxc = resolveOxcResult(dependencies, request);
+    if (!shouldUseVueSemanticResolution({ importRecord, request })) {
+      dependencies.requests.recordRequest('typescript');
+      return {
+        oxc,
+        typescript: resolveTypeScriptResult(dependencies, request),
+      };
+    }
+    dependencies.requests.recordRequest('typescript');
+    return resolveVueSemanticPair({
+      identity: request.context.vueSemanticIdentity!,
+      importRecord,
+      manager: dependencies.vueSemanticContexts,
+      oxc,
+    });
+  };
+}
+
 function createInternalResolver(
   dependencies: ProviderDependencies,
 ): ImportAnalysisContext['resolveInternalImport'] {
@@ -264,6 +286,7 @@ export function createResolutionProvider(
   return {
     resolveInternalImport: createInternalResolver(dependencies),
     resolveModulePair: createPairResolver(dependencies),
+    resolveModulePairForImport: createImportPairResolver(dependencies),
     resolveOxcImport: createOxcResolver(dependencies),
     resolveTypeScriptImport: createTypeScriptResolver(dependencies),
   };

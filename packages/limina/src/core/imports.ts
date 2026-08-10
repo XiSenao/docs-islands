@@ -8,6 +8,7 @@ import {
 } from '#core/import-analysis/runner';
 import type { ProjectInfo } from '#core/import-graph/context';
 import { normalizeAbsolutePath } from '#utils/path';
+import type { VueSemanticContextManager } from './vue-semantic/context';
 
 export interface ResolveImportOptions {
   containingFile: string;
@@ -27,9 +28,10 @@ export class ImportCore {
   constructor(
     config: ResolvedLiminaConfig,
     metrics?: ImportAnalysisMetricsRecorder,
+    vueSemanticContexts?: VueSemanticContextManager,
   ) {
     this.#config = config;
-    this.#context = this.#createContext(metrics);
+    this.#context = this.#createContext(metrics, vueSemanticContexts);
   }
 
   get context(): ImportAnalysisContext {
@@ -38,11 +40,12 @@ export class ImportCore {
 
   #createContext(
     metrics?: ImportAnalysisMetricsRecorder,
+    vueSemanticContexts?: VueSemanticContextManager,
   ): ImportAnalysisContext {
     return createImportAnalysisContext({
       metrics,
       projectRootDir: this.#config.rootDir,
-      vueParser: this.#config.config?.imports?.vue,
+      vueSemanticContexts,
     });
   }
 
@@ -90,5 +93,6 @@ function createProjectResolveContext(
     configPath: project.configPath,
     extensions: project.extensions,
     resolverConfigPath: project.resolverConfigPath,
+    vueSemanticIdentity: project.vueSemanticIdentity,
   };
 }

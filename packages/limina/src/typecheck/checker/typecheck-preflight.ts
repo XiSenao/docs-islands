@@ -2,10 +2,7 @@ import {
   type CheckerPackageResolver,
   formatMissingCheckerPeerDependencies,
 } from '#checkers';
-import type {
-  ImportAnalysisConfig,
-  ResolvedCheckerConfig,
-} from '#config/runner';
+import type { ResolvedCheckerConfig } from '#config/runner';
 import type {
   RunCheckerTypecheckOptions,
   RunCheckerTypecheckResult,
@@ -45,14 +42,12 @@ export function collectTypecheckPeerFailure(options: {
   checkerPackageResolver?: CheckerPackageResolver;
   checkers: ResolvedCheckerConfig[];
   flowDepth: number;
-  imports?: ImportAnalysisConfig;
   projectRootDir: string;
   request: RunCheckerTypecheckOptions;
   targets: readonly TypecheckTarget[];
 }): RunCheckerTypecheckResult | undefined {
   const peerDependencies = collectCheckerPeerDependencyDetails({
     checkers: options.checkers,
-    imports: options.imports,
     projectRootDir: options.projectRootDir,
     resolvePackage: options.checkerPackageResolver,
   });

@@ -87,6 +87,13 @@ function createDtsLiminaOptions(
   return options;
 }
 
+function createRelativeImportRewriteOverride(
+  project: SourceProject,
+): Record<string, unknown> {
+  if (project.options.rewriteRelativeImportExtensions !== true) return {};
+  return { rewriteRelativeImportExtensions: false };
+}
+
 export function createGeneratedDtsConfig(options: {
   config: ResolvedLiminaConfig;
   project: SourceProject;
@@ -121,7 +128,7 @@ export function createGeneratedDtsConfig(options: {
       declaration: true,
       emitDeclarationOnly: true,
       declarationMap: false,
-      rewriteRelativeImportExtensions: false,
+      ...createRelativeImportRewriteOverride(project),
       rootDir: createRelativePath(
         project.dtsConfigPath,
         getCommonSourceRootDir(project),

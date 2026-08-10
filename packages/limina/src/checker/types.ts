@@ -5,6 +5,7 @@ import type {
   ResolvedCheckerConfig,
 } from '#config/runner';
 import type ts from 'typescript';
+import type { VueProjectSemanticIdentity } from './vue-semantic-types';
 
 export interface CheckerCommandTarget {
   args: string[];
@@ -26,18 +27,22 @@ export interface CheckerProjectConfigParseOptions {
   configPath: string;
   extensions?: string[];
   projectRootDir: string;
+  generation?: number;
   virtualFiles?: ReadonlyMap<string, string>;
+  vueSemanticIdentity?: VueProjectSemanticIdentity;
 }
 
 export interface ParsedCheckerProjectConfig {
   extensions: string[];
   fileNames: string[];
   options: ts.CompilerOptions;
+  vueSemanticIdentity?: VueProjectSemanticIdentity;
 }
 
 export interface CheckerProjectParseContext {
   checkerPresets: CheckerPreset[];
   extensions: string[];
+  vueSemanticIdentity?: VueProjectSemanticIdentity;
 }
 
 export interface CheckerModuleResolutionMetricsRecorder {

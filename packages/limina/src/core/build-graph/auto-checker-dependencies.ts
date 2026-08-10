@@ -1,3 +1,4 @@
+import { resolveVueSourceProfile } from '#checkers';
 import type { ResolvedLiminaConfig } from '#config/runner';
 import {
   collectImportsFromFile,
@@ -147,6 +148,10 @@ function addFileImportDependencies(options: {
     options.fileName,
     getAutoScopeFilePackageRoot(options.project, options.fileName),
     options.importAnalysis,
+    resolveVueSourceProfile({
+      fileName: options.fileName,
+      identity: options.project.context.vueSemanticIdentity,
+    }),
   );
   for (const importRecord of importRecords) {
     const resolvedFilePath = resolveInternalImport(

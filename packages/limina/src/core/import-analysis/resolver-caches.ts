@@ -21,15 +21,29 @@ export function createImportAnalysisCaches(): ImportAnalysisCaches {
   };
 }
 
+function optionalString(value: string | undefined): string | null {
+  if (value === undefined) return null;
+  return value;
+}
+
+function getVueSemanticIdentityId(
+  context: ResolvedImportContext,
+): string | null {
+  const identity = context.vueSemanticIdentity;
+  if (identity === undefined) return null;
+  return identity.id;
+}
+
 function createTypeScriptModuleResolutionCacheKey(options: {
   compilerOptions: ts.CompilerOptions;
   context: ResolvedImportContext;
 }): string {
   return JSON.stringify({
     compilerOptions: options.compilerOptions,
-    configPath: options.context.configPath ?? null,
+    configPath: optionalString(options.context.configPath),
     extensions: getResolverExtensions(options),
-    resolverConfigPath: options.context.resolverConfigPath ?? null,
+    resolverConfigPath: optionalString(options.context.resolverConfigPath),
+    vueSemanticIdentity: getVueSemanticIdentityId(options.context),
   });
 }
 
@@ -40,9 +54,10 @@ function createResolverIdentityKey(options: {
   return JSON.stringify({
     checkerPresets: options.context.checkerPresets,
     compilerOptions: options.compilerOptions,
-    configPath: options.context.configPath ?? null,
+    configPath: optionalString(options.context.configPath),
     extensions: getResolverExtensions(options),
-    resolverConfigPath: options.context.resolverConfigPath ?? null,
+    resolverConfigPath: optionalString(options.context.resolverConfigPath),
+    vueSemanticIdentity: getVueSemanticIdentityId(options.context),
   });
 }
 

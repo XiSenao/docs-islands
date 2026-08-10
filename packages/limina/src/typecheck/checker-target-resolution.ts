@@ -9,10 +9,8 @@ import {
 } from '#checkers';
 import type {
   CheckerExecutionKind,
-  ImportAnalysisConfig,
   ResolvedCheckerConfig,
 } from '#config/runner';
-import { compareCodeUnits } from '#utils/collections';
 
 export function getExecutionCheckers(options: {
   checkers: ResolvedCheckerConfig[];
@@ -65,48 +63,8 @@ function resolvePackageFromRoot(options: {
   }
 }
 
-function collectVueCompilerSfcCheckers(options: {
-  checkers: readonly ResolvedCheckerConfig[];
-  imports: ImportAnalysisConfig | undefined;
-}): ResolvedCheckerConfig[] {
-  if (options.imports?.vue !== 'compiler-sfc') {
-    return [];
-  }
-
-  return options.checkers.filter((checker) => checker.name === 'vue-tsc');
-}
-
-function appendVueCompilerSfcDependency(options: {
-  checkers: readonly ResolvedCheckerConfig[];
-  missingDependencies: ReturnType<typeof collectMissingCheckerPeerDependencies>;
-  projectRootDir: string;
-  resolvePackage: CheckerPackageResolver;
-}): void {
-  if (options.checkers.length === 0) {
-    return;
-  }
-
-  const resolved = options.resolvePackage({
-    packageName: '@vue/compiler-sfc',
-    projectRootDir: options.projectRootDir,
-  });
-
-  if (resolved !== undefined) {
-    return;
-  }
-
-  options.missingDependencies.push({
-    checkerNames: options.checkers
-      .map((checker) => checker.name)
-      .sort(compareCodeUnits),
-    packageName: '@vue/compiler-sfc',
-    reason: 'enabled by config.imports.vue: "compiler-sfc"',
-  });
-}
-
 export function collectCheckerPeerDependencyDetails(options: {
   checkers: ResolvedCheckerConfig[];
-  imports?: ImportAnalysisConfig;
   projectRootDir: string;
   resolvePackage?: CheckerPackageResolver;
 }): ReturnType<typeof collectMissingCheckerPeerDependencies> {
@@ -116,24 +74,11 @@ export function collectCheckerPeerDependencyDetails(options: {
     projectRootDir: options.projectRootDir,
     resolvePackage,
   });
-  const vueCheckers = collectVueCompilerSfcCheckers({
-    checkers: options.checkers,
-    imports: options.imports,
-  });
-
-  appendVueCompilerSfcDependency({
-    checkers: vueCheckers,
-    missingDependencies,
-    projectRootDir: options.projectRootDir,
-    resolvePackage,
-  });
-
   return missingDependencies;
 }
 
 export function collectCheckerPeerDependencyProblems(options: {
   checkers: ResolvedCheckerConfig[];
-  imports?: ImportAnalysisConfig;
   projectRootDir: string;
   resolvePackage?: CheckerPackageResolver;
 }): string[] {

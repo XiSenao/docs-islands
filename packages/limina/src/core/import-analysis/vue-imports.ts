@@ -1,6 +1,4 @@
-import type { VueImportParser } from '#config/runner';
-import { createRequire } from 'node:module';
-import path from 'node:path';
+import type { VueSourceProfile } from '#checkers';
 import ts from 'typescript';
 import { collectSourceTextImports } from './oxc-imports';
 import {
@@ -9,12 +7,23 @@ import {
   type ImportRecord,
   setImportRecordDomain,
 } from './records';
-import type { VueCompilerSfc, VueCompilerSfcBlock } from './types';
+import { maskVitePressMarkdownCodeRanges } from './vue-markdown-source';
 
 const scriptExtractorRE =
   /<script\b((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)<\/script>/giu;
 const htmlAttrRE =
   /(?:^|\s)(?<name>[:A-Z_a-z][\w.:-]*)(?:\s*=\s*(?:"(?<doubleQuoted>[^"]*)"|'(?<singleQuoted>[^']*)'|(?<unquoted>[^\s"'<=>`]+)))?/gu;
+const genericImportRE =
+  /\bimport\s*\(\s*(['"])(?<specifier>[^'"\r\n]+)\1\s*\)/gu;
+
+function getVueCollectionSource(options: {
+  sourceProfile: VueSourceProfile;
+  sourceText: string;
+}): string {
+  return options.sourceProfile === 'vitepress-markdown'
+    ? maskVitePressMarkdownCodeRanges(options.sourceText)
+    : options.sourceText;
+}
 
 function getDefinedAttributeValue(
   groups: Record<string, string | undefined>,
@@ -61,6 +70,176 @@ function getMatchAttributes(match: RegExpMatchArray): string {
   return match[1] ?? '';
 }
 
+function getAttributesStart(match: RegExpMatchArray, attrs: string): number {
+  const matchStart = match.index ?? 0;
+  const openTag = match[0].slice(0, match[0].indexOf('>'));
+  return matchStart + Math.max(openTag.indexOf(attrs), 0);
+}
+
+interface PositionedAttribute {
+  sourceStart: number;
+  value: string;
+}
+
+function createPositionedAttribute(options: {
+  attrsStart: number;
+  match: RegExpMatchArray;
+}): PositionedAttribute {
+  const value = getMatchedAttributeValue(options.match);
+  const valueStart = options.match[0].lastIndexOf(value);
+  return {
+    sourceStart:
+      options.attrsStart + (options.match.index ?? 0) + Math.max(valueStart, 0),
+    value,
+  };
+}
+
+function findPositionedAttribute(options: {
+  attrs: string;
+  attrsStart: number;
+  name: string;
+}): PositionedAttribute | null {
+  const match = [...options.attrs.matchAll(htmlAttrRE)].find((candidate) =>
+    isNamedAttribute(candidate, options.name),
+  );
+  if (match === undefined) return null;
+  return createPositionedAttribute({ attrsStart: options.attrsStart, match });
+}
+
+function createVueAttributeImportRecord(options: {
+  domain: 'vue-generic-attribute' | 'vue-script-attribute';
+  filePath: string;
+  kind: 'vue-generic-type' | 'vue-script-src';
+  lineStarts: readonly number[];
+  sourceStart: number;
+  specifier: string;
+}): ImportRecord {
+  return {
+    domain: options.domain,
+    filePath: options.filePath,
+    kind: options.kind,
+    line: getLine(options.lineStarts, options.sourceStart),
+    locator: {
+      occurrence: 0,
+      sourceEnd: options.sourceStart + options.specifier.length,
+      sourceStart: options.sourceStart,
+    },
+    specifier: options.specifier,
+  };
+}
+
+function collectScriptSrcImport(options: {
+  attrs: string;
+  attrsStart: number;
+  filePath: string;
+  lineStarts: readonly number[];
+}): ImportRecord[] {
+  const attribute = findPositionedAttribute({ ...options, name: 'src' });
+  if (attribute === null || attribute.value.length === 0) return [];
+  return [
+    createVueAttributeImportRecord({
+      domain: 'vue-script-attribute',
+      filePath: options.filePath,
+      kind: 'vue-script-src',
+      lineStarts: options.lineStarts,
+      sourceStart: attribute.sourceStart,
+      specifier: attribute.value,
+    }),
+  ];
+}
+
+function collectGenericImports(options: {
+  attrs: string;
+  attrsStart: number;
+  filePath: string;
+  lineStarts: readonly number[];
+}): ImportRecord[] {
+  const attribute = findPositionedAttribute({ ...options, name: 'generic' });
+  if (attribute === null) return [];
+  return [...attribute.value.matchAll(genericImportRE)].flatMap((match) =>
+    createGenericImportRecord({ ...options, attribute, match }),
+  );
+}
+
+function getGenericSpecifier(match: RegExpMatchArray): string | null {
+  if (match.groups === undefined) return null;
+  return match.groups.specifier ?? null;
+}
+
+function createGenericImportRecord(options: {
+  attribute: PositionedAttribute;
+  attrs: string;
+  attrsStart: number;
+  filePath: string;
+  lineStarts: readonly number[];
+  match: RegExpMatchArray;
+}): ImportRecord[] {
+  const specifier = getGenericSpecifier(options.match);
+  if (specifier === null) return [];
+  const specifierOffset = options.match[0].indexOf(specifier);
+  return [
+    createVueAttributeImportRecord({
+      domain: 'vue-generic-attribute',
+      filePath: options.filePath,
+      kind: 'vue-generic-type',
+      lineStarts: options.lineStarts,
+      sourceStart:
+        options.attribute.sourceStart +
+        (options.match.index ?? 0) +
+        Math.max(specifierOffset, 0),
+      specifier,
+    }),
+  ];
+}
+
+function collectVueAttributeImports(options: {
+  filePath: string;
+  sourceText: string;
+}): ImportRecord[] {
+  const records: ImportRecord[] = [];
+  const lineStarts = buildLineStarts(options.sourceText);
+  for (const match of options.sourceText.matchAll(scriptExtractorRE)) {
+    const attrs = getMatchAttributes(match);
+    const attrsStart = getAttributesStart(match, attrs);
+    records.push(
+      ...collectScriptSrcImport({
+        attrs,
+        attrsStart,
+        filePath: options.filePath,
+        lineStarts,
+      }),
+      ...collectGenericImports({
+        attrs,
+        attrsStart,
+        filePath: options.filePath,
+        lineStarts,
+      }),
+    );
+  }
+  return records;
+}
+
+function normalizeVueImportRecords(
+  records: readonly ImportRecord[],
+): ImportRecord[] {
+  const occurrenceByIdentity = new Map<string, number>();
+  return [...records]
+    .sort(
+      (left, right) =>
+        left.locator.sourceStart - right.locator.sourceStart ||
+        left.locator.sourceEnd - right.locator.sourceEnd,
+    )
+    .map((record) => {
+      const identity = JSON.stringify([record.kind, record.specifier]);
+      const occurrence = occurrenceByIdentity.get(identity) ?? 0;
+      occurrenceByIdentity.set(identity, occurrence + 1);
+      return {
+        ...record,
+        locator: { ...record.locator, occurrence },
+      };
+    });
+}
+
 function getContentStart(match: RegExpMatchArray, content: string): number {
   return (match.index ?? 0) + match[0].indexOf(content);
 }
@@ -101,193 +280,18 @@ function collectVueImportsWithRegex(options: {
   return imports;
 }
 
-function hasErrorCode(error: unknown): error is { code: unknown } {
-  if (error === null) return false;
-  if (typeof error !== 'object') return false;
-  return 'code' in error;
-}
-
-function isModuleNotFoundError(error: unknown): boolean {
-  if (!hasErrorCode(error)) return false;
-  return error.code === 'MODULE_NOT_FOUND';
-}
-
-function createMissingCompilerError(projectRootDir: string): Error {
-  return new Error(
-    [
-      'Unable to load Vue SFC compiler for import analysis:',
-      '  package: @vue/compiler-sfc',
-      `  root: ${projectRootDir}`,
-      '  reason: config.imports.vue is "compiler-sfc", but the package is not installed.',
-      '  fix: pnpm add -D @vue/compiler-sfc',
-    ].join('\n'),
-  );
-}
-
-export function resolveVueCompilerSfc(projectRootDir: string): VueCompilerSfc {
-  const requireFromRoot = createRequire(
-    path.join(projectRootDir, 'package.json'),
-  );
-  try {
-    return requireFromRoot('@vue/compiler-sfc') as VueCompilerSfc;
-  } catch (error) {
-    if (isModuleNotFoundError(error)) {
-      throw createMissingCompilerError(projectRootDir);
-    }
-    throw error;
-  }
-}
-
-function hasMessageField(error: unknown): error is { message: unknown } {
-  if (error === null) return false;
-  if (typeof error !== 'object') return false;
-  return 'message' in error;
-}
-
-function getStructuredErrorMessage(error: unknown): string | null {
-  if (!hasMessageField(error)) return null;
-  if (typeof error.message !== 'string') return null;
-  return error.message;
-}
-
-function formatCompilerError(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return getStructuredErrorMessage(error) ?? String(error);
-}
-
-function formatVueCompilerSfcErrors(errors: unknown[]): string {
-  return errors.map(formatCompilerError).join('; ');
-}
-
-function createVueParseError(options: {
-  errors: unknown[];
-  filePath: string;
-  projectRootDir: string;
-}): Error {
-  return new Error(
-    [
-      'Unable to parse Vue SFC for import analysis:',
-      `  file: ${path.relative(options.projectRootDir, options.filePath)}`,
-      `  reason: ${formatVueCompilerSfcErrors(options.errors)}`,
-    ].join('\n'),
-  );
-}
-
-function getBlockStart(block: VueCompilerSfcBlock) {
-  return block.loc?.start;
-}
-
-function getBlockOffset(block: VueCompilerSfcBlock): number | undefined {
-  const offset = getBlockStart(block)?.offset;
-  return typeof offset === 'number' ? offset : undefined;
-}
-
-function getVueCompilerSfcBlockContentStart(
-  block: VueCompilerSfcBlock,
-  sourceText: string,
-): number {
-  const offset = getBlockOffset(block);
-  if (offset !== undefined) return offset;
-  return Math.max(sourceText.indexOf(block.content), 0);
-}
-
-function getBlockLine(block: VueCompilerSfcBlock): number | undefined {
-  const line = getBlockStart(block)?.line;
-  return typeof line === 'number' ? line : undefined;
-}
-
-function getVueCompilerSfcBlockLineOffset(options: {
-  block: VueCompilerSfcBlock;
-  contentStart: number;
-  lineStarts: number[];
-}): number {
-  const line = getBlockLine(options.block);
-  if (line !== undefined) return line - 1;
-  return getLine(options.lineStarts, options.contentStart) - 1;
-}
-
-function getAttributeLang(block: VueCompilerSfcBlock): string | null {
-  const attrLang = block.attrs?.lang;
-  return typeof attrLang === 'string' ? attrLang : null;
-}
-
-function getVueCompilerSfcBlockLang(block: VueCompilerSfcBlock): string | null {
-  if (block.lang !== undefined) return block.lang;
-  return getAttributeLang(block);
-}
-
-function isVueBlock(
-  value: VueCompilerSfcBlock | null,
-): value is VueCompilerSfcBlock {
-  return value !== null;
-}
-
-function collectCompilerBlock(options: {
-  block: VueCompilerSfcBlock;
-  filePath: string;
-  lineStarts: number[];
-  sourceText: string;
-}): ImportRecord[] {
-  if (options.block.src !== undefined) return [];
-  const contentStart = getVueCompilerSfcBlockContentStart(
-    options.block,
-    options.sourceText,
-  );
-  return collectSourceTextImports({
-    filePath: options.filePath,
-    lineOffset: getVueCompilerSfcBlockLineOffset({
-      block: options.block,
-      contentStart,
-      lineStarts: options.lineStarts,
-    }),
-    scriptKind: getVueScriptKindFromLang(
-      getVueCompilerSfcBlockLang(options.block),
-    ),
-    sourceOffset: contentStart,
-    sourceText: options.block.content,
-  });
-}
-
-function collectVueImportsWithCompiler(options: {
-  filePath: string;
-  projectRootDir: string;
-  sourceText: string;
-}): ImportRecord[] {
-  const result = resolveVueCompilerSfc(options.projectRootDir).parse(
-    options.sourceText,
-    { filename: options.filePath },
-  );
-  if (result.errors.length > 0) {
-    throw createVueParseError({
-      errors: result.errors,
-      filePath: options.filePath,
-      projectRootDir: options.projectRootDir,
-    });
-  }
-  const lineStarts = buildLineStarts(options.sourceText);
-  const blocks = [
-    result.descriptor.scriptSetup,
-    result.descriptor.script,
-  ].filter(isVueBlock);
-  return blocks.flatMap((block) =>
-    collectCompilerBlock({
-      block,
-      filePath: options.filePath,
-      lineStarts,
-      sourceText: options.sourceText,
-    }),
-  );
-}
-
 export function collectVueImports(options: {
   filePath: string;
-  parser: VueImportParser;
-  projectRootDir: string;
+  sourceProfile: VueSourceProfile;
   sourceText: string;
 }): ImportRecord[] {
-  const imports =
-    options.parser === 'compiler-sfc'
-      ? collectVueImportsWithCompiler(options)
-      : collectVueImportsWithRegex(options);
-  return setImportRecordDomain(imports, 'vue-script');
+  const collectionOptions = {
+    filePath: options.filePath,
+    sourceText: getVueCollectionSource(options),
+  };
+  const scriptImports = collectVueImportsWithRegex(collectionOptions);
+  return normalizeVueImportRecords([
+    ...setImportRecordDomain(scriptImports, 'vue-script'),
+    ...collectVueAttributeImports(collectionOptions),
+  ]);
 }
