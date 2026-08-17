@@ -13,9 +13,12 @@ export function isDefaultTsconfigPath(configPath: string): boolean {
   return path.basename(configPath) === 'tsconfig.json';
 }
 
-export function isDefaultSourceTsconfigPath(configPath: string): boolean {
+export function isDefaultSourceTsconfigPath(
+  configPath: string,
+  rootDir: string,
+): boolean {
   return (
-    isOrdinarySourceTypecheckConfigPath(configPath) &&
+    isOrdinarySourceTypecheckConfigPath(configPath, rootDir) &&
     isDefaultTsconfigPath(configPath)
   );
 }

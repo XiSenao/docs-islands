@@ -1,27 +1,27 @@
+import { isBuildCapablePreset } from '#checkers';
+import type { formatImportRecordLocation } from '#core/import-graph/context';
+import { collectImportsFromFile } from '#core/import-graph/context';
+import { uniqueCodeUnitSortedStrings } from '#utils/collections';
+import { normalizeAbsolutePath } from '#utils/path';
 import {
-  collectImportsFromFile,
-  formatImportRecordLocation,
-} from '#core/import-graph/context';
-import {
-  compareCodeUnits,
-  uniqueCodeUnitSortedStrings,
-} from '#utils/collections';
-import { normalizeAbsolutePath, toRelativePath } from '#utils/path';
-import path from 'pathe';
-import { classifyImportRuntimeEvidence } from '../import-analysis/evidence';
+  addAmbiguousFrameworkSourceOwnerProblem,
+  addMissingFrameworkBuildOwnerProblem,
+  createFrameworkDependencyEdge,
+  recordFrameworkDependencyEdge,
+} from './framework-dependency-edge';
 import { getFrameworkFilePackageRoot } from './framework-file-root';
 import { reportUnresolvedFrameworkImport } from './framework-import-problems';
+import { addFrameworkSemanticDependencyProblem } from './provider-problems';
 import type { ReferenceImportContext } from './reference-import-types';
 import { processDeclarationProviderImport } from './reference-imports';
 import type {
   GeneratedBuildModule,
-  GeneratedDependencyEdge,
   GovernedSourceUnit,
   SourceProject,
 } from './types';
 
 export interface GovernedBuildOwner {
-  buildModule: GeneratedBuildModule;
+  buildModule?: GeneratedBuildModule;
   checkerName: string;
 }
 
@@ -56,21 +56,6 @@ function isFrameworkFile(filePath: string): boolean {
   return filePath.endsWith('.astro') || filePath.endsWith('.svelte');
 }
 
-function chooseTargetConfig(options: {
-  importingConfigPath: string;
-  ownerConfigPaths: readonly string[];
-}): string | null {
-  return (
-    [...options.ownerConfigPaths]
-      .filter((configPath) => configPath !== options.importingConfigPath)
-      .sort(
-        (left, right) =>
-          path.dirname(right).length - path.dirname(left).length ||
-          compareCodeUnits(left, right),
-      )[0] ?? null
-  );
-}
-
 function selectOwnedResolution(options: {
   context: ReferenceImportContext;
   oxcResolvedFilePath: string | null;
@@ -94,88 +79,71 @@ function selectOwnedResolution(options: {
   );
 }
 
-function createDependencyEdge(options: {
-  context: ReferenceImportContext;
-  importRecord: FrameworkImportRecord;
-  resolvedFilePath: string;
-  source: GovernedSourceUnit;
-  targetCheckerName: string;
-  targetConfigPath: string;
-}): GeneratedDependencyEdge {
+function selectFrameworkResolutionEvidence(options: {
+  oxcResolvedFilePath: string | null;
+  semanticFramework: 'astro' | 'vue' | undefined;
+  typeScriptResolvedFilePath: string | null;
+}): {
+  oxcResolvedFilePath: string | null;
+  typeScriptResolvedFilePath: string | null;
+} {
+  if (options.semanticFramework === 'astro') {
+    return {
+      oxcResolvedFilePath: null,
+      typeScriptResolvedFilePath: options.typeScriptResolvedFilePath,
+    };
+  }
   return {
-    file: formatImportRecordLocation(
-      options.context.config.rootDir,
-      options.importRecord,
-    ),
-    fromChecker: options.source.primaryCheckerName,
-    fromConfigPath: options.source.configPath,
-    importedSpecifier: options.importRecord.specifier,
-    kind: 'framework-schedule',
-    resolvedFilePath: options.resolvedFilePath,
-    toChecker: options.targetCheckerName,
-    toConfigPath: options.targetConfigPath,
+    oxcResolvedFilePath: options.oxcResolvedFilePath,
+    typeScriptResolvedFilePath: options.typeScriptResolvedFilePath,
   };
 }
 
-function recordDependencyEdge(
-  context: ReferenceImportContext,
-  edge: GeneratedDependencyEdge,
-): void {
-  const key = JSON.stringify([
-    edge.fromChecker,
-    edge.fromConfigPath,
-    edge.toChecker,
-    edge.toConfigPath,
-    edge.file,
-    edge.importedSpecifier,
-    edge.resolvedFilePath,
-  ]);
-  context.dependencyEdgesByKey.set(key, edge);
-}
-
-function addMissingBuildOwnerProblem(options: {
-  context: ReferenceImportContext;
-  importRecord: FrameworkImportRecord;
-  source: GovernedSourceUnit;
-  targetConfigPath: string;
-}): void {
-  options.context.problems.push(
-    [
-      'Unable to schedule framework source dependency:',
-      `  importing config: ${toRelativePath(options.context.config.rootDir, options.source.configPath)}`,
-      `  file: ${formatImportRecordLocation(options.context.config.rootDir, options.importRecord)}`,
-      `  target config: ${toRelativePath(options.context.config.rootDir, options.targetConfigPath)}`,
-      '  reason: the imported governed source has no primary TypeScript build projection.',
-    ].join('\n'),
-  );
+function hasBlockingFrameworkEvidence(options: {
+  evidence: ReturnType<
+    ReferenceImportContext['importAnalysis']['resolveImportEvidence']
+  >;
+  importOptions: FrameworkImportOptions;
+}): boolean {
+  if (options.evidence.runtimeEvidence.classification === 'resource') {
+    return true;
+  }
+  if (options.evidence.semanticFailure === undefined) return false;
+  addFrameworkSemanticDependencyProblem({
+    context: options.importOptions.context,
+    failure: options.evidence.semanticFailure,
+    importRecord: options.importOptions.importRecord,
+    project: options.importOptions.project,
+  });
+  return true;
 }
 
 function resolveFrameworkImportResolution(
   options: FrameworkImportOptions,
 ): OwnedResolution | null {
-  const pair = options.context.importAnalysis.resolveModulePair(
-    options.importRecord.specifier,
+  const evidence = options.context.importAnalysis.resolveImportEvidence(
+    options.importRecord,
     options.fileName,
     options.project.options,
     {
-      ...options.project.context,
+      ...options.source.context,
+      astroSemanticProject: options.source.astroSemanticProject,
       configPath: options.source.configPath,
       resolverConfigPath: options.source.configPath,
     },
   );
-  const evidence = classifyImportRuntimeEvidence({
-    compilerOptions: options.project.options,
-    containingFile: options.fileName,
-    extensions: options.project.context.extensions,
-    oxcResolvedFilePath: pair.oxc,
-    specifier: options.importRecord.specifier,
-    typeScriptResolution: pair.typescript,
-  });
-  if (evidence.classification === 'resource') return null;
+  if (hasBlockingFrameworkEvidence({ evidence, importOptions: options })) {
+    return null;
+  }
   const resolution = selectOwnedResolution({
     context: options.context,
-    oxcResolvedFilePath: pair.oxc,
-    typeScriptResolvedFilePath: getResolvedFilePath(pair.typescript),
+    ...selectFrameworkResolutionEvidence({
+      oxcResolvedFilePath: evidence.oxcResolvedFilePath,
+      semanticFramework: evidence.semanticEvidence?.framework,
+      typeScriptResolvedFilePath: getResolvedFilePath(
+        evidence.typeScriptResolution,
+      ),
+    }),
   });
   reportUnresolvedFrameworkImport({
     context: options.context,
@@ -186,23 +154,45 @@ function resolveFrameworkImportResolution(
   return resolution;
 }
 
+function getUniqueTargetConfigPath(options: {
+  importOptions: FrameworkImportOptions;
+  resolution: OwnedResolution;
+}): string | null {
+  const ownerConfigPaths = uniqueCodeUnitSortedStrings(
+    options.resolution.owners,
+  );
+  if (ownerConfigPaths.length > 1) {
+    addAmbiguousFrameworkSourceOwnerProblem({
+      ...options.importOptions,
+      ownerConfigPaths,
+      resolvedFilePath: options.resolution.filePath,
+    });
+    return null;
+  }
+  return ownerConfigPaths[0] ?? null;
+}
+
 function resolveFrameworkImportTarget(
   options: FrameworkImportOptions,
 ): FrameworkImportTarget | null {
   const resolution = resolveFrameworkImportResolution(options);
   if (resolution === null) return null;
-  const targetConfigPath = chooseTargetConfig({
-    importingConfigPath: options.source.configPath,
-    ownerConfigPaths: resolution.owners,
+  const targetConfigPath = getUniqueTargetConfigPath({
+    importOptions: options,
+    resolution,
   });
-  return targetConfigPath === null ? null : { resolution, targetConfigPath };
+  if ([null, options.source.configPath].includes(targetConfigPath)) return null;
+  return { resolution, targetConfigPath: targetConfigPath! };
 }
 
 function shouldRecordDeclarationProviderImport(
-  project: SourceProject,
+  source: GovernedSourceUnit,
   resolution: OwnedResolution,
 ): boolean {
-  return !isFrameworkFile(resolution.filePath) && project.fileNames.length > 0;
+  return (
+    isBuildCapablePreset(source.primaryCheckerName) &&
+    !isFrameworkFile(resolution.filePath)
+  );
 }
 
 function recordFrameworkSchedulingDependency(
@@ -213,15 +203,15 @@ function recordFrameworkSchedulingDependency(
     target.targetConfigPath,
   );
   if (targetOwner === undefined) {
-    addMissingBuildOwnerProblem({
+    addMissingFrameworkBuildOwnerProblem({
       ...importOptions,
       targetConfigPath: target.targetConfigPath,
     });
     return;
   }
-  recordDependencyEdge(
+  recordFrameworkDependencyEdge(
     importOptions.context,
-    createDependencyEdge({
+    createFrameworkDependencyEdge({
       ...importOptions,
       resolvedFilePath: target.resolution.filePath,
       targetCheckerName: targetOwner.checkerName,
@@ -234,9 +224,13 @@ function processFrameworkImport(options: FrameworkImportOptions): void {
   const target = resolveFrameworkImportTarget(options);
   if (target === null) return;
   if (
-    shouldRecordDeclarationProviderImport(options.project, target.resolution)
+    shouldRecordDeclarationProviderImport(options.source, target.resolution)
   ) {
-    processDeclarationProviderImport(options);
+    processDeclarationProviderImport({
+      ...options,
+      astroSemanticProject: options.source.astroSemanticProject,
+      resolutionContext: options.source.context,
+    });
     return;
   }
   recordFrameworkSchedulingDependency(options, target);
@@ -270,6 +264,13 @@ function formatThrownError(error: unknown): string {
   return String(error);
 }
 
+function getFrameworkSourceFileNames(source: GovernedSourceUnit): string[] {
+  if (!isBuildCapablePreset(source.primaryCheckerName)) {
+    return source.ownedFileNames;
+  }
+  return source.ownedFileNames.filter(isFrameworkFile);
+}
+
 function processFrameworkSource(options: {
   buildOwnersByConfigPath: ReadonlyMap<string, GovernedBuildOwner>;
   context: ReferenceImportContext;
@@ -280,9 +281,7 @@ function processFrameworkSource(options: {
     options.source.configPath,
   );
   if (project === undefined) return;
-  for (const fileName of options.source.ownedFileNames.filter(
-    isFrameworkFile,
-  )) {
+  for (const fileName of getFrameworkSourceFileNames(options.source)) {
     processFrameworkFile({ ...options, fileName, project });
   }
 }

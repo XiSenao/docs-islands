@@ -100,8 +100,20 @@ function validateWrappedProject(
   );
 }
 
+function validateFrameworkChecker(
+  context: ProjectionContext,
+): ProjectionViolation | undefined {
+  const invalid = [
+    getSourceToBuild(context) !== undefined,
+    getSourceToDts(context) !== undefined,
+    context.entry.unit.declarationFileNames.length > 0,
+  ].some(Boolean);
+  return violationWhen(invalid, 'declaration-provider-mismatch');
+}
+
 const projectionValidators = {
   'declaration-project': validateDeclarationProject,
+  'framework-checker': validateFrameworkChecker,
   'transparent-solution': validateTransparentSolution,
   'wrapped-project': validateWrappedProject,
 } as const;
@@ -138,7 +150,7 @@ function addProjectionFinding(
 ): void {
   const projection = entry.unit.buildProjection.kind;
   const reason =
-    'declaration projects provide consumable declarations, while transparent and wrapped solutions only schedule build dependencies.';
+    'declaration projects provide consumable declarations; framework checker leaves provide semantic typecheck targets without declaration projections.';
   addFrameworkGovernanceFinding({
     checkerName: entry.checkerName,
     config: options.config,
@@ -169,7 +181,6 @@ function addBuildProjectionEntryFinding(
   options: ProjectionOptions,
   entry: GovernedSourceEntry,
 ): void {
-  if (!isBuildCapablePreset(entry.unit.primaryCheckerName)) return;
   const violation = findProjectionViolation({
     entry,
     generatedGraph: options.generatedGraph,
@@ -234,7 +245,7 @@ function addGeneratedExtensionFinding(options: {
   workspaceLookup: WorkspaceLookupIndex;
 }): void {
   const reason =
-    'tsc, tsgo, and vue-tsc build configs must contain only extensions their build engine supports; Astro and Svelte remain supplemental checker inputs.';
+    'tsc, tsgo, and vue-tsc build configs must contain only extensions their build engine supports; Astro and Svelte sources remain in their framework-owned configs.';
   addFrameworkGovernanceFinding({
     config: options.config,
     configPath: options.sourceConfigPath,

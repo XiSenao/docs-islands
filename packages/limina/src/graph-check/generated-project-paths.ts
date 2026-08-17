@@ -130,13 +130,22 @@ function addGovernedCheckerProjectNames(options: {
 }): void {
   for (const unit of options.governedSources.values()) {
     options.checkerNamesByPath.set(unit.configPath, options.checkerName);
-    options.checkerNamesByPath.set(
-      'buildConfigPath' in unit.buildProjection
-        ? unit.buildProjection.buildConfigPath
-        : unit.buildProjection.dtsConfigPath,
-      options.checkerName,
-    );
+    addGovernedProjectionCheckerName({ ...options, unit });
   }
+}
+
+function addGovernedProjectionCheckerName(options: {
+  checkerName: string;
+  checkerNamesByPath: Map<string, string>;
+  unit: GovernedSourceUnit;
+}): void {
+  if (options.unit.buildProjection.kind === 'framework-checker') return;
+  options.checkerNamesByPath.set(
+    'buildConfigPath' in options.unit.buildProjection
+      ? options.unit.buildProjection.buildConfigPath
+      : options.unit.buildProjection.dtsConfigPath,
+    options.checkerName,
+  );
 }
 
 function addDeclarationProjectCheckerNames(

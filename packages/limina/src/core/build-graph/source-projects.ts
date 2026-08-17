@@ -32,7 +32,7 @@ export function isInsideNodeModules(filePath: string): boolean {
 }
 
 export function createSourceProject(options: {
-  checkerName: string;
+  checkerName: SourceProject['checkerName'];
   checkerPreset: SourceProject['context']['checkerPresets'][number];
   config: ResolvedLiminaConfig;
   packageRootDir: string;
@@ -66,6 +66,7 @@ export function createSourceProject(options: {
 
   return {
     checkerName: options.checkerName,
+    configClosure: parsed.configClosure.map((entry) => ({ ...entry })),
     configPath: options.sourceConfigPath,
     context,
     dtsConfigPath: getGeneratedDtsConfigPath({

@@ -1,4 +1,6 @@
+import { isBuildCapablePreset } from '#checkers';
 import type { ResolvedCheckerConfig } from '#config/runner';
+import type { CheckerOwnershipPlan } from './checker-ownership-types';
 import type {
   CheckerSourceConfigCollection,
   GeneratedBuildModule,
@@ -13,6 +15,7 @@ import type {
 } from './types';
 
 export interface GeneratedGraphPreparationState {
+  checkerOwnershipPlan: CheckerOwnershipPlan;
   checkerCollectionsByName: Map<string, CheckerSourceConfigCollection>;
   checkerEntries: Map<string, string>;
   configToOutputBuildByChecker: Map<string, Map<string, GeneratedBuildModule>>;
@@ -35,8 +38,10 @@ export interface GeneratedGraphPreparationState {
 
 export function createGeneratedGraphPreparationState(
   rootDir: string,
+  checkerOwnershipPlan: CheckerOwnershipPlan,
 ): GeneratedGraphPreparationState {
   return {
+    checkerOwnershipPlan,
     checkerCollectionsByName: new Map(),
     checkerEntries: new Map(),
     configToOutputBuildByChecker: new Map(),
@@ -93,14 +98,16 @@ export function registerPreparedChecker(options: {
     checkerName,
     options.preparedChecker.collection.buildModulesBySourcePath,
   );
-  options.state.rootBuildPathsByChecker.set(
-    checkerName,
-    options.preparedChecker.rootBuildPaths,
-  );
-  options.state.checkerEntries.set(
-    checkerName,
-    options.preparedChecker.entryPath,
-  );
+  if (isBuildCapablePreset(checkerName)) {
+    options.state.rootBuildPathsByChecker.set(
+      checkerName,
+      options.preparedChecker.rootBuildPaths,
+    );
+    options.state.checkerEntries.set(
+      checkerName,
+      options.preparedChecker.entryPath,
+    );
+  }
 }
 
 export function getCheckerProjects(options: {

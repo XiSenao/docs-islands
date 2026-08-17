@@ -323,7 +323,7 @@ describe('runInit', () => {
       ).toBe(true);
       expect(
         await readFile(path.join(fixture.rootDir, 'limina.config.mts'), 'utf8'),
-      ).toContain("mode: 'auto'");
+      ).toContain('auto: {');
       expect(
         await readFile(path.join(fixture.rootDir, 'limina.config.mts'), 'utf8'),
       ).toContain('exclude: []');
@@ -596,7 +596,7 @@ describe('runInit', () => {
       ).toBe(false);
       expect(
         await readFile(path.join(fixture.rootDir, 'limina.config.mts'), 'utf8'),
-      ).toContain("mode: 'auto'");
+      ).toContain('auto: {');
       expect(
         await readFile(path.join(fixture.rootDir, 'limina.config.mts'), 'utf8'),
       ).toContain('exclude: []');
@@ -644,7 +644,7 @@ describe('runInit', () => {
       ).resolves.toBe(false);
       expect(
         await readFile(path.join(fixture.rootDir, 'limina.config.mts'), 'utf8'),
-      ).toContain("mode: 'auto'");
+      ).toContain('auto: {');
       expect(
         await readFile(path.join(fixture.rootDir, 'limina.config.mts'), 'utf8'),
       ).toContain('exclude: []');
@@ -681,8 +681,9 @@ describe('runInit', () => {
 export default defineConfig({
   config: {
     checkers: {
-      mode: 'auto',
-      exclude: [],
+      auto: {
+        exclude: [],
+      },
     },
   },
 });
@@ -727,8 +728,9 @@ export default defineConfig({
 export default defineConfig({
   config: {
     checkers: {
-      mode: 'auto',
-      exclude: [],
+      auto: {
+        exclude: [],
+      },
     },
   },
 });

@@ -7,7 +7,7 @@ import { toRelativePath } from '#utils/path';
 import type { WorkspaceLookupIndex } from '../core/workspace/lookup';
 import { collectFrameworkTargetPreflightFailures } from '../typecheck/framework-target-preflight';
 import {
-  collectFrameworkSupplementalCapabilityDescriptors,
+  collectFrameworkCapabilityDescriptors,
   createFrameworkCheckerTargets,
   type TypecheckTarget,
 } from '../typecheck/targets';
@@ -32,11 +32,11 @@ const frameworkCommands = {
 
 const targetReasons = {
   'duplicate-id':
-    'each supplemental framework capability must produce one stable, non-mutating checker target rooted at its leaf package.',
+    'each framework-owned config must produce one stable, non-mutating checker target rooted at its leaf package.',
   'invalid-shape':
-    'each supplemental framework capability must produce one stable, non-mutating checker target rooted at its leaf package.',
+    'each framework-owned config must produce one stable, non-mutating checker target rooted at its leaf package.',
   missing:
-    'each supplemental framework capability must produce one stable, non-mutating checker target rooted at its leaf package.',
+    'each framework-owned config must produce one stable, non-mutating checker target rooted at its leaf package.',
   'preflight-failed':
     'framework targets must resolve their checker binary, runtime peers, and generated types from the leaf package before proof can accept them as executable.',
 } satisfies Record<
@@ -246,7 +246,7 @@ function addDescriptorTargetFindings(
 }
 
 export function addFrameworkTargetFindings(options: TargetOptions): void {
-  const descriptors = collectFrameworkSupplementalCapabilityDescriptors(
+  const descriptors = collectFrameworkCapabilityDescriptors(
     options.generatedGraph,
   );
   const targets = createFrameworkCheckerTargets({

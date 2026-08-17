@@ -12,6 +12,7 @@ export function createImportAnalysisCaches(): ImportAnalysisCaches {
   return {
     importsCache: new Map(),
     importsPromiseCache: new Map(),
+    canonicalResolutionIndex: new Map(),
     moduleResolutionIndex: new Map(),
     moduleResolverIdentityCache: new Map(),
     nextModuleResolverIdentity: 0,
@@ -34,11 +35,18 @@ function getVueSemanticIdentityId(
   return identity.id;
 }
 
+function getAstroSemanticIdentityId(
+  context: ResolvedImportContext,
+): string | null {
+  return context.astroSemanticProject?.seed.id ?? null;
+}
+
 function createTypeScriptModuleResolutionCacheKey(options: {
   compilerOptions: ts.CompilerOptions;
   context: ResolvedImportContext;
 }): string {
   return JSON.stringify({
+    astroSemanticIdentity: getAstroSemanticIdentityId(options.context),
     compilerOptions: options.compilerOptions,
     configPath: optionalString(options.context.configPath),
     extensions: getResolverExtensions(options),
@@ -52,6 +60,7 @@ function createResolverIdentityKey(options: {
   context: ResolvedImportContext;
 }): string {
   return JSON.stringify({
+    astroSemanticIdentity: getAstroSemanticIdentityId(options.context),
     checkerPresets: options.context.checkerPresets,
     compilerOptions: options.compilerOptions,
     configPath: optionalString(options.context.configPath),

@@ -2,60 +2,42 @@ import { normalizeAbsolutePath } from '#utils/path';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { isResolvedFromLeafInstalledPackage } from '../packages/leaf-package-resolution';
+import {
+  isSupportedDependencyVersion,
+  LiminaDependencyError,
+  liminaRuntimeDependencyContracts,
+} from '../../dependency-contract';
 import { loadInitializedAstroCompiler } from './astro-compiler-loader';
+import type { AstroCompiler } from './astro-compiler-types';
 import type { FrameworkImportParserIdentity } from './types';
 
+export type {
+  AstroCompiler,
+  AstroCompilerDiagnostic,
+  AstroCompilerModule,
+  AstroNode,
+  AstroParseResult,
+} from './astro-compiler-types';
+
 const ASTRO_COMPILER_PACKAGE = '@astrojs/compiler';
-const SUPPORTED_ASTRO_COMPILER_RANGE = '>=2.0.0 <5.0.0';
-
-export interface AstroCompilerDiagnostic {
-  code?: number;
-  hint?: string;
-  location?: {
-    column?: number;
-    line?: number;
-  };
-  severity?: number;
-  text?: string;
-}
-
-export interface AstroNode {
-  attributes?: {
-    name?: string;
-    value?: string;
-  }[];
-  children?: AstroNode[];
-  name?: string;
-  position?: {
-    end?: { column?: number; line?: number; offset?: number };
-    start?: { column?: number; line?: number; offset?: number };
-  };
-  type: string;
-  value?: string;
-}
-
-export interface AstroParseResult {
-  ast: AstroNode;
-  diagnostics?: AstroCompilerDiagnostic[];
-}
-
-export interface AstroCompiler {
-  parse(
-    source: string,
-    options?: { position?: boolean },
-  ): Promise<AstroParseResult>;
-}
-
-export interface AstroCompilerModule {
-  default?: Partial<AstroCompiler>;
-  parse?: AstroCompiler['parse'];
-}
+const ASTRO_COMPILER_CONTRACT =
+  liminaRuntimeDependencyContracts[ASTRO_COMPILER_PACKAGE];
+const SUPPORTED_ASTRO_COMPILER_RANGE = ASTRO_COMPILER_CONTRACT.supportedRange;
+const requireFromLimina = createRequire(import.meta.url);
 
 interface ResolvedAstroCompiler {
   resolvedPath: string;
   version: string;
 }
+
+type DefaultCompilerResolutionState =
+  | { error: unknown; kind: 'failed' }
+  | { kind: 'resolved'; value: ResolvedAstroCompiler }
+  | { kind: 'unresolved' };
+
+let defaultCompilerResolutionState: DefaultCompilerResolutionState = {
+  kind: 'unresolved',
+};
 
 interface AstroCompilerManifest {
   exports?: {
@@ -75,34 +57,42 @@ function isModuleNotFoundError(error: unknown): boolean {
   return hasErrorCode(error) && error.code === 'MODULE_NOT_FOUND';
 }
 
-function createMissingCompilerError(packageRootDir: string): Error {
-  return new Error(
-    [
-      'Unable to load Astro compiler for import analysis:',
+function createMissingCompilerError(): LiminaDependencyError {
+  return new LiminaDependencyError({
+    failureKind: 'missing',
+    message: [
+      'Missing Limina runtime dependency:',
       `  package: ${ASTRO_COMPILER_PACKAGE}`,
-      `  leaf package root: ${packageRootDir}`,
-      '  dependency category: analysis runtime',
-      '  reason: the Astro compiler is not installed in the source config leaf dependency scope.',
-      `  fix: run pnpm --dir ${packageRootDir} add -D '${ASTRO_COMPILER_PACKAGE}@${SUPPORTED_ASTRO_COMPILER_RANGE}'`,
+      '  feature: Astro import analysis',
+      '  resolution scope: the workspace running Limina',
+      '  reason: Limina could not resolve its Astro analysis runtime from its installation environment.',
+      `  fix: install '${ASTRO_COMPILER_PACKAGE}@${SUPPORTED_ASTRO_COMPILER_RANGE}' in the workspace running Limina.`,
     ].join('\n'),
-  );
+    ownership: 'limina-runtime',
+    packageName: ASTRO_COMPILER_PACKAGE,
+    scope: 'limina-install',
+  });
 }
 
 function createUnsupportedCompilerError(options: {
-  packageRootDir: string;
   version: string;
-}): Error {
-  return new Error(
-    [
-      'Unsupported Astro compiler for import analysis:',
+}): LiminaDependencyError {
+  return new LiminaDependencyError({
+    failureKind: 'unsupported',
+    message: [
+      'Missing Limina runtime dependency:',
       `  package: ${ASTRO_COMPILER_PACKAGE}`,
-      `  leaf package root: ${options.packageRootDir}`,
       `  installed version: ${options.version}`,
       `  supported range: ${SUPPORTED_ASTRO_COMPILER_RANGE}`,
-      '  dependency category: analysis runtime',
+      '  resolution scope: the workspace running Limina',
       '  reason: Limina relies on the asynchronous parse API and positioned AST verified for Astro compiler majors 2 through 4.',
+      `  fix: adjust '${ASTRO_COMPILER_PACKAGE}' in the workspace running Limina.`,
     ].join('\n'),
-  );
+    ownership: 'limina-runtime',
+    packageName: ASTRO_COMPILER_PACKAGE,
+    scope: 'limina-install',
+    version: options.version,
+  });
 }
 
 function collectAncestorDirectories(resolvedPath: string): string[] {
@@ -169,11 +159,6 @@ function getCompilerImportPath(options: {
   return normalizeAbsolutePath(path.resolve(options.directory, importTarget));
 }
 
-function isSupportedAstroCompilerVersion(version: string): boolean {
-  const major = Number.parseInt(version.split('.')[0] ?? '', 10);
-  return major >= 2 && major < 5;
-}
-
 function getCompilerVersion(
   compilerPackage: ReturnType<typeof findAstroCompilerManifest>,
 ): string {
@@ -190,29 +175,17 @@ function getCompilerPackageImportPath(
   return getCompilerImportPath(compilerPackage);
 }
 
-function assertLeafInstalledAstroCompiler(options: {
-  packageRootDir: string;
-  resolvedPath: string;
-}): void {
-  if (
-    isResolvedFromLeafInstalledPackage({
-      packageName: ASTRO_COMPILER_PACKAGE,
-      ...options,
-    })
-  ) {
-    return;
-  }
-  throw createMissingCompilerError(options.packageRootDir);
-}
-
 function resolveInstalledAstroCompiler(options: {
-  packageRootDir: string;
   resolvedPath: string;
 }): ResolvedAstroCompiler {
-  assertLeafInstalledAstroCompiler(options);
   const compilerPackage = findAstroCompilerManifest(options.resolvedPath);
   const version = getCompilerVersion(compilerPackage);
-  if (!isSupportedAstroCompilerVersion(version)) {
+  if (
+    !isSupportedDependencyVersion({
+      contract: ASTRO_COMPILER_CONTRACT,
+      version,
+    })
+  ) {
     throw createUnsupportedCompilerError({ ...options, version });
   }
   const importPath = getCompilerPackageImportPath(compilerPackage);
@@ -222,23 +195,53 @@ function resolveInstalledAstroCompiler(options: {
   return { resolvedPath: importPath, version };
 }
 
-function resolveAstroCompilerEntry(packageRootDir: string): string {
-  const requireFromLeaf = createRequire(
-    path.join(packageRootDir, 'package.json'),
-  );
-  return normalizeAbsolutePath(requireFromLeaf.resolve(ASTRO_COMPILER_PACKAGE));
+function resolveAstroCompilerEntry(resolveCompilerEntry: () => string): string {
+  return normalizeAbsolutePath(resolveCompilerEntry());
 }
 
-function resolveAstroCompiler(packageRootDir: string): ResolvedAstroCompiler {
+function resolveAstroCompilerUncached(
+  resolveCompilerEntry: () => string,
+): ResolvedAstroCompiler {
   try {
-    const resolvedPath = resolveAstroCompilerEntry(packageRootDir);
-    return resolveInstalledAstroCompiler({ packageRootDir, resolvedPath });
+    const resolvedPath = resolveAstroCompilerEntry(resolveCompilerEntry);
+    return resolveInstalledAstroCompiler({ resolvedPath });
   } catch (error) {
     if (isModuleNotFoundError(error)) {
-      throw createMissingCompilerError(packageRootDir);
+      throw createMissingCompilerError();
     }
     throw error;
   }
+}
+
+function attemptDefaultAstroCompilerResolution(): ResolvedAstroCompiler {
+  try {
+    const resolved = resolveAstroCompilerUncached(() =>
+      requireFromLimina.resolve(ASTRO_COMPILER_PACKAGE),
+    );
+    defaultCompilerResolutionState = { kind: 'resolved', value: resolved };
+    return resolved;
+  } catch (error) {
+    defaultCompilerResolutionState = { error, kind: 'failed' };
+    throw error;
+  }
+}
+
+function resolveDefaultAstroCompiler(): ResolvedAstroCompiler {
+  if (defaultCompilerResolutionState.kind === 'resolved') {
+    return defaultCompilerResolutionState.value;
+  }
+  if (defaultCompilerResolutionState.kind === 'failed') {
+    throw defaultCompilerResolutionState.error;
+  }
+  return attemptDefaultAstroCompilerResolution();
+}
+
+function resolveAstroCompiler(
+  resolveCompilerEntry: (() => string) | undefined,
+): ResolvedAstroCompiler {
+  return resolveCompilerEntry === undefined
+    ? resolveDefaultAstroCompiler()
+    : resolveAstroCompilerUncached(resolveCompilerEntry);
 }
 
 export async function loadAstroCompiler(options: {
@@ -248,17 +251,14 @@ export async function loadAstroCompiler(options: {
   return await loadInitializedAstroCompiler({
     createMissingParseError: () =>
       createUnsupportedCompilerError({
-        packageRootDir: options.packageRootDir,
         version: 'unknown parse API',
       }),
     resolvedPath: options.resolvedPath,
   });
 }
 
-export function getAstroParserIdentity(options: {
-  packageRootDir: string;
-}): FrameworkImportParserIdentity {
-  const resolved = resolveAstroCompiler(options.packageRootDir);
+export function getAstroParserIdentity(): FrameworkImportParserIdentity {
+  const resolved = resolveDefaultAstroCompiler();
   return {
     kind: ASTRO_COMPILER_PACKAGE,
     mode: 'async-positioned-ast',
@@ -268,6 +268,7 @@ export function getAstroParserIdentity(options: {
 
 export function resolveAstroParser(options: {
   packageRootDir: string;
+  resolveCompilerEntry?: () => string;
 }): ResolvedAstroCompiler {
-  return resolveAstroCompiler(options.packageRootDir);
+  return resolveAstroCompiler(options.resolveCompilerEntry);
 }

@@ -29,7 +29,7 @@ export type FrameworkGovernanceProofFacts =
       readonly checkerNames: readonly string[];
       readonly configPath: string;
       readonly family: FrameworkFamily;
-      readonly kind: 'supplemental-capability';
+      readonly kind: 'framework-capability';
       readonly violation:
         | 'descriptor-mismatch'
         | 'duplicate'
@@ -53,6 +53,7 @@ export type FrameworkGovernanceProofFacts =
       readonly kind: 'build-projection';
       readonly projection:
         | 'declaration-project'
+        | 'framework-checker'
         | 'transparent-solution'
         | 'wrapped-project';
       readonly violation:

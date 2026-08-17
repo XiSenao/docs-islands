@@ -8,7 +8,6 @@ import {
   addFrameworkGovernanceFinding,
   type FrameworkCoverageOptions,
   groupEntriesByConfigPath,
-  isPrimaryBuildEntry,
 } from './framework-governance-common';
 import type {
   FrameworkGovernanceFactForKind,
@@ -27,15 +26,14 @@ function sourceKey(checkerName: string, configPath: string): string {
 function collectExpectedGovernedSources(
   options: FrameworkCoverageOptions,
 ): ExpectedGovernedSource[] {
-  return Object.entries(options.generatedGraph.manifest.checkers).flatMap(
-    ([checkerName, checker]) =>
-      checker.roots.map((configPath) => ({
-        checkerName,
-        configPath: normalizeAbsolutePath(
-          path.join(options.config.rootDir, configPath),
-        ),
-      })),
-  );
+  return options.generatedGraph.manifest.ownership.configs
+    .filter((config) => config.role === 'type')
+    .map(({ config: configPath, owner: checkerName }) => ({
+      checkerName,
+      configPath: normalizeAbsolutePath(
+        path.join(options.config.rootDir, configPath),
+      ),
+    }));
 }
 
 function addGovernedSourceFinding(options: {
@@ -145,8 +143,7 @@ function addPrimaryOwnerGroupFinding(
         compareCodeUnits(left.checkerName, right.checkerName) ||
         compareCodeUnits(left.preset, right.preset),
     );
-  const reason =
-    'a governed source config has exactly one primary build owner; framework checkers are supplemental capabilities, not additional primary owners.';
+  const reason = 'a governed source config has exactly one checker owner.';
   addFrameworkGovernanceFinding({
     config: options.config,
     configPath,
@@ -165,9 +162,7 @@ function addPrimaryOwnerGroupFinding(
 }
 
 function addPrimaryOwnerFindings(options: FrameworkCoverageOptions): void {
-  const groups = groupEntriesByConfigPath(
-    options.entries.filter(isPrimaryBuildEntry),
-  );
+  const groups = groupEntriesByConfigPath(options.entries);
   for (const [configPath, entries] of groups) {
     addPrimaryOwnerGroupFinding(options, configPath, entries);
   }

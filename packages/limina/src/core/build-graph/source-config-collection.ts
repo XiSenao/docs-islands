@@ -57,10 +57,13 @@ function registerSourceConfig(options: ConfigVisit): string {
   return packageRootDir;
 }
 
-function isCollectibleReference(referencePath: string): boolean {
+function isCollectibleReference(
+  referencePath: string,
+  rootDir: string,
+): boolean {
   return (
     existsSync(referencePath) &&
-    isOrdinarySourceTypecheckConfigPath(referencePath)
+    isOrdinarySourceTypecheckConfigPath(referencePath, rootDir)
   );
 }
 
@@ -96,7 +99,12 @@ function collectSolutionReference(options: {
   referencePath: string;
   referenceSourceConfigPaths: string[];
 }): void {
-  if (!isCollectibleReference(options.referencePath)) {
+  if (
+    !isCollectibleReference(
+      options.referencePath,
+      options.context.config.rootDir,
+    )
+  ) {
     return;
   }
   const targetChecker = resolveReferenceOwner(options);
@@ -233,6 +241,7 @@ function collectParsedSourceConfig(options: {
   validateUserMaintainedLiminaTsconfigMetadata({
     configObject: analysis.configObject,
     configPath: options.options.sourceConfigPath,
+    rootDir: options.options.config.rootDir,
   });
   if (hasInvalidSourceReferences(options.options.sourceConfigPath, analysis)) {
     addSourceReferenceConfigProblems({

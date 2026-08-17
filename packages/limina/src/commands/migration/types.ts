@@ -35,7 +35,7 @@ export interface MigrationEntryCollection {
   entries: MigrationEntry[];
   excludePatterns: string[];
   includePatterns: string[];
-  mode: 'auto' | 'explicit';
+  mode: 'auto' | 'unified';
 }
 
 export interface MigrationEffectiveConfig {

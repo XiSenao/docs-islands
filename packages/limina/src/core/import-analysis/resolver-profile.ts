@@ -29,6 +29,7 @@ function normalizeFieldContext(
   context: ImportResolveContextFields,
 ): ResolvedImportContext {
   return {
+    astroSemanticProject: context.astroSemanticProject,
     checkerPresets: context.checkerPresets,
     configPath: getNormalizedPath(context.configPath),
     extensions: context.extensions,

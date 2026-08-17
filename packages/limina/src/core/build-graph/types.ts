@@ -1,4 +1,6 @@
 import type {
+  AstroConfigClosureEntry,
+  AstroSemanticProject,
   CheckerProjectConfigCache,
   CheckerProjectParseContext,
 } from '#checkers';
@@ -12,50 +14,18 @@ import type {
   ValidatedWorkspaceContext,
   WorkspaceRegionPathIndex,
 } from '../workspace/validated-context';
+import type { AutoScopeProject } from './auto-checker-types';
+import type { CheckerOwnershipPlan } from './checker-ownership-types';
 import type {
   GeneratedKnipPackageConfig,
   GeneratedKnipPackageDiagnostic,
 } from './generated-knip';
 import type { OutputOptions } from './generated/config-readers';
-import type {
-  AutoFrameworkEvidence,
-  SourceFilePartition,
-} from './source-capabilities';
+import type { GeneratedTsconfigGraphManifest } from './manifest-types';
+import type { AutoFrameworkEvidence } from './source-capabilities';
 
-interface GeneratedCheckerManifest {
-  configToOutputBuild: Record<string, GeneratedBuildModuleManifest>;
-  entry: string;
-  name: string;
-  roots: string[];
-  sourceToBuild: Record<string, GeneratedBuildModuleManifest>;
-  sourceToDts: Record<string, string>;
-  dtsToSource: Record<string, string>;
-}
-
-interface GeneratedDependencyEdgeManifestBase {
-  file: string;
-  fromChecker: string;
-  fromConfig: string;
-  importedSpecifier: string;
-  resolvedFile: string;
-  toChecker: string;
-  toConfig: string;
-}
-
-interface DeclarationProviderEdgeManifest
-  extends GeneratedDependencyEdgeManifestBase {
-  cacheReuse: 'non-reusable' | 'reusable';
-  kind: 'declaration-provider';
-}
-
-interface FrameworkScheduleEdgeManifest
-  extends GeneratedDependencyEdgeManifestBase {
-  kind: 'framework-schedule';
-}
-
-type GeneratedDependencyEdgeManifest =
-  | DeclarationProviderEdgeManifest
-  | FrameworkScheduleEdgeManifest;
+export type { AutoScopeProject } from './auto-checker-types';
+export type { GeneratedTsconfigGraphManifest } from './manifest-types';
 
 interface GeneratedDependencyEdgeBase {
   file: string;
@@ -99,18 +69,6 @@ export interface GeneratedOutputDeclarationCopyContext {
   sourceConfigPath: string;
 }
 
-export interface GeneratedTsconfigGraphManifest {
-  version: 4;
-  generatedBy: 'limina';
-  checkers: Record<string, GeneratedCheckerManifest>;
-  knip: {
-    diagnostics: GeneratedKnipPackageDiagnostic[];
-    packages: GeneratedKnipPackageConfig[];
-  };
-  ownedArtifacts: string[];
-  dependencyEdges: GeneratedDependencyEdgeManifest[];
-}
-
 export interface GeneratedTsconfigGraphResult {
   artifactPlan: ArtifactPlan;
   changed: boolean;
@@ -130,6 +88,7 @@ export interface GeneratedTsconfigGraphResult {
   governedSources: Map<string, Map<string, GovernedSourceUnit>>;
   dependencyEdges: GeneratedDependencyEdge[];
   manifest: GeneratedTsconfigGraphManifest;
+  ownershipPlan: CheckerOwnershipPlan;
   generatedFiles: ReadonlyMap<string, string>;
 }
 
@@ -142,8 +101,9 @@ export interface PrepareGeneratedTsconfigGraphOptions {
 }
 
 export interface SourceProject {
-  checkerName: string;
+  checkerName: ResolvedCheckerConfig['name'];
   configPath: string;
+  configClosure: AstroConfigClosureEntry[];
   context: CheckerProjectParseContext;
   dtsConfigPath: string;
   fileNames: string[];
@@ -176,9 +136,13 @@ export type SourceBuildProjection =
       buildConfigPath: string;
       dtsConfigPath: string;
       kind: 'wrapped-project';
+    }
+  | {
+      kind: 'framework-checker';
     };
 
 export interface GovernedSourceUnit {
+  astroSemanticProject?: AstroSemanticProject;
   buildProjection: SourceBuildProjection;
   configPath: string;
   context: CheckerProjectParseContext;
@@ -248,6 +212,11 @@ export interface ResolvedCheckerEntrySelection {
   selection: CheckerEntrySelection;
 }
 
+export interface CheckerSelectionResolution {
+  ownershipPlan: CheckerOwnershipPlan;
+  selections: ResolvedCheckerEntrySelection[];
+}
+
 export interface CheckerOutputGraph {
   configToOutputBuild: Map<string, GeneratedBuildModule>;
   outputDeclarationCopies: Map<string, GeneratedOutputDeclarationCopyContext[]>;
@@ -281,16 +250,6 @@ export type ProviderSelectionResult =
       kind: 'unsafe-cross-engine';
       reason: string;
     };
-
-export interface AutoScopeProject {
-  configPath: string;
-  context: CheckerProjectParseContext;
-  fileNames: string[];
-  filePartition: SourceFilePartition;
-  options: ts.CompilerOptions;
-  packageRootByFileName: Map<string, string>;
-  packageRootDir: string;
-}
 
 export interface AutoScope {
   collection: CheckerSourceConfigCollection;

@@ -1,3 +1,7 @@
+import type {
+  AstroSemanticProject,
+  CheckerProjectParseContext,
+} from '#checkers';
 import type { ResolvedLiminaConfig } from '#config/runner';
 import type {
   ImportAnalysisContext,
@@ -22,13 +26,16 @@ export interface ReferenceImportContext {
   managedOutputLookup: ManagedOutputDeclarationLookup;
   problems: string[];
   dependencyEdgesByKey: Map<string, GeneratedDependencyEdge>;
+  semanticProblemIdentities: Set<string>;
 }
 
 export interface ReferenceImportOptions {
+  astroSemanticProject?: AstroSemanticProject;
   context: ReferenceImportContext;
   fileName: string;
   importRecord: ImportRecord;
   project: SourceProject;
+  resolutionContext?: CheckerProjectParseContext;
 }
 
 export interface ReferenceTarget {

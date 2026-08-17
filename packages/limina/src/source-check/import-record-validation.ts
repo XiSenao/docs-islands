@@ -1,9 +1,9 @@
 import type { ResolvedLiminaConfig } from '#config/runner';
 import type { AnalysisProviderSet } from '#core';
 import {
+  formatImportRecordLocation,
   type ImportRecord,
   type ProjectInfo,
-  resolveInternalImport,
 } from '#core/import-graph/context';
 import {
   getPackageRootSpecifier,
@@ -14,6 +14,9 @@ import {
   isPackageImportSpecifier,
   isRelativeSpecifier,
 } from '#utils/module-specifier';
+import { toRelativePath } from '#utils/path';
+import { FrameworkSemanticResolutionError } from '../core/framework-semantic/contracts';
+import { selectCanonicalImportFilePath } from '../core/import-analysis/canonical-resolution';
 import type { WorkspaceLookupIndex } from '../core/workspace/lookup';
 import type { WorkspaceRegionPathIndex } from '../core/workspace/validated-context';
 import type { AmbientDeclarationIndex } from './ambient-declarations';
@@ -47,13 +50,28 @@ interface ImportRecordOptions {
 }
 
 function resolveImport(options: ImportRecordOptions): string | null {
-  return resolveInternalImport(
-    options.importRecord.specifier,
+  const evidence = options.importAnalysis.resolveImportEvidence(
+    options.importRecord,
     options.filePath,
     options.project.options,
     options.project,
-    options.importAnalysis,
   );
+  if (evidence.semanticFailure !== undefined) {
+    throw new FrameworkSemanticResolutionError({
+      failure: evidence.semanticFailure,
+      message: [
+        'Unable to resolve source import semantically:',
+        `  importing config: ${toRelativePath(options.config.rootDir, options.project.configPath)}`,
+        `  file: ${formatImportRecordLocation(options.config.rootDir, options.importRecord)}`,
+        `  source specifier: ${options.importRecord.specifier}`,
+        `  framework: ${evidence.semanticFailure.framework}`,
+        `  stage: ${evidence.semanticFailure.stage}`,
+        `  semantic scope: ${evidence.semanticFailure.scopeIdentity}`,
+        `  reason: ${evidence.semanticFailure.reason}`,
+      ].join('\n'),
+    });
+  }
+  return selectCanonicalImportFilePath({ evidence, includeResource: true });
 }
 
 function addOutsideActivatedRegionProblem(options: {

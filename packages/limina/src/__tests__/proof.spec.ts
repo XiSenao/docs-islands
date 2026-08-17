@@ -398,11 +398,19 @@ function createCheckerGraphCoverageProofGeneratedGraph(
         packages: [],
       },
       ownedArtifacts: [],
+      ownership: { configs: [], solutions: [] },
+      targets: { build: [], framework: [] },
       dependencyEdges: [],
-      version: 4,
+      version: 5,
     },
     manifestPath: path.join(rootDir, '.limina/manifest.json'),
     outputDeclarationCopies: new Map(),
+    ownershipPlan: {
+      dependencyFacts: [],
+      entryOwnerByConfigPath: new Map(),
+      solutions: new Map(),
+      typeConfigs: new Map(),
+    },
     dependencyEdges: [],
     sourceToBuild: new Map(),
     sourceToDts: new Map(),
@@ -464,7 +472,7 @@ function findCheckerCoverageFact(
     | 'framework-target'
     | 'generated-build-extension'
     | 'primary-owner'
-    | 'supplemental-capability',
+    | 'framework-capability',
 ) {
   return findings.find(
     (finding) =>
@@ -484,7 +492,7 @@ describe('runProofCheck dts config semantics', () => {
     }
   });
 
-  it('proves supplemental framework coverage, targets, projections, and generated extensions', async () => {
+  it('proves framework ownership, targets, and non-build projections', async () => {
     const fixture = await createFixture({
       'node_modules/svelte-check/package.json': stringifyConfig({
         name: 'svelte-check',
@@ -530,14 +538,14 @@ describe('runProofCheck dts config semantics', () => {
     const config: ResolvedLiminaConfig = {
       ...fixture.config,
       config: {
-        checkers: { mode: 'auto' },
+        checkers: { auto: {} },
         source: { include: ['...', '**/*.svelte'] },
       },
     };
 
     try {
       const graph = await prepareAndMaterializeGeneratedTsconfigGraph(config);
-      const checkerName = 'tsc';
+      const checkerName = 'svelte-check';
       const sourceConfigPath = normalizeAbsolutePath(
         path.join(fixture.rootDir, 'packages/app/tsconfig.json'),
       );
@@ -545,6 +553,7 @@ describe('runProofCheck dts config semantics', () => {
         generatedGraphProvider: async () => graph,
       });
 
+      expect(baseline.findings.map((finding) => finding.facts)).toEqual([]);
       expect(baseline.passed).toBe(true);
 
       const missingCapability = cloneFrameworkProofGraph(graph);
@@ -555,13 +564,11 @@ describe('runProofCheck dts config semantics', () => {
         generatedGraphProvider: async () => missingCapability,
       });
       expect(
-        findCheckerCoverageFact(
-          missingResult.findings,
-          'supplemental-capability',
-        )?.facts,
+        findCheckerCoverageFact(missingResult.findings, 'framework-capability')
+          ?.facts,
       ).toMatchObject({
         family: 'svelte',
-        kind: 'supplemental-capability',
+        kind: 'framework-capability',
         violation: 'missing',
       });
 
@@ -578,11 +585,11 @@ describe('runProofCheck dts config semantics', () => {
       expect(
         findCheckerCoverageFact(
           duplicateResult.findings,
-          'supplemental-capability',
+          'framework-capability',
         )?.facts,
       ).toMatchObject({
         family: 'svelte',
-        kind: 'supplemental-capability',
+        kind: 'framework-capability',
         violation: 'duplicate',
       });
 
@@ -608,11 +615,22 @@ describe('runProofCheck dts config semantics', () => {
         findCheckerCoverageFact(primaryResult.findings, 'primary-owner')?.facts,
       ).toMatchObject({ kind: 'primary-owner' });
 
-      const dtsConfigPath = graph.sourceToDts
-        .get(checkerName)!
-        .get(sourceConfigPath)!;
+      expect(graph.sourceToDts.get(checkerName)?.get(sourceConfigPath)).toBe(
+        undefined,
+      );
+      expect(
+        graph.governedSources.get(checkerName)?.get(sourceConfigPath)
+          ?.buildProjection.kind,
+      ).toBe('framework-checker');
+
+      const dtsConfigPath = normalizeAbsolutePath(
+        path.join(fixture.rootDir, '.limina/invalid-svelte.dts.json'),
+      );
       const invalidProjection = cloneFrameworkProofGraph(graph);
-      invalidProjection.sourceToDts.get(checkerName)!.delete(sourceConfigPath);
+      invalidProjection.sourceToDts.set(
+        checkerName,
+        new Map([[sourceConfigPath, dtsConfigPath]]),
+      );
       const projectionResult = await collectTypedProofFindings(config, {
         generatedGraphProvider: async () => invalidProjection,
       });
@@ -642,25 +660,6 @@ describe('runProofCheck dts config semantics', () => {
         kind: 'build-projection',
         violation: 'solution-kind-mismatch',
       });
-
-      const invalidGeneratedFile = cloneFrameworkProofGraph(graph);
-      const dtsConfig = JSON.parse(
-        invalidGeneratedFile.generatedFiles.get(dtsConfigPath)!,
-      ) as { files: string[] };
-      dtsConfig.files.push('../../../../../../packages/app/src/App.svelte');
-      invalidGeneratedFile.generatedFiles.set(
-        dtsConfigPath,
-        stringifyConfig(dtsConfig),
-      );
-      const extensionResult = await collectTypedProofFindings(config, {
-        generatedGraphProvider: async () => invalidGeneratedFile,
-      });
-      expect(
-        findCheckerCoverageFact(
-          extensionResult.findings,
-          'generated-build-extension',
-        )?.facts,
-      ).toMatchObject({ kind: 'generated-build-extension' });
 
       const missingDependencyRoot = await realpath(
         await mkdtemp(path.join(tmpdir(), 'limina-proof-missing-deps-')),
@@ -1720,7 +1719,7 @@ describe('runProofCheck dts config semantics', () => {
     }
   });
 
-  it('hands referenced configs to their explicit build checker owner', async () => {
+  it('rejects incompatible declared constraints across nested solutions', async () => {
     const fixture = await createFixture({
       'packages/pkg/src/index.ts': 'export const value = 1;\n',
       'packages/pkg/tsconfig.test.dts.json': JSON.stringify({
@@ -1799,16 +1798,10 @@ describe('runProofCheck dts config semantics', () => {
           },
         },
       };
-      const graph = await prepareAndMaterializeGeneratedTsconfigGraph(config);
-      const packageConfigPath = normalizeAbsolutePath(
-        path.join(fixture.rootDir, 'packages/pkg/tsconfig.test.json'),
-      );
-
-      expect(graph.governedSources.get('tsc')?.has(packageConfigPath)).toBe(
-        false,
-      );
-      expect(graph.governedSources.get('vue-tsc')?.has(packageConfigPath)).toBe(
-        true,
+      await expect(
+        prepareAndMaterializeGeneratedTsconfigGraph(config),
+      ).rejects.toThrow(
+        /Checker ownership conflict[\s\S]*checker: tsc[\s\S]*checker: vue-tsc/u,
       );
     } finally {
       await fixture.cleanup();
@@ -3032,7 +3025,7 @@ describe('runProofCheck dts config semantics', () => {
             checkers: {
               tsc: {
                 exclude: ['**/tsconfig*.dts.json', '**/tsconfig*.build.json'],
-                include: ['packages/pkg/tsconfig.json', 'tools/tsconfig.json'],
+                include: ['packages/pkg/tsconfig.json'],
               },
               'svelte-check': {
                 include: ['tools/tsconfig.json'],
@@ -3081,7 +3074,7 @@ describe('runProofCheck dts config semantics', () => {
             checkers: {
               tsc: {
                 exclude: ['**/tsconfig*.dts.json', '**/tsconfig*.build.json'],
-                include: ['packages/pkg/tsconfig.json', 'tools/tsconfig.json'],
+                include: ['packages/pkg/tsconfig.json'],
               },
               'svelte-check': {
                 include: ['tools/tsconfig.json'],

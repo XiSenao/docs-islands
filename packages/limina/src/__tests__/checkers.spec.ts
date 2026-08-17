@@ -268,6 +268,61 @@ describe('checker project config parsing', () => {
     }
   });
 
+  it('captures the root and extended config closure as normalized content fingerprints', async () => {
+    const fixture = await createFixture({
+      'src/index.ts': 'export const value = true;\n',
+      'tsconfig.base.json': tsconfig({ include: ['src/index.ts'] }),
+      'tsconfig.json': tsconfig({ extends: './tsconfig.base.json' }),
+    });
+
+    try {
+      const parse = () =>
+        parseCheckerProjectConfigForContext({
+          cache: new CheckerProjectConfigCache(),
+          configPath: fixture.path('tsconfig.json'),
+          context: {
+            checkerPresets: ['tsc'],
+            extensions: [],
+          },
+          projectRootDir: fixture.rootDir,
+        });
+      const first = parse();
+
+      expect(
+        first.configClosure.map((entry) =>
+          toPortablePath(path.relative(fixture.rootDir, entry.filePath)),
+        ),
+      ).toEqual(['tsconfig.base.json', 'tsconfig.json']);
+      expect(first.configClosure).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            contentHash: expect.stringMatching(/^[a-f\d]{64}$/),
+          }),
+        ]),
+      );
+
+      const originalBaseHash = first.configClosure.find((entry) =>
+        entry.filePath.endsWith('tsconfig.base.json'),
+      )?.contentHash;
+      await writeText(
+        fixture.path('tsconfig.base.json'),
+        tsconfig({
+          compilerOptions: { strict: true },
+          include: ['src/index.ts'],
+        }),
+      );
+      const second = parse();
+
+      expect(
+        second.configClosure.find((entry) =>
+          entry.filePath.endsWith('tsconfig.base.json'),
+        )?.contentHash,
+      ).not.toBe(originalBaseHash);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
   it('keeps virtual-file cache identity independent of localeCompare', async () => {
     const fixture = await createFixture({
       'src/a.ts': 'export const a = true;\n',
@@ -341,6 +396,7 @@ describe('checker project config parsing', () => {
       ).toEqual(['src/virtual.ts']);
 
       cache.set('manager-a-only', {
+        configClosure: [],
         extensions: [],
         fileNames: [],
         options: {},

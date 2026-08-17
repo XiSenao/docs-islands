@@ -130,8 +130,8 @@ async function runMigrationImpl(
 
   for (const target of collection.targets) {
     validateUserMaintainedLiminaTsconfigMetadata({
-      configObject: target.configObject,
-      configPath: target.configPath,
+      ...target,
+      rootDir: config.rootDir,
     });
   }
 

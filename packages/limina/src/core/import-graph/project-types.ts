@@ -1,11 +1,16 @@
 import type {
+  AstroConfigClosureEntry,
+  AstroSemanticProject,
   CheckerProjectParseContext,
   VueProjectSemanticIdentity,
 } from '#checkers';
 import type ts from 'typescript';
 
 export interface ProjectInfo {
+  analysisGeneration: number;
+  astroSemanticProject?: AstroSemanticProject;
   checkerPresets: CheckerProjectParseContext['checkerPresets'];
+  configClosure: AstroConfigClosureEntry[];
   configPath: string;
   extensions: string[];
   fileNames: string[];

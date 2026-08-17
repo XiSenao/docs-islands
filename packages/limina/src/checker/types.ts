@@ -5,6 +5,10 @@ import type {
   ResolvedCheckerConfig,
 } from '#config/runner';
 import type ts from 'typescript';
+import type {
+  LiminaDependencyFailureKind,
+  LiminaDependencyOwnership,
+} from '../dependency-contract';
 import type { VueProjectSemanticIdentity } from './vue-semantic-types';
 
 export interface CheckerCommandTarget {
@@ -32,7 +36,13 @@ export interface CheckerProjectConfigParseOptions {
   vueSemanticIdentity?: VueProjectSemanticIdentity;
 }
 
+export interface CheckerConfigClosureEntry {
+  contentHash: string;
+  filePath: string;
+}
+
 export interface ParsedCheckerProjectConfig {
+  configClosure: CheckerConfigClosureEntry[];
   extensions: string[];
   fileNames: string[];
   options: ts.CompilerOptions;
@@ -89,15 +99,15 @@ export interface CheckerAdapter {
 }
 
 export interface CheckerDependencies {
-  analysisRuntimePackages: string[];
-  checkerBinaryPackages: string[];
-  checkerRuntimePeerPackages: string[];
+  externalCheckerPackages: string[];
+  liminaRuntimePackages: string[];
 }
 
 export type CheckerDependencyCategory =
-  | 'analysis-runtime'
   | 'checker-binary'
-  | 'checker-runtime-peer';
+  | 'checker-runtime'
+  | 'external-checker'
+  | 'limina-runtime';
 
 export interface CheckerDependencyRequirement {
   category: CheckerDependencyCategory;
@@ -106,8 +116,13 @@ export interface CheckerDependencyRequirement {
 
 export interface MissingCheckerPeerDependency {
   checkerNames: string[];
+  failureKind: LiminaDependencyFailureKind;
+  installedVersion?: string;
+  ownership: LiminaDependencyOwnership;
   packageName: string;
   reason?: string;
+  resolutionScope: string;
+  supportedRange?: string;
 }
 
 export type CheckerPackageResolver = (options: {

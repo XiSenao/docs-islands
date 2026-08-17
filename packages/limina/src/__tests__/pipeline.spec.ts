@@ -578,33 +578,33 @@ describe('runPipeline', () => {
 
     try {
       await expect(runDefaultCheck(fixture.config, { flow })).resolves.toBe(
-        false,
+        true,
       );
 
       expect(
         chunks.some((chunk) => chunk.includes('[start] default check')),
       ).toBe(true);
       expect(
-        chunks.some((chunk) => chunk.includes('build checker execution: tsc')),
+        chunks.some((chunk) =>
+          chunk.includes('build checker execution: (none)'),
+        ),
       ).toBe(true);
       expect(
         chunks.some((chunk) =>
-          chunk.includes('supplemental checker execution: svelte-check'),
+          chunk.includes('framework checker execution: (none)'),
         ),
       ).toBe(true);
-      expect(chunks.some((chunk) => chunk.includes('source graph: tsc'))).toBe(
-        true,
-      );
       expect(
-        chunks.some((chunk) => chunk.includes('no source graph: svelte-check')),
+        chunks.some((chunk) => chunk.includes('source graph: (none)')),
+      ).toBe(true);
+      expect(
+        chunks.some((chunk) => chunk.includes('no source graph: (none)')),
       ).toBe(true);
       expect(
         chunks.some((chunk) => chunk.includes('[start] graph check')),
       ).toBe(true);
       expect(
-        chunks.some((chunk) =>
-          chunk.includes('[fail] default check finished with failures'),
-        ),
+        chunks.some((chunk) => chunk.includes('[pass] default check')),
       ).toBe(true);
       expect(
         chunks.some((chunk) => chunk.includes('[start] checker build')),
@@ -874,7 +874,9 @@ describe('runPipeline', () => {
           expect.objectContaining({
             code: 'LIMINA_SOURCE_CHECK_FAILED',
             task: 'source:check',
-            reason: expect.stringContaining('Missing peer dependency "knip"'),
+            reason: expect.stringContaining(
+              'Missing Limina runtime dependency:',
+            ),
           }),
         ]),
       );

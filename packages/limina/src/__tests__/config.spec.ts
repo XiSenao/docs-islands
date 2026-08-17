@@ -2416,23 +2416,25 @@ export default {
     }
   });
 
-  it('accepts auto checker mode', () => {
+  it('accepts flat auto checker config', () => {
     expect(
       defineConfig({
         config: {
           checkers: {
-            exclude: ['packages/playground/tsconfig.json'],
-            mode: 'auto',
-            useTsgo: true,
+            auto: {
+              exclude: ['packages/playground/tsconfig.json'],
+              useTsgo: true,
+            },
           },
         },
       }),
     ).toEqual({
       config: {
         checkers: {
-          exclude: ['packages/playground/tsconfig.json'],
-          mode: 'auto',
-          useTsgo: true,
+          auto: {
+            exclude: ['packages/playground/tsconfig.json'],
+            useTsgo: true,
+          },
         },
       },
     });
@@ -2490,7 +2492,7 @@ export default {
       );
 
       await expect(loadConfig({ cwd: rootDir })).rejects.toThrow(
-        /config\.checkers must be an object auto config or an object keyed by checker name/u,
+        /config\.checkers must be an object keyed by auto or checker name/u,
       );
     } finally {
       await rm(rootDir, {
@@ -2514,8 +2516,9 @@ export default {
 export default {
   config: {
     checkers: {
-      mode: 'auto',
-      exclude: ['packages/playground/tsconfig.json', ''],
+      auto: {
+        exclude: ['packages/playground/tsconfig.json', ''],
+      },
     },
   },
 };
@@ -2547,8 +2550,9 @@ export default {
 export default {
   config: {
     checkers: {
-      mode: 'auto',
-      useTsgo: 'yes',
+      auto: {
+        useTsgo: 'yes',
+      },
     },
   },
 };
@@ -2563,7 +2567,7 @@ export default {
     }
   });
 
-  it('rejects invalid auto checker mode config', async () => {
+  it('rejects the removed checker mode field', async () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), 'limina-config-'));
 
     try {
@@ -2585,7 +2589,7 @@ export default {
       );
 
       await expect(loadConfig({ cwd: rootDir })).rejects.toThrow(
-        /auto checker config requires mode: "auto"/u,
+        /config\.checkers\.mode was removed/u,
       );
     } finally {
       await rm(rootDir, {
@@ -2595,7 +2599,7 @@ export default {
     }
   });
 
-  it('rejects mixed auto checker and named checker config', async () => {
+  it('rejects legacy auto mode even when named checkers are present', async () => {
     const rootDir = await mkdtemp(path.join(tmpdir(), 'limina-config-'));
 
     try {
@@ -2620,7 +2624,7 @@ export default {
       );
 
       await expect(loadConfig({ cwd: rootDir })).rejects.toThrow(
-        /auto checker config must not be mixed with named checker entries/u,
+        /config\.checkers\.mode was removed/u,
       );
     } finally {
       await rm(rootDir, {
@@ -2650,7 +2654,7 @@ export default {
       );
 
       await expect(loadConfig({ cwd: rootDir })).rejects.toThrow(
-        /config\.checkers must be an object auto config or an object keyed by checker name/u,
+        /config\.checkers must be an object keyed by auto or checker name/u,
       );
     } finally {
       await rm(rootDir, {

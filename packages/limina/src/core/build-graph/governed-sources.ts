@@ -1,5 +1,6 @@
+import type { CheckerProjectConfigCache } from '#checkers';
 import {
-  type CheckerProjectConfigCache,
+  createAstroSemanticProject,
   isBuildCapablePreset,
   normalizeExtensions,
   parseCheckerProjectConfigForContext,
@@ -11,7 +12,6 @@ import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
 import { getFrameworkFilePackageRoot } from './framework-file-root';
 import { capabilityDiscoveryExtensions } from './generated/file-extensions';
 import { getGeneratedLeafSolutionBuildConfigPath } from './generated/paths';
-import { partitionSourceFiles } from './source-capabilities';
 import { isInsideNodeModules } from './source-projects';
 import type {
   FrameworkCapabilityDescriptor,
@@ -25,12 +25,23 @@ function createBuildProjection(options: {
   frameworkCapabilities: FrameworkCapabilityDescriptor[];
   project: SourceProject;
 }): GovernedSourceUnit['buildProjection'] {
+  if (!isBuildCapablePreset(options.project.checkerName)) {
+    return { kind: 'framework-checker' };
+  }
   if (!requiresFrameworkProjection(options)) {
     return {
       dtsConfigPath: options.project.dtsConfigPath,
       kind: 'declaration-project',
     };
   }
+  return createFrameworkBuildProjection(options);
+}
+
+function createFrameworkBuildProjection(options: {
+  declarationFileNames: readonly string[];
+  config: ResolvedLiminaConfig;
+  project: SourceProject;
+}): GovernedSourceUnit['buildProjection'] {
   const buildConfigPath = getGeneratedLeafSolutionBuildConfigPath({
     checkerName: options.project.checkerName,
     packageRootDir: options.project.packageRootDir,
@@ -57,45 +68,99 @@ function requiresFrameworkProjection(options: {
 }
 
 function createDeclarationFileNames(project: SourceProject): string[] {
-  return [...project.fileNames];
+  return isBuildCapablePreset(project.checkerName)
+    ? [...project.fileNames]
+    : [];
+}
+
+function getFrameworkFamily(
+  checkerName: SourceProject['checkerName'],
+): FrameworkCapabilityDescriptor['family'] | null {
+  return (
+    (
+      {
+        astro: 'astro',
+        'svelte-check': 'svelte',
+      } as const
+    )[checkerName as 'astro' | 'svelte-check'] ?? null
+  );
+}
+
+function getFrameworkExtension(
+  family: FrameworkCapabilityDescriptor['family'],
+): string {
+  return family === 'astro' ? '.astro' : '.svelte';
+}
+
+function getFrameworkPackageRoot(options: {
+  fallback: string;
+  packageRoots: readonly string[];
+}): string {
+  return options.packageRoots[0] ?? options.fallback;
 }
 
 function createFrameworkCapabilities(options: {
   activatedRegions: WorkspaceRegionPathIndex;
   fileNames: readonly string[];
   packageRootDir: string;
-  preset: SourceProject['context']['checkerPresets'][number];
+  checkerName: SourceProject['checkerName'];
   sourceConfigPath: string;
 }): FrameworkCapabilityDescriptor[] {
-  if (!isBuildCapablePreset(options.preset)) return [];
-  const partition = partitionSourceFiles(options.fileNames);
-  const capabilities = [
-    ['astro', partition.astroFiles],
-    ['svelte', partition.svelteFiles],
-  ] as const;
-  return capabilities.flatMap(([family, fileNames]) => {
-    if (fileNames.length === 0) return [];
-    const packageRoots = uniqueSortedStrings(
-      fileNames.map((fileName) =>
-        getFrameworkFilePackageRoot({
-          activatedRegions: options.activatedRegions,
-          fallbackPackageRootDir: options.packageRootDir,
-          fileName,
-        }),
-      ),
+  const family = getFrameworkFamily(options.checkerName);
+  if (family === null) return [];
+  const extension = getFrameworkExtension(family);
+  const frameworkFiles = options.fileNames.filter((fileName) =>
+    fileName.endsWith(extension),
+  );
+  const packageRoots = uniqueSortedStrings(
+    frameworkFiles.map((fileName) =>
+      getFrameworkFilePackageRoot({
+        activatedRegions: options.activatedRegions,
+        fallbackPackageRootDir: options.packageRootDir,
+        fileName,
+      }),
+    ),
+  );
+  if (packageRoots.length > 1) {
+    throw new Error(
+      `Framework checker ownership spans multiple leaf package roots for ${family} at ${options.sourceConfigPath}.`,
     );
-    if (packageRoots.length !== 1) {
-      throw new Error(
-        `Framework capability spans multiple leaf package roots for ${family} at ${options.sourceConfigPath}.`,
-      );
-    }
-    return [
-      {
-        family,
-        packageRootDir: packageRoots[0]!,
-        sourceConfigPath: options.sourceConfigPath,
-      },
-    ];
+  }
+  return [
+    {
+      family,
+      packageRootDir: getFrameworkPackageRoot({
+        fallback: options.packageRootDir,
+        packageRoots,
+      }),
+      sourceConfigPath: options.sourceConfigPath,
+    },
+  ];
+}
+
+function createGovernedAstroSemanticProject(options: {
+  capability: FrameworkCapabilityDescriptor | undefined;
+  parsed: ReturnType<typeof parseCheckerProjectConfigForContext>;
+  project: SourceProject;
+  projectConfigCache: CheckerProjectConfigCache | undefined;
+}): GovernedSourceUnit['astroSemanticProject'] {
+  if (options.capability === undefined) return undefined;
+  const analysisGeneration =
+    options.projectConfigCache === undefined
+      ? 0
+      : options.projectConfigCache.generation;
+  return createAstroSemanticProject({
+    analysisGeneration,
+    configPath: options.project.configPath,
+    packageRootDir: options.capability.packageRootDir,
+    projectFingerprint: options.project.configPath,
+    readSnapshot: () => ({
+      checkerExtensions: options.parsed.extensions,
+      compilerOptions: options.project.options,
+      configClosure: options.parsed.configClosure,
+      fileNames: options.parsed.fileNames,
+      projectReferences: [...options.project.references],
+    }),
   });
 }
 
@@ -129,12 +194,22 @@ export function createGovernedSourceUnit(options: {
     activatedRegions: options.activatedRegions,
     fileNames: ownedFileNames,
     packageRootDir: options.project.packageRootDir,
-    preset: options.project.context.checkerPresets[0]!,
+    checkerName: options.project.checkerName,
     sourceConfigPath: options.project.configPath,
   });
   const declarationFileNames = createDeclarationFileNames(options.project);
+  const astroCapability = frameworkCapabilities.find(
+    (capability) => capability.family === 'astro',
+  );
+  const astroSemanticProject = createGovernedAstroSemanticProject({
+    capability: astroCapability,
+    parsed,
+    project: options.project,
+    projectConfigCache: options.projectConfigCache,
+  });
 
   return {
+    astroSemanticProject,
     buildProjection: createBuildProjection({
       config: options.config,
       declarationFileNames,

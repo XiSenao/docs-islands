@@ -16,8 +16,11 @@ export type FrameworkIntentHintKind =
   | 'astro-plugin'
   | 'astro-preset'
   | 'astro-types'
+  | 'astro-selector'
+  | 'svelte-selector'
   | 'svelte-kit-extends'
-  | 'vue-compiler-options';
+  | 'vue-compiler-options'
+  | 'vue-selector';
 
 export interface FrameworkIntentHint {
   configPath: string;

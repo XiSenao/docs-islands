@@ -225,6 +225,7 @@ export function cloneProjectInfo(project: ProjectInfo): ProjectInfo {
   return {
     ...project,
     checkerPresets: [...project.checkerPresets],
+    configClosure: project.configClosure.map((entry) => ({ ...entry })),
     extensions: [...project.extensions],
     fileNames: [...project.fileNames],
     labels: [...project.labels],

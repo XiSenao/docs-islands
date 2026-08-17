@@ -7,6 +7,7 @@ import type {
 import path from 'node:path';
 import type ts from 'typescript';
 import { createVueOverlaySystem } from '../../checker/vue-semantic-identity';
+import { createUnsupportedVueToolchainCompatibilityError } from '../../checker/vue-semantic-toolchain';
 import {
   createMeasuredProgram,
   getCachedSemanticSourceFile,
@@ -145,7 +146,10 @@ export class VueSemanticContext {
     onProgramCreated?: ProgramCreationObserver,
   ) {
     if (identity.toolchain.adapter.kind === 'unsupported') {
-      throw new Error(identity.toolchain.adapter.reason);
+      throw createUnsupportedVueToolchainCompatibilityError({
+        checkerExecutionRootDir: identity.projectRootDir,
+        tuple: identity.toolchain.versions,
+      });
     }
     this.identity = identity;
     this.#onProgramCreated = onProgramCreated;

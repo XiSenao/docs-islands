@@ -5,6 +5,7 @@ import type {
 import type { ImportRecord } from '#core/import-analysis/runner';
 import { normalizeAbsolutePath } from '#utils/path';
 import type ts from 'typescript';
+import type { FrameworkSemanticFailureStage } from '../framework-semantic/contracts';
 import type { VueSemanticContextManager } from './context';
 import {
   collectSemanticDependencyEvidence,
@@ -21,11 +22,13 @@ export type VueSemanticResolution =
   | {
       evidence: SemanticDependencyEvidence;
       kind: 'resolved';
+      resolutionMode: string;
       resolution: ResolvedCheckerModuleName | null;
     }
   | {
       kind: 'unsupported';
       reason: string;
+      stage: FrameworkSemanticFailureStage;
     };
 
 interface TypeScriptModeApi {
@@ -107,6 +110,7 @@ function selectCanonicalCandidate(
     return {
       kind: 'unsupported',
       reason: 'Vue semantic dependency did not resolve to a module target.',
+      stage: 'source-map-mismatch',
     };
   }
   const identity = canonicalCandidate(first);
@@ -117,11 +121,13 @@ function selectCanonicalCandidate(
       kind: 'unsupported',
       reason:
         'Vue source-map candidates did not agree on semantic specifier, resolution mode, and normalized target.',
+      stage: 'source-map-mismatch',
     };
   }
   return {
     evidence: first.evidence,
     kind: 'resolved',
+    resolutionMode: first.mode,
     resolution: first.resolution,
   };
 }
@@ -138,6 +144,7 @@ export function resolveVueSemanticImport(options: {
     return {
       kind: 'unsupported',
       reason: formatResolutionError(error),
+      stage: 'context-creation',
     };
   }
 }
@@ -181,7 +188,12 @@ function resolveWithContext(options: {
     context: options.context,
     importRecord: options.importRecord,
   });
-  if (dependency.kind === 'unsupported') return dependency;
+  if (dependency.kind === 'unsupported') {
+    return {
+      ...dependency,
+      stage: 'source-map-mismatch',
+    };
+  }
   const resolvedByLiteral = options.context.resolveModuleNameLiterals(
     dependency.candidates.map((candidate) => candidate.literal),
   );

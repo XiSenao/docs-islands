@@ -94,6 +94,45 @@ function addCompilerOptionsHints(options: {
   addAstroPluginHints({ ...options, plugins: compilerOptions.plugins });
 }
 
+function getSelectorValues(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+}
+
+function getSelectorFamily(selector: string): {
+  family: 'astro' | 'svelte' | 'vue';
+  kind: FrameworkIntentHint['kind'];
+} | null {
+  const identities = [
+    { family: 'astro', kind: 'astro-selector', marker: '.astro' },
+    { family: 'svelte', kind: 'svelte-selector', marker: '.svelte' },
+    { family: 'vue', kind: 'vue-selector', marker: '.vue' },
+  ] as const;
+  return identities.find(({ marker }) => selector.includes(marker)) ?? null;
+}
+
+function addSelectorHints(options: {
+  configObject: Record<string, unknown>;
+  configPath: string;
+  hints: FrameworkIntentHint[];
+}): void {
+  const selectors = [
+    ...getSelectorValues(options.configObject.files),
+    ...getSelectorValues(options.configObject.include),
+  ];
+  for (const selector of selectors) {
+    const identity = getSelectorFamily(selector);
+    if (identity === null) continue;
+    options.hints.push({
+      configPath: options.configPath,
+      family: identity.family,
+      kind: identity.kind,
+      value: selector,
+    });
+  }
+}
+
 function collectOwnFrameworkIntentHints(options: {
   configObject: Record<string, unknown>;
   configPath: string;
@@ -108,6 +147,7 @@ function collectOwnFrameworkIntentHints(options: {
     });
   }
   addCompilerOptionsHints({ ...options, hints });
+  addSelectorHints({ ...options, hints });
   for (const extendsValue of getExtendsValues(options.configObject.extends)) {
     addExtendsHint({
       configPath: options.configPath,

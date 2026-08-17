@@ -1,11 +1,16 @@
 import type { ResolvedCheckerConfig } from '#config/runner';
 import { compareCodeUnits } from '#utils/collections';
 import { toPosixPath, toRelativePath } from '#utils/path';
+import type { CheckerOwnershipPlan } from './checker-ownership-types';
 import { compareDependencyEdges } from './dependency-edge-order';
 import type {
   GeneratedKnipPackageConfig,
   GeneratedKnipPackageDiagnostic,
 } from './generated-knip';
+import {
+  createExecutionTargets,
+  createOwnershipManifest,
+} from './manifest-ownership';
 import { generatedGraphManifestVersion } from './manifest-version';
 import type {
   GeneratedBuildModule,
@@ -261,15 +266,17 @@ export function createManifest(options: {
   generatedKnipPackageConfigs: GeneratedKnipPackageConfig[];
   governedSourcesByChecker: Map<string, GovernedSourceUnit[]>;
   ownedArtifacts: string[];
+  ownershipPlan?: CheckerOwnershipPlan;
   projectsByChecker: Map<string, SourceProject[]>;
   dependencyEdges: GeneratedDependencyEdge[];
   rootDir: string;
   sourceToBuildByChecker: Map<string, Map<string, GeneratedBuildModule>>;
 }): GeneratedTsconfigGraphManifest {
+  const checkers = createManifestCheckers(options);
   return {
     version: generatedGraphManifestVersion,
     generatedBy: 'limina',
-    checkers: createManifestCheckers(options),
+    checkers,
     knip: {
       diagnostics: [...options.generatedKnipDiagnostics].sort(
         compareKnipDiagnostics,
@@ -279,6 +286,12 @@ export function createManifest(options: {
         .sort(compareKnipPackageConfigs),
     },
     ownedArtifacts: [...options.ownedArtifacts].sort(compareCodeUnits),
+    ownership: createOwnershipManifest(options),
+    targets: createExecutionTargets({
+      checkers,
+      governedSourcesByChecker: options.governedSourcesByChecker,
+      rootDir: options.rootDir,
+    }),
     dependencyEdges: [...options.dependencyEdges]
       .sort(compareDependencyEdges)
       .map((edge) => createDependencyEdgeManifest(edge, options.rootDir)),

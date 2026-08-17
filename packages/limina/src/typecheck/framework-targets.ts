@@ -1,9 +1,7 @@
 import type { CheckerDependencyRequirement } from '#checkers';
-import {
-  type CheckerConfigMode,
-  type FrameworkCheckerName,
-  isAutoCheckerConfigMode,
-  type ResolvedLiminaConfig,
+import type {
+  FrameworkCheckerName,
+  ResolvedLiminaConfig,
 } from '#config/runner';
 import type {
   FrameworkCapabilityDescriptor,
@@ -15,7 +13,6 @@ import {
   normalizeSlashes,
   toRelativePath,
 } from '#utils/path';
-import { matchesCheckerScope } from '../core/checkers/entry-selection';
 import { createCheckerTargetId, type TypecheckTarget } from './target-types';
 
 type FrameworkFamily = FrameworkCapabilityDescriptor['family'];
@@ -24,12 +21,12 @@ const frameworkRequirements = {
   astro: [
     { category: 'checker-binary', packageName: 'astro' },
     { category: 'checker-binary', packageName: '@astrojs/check' },
-    { category: 'checker-runtime-peer', packageName: 'typescript' },
+    { category: 'checker-runtime', packageName: 'typescript' },
   ],
   svelte: [
-    { category: 'checker-binary', packageName: 'svelte-check' },
-    { category: 'checker-runtime-peer', packageName: 'svelte' },
-    { category: 'checker-runtime-peer', packageName: 'typescript' },
+    { category: 'external-checker', packageName: 'svelte-check' },
+    { category: 'checker-runtime', packageName: 'svelte' },
+    { category: 'checker-runtime', packageName: 'typescript' },
   ],
 } as const satisfies Record<
   FrameworkFamily,
@@ -116,50 +113,6 @@ export function collectFrameworkCapabilityDescriptors(
   return [...descriptorsByKey.values()].sort(compareDescriptors);
 }
 
-export function collectFrameworkSupplementalCapabilityDescriptors(
-  generatedGraph: GeneratedTsconfigGraphResult,
-): FrameworkCapabilityDescriptor[] {
-  return collectFrameworkCapabilityDescriptors(generatedGraph);
-}
-
-function getConfiguredCheckers(
-  config: ResolvedLiminaConfig | undefined,
-): CheckerConfigMode | undefined {
-  if (config === undefined) return undefined;
-  if (config.config === undefined) return undefined;
-  return config.config.checkers;
-}
-
-function matchesExplicitFrameworkScope(options: {
-  checkers: CheckerConfigMode;
-  config: ResolvedLiminaConfig;
-  descriptor: FrameworkCapabilityDescriptor;
-}): boolean {
-  if (isAutoCheckerConfigMode(options.checkers)) return true;
-  const checkerName = frameworkCheckerName(options.descriptor.family);
-  const scope = options.checkers[checkerName];
-  if (scope === undefined) return true;
-  return matchesCheckerScope({
-    config: options.config,
-    configPath: options.descriptor.sourceConfigPath,
-    scope,
-  });
-}
-
-function isDescriptorEnabled(options: {
-  config: ResolvedLiminaConfig | undefined;
-  descriptor: FrameworkCapabilityDescriptor;
-}): boolean {
-  const checkers = getConfiguredCheckers(options.config);
-  if (checkers === undefined) return true;
-  if (options.config === undefined) return true;
-  return matchesExplicitFrameworkScope({
-    checkers,
-    config: options.config,
-    descriptor: options.descriptor,
-  });
-}
-
 function createFrameworkCommandTarget(
   descriptor: FrameworkCapabilityDescriptor,
 ): Pick<TypecheckTarget, 'args' | 'command' | 'label'> {
@@ -237,16 +190,11 @@ export function createFrameworkCheckerTargets(options: {
   generatedGraph: GeneratedTsconfigGraphResult;
   workspaceRootDir: string;
 }): TypecheckTarget[] {
-  return collectFrameworkSupplementalCapabilityDescriptors(
-    options.generatedGraph,
-  )
-    .filter((descriptor) =>
-      isDescriptorEnabled({ config: options.config, descriptor }),
-    )
-    .map((descriptor) =>
+  return collectFrameworkCapabilityDescriptors(options.generatedGraph).map(
+    (descriptor) =>
       createFrameworkCheckerTarget({
         descriptor,
         workspaceRootDir: options.workspaceRootDir,
       }),
-    );
+  );
 }

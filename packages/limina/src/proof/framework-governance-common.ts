@@ -81,6 +81,15 @@ export function isPrimaryBuildEntry(entry: GovernedSourceEntry): boolean {
 export function getExpectedBuildProjectionKind(
   entry: GovernedSourceEntry,
 ): GovernedSourceEntry['unit']['buildProjection']['kind'] {
+  if (!isBuildCapablePreset(entry.unit.primaryCheckerName)) {
+    return 'framework-checker';
+  }
+  return getExpectedBuildCapableProjectionKind(entry);
+}
+
+function getExpectedBuildCapableProjectionKind(
+  entry: GovernedSourceEntry,
+): GovernedSourceEntry['unit']['buildProjection']['kind'] {
   if (entry.unit.frameworkCapabilities.length === 0) {
     return 'declaration-project';
   }

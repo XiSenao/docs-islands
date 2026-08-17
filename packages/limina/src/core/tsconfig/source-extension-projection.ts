@@ -147,17 +147,10 @@ function projectRouteExtensions(options: {
 }
 
 function projectGovernedSourceExtensions(options: {
-  config: ResolvedLiminaConfig;
   generatedGraph: GeneratedTsconfigGraphResult;
-  routes: CollectCheckerGraphProjectRoutesResult['routes'];
   state: SourceExtensionState;
 }): void {
-  const routedCheckerNames = new Set(
-    options.routes.map((route) => route.checkerName),
-  );
-  for (const [checkerName, governedSources] of options.generatedGraph
-    .governedSources) {
-    if (!routedCheckerNames.has(checkerName)) continue;
+  for (const governedSources of options.generatedGraph.governedSources.values()) {
     projectGovernedUnits({
       governedSources,
       state: options.state,
@@ -166,9 +159,31 @@ function projectGovernedSourceExtensions(options: {
 }
 
 function getGovernedProjectPath(unit: GovernedSourceUnit): string {
+  if (unit.buildProjection.kind === 'framework-checker') {
+    return unit.configPath;
+  }
   return 'buildConfigPath' in unit.buildProjection
     ? unit.buildProjection.buildConfigPath
     : unit.buildProjection.dtsConfigPath;
+}
+
+function getGovernedParserContext(unit: GovernedSourceUnit): {
+  checkerPreset: CheckerProjectParseContext['checkerPresets'][number];
+  incomingContext: CheckerProjectParseContext;
+} {
+  if (unit.buildProjection.kind === 'framework-checker') {
+    return {
+      checkerPreset: 'tsc',
+      incomingContext: {
+        checkerPresets: ['tsc'],
+        extensions: unit.context.extensions,
+      },
+    };
+  }
+  return {
+    checkerPreset: unit.primaryCheckerName,
+    incomingContext: unit.context,
+  };
 }
 
 function projectGovernedUnits(options: {
@@ -176,13 +191,14 @@ function projectGovernedUnits(options: {
   state: SourceExtensionState;
 }): void {
   for (const unit of options.governedSources.values()) {
+    const parserContext = getGovernedParserContext(unit);
     const extensions = normalizeExtensions([
       ...capabilityDiscoveryExtensions,
       ...unit.context.extensions,
     ]);
     mergeProjectContext({
-      checkerPreset: unit.primaryCheckerName,
-      incomingContext: unit.context,
+      checkerPreset: parserContext.checkerPreset,
+      incomingContext: parserContext.incomingContext,
       projectPath: getGovernedProjectPath(unit),
       routeExtensions: extensions,
       state: options.state,
@@ -207,9 +223,7 @@ export function projectSourceGraphProjectExtensions(
   };
   if (hasGovernedSources(generatedGraph)) {
     projectGovernedSourceExtensions({
-      config,
       generatedGraph,
-      routes: routeCollection.routes,
       state,
     });
   } else {

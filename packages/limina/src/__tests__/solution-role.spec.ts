@@ -59,14 +59,16 @@ describe('tsconfig solution roles', () => {
 
   it('identifies ordinary named solutions for migration diagnostics', () => {
     expect(
-      isUnsupportedNamedSolutionConfig(
-        input({ configPath: '/workspace/tsconfig.solution.json' }),
-      ),
+      isUnsupportedNamedSolutionConfig({
+        ...input({ configPath: '/workspace/tsconfig.solution.json' }),
+        rootDir: '/workspace',
+      }),
     ).toBe(true);
     expect(
-      isUnsupportedNamedSolutionConfig(
-        input({ configPath: '/workspace/tsconfig.build.json' }),
-      ),
+      isUnsupportedNamedSolutionConfig({
+        ...input({ configPath: '/workspace/tsconfig.build.json' }),
+        rootDir: '/workspace',
+      }),
     ).toBe(false);
   });
 });

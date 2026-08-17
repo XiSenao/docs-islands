@@ -316,11 +316,19 @@ function createManualGeneratedGraph(
         packages: [],
       },
       ownedArtifacts: [],
+      ownership: { configs: [], solutions: [] },
+      targets: { build: [], framework: [] },
       dependencyEdges: [],
-      version: 4,
+      version: 5,
     },
     manifestPath: path.join(rootDir, '.limina/manifest.json'),
     outputDeclarationCopies: new Map(),
+    ownershipPlan: {
+      dependencyFacts: [],
+      entryOwnerByConfigPath: new Map(),
+      solutions: new Map(),
+      typeConfigs: new Map(),
+    },
     dependencyEdges: [],
     sourceToBuild: new Map(),
     sourceToDts: new Map(),
@@ -3309,7 +3317,7 @@ describe('runGraphCheck graph rules', () => {
 
     try {
       await expect(runGraphCheck(fixture.config)).rejects.toThrow(
-        /Ambiguous inherited checker ownership[\s\S]*first checker: tsc[\s\S]*conflicting checker: vue-tsc/u,
+        /Checker ownership conflict[\s\S]*checker: tsc[\s\S]*checker: vue-tsc/u,
       );
     } finally {
       await fixture.cleanup();

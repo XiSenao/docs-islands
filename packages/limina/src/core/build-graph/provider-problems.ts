@@ -2,11 +2,14 @@ import type { ResolvedLiminaConfig } from '#config/runner';
 import type { collectImportsFromFile } from '#core/import-graph/context';
 import { formatImportRecordLocation } from '#core/import-graph/context';
 import { toRelativePath } from '#utils/path';
+import type { FrameworkSemanticFailure } from '../framework-semantic/contracts';
+import { getFrameworkSemanticFailureIdentity } from '../framework-semantic/contracts';
 import {
   getSourceProjectBuildEngine,
   getSourceProjectPreset,
 } from './project-indexes';
 import { formatProviderCandidateLines } from './provider-selection';
+import type { ReferenceImportContext } from './reference-import-types';
 import type { SourceProject } from './types';
 
 type ImportRecord = ReturnType<typeof collectImportsFromFile>[number];
@@ -110,4 +113,49 @@ export function formatVueSemanticDependencyProblem(options: {
     `  reason: ${options.reason}`,
     '  fix: use a supported Vue checker tuple and ensure the source dependency has one strict Language Core mapping.',
   ].join('\n');
+}
+
+export function formatFrameworkSemanticDependencyProblem(options: {
+  config: ResolvedLiminaConfig;
+  failure: FrameworkSemanticFailure;
+  importRecord: ImportRecord;
+  project: SourceProject;
+}): string {
+  if (options.failure.framework === 'vue') {
+    return formatVueSemanticDependencyProblem({
+      config: options.config,
+      importRecord: options.importRecord,
+      project: options.project,
+      reason: options.failure.reason,
+    });
+  }
+  return [
+    'Unable to resolve Astro semantic dependency:',
+    `  importing config: ${toRelativePath(options.config.rootDir, options.project.configPath)}`,
+    `  file: ${formatImportRecordLocation(options.config.rootDir, options.importRecord)}`,
+    `  source specifier: ${options.importRecord.specifier}`,
+    `  stage: ${options.failure.stage}`,
+    `  semantic scope: ${options.failure.scopeIdentity}`,
+    `  reason: ${options.failure.reason}`,
+    '  fix: use the supported Astro/check semantic tuple and ensure this real source import has one strict source-map candidate.',
+  ].join('\n');
+}
+
+export function addFrameworkSemanticDependencyProblem(options: {
+  context: ReferenceImportContext;
+  failure: FrameworkSemanticFailure;
+  importRecord: ImportRecord;
+  project: SourceProject;
+}): void {
+  const identity = getFrameworkSemanticFailureIdentity(options.failure);
+  if (options.context.semanticProblemIdentities.has(identity)) return;
+  options.context.semanticProblemIdentities.add(identity);
+  options.context.problems.push(
+    formatFrameworkSemanticDependencyProblem({
+      config: options.context.config,
+      failure: options.failure,
+      importRecord: options.importRecord,
+      project: options.project,
+    }),
+  );
 }

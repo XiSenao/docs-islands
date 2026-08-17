@@ -1,6 +1,7 @@
 import type { ResolvedLiminaConfig } from '#config/runner';
 import type { ImportAnalysisContext } from '#core/import-graph/context';
 import { compareCodeUnits } from '#utils/collections';
+import { getLiminaDependencyIssueIdentity } from '../../dependency-contract';
 import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
 import { getAutoScopeFilePackageRoot } from './auto-checker-file-roots';
 import { getFrameworkFilePackageRoot } from './framework-file-root';
@@ -93,6 +94,25 @@ function formatThrownError(error: unknown): string {
   return String(error);
 }
 
+function getPrewarmProblemEntry(
+  result: PromiseSettledResult<void>,
+  index: number,
+): readonly [string, string][] {
+  if (result.status !== 'rejected') return [];
+  const identity =
+    getLiminaDependencyIssueIdentity(result.reason) ?? `request:${index}`;
+  return [[identity, formatThrownError(result.reason)]];
+}
+
+function collectPrewarmProblems(
+  results: readonly PromiseSettledResult<void>[],
+): string[] {
+  const problemsByIdentity = new Map(
+    results.flatMap((result, index) => getPrewarmProblemEntry(result, index)),
+  );
+  return [...problemsByIdentity.values()];
+}
+
 async function prewarmFrameworkImports(options: {
   config: ResolvedLiminaConfig;
   importAnalysis: ImportAnalysisContext;
@@ -105,9 +125,7 @@ async function prewarmFrameworkImports(options: {
       prewarmImportsFromFile(request.filePath, request.packageRootDir),
     ),
   );
-  const problems = results.flatMap((result) =>
-    result.status === 'rejected' ? [formatThrownError(result.reason)] : [],
-  );
+  const problems = collectPrewarmProblems(results);
   if (problems.length > 0) {
     throw createGeneratedGraphStructuredError({
       config: options.config,

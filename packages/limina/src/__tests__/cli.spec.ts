@@ -209,7 +209,7 @@ async function createCliBuildFixture(): Promise<CliBuildFixture> {
     path.join(rootDir, 'node_modules/vue-tsc/package.json'),
     stringifyConfig({
       name: 'vue-tsc',
-      version: '0.0.0-test',
+      version: '3.2.4',
     }),
   );
   await writeText(
@@ -2097,7 +2097,7 @@ export default {
       const output = stripAnsi(
         `${failure?.stdout ?? ''}\n${failure?.stderr ?? ''}`,
       );
-      expect(output).toContain('Missing peer dependency "knip"');
+      expect(output).toContain('Missing Limina runtime dependency:');
       expect(output).toContain('pnpm add -D knip');
       expect(output).not.toContain('skipping check');
       expect(output).not.toContain('Checked ');
@@ -2120,7 +2120,9 @@ export default {
         expect.arrayContaining([
           expect.objectContaining({
             code: 'LIMINA_SOURCE_CHECK_FAILED',
-            reason: expect.stringContaining('Missing peer dependency "knip"'),
+            reason: expect.stringContaining(
+              'Missing Limina runtime dependency:',
+            ),
             task: 'source:check',
           }),
         ]),
@@ -2159,7 +2161,9 @@ export default {
         expect.arrayContaining([
           expect.objectContaining({
             code: 'LIMINA_SOURCE_CHECK_FAILED',
-            reason: expect.stringContaining('Missing peer dependency "knip"'),
+            reason: expect.stringContaining(
+              'Missing Limina runtime dependency:',
+            ),
             task: 'source:check',
           }),
         ]),
@@ -2361,10 +2365,10 @@ export default {
         ]);
 
         expect(JSON.parse(explicitQuery.stdout)).toMatchObject({
-          issueCount: 3,
+          issueCount: 2,
         });
         expect(JSON.parse(defaultNestedQuery.stdout)).toMatchObject({
-          issueCount: 3,
+          issueCount: 2,
         });
       }
 
@@ -2428,17 +2432,16 @@ export default {
       ]);
 
       expect(JSON.parse(missingConfigQuery.stdout)).toMatchObject({
-        issueCount: 3,
+        issueCount: 2,
       });
 
       const plainResult = stripAnsi(result.stdout);
 
       expect(plainResult).toContain('Limina check issue summary');
-      expect(plainResult).toContain('Matched: 3 / 3 issues');
+      expect(plainResult).toContain('Matched: 2 / 2 issues');
       expect(plainResult).toContain('Command: limina check');
       expect(plainResult).toContain('Issue overview:');
       expect(plainResult).toContain('source:check (1)');
-      expect(plainResult).toContain('checker:build (1)');
       expect(plainResult).toContain('proof:check (1)');
       expect(plainResult).toContain('Packages: @example/app (1)');
       expect(plainResult).toContain('1  LIMINA_SOURCE_UNUSED_MODULE');
@@ -2452,7 +2455,7 @@ export default {
 
       const plainDetailsResult = stripAnsi(detailsResult.stdout);
 
-      expect(plainDetailsResult).toContain('Showing 3 of 3 issues');
+      expect(plainDetailsResult).toContain('Showing 2 of 2 issues');
       expect(plainDetailsResult).toContain('Unused source module');
       expect(plainDetailsResult).toContain('fix steps:');
 
@@ -2464,9 +2467,9 @@ export default {
       };
 
       expect(jsonPayload).toMatchObject({
-        issueCount: 3,
+        issueCount: 2,
         overview: {
-          issueCount: 3,
+          issueCount: 2,
         },
       });
       expect(jsonPayload.issues).toEqual(
@@ -2478,10 +2481,6 @@ export default {
           expect.objectContaining({
             code: 'LIMINA_PROOF_DEFAULT_TSCONFIG_INVALID',
             task: 'proof:check',
-          }),
-          expect.objectContaining({
-            code: 'LIMINA_CHECKER_PEER_DEPENDENCY_MISSING',
-            task: 'checker:build',
           }),
         ]),
       );
@@ -2519,7 +2518,7 @@ export default {
       expect(plainRuleFilteredResult).toContain(
         'rule: LIMINA_SOURCE_UNUSED_MODULE',
       );
-      expect(plainRuleFilteredResult).toContain('Matched: 1 / 3 issues');
+      expect(plainRuleFilteredResult).toContain('Matched: 1 / 2 issues');
       expect(plainRuleFilteredResult).toContain(
         '1  LIMINA_SOURCE_UNUSED_MODULE',
       );
@@ -2530,13 +2529,13 @@ export default {
 
       expect(plainPackageFilteredResult).toContain('Filters:');
       expect(plainPackageFilteredResult).toContain('package: @example/app');
-      expect(plainPackageFilteredResult).toContain('Matched: 2 / 3 issues');
+      expect(plainPackageFilteredResult).toContain('Matched: 2 / 2 issues');
 
       const plainUnmatchedRuleOutput = stripAnsi(unmatchedRuleResult.stdout);
       const normalizedUnmatchedRuleOutput = plainUnmatchedRuleOutput
         .replaceAll(/\s*│\s*/gu, ' ')
         .replaceAll(/\s+/gu, ' ');
-      expect(plainUnmatchedRuleOutput).toContain('Matched: 0 / 3 issues');
+      expect(plainUnmatchedRuleOutput).toContain('Matched: 0 / 2 issues');
       expect(plainUnmatchedRuleOutput).toContain(
         'rule: LIMINA_GRAPH_CHECK_FAILED',
       );
@@ -4046,7 +4045,7 @@ export default {
       expect(stdout).not.toContain('[start]');
       expect(
         await readFile(path.join(rootDir, 'limina.config.mts'), 'utf8'),
-      ).toContain("mode: 'auto'");
+      ).toContain('auto: {');
       expect(
         await readFile(path.join(rootDir, 'limina.config.mts'), 'utf8'),
       ).toContain('exclude: []');

@@ -3,10 +3,8 @@ import type {
   ImportRecord,
 } from '#core/import-analysis/runner';
 import type { ProjectInfo } from '#core/import-graph/context';
-import {
-  classifyImportRuntimeEvidence,
-  type ImportRuntimeResolutionEvidence,
-} from '../import-analysis/evidence';
+import type { FrameworkSemanticFailure } from '../framework-semantic/contracts';
+import type { ImportRuntimeResolutionEvidence } from '../import-analysis/evidence';
 import { isDeclarationFile } from '../import-graph/declaration-classifier';
 import type { ManagedOutputDeclarationLookup } from '../import-graph/managed-output-provider';
 import type { TypeEvidence } from './cache';
@@ -19,6 +17,7 @@ export interface ResolveImportEvidenceOptions {
   project: Pick<
     ProjectInfo,
     | 'checkerPresets'
+    | 'astroSemanticProject'
     | 'configPath'
     | 'extensions'
     | 'fileNames'
@@ -30,7 +29,7 @@ export interface ResolveImportEvidenceOptions {
 
 export interface ResolvedImportPair {
   runtimeEvidence: ImportRuntimeResolutionEvidence;
-  semanticFailure?: string;
+  semanticFailure?: FrameworkSemanticFailure;
   typeScriptResolution: ReturnType<
     ImportAnalysisContext['resolveTypeScriptImport']
   >;
@@ -40,7 +39,7 @@ export function resolveImportPair(options: {
   importAnalysis: ImportAnalysisContext;
   request: ResolveImportEvidenceOptions;
 }): ResolvedImportPair {
-  const pair = options.importAnalysis.resolveModulePairForImport(
+  const evidence = options.importAnalysis.resolveImportEvidence(
     options.request.importRecord,
     options.request.importRecord.filePath,
     options.request.project.options,
@@ -48,16 +47,9 @@ export function resolveImportPair(options: {
   );
 
   return {
-    runtimeEvidence: classifyImportRuntimeEvidence({
-      compilerOptions: options.request.project.options,
-      containingFile: options.request.importRecord.filePath,
-      extensions: options.request.project.extensions,
-      oxcResolvedFilePath: pair.oxc,
-      specifier: options.request.importRecord.specifier,
-      typeScriptResolution: pair.typescript,
-    }),
-    semanticFailure: pair.semanticFailure,
-    typeScriptResolution: pair.typescript,
+    runtimeEvidence: evidence.runtimeEvidence,
+    semanticFailure: evidence.semanticFailure,
+    typeScriptResolution: evidence.typeScriptResolution,
   };
 }
 

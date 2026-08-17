@@ -79,10 +79,13 @@ async function readMigrationTarget(options: {
   };
 }
 
-function isEligibleReferencePath(referencePath: string): boolean {
+function isEligibleReferencePath(
+  referencePath: string,
+  rootDir: string,
+): boolean {
   return (
     existsSync(referencePath) &&
-    isOrdinarySourceTypecheckConfigPath(referencePath)
+    isOrdinarySourceTypecheckConfigPath(referencePath, rootDir)
   );
 }
 
@@ -92,7 +95,7 @@ function validateReferencePath(options: {
   referencePath: string;
   sourceConfigPath: string;
 }): string | null {
-  if (!isEligibleReferencePath(options.referencePath)) {
+  if (!isEligibleReferencePath(options.referencePath, options.config.rootDir)) {
     return null;
   }
   if (!options.pathIndex.isSourceConfigPath(options.referencePath)) {
@@ -217,6 +220,7 @@ async function expandSolutionTarget(options: {
 }
 
 function recordUnsupportedNamedSolution(
+  rootDir: string,
   state: TargetCollectionState,
   target: MigrationTarget,
 ): void {
@@ -225,6 +229,7 @@ function recordUnsupportedNamedSolution(
       configObject: target.configObject,
       configPath: target.configPath,
       fileNames: target.effectiveConfig.fileNames,
+      rootDir,
     })
   ) {
     state.unsupportedNamedSolutionPaths.add(target.configPath);
@@ -242,7 +247,11 @@ async function collectTargetClosure(options: {
       configPath: entry.configPath,
       state: options.state,
     });
-    recordUnsupportedNamedSolution(options.state, target);
+    recordUnsupportedNamedSolution(
+      options.config.rootDir,
+      options.state,
+      target,
+    );
     await expandSolutionTarget({
       config: options.config,
       entry,

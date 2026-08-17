@@ -80,8 +80,8 @@ function formatDuplicateOwnershipProblem(options: {
     'Duplicate Limina checker ownership:',
     `  source config: ${toRelativePath(options.rootDir, options.ownership.sourceConfigPath)}`,
     `  primary owners: ${owners.join(', ')}`,
-    '  reason: each source tsconfig must have exactly one primary build owner after solution references are expanded; supplemental Astro and Svelte capabilities remain attached to that owner.',
-    '  fix: narrow config.checkers.<checker>.include or config.checkers.<checker>.exclude so only one primary checker owns this tsconfig.',
+    '  reason: each source tsconfig must have exactly one checker owner after solution references are expanded.',
+    '  fix: narrow config.checkers.<checker>.include or config.checkers.<checker>.exclude so only one checker owns this tsconfig.',
   ].join('\n');
 }
 

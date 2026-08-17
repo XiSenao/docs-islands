@@ -5,7 +5,7 @@ import type {
   LiminaConfig,
   ResolvedCheckerConfig,
 } from '#config/runner';
-import { isAutoCheckerConfigMode } from '#config/runner';
+import { getNamedCheckerConfigs } from '#config/runner';
 import { normalizeAbsolutePath } from '#utils/path';
 import path from 'pathe';
 import {
@@ -104,19 +104,13 @@ function getConfiguredCheckerMode(
   return shared === undefined ? undefined : shared.checkers;
 }
 
-function getExplicitCheckerMapFromMode(
-  checkers: CheckerConfigMode,
-): Partial<Record<string, CheckerConfig>> | undefined {
-  if (isAutoCheckerConfigMode(checkers)) return undefined;
-  return checkers;
-}
-
 function getExplicitCheckerMap(
   config: LiminaConfig,
 ): Partial<Record<string, CheckerConfig>> | undefined {
   const checkers = getConfiguredCheckerMode(config);
   if (checkers === undefined) return undefined;
-  return getExplicitCheckerMapFromMode(checkers);
+  const named = getNamedCheckerConfigs(checkers);
+  return Object.keys(named).length === 0 ? undefined : named;
 }
 
 function trimPatterns(patterns: readonly string[] | undefined): string[] {

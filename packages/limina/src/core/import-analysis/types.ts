@@ -1,19 +1,35 @@
 import type {
+  AstroSemanticProject,
   CheckerProjectParseContext,
   ResolvedCheckerModuleName,
   VueSourceProfile,
 } from '#checkers';
 import type { ResolverFactory } from 'oxc-resolver';
 import type ts from 'typescript';
+import type { AstroSemanticContextManager } from '../astro-semantic/context';
+import type {
+  FrameworkSemanticEvidence,
+  FrameworkSemanticFailure,
+} from '../framework-semantic/contracts';
 import type { VueSemanticContextManager } from '../vue-semantic/context';
-import type { SemanticDependencyEvidence } from '../vue-semantic/dependency';
+import type { ImportRuntimeResolutionEvidence } from './evidence';
 import type { ImportRecord } from './records';
+import type { SemanticEligibility } from './semantic-eligibility';
 
 export interface ModuleResolutionPair {
   oxc: string | null;
-  semanticEvidence?: SemanticDependencyEvidence;
-  semanticFailure?: string;
+  semanticEvidence?: FrameworkSemanticEvidence;
+  semanticFailure?: FrameworkSemanticFailure;
   typescript: ResolvedCheckerModuleName | null;
+}
+
+export interface CanonicalImportResolutionEvidence {
+  eligibility: SemanticEligibility;
+  oxcResolvedFilePath: string | null;
+  runtimeEvidence: ImportRuntimeResolutionEvidence;
+  semanticEvidence?: FrameworkSemanticEvidence;
+  semanticFailure?: FrameworkSemanticFailure;
+  typeScriptResolution: ResolvedCheckerModuleName | null;
 }
 
 export interface ImportResolveContextFields
@@ -21,6 +37,7 @@ export interface ImportResolveContextFields
     CheckerProjectParseContext,
     'checkerPresets' | 'extensions' | 'vueSemanticIdentity'
   > {
+  astroSemanticProject?: AstroSemanticProject;
   configPath?: string;
   resolverConfigPath?: string;
 }
@@ -62,12 +79,12 @@ export interface ImportAnalysisContext {
     sourceProfile?: VueSourceProfile,
   ) => Promise<void>;
   resolveInternalImport: (...args: ImportResolutionArguments) => string | null;
+  resolveImportEvidence: (
+    ...args: ImportRecordResolutionArguments
+  ) => CanonicalImportResolutionEvidence;
   resolveOxcImport: (...args: ImportResolutionArguments) => string | null;
   resolveModulePair: (
     ...args: ImportResolutionArguments
-  ) => ModuleResolutionPair;
-  resolveModulePairForImport: (
-    ...args: ImportRecordResolutionArguments
   ) => ModuleResolutionPair;
   resolveTypeScriptImport: (
     ...args: ImportResolutionArguments
@@ -75,6 +92,7 @@ export interface ImportAnalysisContext {
 }
 
 export interface CreateImportAnalysisContextOptions {
+  astroSemanticContexts?: AstroSemanticContextManager;
   metrics?: ImportAnalysisMetricsRecorder;
   projectRootDir?: string;
   vueSemanticContexts?: VueSemanticContextManager;
@@ -85,6 +103,14 @@ export interface ImportAnalysisMetricsRecorder {
     readonly count?: number;
     readonly kind?: string;
     readonly name:
+      | 'astro-candidate-count'
+      | 'astro-context-dispose'
+      | 'astro-context-materialize'
+      | 'astro-context-reuse'
+      | 'astro-semantic-cache-hit'
+      | 'astro-semantic-cache-miss'
+      | 'astro-semantic-failure'
+      | 'astro-semantic-host-resolution'
       | 'import-resolution-cache-hit'
       | 'import-resolution-cache-miss'
       | 'internal-import-resolution'
@@ -115,6 +141,7 @@ export interface OxcResolverProfileIdentity {
 }
 
 export type ResolvedImportContext = CheckerProjectParseContext & {
+  astroSemanticProject?: AstroSemanticProject;
   configPath?: string;
   resolverConfigPath?: string;
 };
@@ -133,12 +160,14 @@ export interface NormalizedModuleResolutionRequest {
   containingFile: string;
   context: ResolvedImportContext;
   record: LazyModuleResolutionRecord;
+  resolverIdentity: number;
   specifier: string;
 }
 
 export interface ImportAnalysisCaches {
   importsCache: Map<string, ImportRecord[]>;
   importsPromiseCache: Map<string, Promise<ImportRecord[]>>;
+  canonicalResolutionIndex: Map<string, CanonicalImportResolutionEvidence>;
   moduleResolutionIndex: Map<string, LazyModuleResolutionRecord>;
   moduleResolverIdentityCache: Map<string, number>;
   nextModuleResolverIdentity: number;

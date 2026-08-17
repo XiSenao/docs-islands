@@ -4,6 +4,7 @@ import {
   type ImportRecord,
   type ProjectInfo,
 } from '#core/import-graph/context';
+import { withAstroSemanticProject } from '../core/import-analysis/astro-project';
 import { shouldInferDeclarationReferenceFromImportRecord } from '../core/import-graph/declaration-reference-evidence';
 import { addDeniedDepImportProblem } from './import-access-denied';
 import { resolveImportForReferenceExpectation } from './reference-import-resolution';
@@ -131,23 +132,52 @@ function collectExpectedReferenceForImport(options: {
   });
 }
 
+function createFrameworkFileContext(options: {
+  context: ExpectedReferenceCollectionContext;
+  filePath: string;
+  project: ProjectInfo;
+}): { packageRootDir: string; project: ProjectInfo } {
+  const owner = options.context.workspaceLookup.findOwnerForFile(
+    options.filePath,
+  );
+  if (owner === null) {
+    return {
+      packageRootDir: options.context.config.rootDir,
+      project: options.project,
+    };
+  }
+  return {
+    packageRootDir: owner.directory,
+    project: withAstroSemanticProject({
+      filePath: options.filePath,
+      packageRootDir: owner.directory,
+      project: options.project,
+    }),
+  };
+}
+
 function collectExpectedReferencesForFile(options: {
   context: ExpectedReferenceCollectionContext;
   filePath: string;
   project: ProjectInfo;
 }): void {
+  const { packageRootDir, project } = createFrameworkFileContext(options);
   const imports = collectImportsFromFile(
     options.filePath,
-    options.context.config.rootDir,
+    packageRootDir,
     options.context.importAnalysis,
     resolveVueSourceProfile({
       fileName: options.filePath,
-      identity: options.project.vueSemanticIdentity,
+      identity: project.vueSemanticIdentity,
     }),
   );
 
   for (const importRecord of imports) {
-    collectExpectedReferenceForImport({ ...options, importRecord });
+    collectExpectedReferenceForImport({
+      ...options,
+      importRecord,
+      project,
+    });
   }
 }
 

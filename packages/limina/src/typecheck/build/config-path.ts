@@ -1,5 +1,8 @@
 import type { BuildCheckerPreset, ResolvedCheckerConfig } from '#config/runner';
-import { resolveProjectConfigPath } from '#core/tsconfig/actions';
+import {
+  isLiminaArtifactPath,
+  resolveProjectConfigPath,
+} from '#core/tsconfig/actions';
 import {
   isPathInsideDirectory,
   normalizeAbsolutePath,
@@ -166,7 +169,7 @@ function assertUserConfig(options: {
   rootDir: string;
   targetConfigPath: string;
 }): void {
-  if (!options.targetConfigPath.split(path.sep).includes('.limina')) return;
+  if (!isLiminaArtifactPath(options.targetConfigPath, options.rootDir)) return;
   throw new Error(
     [
       'Invalid checker build config:',

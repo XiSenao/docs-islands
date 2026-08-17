@@ -1,5 +1,4 @@
 import { existsSync } from 'node:fs';
-import { createRequire } from 'node:module';
 
 import type {
   CheckerDependencyCategory,
@@ -9,9 +8,10 @@ import type {
 import { normalizeSlashes, toRelativePath } from '#utils/path';
 import path from 'pathe';
 import {
-  isResolvedFromLeafInstalledPackage,
-  resolveLeafInstalledPackageDirectory,
-} from '../core/packages/leaf-package-resolution';
+  findUnsupportedExternalCheckers,
+  type UnsupportedExternalChecker,
+} from './framework-external-checker-compatibility';
+import { resolveFrameworkPackageFromRoot } from './framework-package-resolution';
 import type { TypecheckTarget } from './target-types';
 
 type FrameworkFamily = NonNullable<TypecheckTarget['checkerFamily']>;
@@ -23,68 +23,11 @@ export interface FrameworkTargetPreflightFailure {
 }
 
 const dependencyCategoryLabels: Record<CheckerDependencyCategory, string> = {
-  'analysis-runtime': 'analysis runtime',
   'checker-binary': 'checker binary',
-  'checker-runtime-peer': 'checker runtime peer',
+  'checker-runtime': 'checker runtime dependency',
+  'external-checker': 'external checker',
+  'limina-runtime': 'Limina runtime',
 };
-
-function getErrorCode(error: unknown): string | undefined {
-  return error instanceof Error && 'code' in error
-    ? String(error.code)
-    : undefined;
-}
-
-function handlePackageResolutionError(
-  error: unknown,
-  packageName: string,
-): string | undefined {
-  const code = getErrorCode(error);
-  if (code === 'ERR_PACKAGE_PATH_NOT_EXPORTED') return packageName;
-  if (code === 'MODULE_NOT_FOUND') return undefined;
-  throw error;
-}
-
-function resolvePackageFromRoot(options: {
-  packageName: string;
-  projectRootDir: string;
-}): string | undefined {
-  if (
-    resolveLeafInstalledPackageDirectory({
-      packageName: options.packageName,
-      packageRootDir: options.projectRootDir,
-    }) === null
-  ) {
-    return undefined;
-  }
-  const requireFromRoot = createRequire(
-    path.join(options.projectRootDir, 'package.json'),
-  );
-  try {
-    const resolvedPath = requireFromRoot.resolve(
-      `${options.packageName}/package.json`,
-    );
-    return resolveVerifiedLeafPackagePath({ ...options, resolvedPath });
-  } catch (error) {
-    return handlePackageResolutionError(error, options.packageName);
-  }
-}
-
-function resolveVerifiedLeafPackagePath(options: {
-  packageName: string;
-  projectRootDir: string;
-  resolvedPath: string;
-}): string | undefined {
-  if (
-    isResolvedFromLeafInstalledPackage({
-      packageName: options.packageName,
-      packageRootDir: options.projectRootDir,
-      resolvedPath: options.resolvedPath,
-    })
-  ) {
-    return options.resolvedPath;
-  }
-  return undefined;
-}
 
 function quoteCommandPath(value: string): string {
   return /\s/u.test(value) ? JSON.stringify(value) : value;
@@ -143,6 +86,49 @@ function formatMissingFrameworkDependencies(options: {
   ].join('\n');
 }
 
+function formatMissingExternalCheckers(options: {
+  missing: readonly CheckerDependencyRequirement[];
+  target: TypecheckTarget;
+  workspaceRootDir: string;
+}): string {
+  const dependencyRootDir = options.target.dependencyRootDir!;
+  const packageNames = options.missing.map(
+    (requirement) => requirement.packageName,
+  );
+  return [
+    'Missing external checker:',
+    `  checker family: ${options.target.checkerFamily}`,
+    `  checker execution scope: ${relativePath(options.workspaceRootDir, dependencyRootDir)}`,
+    ...packageNames.map((packageName) => `  missing package: ${packageName}`),
+    `Fix: ${createLeafInstallCommand({
+      dependencyRootDir,
+      packageNames,
+      workspaceRootDir: options.workspaceRootDir,
+    })}`,
+  ].join('\n');
+}
+
+function formatUnsupportedExternalCheckers(options: {
+  target: TypecheckTarget;
+  unsupported: readonly UnsupportedExternalChecker[];
+  workspaceRootDir: string;
+}): string {
+  const dependencyRootDir = options.target.dependencyRootDir!;
+  return [
+    'Unsupported external checker:',
+    `  checker family: ${options.target.checkerFamily}`,
+    `  checker execution scope: ${relativePath(options.workspaceRootDir, dependencyRootDir)}`,
+    ...options.unsupported.flatMap((checker) => [
+      `  package: ${checker.packageName}`,
+      `  installed version: ${checker.version}`,
+      `  supported range: ${checker.supportedRange}`,
+    ]),
+    `Fix: adjust ${options.unsupported
+      .map((checker) => checker.packageName)
+      .join(' ')} in this checker execution scope.`,
+  ].join('\n');
+}
+
 function formatMissingAstroTypes(options: {
   target: TypecheckTarget;
   workspaceRootDir: string;
@@ -178,9 +164,37 @@ function appendMissingDependencies(
   options: Parameters<typeof collectTargetProblems>[0],
 ): void {
   const missing = findMissingRequirements(options);
-  if (missing.length > 0) {
-    problems.push(formatMissingFrameworkDependencies({ ...options, missing }));
+  const externalCheckers = missing.filter(
+    (requirement) => requirement.category === 'external-checker',
+  );
+  const frameworkDependencies = missing.filter(
+    (requirement) => requirement.category !== 'external-checker',
+  );
+  if (externalCheckers.length > 0) {
+    problems.push(
+      formatMissingExternalCheckers({
+        ...options,
+        missing: externalCheckers,
+      }),
+    );
   }
+  if (frameworkDependencies.length > 0) {
+    problems.push(
+      formatMissingFrameworkDependencies({
+        ...options,
+        missing: frameworkDependencies,
+      }),
+    );
+  }
+}
+
+function appendUnsupportedExternalCheckers(
+  problems: string[],
+  options: Parameters<typeof collectTargetProblems>[0],
+): void {
+  const unsupported = findUnsupportedExternalCheckers(options);
+  if (unsupported.length === 0) return;
+  problems.push(formatUnsupportedExternalCheckers({ ...options, unsupported }));
 }
 
 function hasMissingAstroTypes(
@@ -209,6 +223,7 @@ function collectTargetProblems(options: {
 }): string[] {
   const problems: string[] = [];
   appendMissingDependencies(problems, options);
+  appendUnsupportedExternalCheckers(problems, options);
   appendMissingAstroTypes(problems, options);
   return problems;
 }
@@ -238,7 +253,8 @@ export function collectFrameworkTargetPreflightFailures(options: {
   workspaceRootDir: string;
 }): FrameworkTargetPreflightFailure[] {
   const generatedTypeExists = options.generatedTypeExists ?? existsSync;
-  const resolvePackage = options.resolvePackage ?? resolvePackageFromRoot;
+  const resolvePackage =
+    options.resolvePackage ?? resolveFrameworkPackageFromRoot;
   return options.targets.flatMap((target) =>
     createTargetFailure({
       generatedTypeExists,

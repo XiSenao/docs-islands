@@ -3447,7 +3447,7 @@ packages:
           },
           resolveKnipCliPath,
         }),
-      ).rejects.toThrow('Missing peer dependency "knip"');
+      ).rejects.toThrow('Missing Limina runtime dependency:');
       expect(resolveKnipCliPath).toHaveBeenCalledOnce();
     } finally {
       await fixture.cleanup();
@@ -3480,7 +3480,7 @@ packages:
           report: { defer: true },
           resolveKnipCliPath,
         }),
-      ).rejects.toThrow('Missing peer dependency "knip"');
+      ).rejects.toThrow('Missing Limina runtime dependency:');
       expect(generatedGraphCalled).toBe(false);
       expect(resolveKnipCliPath).toHaveBeenCalledOnce();
     } finally {
@@ -3549,7 +3549,7 @@ packages:
           progress: createTaskProgressReporter(sourceTask),
           report: { defer: true },
         }),
-      ).rejects.toThrow('Missing peer dependency "knip"');
+      ).rejects.toThrow('Missing Limina runtime dependency:');
 
       expect(stripAnsi(chunks.join(''))).not.toContain('skipping check');
       expect(stats).toBeUndefined();

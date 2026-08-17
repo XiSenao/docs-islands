@@ -310,6 +310,11 @@ describe('AnalysisProviderSet', () => {
       );
       fixture.config.config = {
         ...fixture.config.config,
+        checkers: {
+          [family === 'astro' ? 'astro' : 'svelte-check']: {
+            include: ['packages/a/tsconfig.json'],
+          },
+        },
         source: { include: [`**/*.${family}`] },
       };
       await writeText(
@@ -324,14 +329,19 @@ describe('AnalysisProviderSet', () => {
 
       try {
         const graph = await fixture.core.buildGraph.getGraph();
-        const unit = graph.governedSources.get('tsc')?.get(sourceConfigPath);
+        const checkerName = family === 'astro' ? 'astro' : 'svelte-check';
+        const unit = graph.governedSources
+          .get(checkerName)
+          ?.get(sourceConfigPath);
         const projection = unit?.buildProjection;
         const projectedConfigPath =
           projection === undefined
             ? sourceConfigPath
             : 'buildConfigPath' in projection
               ? projection.buildConfigPath
-              : projection.dtsConfigPath;
+              : projection.kind === 'framework-checker'
+                ? sourceConfigPath
+                : projection.dtsConfigPath;
         const sourceGraph =
           await fixture.core.tsconfig.getSourceGraphProjects();
         const sourceProject = sourceGraph.projects.find(
@@ -368,7 +378,7 @@ describe('AnalysisProviderSet', () => {
         ).toEqual([sourceFilePath]);
         expect(coverage.get(sourceFilePath)).toMatchObject([
           {
-            checkerName: 'tsc',
+            checkerName,
             projectPath: sourceConfigPath,
             type: 'graph',
           },

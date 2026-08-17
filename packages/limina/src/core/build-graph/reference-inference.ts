@@ -62,10 +62,9 @@ function createGovernedBuildOwners(options: {
   const owners = new Map<string, GovernedBuildOwner>();
   for (const unit of options.governedSources) {
     const buildModule = getGovernedBuildModule({ ...options, unit });
-    if (buildModule === undefined) continue;
     owners.set(unit.configPath, {
-      buildModule,
       checkerName: unit.primaryCheckerName,
+      ...(buildModule === undefined ? {} : { buildModule }),
     });
   }
   return owners;
@@ -162,6 +161,7 @@ export function inferProjectReferences(options: {
     ),
     problems,
     dependencyEdgesByKey,
+    semanticProblemIdentities: new Set(),
   };
   processReferenceImports({ context, projects: options.projects });
   processFrameworkSourceReferences({

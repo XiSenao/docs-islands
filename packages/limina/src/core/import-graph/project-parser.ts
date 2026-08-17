@@ -176,12 +176,28 @@ function getParsedProjectOptions(options: {
     : options.ownedParsed.options;
 }
 
+function shouldAllowNoInputDiagnostics(
+  virtualFiles: ReadonlyMap<string, string> | undefined,
+  configPath: string,
+): boolean {
+  if (virtualFiles === undefined) return false;
+  return virtualFiles.has(configPath);
+}
+
+function getAnalysisGeneration(cache: CheckerProjectConfigCache | undefined) {
+  if (cache === undefined) return 0;
+  return cache.generation;
+}
+
 export function parseProject(...args: ParseProjectArgs): ProjectInfo {
   const [config, configPath, contextOrExtensions, virtualFiles, cache] = args;
   const context = resolveParseContext(contextOrExtensions);
   const normalizedConfigPath = normalizeAbsolutePath(configPath);
   const parsed = parseCheckerProjectConfigForContext({
-    allowNoInputDiagnostics: virtualFiles?.has(normalizedConfigPath) === true,
+    allowNoInputDiagnostics: shouldAllowNoInputDiagnostics(
+      virtualFiles,
+      normalizedConfigPath,
+    ),
     cache,
     configPath,
     context,
@@ -208,7 +224,9 @@ export function parseProject(...args: ParseProjectArgs): ProjectInfo {
   });
 
   return {
+    analysisGeneration: getAnalysisGeneration(cache),
     checkerPresets: context.checkerPresets,
+    configClosure: ownedParsed.configClosure.map((entry) => ({ ...entry })),
     configPath: normalizedConfigPath,
     extensions: parsed.extensions,
     fileNames: normalizeProjectFileNames({

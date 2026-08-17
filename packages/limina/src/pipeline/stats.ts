@@ -22,7 +22,7 @@ function createPreflightStats(
       createCheckItemStats({
         issues: getPreflightIssueCount(result),
         name: result.passed
-          ? 'supplemental checker entries'
+          ? 'framework checker entries'
           : 'checker dependency preflight',
         total,
       }),

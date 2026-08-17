@@ -7,7 +7,6 @@ import { toRelativePath } from '#utils/path';
 import {
   addFrameworkGovernanceFinding,
   type FrameworkCoverageOptions,
-  isPrimaryBuildEntry,
 } from './framework-governance-common';
 import type {
   FrameworkFamily,
@@ -47,15 +46,15 @@ function capabilityMatchesUnit(
 
 const capabilityReasons = {
   'descriptor-mismatch':
-    'a supplemental capability descriptor must use the governed source config and its leaf package root.',
+    'a framework capability descriptor must use the governed source config and its leaf package root.',
   duplicate:
-    'the same supplemental family must not cover one source config more than once.',
+    'the same framework family must not cover one source config more than once.',
   missing:
-    'each governed Astro or Svelte source family needs one matching supplemental capability descriptor.',
+    'each governed Astro or Svelte source family needs one matching framework capability descriptor.',
   unexpected:
-    'supplemental capability descriptors require matching governed framework sources.',
+    'framework capability descriptors require matching governed framework sources.',
 } satisfies Record<
-  FrameworkGovernanceFactForKind<'supplemental-capability'>['violation'],
+  FrameworkGovernanceFactForKind<'framework-capability'>['violation'],
   string
 >;
 
@@ -63,7 +62,7 @@ function addCapabilityFinding(options: {
   coverage: FrameworkCoverageOptions;
   entries: readonly GovernedSourceEntry[];
   family: FrameworkFamily;
-  violation: FrameworkGovernanceFactForKind<'supplemental-capability'>['violation'];
+  violation: FrameworkGovernanceFactForKind<'framework-capability'>['violation'];
 }): void {
   const entry = options.entries[0]!;
   const checkerNames = uniqueCodeUnitSortedStrings(
@@ -75,23 +74,23 @@ function addCapabilityFinding(options: {
     config: options.coverage.config,
     configPath: entry.unit.configPath,
     detailLines: [
-      'Supplemental framework capability coverage is invalid:',
+      'Framework capability coverage is invalid:',
       `  config: ${toRelativePath(options.coverage.config.rootDir, entry.unit.configPath)}`,
       `  family: ${options.family}`,
       `  violation: ${options.violation}`,
-      `  primary checkers: ${checkerNames.join(', ')}`,
+      `  checker owners: ${checkerNames.join(', ')}`,
       `  reason: ${reason}`,
     ],
     facts: {
       checkerNames,
       configPath: entry.unit.configPath,
       family: options.family,
-      kind: 'supplemental-capability',
+      kind: 'framework-capability',
       violation: options.violation,
     },
     findings: options.coverage.findings,
     reason,
-    title: 'Supplemental framework capability coverage is invalid',
+    title: 'Framework capability coverage is invalid',
     workspaceLookup: options.coverage.workspaceLookup,
   });
 }
@@ -215,10 +214,10 @@ function addPerEntryCapabilityFindings(
   }
 }
 
-export function addSupplementalCapabilityFindings(
+export function addFrameworkCapabilityFindings(
   coverage: FrameworkCoverageOptions,
 ): void {
-  const entries = coverage.entries.filter(isPrimaryBuildEntry);
+  const entries = coverage.entries;
   addPerEntryCapabilityFindings(coverage, entries);
   for (const group of collectCapabilityGroups(entries).values()) {
     addDuplicateCapabilityGroup(coverage, group);

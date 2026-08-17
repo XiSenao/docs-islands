@@ -106,12 +106,18 @@ function collectManagedOutputBuildTargets(options: {
 export function getManagedBuildTargets(options: {
   allCheckers: readonly ResolvedCheckerConfig[];
   generatedGraph: GeneratedTsconfigGraphResult;
+  rootDir: string;
   sourceConfigPath: string;
 }): {
   declarationTargets: BuildTargetDescriptor[];
   outputTargets: BuildTargetDescriptor[];
 } {
-  if (!isOrdinarySourceTypecheckConfigPath(options.sourceConfigPath)) {
+  if (
+    !isOrdinarySourceTypecheckConfigPath(
+      options.sourceConfigPath,
+      options.rootDir,
+    )
+  ) {
     return { declarationTargets: [], outputTargets: [] };
   }
   return {

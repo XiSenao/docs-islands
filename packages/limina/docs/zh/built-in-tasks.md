@@ -40,16 +40,16 @@ export default defineConfig({
 
 ## 任务总览
 
-| 任务                | 默认检查 | 主要关注点                                            | 应该如何理解                                                 |
-| ------------------- | -------- | ----------------------------------------------------- | ------------------------------------------------------------ |
-| `graph:prepare`     | 否       | 生成 `.limina` 下的工程图、声明构建配置和相关生成文件 | 物化生成图；不等同于检查图是否符合规则                       |
-| `graph:check`       | 是       | 项目引用、工作区导入、导出解析、图规则和条件域        | 检查 `TypeScript` 项目引用图是否和源码导入关系、配置规则一致 |
-| `source:check`      | 是       | 源码归属、包边界、依赖声明、`Knip` 支持的源码使用分析 | 检查源码依赖关系是否能被包归属和清单文件解释                 |
-| `proof:check`       | 是       | 源码覆盖、`tsconfig` 角色和框架投影                   | 检查源码和框架能力是否进入一致、可执行的检查范围             |
-| `checker:build`     | 是       | 构建类检查器                                          | 调用底层检查器的构建模式，通常会产出声明文件和构建信息       |
-| `checker:typecheck` | 是       | 只检查入口和补充框架检查                              | 调用不作为声明构建提供方的第二类检查器                       |
-| `package:check`     | 否       | 已构建包产物                                          | 对 `outDir` 产物运行打包、类型解析和产物导入边界检查         |
-| `release:check`     | 否       | 发布期产物一致性                                      | 发布前补充检查；不应理解为发布系统或安全保证                 |
+| 任务                | 默认检查 | 主要关注点                                            | 应该如何理解                                                     |
+| ------------------- | -------- | ----------------------------------------------------- | ---------------------------------------------------------------- |
+| `graph:prepare`     | 否       | 生成 `.limina` 下的工程图、声明构建配置和相关生成文件 | 物化生成图；不等同于检查图是否符合规则                           |
+| `graph:check`       | 是       | 项目引用、工作区导入、导出解析、图规则和条件域        | 检查 `TypeScript` 项目引用图是否和源码导入关系、配置规则一致     |
+| `source:check`      | 是       | 源码归属、包边界、依赖声明、`Knip` 支持的源码使用分析 | 检查源码依赖关系是否能被包归属和清单文件解释                     |
+| `proof:check`       | 是       | 源码覆盖、`tsconfig` 角色和框架投影                   | 检查源码和框架能力是否进入一致、可执行的检查范围                 |
+| `checker:build`     | 是       | 构建类检查器                                          | 调用底层检查器的构建模式，通常会产出声明文件和构建信息           |
+| `checker:typecheck` | 是       | framework-owned type config leaves                    | 对每个 owned leaf 调用一次 `astro` 或 `svelte-check`，不产出声明 |
+| `package:check`     | 否       | 已构建包产物                                          | 对 `outDir` 产物运行打包、类型解析和产物导入边界检查             |
+| `release:check`     | 否       | 发布期产物一致性                                      | 发布前补充检查；不应理解为发布系统或安全保证                     |
 
 表中每个任务都会复用当前 generation 已验证的工作区上下文。验证失败时，依赖工作会被阻塞，主要工作区问题仍可安全写入 `.limina/check/last-run.json`；后续 snapshot 写入失败不会替换最初的验证错误。
 
@@ -61,7 +61,7 @@ export default defineConfig({
 
 Limina 的治理建立在生成图之上。生成图来自普通源码 `tsconfig.json` 入口、被这些入口引用到的源码 `tsconfig`、源码文件导入关系，以及少量显式配置。
 
-`checker.include` 选择的是源码层的普通 `tsconfig.json` 入口。普通叶子配置不应该手写 `TypeScript references`；如果某个目录需要聚合多个类型检查环境，应使用默认 `tsconfig.json` 作为聚合器，让它通过 `references` 指向叶子配置。Limina 再根据这些源码配置生成自己的声明构建图。
+每个 named checker 的 `include` 选择源码层的普通 `tsconfig.json` 入口。普通叶子配置不应该手写 `TypeScript references`；如果某个目录需要聚合多个类型检查环境，应使用默认 `tsconfig.json` 作为聚合器，让它通过 `references` 指向叶子配置。Limina 再根据这些源码配置生成 ownership 与 dependency plan。
 
 `graph:prepare` 会把这些关系写到 `.limina` 目录下，包括：
 
@@ -198,7 +198,7 @@ import { helper } from '@acme/core';
 
 如果某个文件确实不应纳入常规检查范围，应使用带原因的允许清单，而不是让它自然漂在工程图之外。
 
-对框架源码，proof 还会检查：每个源码配置只有一个主要构建归属方；实际存在的每个 Astro 或 Svelte 家族都有且只有一个匹配的补充能力；每个框架目标都能从所属叶子包执行；声明投影和透明 solution 投影一致；生成构建配置不包含 `.astro` 或 `.svelte` 输入。
+对框架源码，proof 还会检查：每个 type config 恰有一个 checker owner；每个受治理框架源码实际位于该 owner 的 effective file set；每个框架目标都能从所属叶子包执行；每个 solution 的 leaf owner 一致；生成声明配置不包含 `.astro` 或 `.svelte` 输入。
 
 `proof:check` 的诊断分支很多，这里不逐一展开。阅读诊断时，可以把它归到一个原则下理解：每个源码文件、每个 `tsconfig`，都应有明确角色；同一个文件不应在同一检查域里产生重复或冲突的归属。
 
@@ -218,13 +218,13 @@ import { helper } from '@acme/core';
 
 运行前，Limina 会检查已配置检查器需要的 `peer dependency` 是否可解析。缺失依赖时会在执行检查器前失败，并给出安装提示。
 
-## checker:typecheck：调用补充框架检查器
+## checker:typecheck：执行 framework-owned leaves
 
-`checker:typecheck` 会运行从实际框架模块发现、并通过可选 `astro` 与 `svelte-check` scope 过滤的补充 target。每个被发现的源码配置可以增加 `astro check --noSync --root <leaf> --tsconfig <config>`、`svelte-check --workspace <leaf> --tsconfig <config>`，或同时增加两者。这些任务补充框架诊断，但不会产出声明文件。
+`checker:typecheck` 会按规范化 config path 去重，执行 final owner 为 `astro` 或 `svelte-check` 的每个 type config。一个 leaf 只会执行 `astro check --noSync --root <leaf> --tsconfig <config>` 或 `svelte-check --workspace <leaf> --tsconfig <config>` 之一，不能同时成为两种 checker target。solution config 由 Limina 展开，不会作为依赖框架 checker 递归能力的执行目标。这些任务不产出声明文件。
 
 框架目标会从所属叶子包解析依赖。Astro 要求 `astro`、`@astrojs/check`、`typescript` 和已存在的 `.astro/types.d.ts`；Svelte 要求 `svelte-check`、`svelte` 和 `typescript`。Limina 绝不运行 `astro sync`，不会启用 Svelte 检查器缓存，并且这个命令不接受 `--watch`。源码配置、解析器依赖、框架生成类型或框架源码变化后，需要重新运行完整命令。
 
-如果受治理源码配置中没有 Astro 或 Svelte 模块，`checker:typecheck` 会记录为 disabled，跳过 peer preflight 和 artifact materialization，并正常退出。这不表示遗漏了 TypeScript 检查；声明构建已经由 `checker:build` 负责。
+如果没有 managed type config 归 `astro` 或 `svelte-check` 所有，`checker:typecheck` 会记录为 disabled，跳过 peer preflight 和 artifact materialization，并正常退出；build-capable owner 仍由 `checker:build` 执行。
 
 ## graph:prepare 和 graph export
 

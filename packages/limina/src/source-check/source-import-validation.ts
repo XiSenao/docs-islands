@@ -8,6 +8,7 @@ import {
 } from '#core/import-graph/context';
 import type { PackageOwner, WorkspacePackage } from '#core/workspace/actions';
 import type { CheckCounter } from '../check-reporting/stats';
+import { withAstroSemanticProject } from '../core/import-analysis/astro-project';
 import type { WorkspaceLookupIndex } from '../core/workspace/lookup';
 import type { WorkspaceRegionPathIndex } from '../core/workspace/validated-context';
 import type { AmbientDeclarationIndex } from './ambient-declarations';
@@ -61,8 +62,13 @@ function processImportRecord(options: {
   owner: PackageOwner;
   project: ProjectInfo;
 }): void {
+  const project = withAstroSemanticProject({
+    filePath: options.filePath,
+    packageRootDir: options.owner.directory,
+    project: options.project,
+  });
   options.base.checks.add();
-  addResourceProblemsForCheckers(options);
+  addResourceProblemsForCheckers({ ...options, project });
   addImportRecordProblems({
     ambientDeclarations: options.base.ambientDeclarations,
     config: options.base.config,
@@ -74,7 +80,7 @@ function processImportRecord(options: {
     packages: options.base.packages,
     pathIndex: options.base.pathIndex,
     findings: options.base.findings,
-    project: options.project,
+    project,
     rootPackage: options.base.rootPackage,
     workspaceLookup: options.base.workspaceLookup,
   });
@@ -93,7 +99,7 @@ function processSourceFile(options: {
 
   const imports = collectImportsFromFile(
     options.filePath,
-    options.base.config.rootDir,
+    owner.directory,
     options.base.importAnalysis,
     resolveVueSourceProfile({
       fileName: options.filePath,

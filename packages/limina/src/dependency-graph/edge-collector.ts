@@ -147,6 +147,18 @@ function processImportRecord(options: ImportProcessingOptions): void {
   }
 }
 
+function getImportPackageRoot(options: {
+  context: DependencyGraphCollectionContext;
+  fileName: string;
+  importerPackage: WorkspacePackage;
+}): string {
+  const owner = options.context.workspaceLookup.findOwnerForFile(
+    options.fileName,
+  );
+  if (owner === null) return options.importerPackage.directory;
+  return owner.directory;
+}
+
 function collectFileEdges(options: {
   context: DependencyGraphCollectionContext;
   fileName: string;
@@ -159,10 +171,9 @@ function collectFileEdges(options: {
   if (importerPackage === null) {
     return;
   }
-
   const imports = collectImportsFromFile(
     options.fileName,
-    options.context.config.rootDir,
+    getImportPackageRoot({ ...options, importerPackage }),
     options.context.importAnalysis,
     resolveVueSourceProfile({
       fileName: options.fileName,

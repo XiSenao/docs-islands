@@ -159,6 +159,15 @@ function selectProjectOptions(options: {
   return options.vue.parsed?.options ?? options.neutral.parsed.options;
 }
 
+function selectProjectConfigClosure(options: {
+  neutral: NeutralProjectEvidence;
+  vue: VueProjectEvidence;
+}): AutoScopeProject['configClosure'] {
+  return (
+    options.vue.parsed?.configClosure ?? options.neutral.parsed.configClosure
+  ).map((entry) => ({ ...entry }));
+}
+
 function getPackageRootForFile(options: {
   activatedRegions: WorkspaceRegionPathIndex;
   fallbackPackageRootDir: string;
@@ -190,6 +199,8 @@ export function createAutoScopeProject(options: {
     ...new Set([...filePartition.vueFiles, ...vueFileNames]),
   ].sort();
   return {
+    analysisGeneration: options.projectConfigCache?.generation ?? 0,
+    configClosure: selectProjectConfigClosure({ neutral, vue }),
     configPath: options.configPath,
     context: selectProjectContext({ neutral, vue, vueFileNames }),
     fileNames,

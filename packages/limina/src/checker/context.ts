@@ -8,9 +8,35 @@ import { normalizeExtensions } from './extensions';
 import { cloneParsedCheckerProjectConfig } from './project-base';
 import { getCheckerAdapter } from './registry';
 import type {
+  CheckerConfigClosureEntry,
   CheckerProjectParseContext,
   ParsedCheckerProjectConfig,
 } from './types';
+
+function assertConfigClosureEntryCompatible(
+  existing: CheckerConfigClosureEntry | undefined,
+  entry: CheckerConfigClosureEntry,
+): void {
+  if (existing === undefined) return;
+  if (existing.contentHash === entry.contentHash) return;
+  throw new Error(
+    `Checker parsers observed conflicting config content for ${entry.filePath}.`,
+  );
+}
+
+function mergeConfigClosure(
+  configs: readonly ParsedCheckerProjectConfig[],
+): CheckerConfigClosureEntry[] {
+  const entries = new Map<string, CheckerConfigClosureEntry>();
+  for (const entry of configs.flatMap((config) => config.configClosure)) {
+    const existing = entries.get(entry.filePath);
+    assertConfigClosureEntryCompatible(existing, entry);
+    entries.set(entry.filePath, { ...entry });
+  }
+  return [...entries.values()].sort((left, right) =>
+    compareCodeUnits(left.filePath, right.filePath),
+  );
+}
 
 export class CheckerProjectConfigCache {
   readonly #entries = new Map<string, ParsedCheckerProjectConfig>();
@@ -50,6 +76,7 @@ function mergeParsedProjectConfigs(options: {
 }): ParsedCheckerProjectConfig {
   const firstConfig = requireFirstParsedConfig(options.parsedConfigs);
   return {
+    configClosure: mergeConfigClosure(options.parsedConfigs),
     extensions: normalizeExtensions([
       ...options.extensions,
       ...options.parsedConfigs.flatMap((config) => config.extensions),

@@ -1,8 +1,7 @@
 import { formatUnknownValue } from '#utils/values';
 import type { z } from 'zod';
 import {
-  autoCheckerMixedConfigReason,
-  missingBuildCheckerReason,
+  legacyAutoCheckerConfigReason,
   unsupportedCheckerNameReason,
 } from './checkers';
 
@@ -116,7 +115,7 @@ function getCheckerField(context: IssueFormatContext): string {
 function formatCheckerEntry(context: IssueFormatContext): string {
   const checkerField = getCheckerField(context);
   const reason =
-    context.issue.message === autoCheckerMixedConfigReason ||
+    context.issue.message === legacyAutoCheckerConfigReason ||
     context.issue.message === unsupportedCheckerNameReason
       ? context.issue.message
       : 'checker entries must be objects.';
@@ -135,10 +134,7 @@ function formatNamedCheckerIssue(context: IssueFormatContext): string {
 function formatCheckerCollection(context: IssueFormatContext): string {
   return formatConfigProblem({
     context,
-    reason:
-      context.issue.message === missingBuildCheckerReason
-        ? context.issue.message
-        : 'config.checkers must be an object auto config or an object keyed by checker name.',
+    reason: 'config.checkers must be an object keyed by auto or checker name.',
     title: 'Invalid Limina checker config:',
   });
 }

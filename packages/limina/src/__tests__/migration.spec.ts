@@ -524,7 +524,7 @@ describe('runMigration', () => {
     });
     const config = createResolvedConfig(fixture.rootDir, {
       checkers: {
-        mode: 'auto',
+        auto: {},
       },
     });
 
@@ -837,6 +837,9 @@ describe('runMigration', () => {
     );
     const config = createResolvedConfig(fixture.rootDir, {
       checkers: {
+        auto: {
+          exclude: ['storage/tsconfig.json'],
+        },
         tsc: {
           include: [
             'packages/symlink/tsconfig.json',
@@ -1864,6 +1867,9 @@ describe('runMigration', () => {
     });
     const config = createResolvedConfig(fixture.rootDir, {
       checkers: {
+        auto: {
+          exclude: ['packages/ignored/**'],
+        },
         tsc: {
           exclude: ['packages/ignored/**'],
           include: ['packages/*/tsconfig.json'],
@@ -2123,6 +2129,9 @@ describe('runMigration', () => {
     });
     const config = createResolvedConfig(fixture.rootDir, {
       checkers: {
+        auto: {
+          exclude: ['packages/dep/tsconfig.json'],
+        },
         tsc: {
           include: ['packages/app/tsconfig.json'],
         },
@@ -2189,8 +2198,7 @@ describe('runMigration', () => {
     });
     const config = createResolvedConfig(fixture.rootDir, {
       checkers: {
-        exclude: ['packages/skip/**'],
-        mode: 'auto',
+        auto: { exclude: ['packages/skip/**'] },
       },
     });
 

@@ -23,7 +23,7 @@ const checkerPresetSuggestionsByExtension = new Map<string, string[]>([
   ['.vue', ['vue-tsc']],
 ]);
 
-const supplementalGovernanceExtensions = new Set(['.astro', '.svelte']);
+const externalFrameworkExtensions = new Set(['.astro', '.svelte']);
 
 function createProjectsBySourcePath(
   projects: readonly SourceProjectLike[],
@@ -65,7 +65,7 @@ function isUnsupportedExtension(
 ): boolean {
   return (
     extension.length > 0 &&
-    !supplementalGovernanceExtensions.has(extension) &&
+    !externalFrameworkExtensions.has(extension) &&
     !supportedExtensions.has(extension)
   );
 }

@@ -1,58 +1,25 @@
 import { normalizeAbsolutePath } from '#utils/path';
 import { isPlainRecord } from '#utils/values';
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import type ts from 'typescript';
+import { LiminaDependencyError } from '../dependency-contract';
+import {
+  formatVueSemanticVersionTuple,
+  resolveVueSemanticAdapter,
+} from './vue-semantic-compatibility';
 import type {
   VolarTypeScriptRuntime,
   VueLanguageRuntime,
-  VueSemanticAdapter,
-  VueSemanticAdapterFamily,
   VueSemanticToolchain,
   VueSemanticToolchainPaths,
   VueSemanticVersionTuple,
 } from './vue-semantic-types';
 
-interface NumericVersion {
-  major: number;
-  minor: number;
-  patch: number;
-}
-
-interface AdapterContract {
-  family: VueSemanticAdapterFamily;
-  languageCoreMajor: number;
-  languageCoreMinor: number;
-  maximumPatch: number;
-  minimumPatch: number;
-  volarMaximumPatch: number;
-  volarMinimumPatch: number;
-}
-
-const adapterContracts: readonly AdapterContract[] = [
-  {
-    family: 'vue-tsc-2.2',
-    languageCoreMajor: 2,
-    languageCoreMinor: 2,
-    maximumPatch: 12,
-    minimumPatch: 0,
-    volarMaximumPatch: 28,
-    volarMinimumPatch: 11,
-  },
-  {
-    family: 'vue-tsc-3.2',
-    languageCoreMajor: 3,
-    languageCoreMinor: 2,
-    maximumPatch: 4,
-    minimumPatch: 0,
-    volarMaximumPatch: 27,
-    volarMinimumPatch: 27,
-  },
-];
-
-const supportedTypeScriptMinorRanges = [
-  { major: 5, maximumMinor: 9, minimumMinor: 4 },
-  { major: 6, maximumMinor: 0, minimumMinor: 0 },
-] as const;
+export {
+  isSupportedVueSemanticVersionTuple,
+  resolveVueSemanticAdapter,
+} from './vue-semantic-compatibility';
 
 const languageCoreFunctions = [
   'createLanguage',
@@ -71,35 +38,109 @@ function readManifestVersion(manifestPath: string): string {
   return manifest.version;
 }
 
-function resolvePackageManifest(
-  requireFromVueTsc: NodeRequire,
-  packageName: string,
-): string {
-  return normalizeAbsolutePath(
-    requireFromVueTsc.resolve(`${packageName}/package.json`),
-  );
+function resolvePackageManifest(options: {
+  checkerExecutionRootDir: string;
+  packageName: string;
+  requireFromVueTsc: NodeRequire;
+  vueTscVersion: string;
+}): string {
+  try {
+    return normalizeAbsolutePath(
+      options.requireFromVueTsc.resolve(`${options.packageName}/package.json`),
+    );
+  } catch (error) {
+    throw createUnsupportedVueToolchainError({
+      checkerExecutionRootDir: options.checkerExecutionRootDir,
+      reason: `the installed vue-tsc package could not resolve its internal dependency ${options.packageName}: ${formatToolchainError(error)}`,
+      version: `vue-tsc ${options.vueTscVersion}`,
+    });
+  }
 }
 
-function resolveToolchainPaths(configPath: string): {
+function formatToolchainError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function createMissingVueTscError(options: {
+  checkerExecutionRootDir: string;
+  error: unknown;
+}): LiminaDependencyError {
+  return new LiminaDependencyError({
+    failureKind: 'missing',
+    message: [
+      'Missing external checker:',
+      '  checker: vue-tsc',
+      `  checker execution scope: ${options.checkerExecutionRootDir}`,
+      `  reason: ${formatToolchainError(options.error)}`,
+      '  fix: install a supported vue-tsc version in this checker execution scope.',
+    ].join('\n'),
+    ownership: 'external-checker',
+    packageName: 'vue-tsc',
+    scope: options.checkerExecutionRootDir,
+  });
+}
+
+export function createUnsupportedVueToolchainError(options: {
+  checkerExecutionRootDir: string;
+  reason: string;
+  version?: string;
+}): LiminaDependencyError {
+  return new LiminaDependencyError({
+    failureKind: 'unsupported',
+    message: [
+      'Unsupported vue-tsc toolchain:',
+      '  checker: vue-tsc',
+      `  checker execution scope: ${options.checkerExecutionRootDir}`,
+      `  reason: ${options.reason}`,
+      '  fix: upgrade, downgrade, or reinstall vue-tsc in this checker execution scope.',
+    ].join('\n'),
+    ownership: 'checker-toolchain',
+    packageName: 'vue-tsc',
+    scope: options.checkerExecutionRootDir,
+    version: options.version,
+  });
+}
+
+function resolveVueTscManifest(checkerExecutionRootDir: string): string {
+  const requireFromExecutionScope = createRequire(
+    path.join(checkerExecutionRootDir, 'package.json'),
+  );
+  try {
+    return normalizeAbsolutePath(
+      requireFromExecutionScope.resolve('vue-tsc/package.json'),
+    );
+  } catch (error) {
+    throw createMissingVueTscError({ checkerExecutionRootDir, error });
+  }
+}
+
+function resolveToolchainPaths(checkerExecutionRootDir: string): {
   paths: VueSemanticToolchainPaths;
   requireFromVueTsc: NodeRequire;
 } {
-  const requireFromProject = createRequire(configPath);
-  const vueTsc = normalizeAbsolutePath(
-    requireFromProject.resolve('vue-tsc/package.json'),
-  );
+  const vueTsc = resolveVueTscManifest(checkerExecutionRootDir);
   const requireFromVueTsc = createRequire(vueTsc);
+  const vueTscVersion = readManifestVersion(vueTsc);
   return {
     paths: {
-      languageCore: resolvePackageManifest(
+      languageCore: resolvePackageManifest({
+        checkerExecutionRootDir,
+        packageName: '@vue/language-core',
         requireFromVueTsc,
-        '@vue/language-core',
-      ),
-      typeScript: resolvePackageManifest(requireFromVueTsc, 'typescript'),
-      volarTypeScript: resolvePackageManifest(
+        vueTscVersion,
+      }),
+      typeScript: resolvePackageManifest({
+        checkerExecutionRootDir,
+        packageName: 'typescript',
         requireFromVueTsc,
-        '@volar/typescript',
-      ),
+        vueTscVersion,
+      }),
+      volarTypeScript: resolvePackageManifest({
+        checkerExecutionRootDir,
+        packageName: '@volar/typescript',
+        requireFromVueTsc,
+        vueTscVersion,
+      }),
       vueTsc,
     },
     requireFromVueTsc,
@@ -117,103 +158,16 @@ function readVersionTuple(
   };
 }
 
-function parseNumericVersion(version: string): NumericVersion | null {
-  const match = /^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)/u.exec(version);
-  if (match?.groups === undefined) return null;
-  return {
-    major: Number(match.groups.major),
-    minor: Number(match.groups.minor),
-    patch: Number(match.groups.patch),
-  };
-}
-
-function hasMajorMinor(
-  version: NumericVersion | null,
-  major: number,
-  minor: number,
-): boolean {
-  return version?.major === major && version.minor === minor;
-}
-
-function isPatchWithin(
-  version: NumericVersion | null,
-  minimum: number,
-  maximum: number,
-): boolean {
-  if (version === null) return false;
-  return version.patch >= minimum && version.patch <= maximum;
-}
-
-function supportsTypeScript(version: NumericVersion | null): boolean {
-  if (version === null) return false;
-  return supportedTypeScriptMinorRanges.some((range) =>
-    [
-      version.major === range.major,
-      version.minor >= range.minimumMinor,
-      version.minor <= range.maximumMinor,
-    ].every(Boolean),
-  );
-}
-
-function matchesAdapterContract(
-  tuple: VueSemanticVersionTuple,
-  contract: AdapterContract,
-): boolean {
-  const vueTsc = parseNumericVersion(tuple.vueTsc);
-  const languageCore = parseNumericVersion(tuple.languageCore);
-  const volarTypeScript = parseNumericVersion(tuple.volarTypeScript);
-  const typeScript = parseNumericVersion(tuple.typeScript);
-  return [
-    hasMajorMinor(
-      vueTsc,
-      contract.languageCoreMajor,
-      contract.languageCoreMinor,
-    ),
-    isPatchWithin(vueTsc, contract.minimumPatch, contract.maximumPatch),
-    hasMajorMinor(
-      languageCore,
-      contract.languageCoreMajor,
-      contract.languageCoreMinor,
-    ),
-    tuple.vueTsc === tuple.languageCore,
-    hasMajorMinor(volarTypeScript, 2, 4),
-    isPatchWithin(
-      volarTypeScript,
-      contract.volarMinimumPatch,
-      contract.volarMaximumPatch,
-    ),
-    supportsTypeScript(typeScript),
-  ].every(Boolean);
-}
-
-function resolveAdapterFamily(
-  tuple: VueSemanticVersionTuple,
-): VueSemanticAdapterFamily | null {
-  const contract = adapterContracts.find((candidate) =>
-    matchesAdapterContract(tuple, candidate),
-  );
-  return contract?.family ?? null;
-}
-
-function formatVersionTuple(tuple: VueSemanticVersionTuple): string {
-  return `vue-tsc ${tuple.vueTsc}, @vue/language-core ${tuple.languageCore}, @volar/typescript ${tuple.volarTypeScript}, TypeScript ${tuple.typeScript}`;
-}
-
-export function resolveVueSemanticAdapter(
-  tuple: VueSemanticVersionTuple,
-): VueSemanticAdapter {
-  const family = resolveAdapterFamily(tuple);
-  if (family !== null) return { family, kind: 'supported' };
-  return {
-    kind: 'unsupported',
-    reason: `Unsupported Vue semantic adapter tuple: ${formatVersionTuple(tuple)}.`,
-  };
-}
-
-export function isSupportedVueSemanticVersionTuple(
-  tuple: VueSemanticVersionTuple,
-): boolean {
-  return resolveVueSemanticAdapter(tuple).kind === 'supported';
+export function createUnsupportedVueToolchainCompatibilityError(options: {
+  checkerExecutionRootDir: string;
+  tuple: VueSemanticVersionTuple;
+}): LiminaDependencyError {
+  const version = formatVueSemanticVersionTuple(options.tuple);
+  return createUnsupportedVueToolchainError({
+    checkerExecutionRootDir: options.checkerExecutionRootDir,
+    reason: `the installed version tuple is outside Limina's supported semantic adapter matrix: ${version}`,
+    version,
+  });
 }
 
 function hasFunctionProperties(
@@ -263,21 +217,52 @@ function assertTypeScriptRuntime(value: unknown): typeof ts {
   return value as unknown as typeof ts;
 }
 
+function getToolchainVersionIdentity(
+  versions: VueSemanticVersionTuple | undefined,
+): string | undefined {
+  if (versions !== undefined) return formatVueSemanticVersionTuple(versions);
+  return undefined;
+}
+
+function rethrowToolchainResolutionError(options: {
+  checkerExecutionRootDir: string;
+  error: unknown;
+  versions: VueSemanticVersionTuple | undefined;
+}): never {
+  if (options.error instanceof LiminaDependencyError) throw options.error;
+  throw createUnsupportedVueToolchainError({
+    checkerExecutionRootDir: options.checkerExecutionRootDir,
+    reason: formatToolchainError(options.error),
+    version: getToolchainVersionIdentity(options.versions),
+  });
+}
+
 export function resolveVueSemanticToolchain(
-  configPath: string,
+  checkerExecutionRootDir: string,
 ): VueSemanticToolchain {
-  const resolved = resolveToolchainPaths(configPath);
-  const versions = readVersionTuple(resolved.paths);
-  return {
-    adapter: resolveVueSemanticAdapter(versions),
-    languageCore: assertLanguageCoreRuntime(
-      resolved.requireFromVueTsc('@vue/language-core'),
-    ),
-    paths: resolved.paths,
-    tsModule: assertTypeScriptRuntime(resolved.requireFromVueTsc('typescript')),
-    versions,
-    volarTypeScript: assertVolarTypeScriptRuntime(
-      resolved.requireFromVueTsc('@volar/typescript'),
-    ),
-  };
+  let versions: VueSemanticVersionTuple | undefined;
+  try {
+    const resolved = resolveToolchainPaths(checkerExecutionRootDir);
+    versions = readVersionTuple(resolved.paths);
+    return {
+      adapter: resolveVueSemanticAdapter(versions),
+      languageCore: assertLanguageCoreRuntime(
+        resolved.requireFromVueTsc('@vue/language-core'),
+      ),
+      paths: resolved.paths,
+      tsModule: assertTypeScriptRuntime(
+        resolved.requireFromVueTsc('typescript'),
+      ),
+      versions,
+      volarTypeScript: assertVolarTypeScriptRuntime(
+        resolved.requireFromVueTsc('@volar/typescript'),
+      ),
+    };
+  } catch (error) {
+    return rethrowToolchainResolutionError({
+      checkerExecutionRootDir,
+      error,
+      versions,
+    });
+  }
 }

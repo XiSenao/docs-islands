@@ -75,7 +75,6 @@ function createTypecheckTargets(options: {
 }): TypecheckTarget[] {
   const configuredTargets = createConfiguredTypecheckTargets(options);
   const frameworkTargets = createFrameworkCheckerTargets({
-    config: options.context.options.config,
     generatedGraph: options.generatedGraph,
     workspaceRootDir: options.context.projectRootDir,
   });

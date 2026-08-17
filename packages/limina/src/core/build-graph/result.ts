@@ -3,6 +3,7 @@ import { uniqueCodeUnitSortedStrings as uniqueSortedStrings } from '#utils/colle
 import { normalizeAbsolutePath } from '#utils/path';
 import path from 'pathe';
 import type { ArtifactPlan } from '../../domain/artifacts/plan';
+import type { CheckerOwnershipPlan } from './checker-ownership-types';
 import {
   resolveGeneratedKnipPackageConfigs,
   resolveGeneratedKnipPackageDiagnostics,
@@ -209,6 +210,7 @@ export function createResult(options: {
     string,
     Map<string, GeneratedOutputDeclarationCopyContext[]>
   >;
+  ownershipPlan: CheckerOwnershipPlan;
   rootDir: string;
 }): GeneratedTsconfigGraphResult {
   const maps = createResultMaps(options);
@@ -236,6 +238,7 @@ export function createResult(options: {
     governedSources: createGovernedSourceMap(options.governedSourcesByChecker),
     dependencyEdges: createDependencyEdges(options),
     manifest: options.manifest,
+    ownershipPlan: options.ownershipPlan,
     generatedFiles: new Map(options.generatedFiles),
   };
 }

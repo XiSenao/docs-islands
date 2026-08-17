@@ -1,6 +1,7 @@
 import {
   type CheckerProjectConfigCache,
   type CheckerProjectParseContext,
+  isBuildCapablePreset,
   normalizeExtensions,
   parseCheckerProjectConfigForContext,
   resolveCheckerProjectExtensions,
@@ -41,7 +42,9 @@ export function getActiveCheckerContext(
   const checkers = resolveActiveCheckers(config, generatedGraph);
 
   return {
-    checkerPresets: uniqueValues(checkers.map((checker) => checker.name)),
+    checkerPresets: uniqueValues(
+      checkers.map((checker) => checker.name).filter(isBuildCapablePreset),
+    ),
     extensions: normalizeExtensions(
       checkers.flatMap((checker) => checker.extensions),
     ),
@@ -109,6 +112,7 @@ export function parseProjectCoverage(options: {
     ? parseCheckerProjectConfigForContext({
         cache: options.projectConfigCache,
         configPath: getProofCompanionConfigPath(
+          options.config,
           options.configPath,
           options.virtualFiles,
         ),
@@ -195,13 +199,10 @@ function getVueSemanticIdentityId(
 
 function getGovernedProjectionPaths(unit: GovernedSourceUnit): string[] {
   const projection = unit.buildProjection;
-  if (projection.kind === 'declaration-project') {
-    return [projection.dtsConfigPath];
-  }
-  if (projection.kind === 'transparent-solution') {
-    return [projection.buildConfigPath];
-  }
-  return [projection.buildConfigPath, projection.dtsConfigPath];
+  return [
+    'buildConfigPath' in projection ? projection.buildConfigPath : undefined,
+    'dtsConfigPath' in projection ? projection.dtsConfigPath : undefined,
+  ].filter((filePath): filePath is string => filePath !== undefined);
 }
 
 function createGovernedProjectContexts(

@@ -1,52 +1,18 @@
-import { isBuildCapablePreset } from '#checkers';
-import {
-  getActiveCheckers,
-  isAutoCheckerConfigMode,
-  type ResolvedCheckerConfig,
-  type ResolvedLiminaConfig,
+import type {
+  ResolvedCheckerConfig,
+  ResolvedLiminaConfig,
 } from '#config/runner';
 import { collectRawWorkspacePackages } from '#core/workspace/actions';
-import {
-  createCheckerEntrySelectionOptions,
-  resolveCheckerEntrySelection,
-} from '../checkers/entry-selection';
 import {
   collectValidatedWorkspaceContext,
   WorkspaceRegionPathIndex,
 } from '../workspace/validated-context';
-import { resolveAutoCheckerSelections } from './auto-checker-resolution';
+import { resolveCheckerOwnership } from './checker-ownership-resolution';
+import { resolveBuildGraphImportAnalysis } from './import-analysis-context';
 import type {
+  CheckerSelectionResolution,
   PrepareGeneratedTsconfigGraphOptions,
-  ResolvedCheckerEntrySelection,
 } from './types';
-
-function isAutoCheckerMode(config: ResolvedLiminaConfig): boolean {
-  if (!config.config) {
-    return true;
-  }
-  const checkers = config.config.checkers;
-  return checkers === undefined || isAutoCheckerConfigMode(checkers);
-}
-
-async function resolveExplicitCheckerSelections(options: {
-  config: ResolvedLiminaConfig;
-  sourceConfigPaths: readonly string[];
-}): Promise<ResolvedCheckerEntrySelection[]> {
-  return Promise.all(
-    getActiveCheckers(options.config)
-      .filter((checker) => isBuildCapablePreset(checker.name))
-      .map(async (checker) => ({
-        checker,
-        selection: await resolveCheckerEntrySelection(
-          {
-            config: options.config,
-            sourceConfigPaths: options.sourceConfigPaths,
-          },
-          createCheckerEntrySelectionOptions(checker),
-        ),
-      })),
-  );
-}
 
 export async function resolveGeneratedGraphCheckerSelections(options: {
   config: ResolvedLiminaConfig;
@@ -56,22 +22,16 @@ export async function resolveGeneratedGraphCheckerSelections(options: {
     PrepareGeneratedTsconfigGraphOptions['workspaceContext']
   >;
   workspacePathIndex?: WorkspaceRegionPathIndex;
-}): Promise<ResolvedCheckerEntrySelection[]> {
+}): Promise<CheckerSelectionResolution> {
   const activatedRegions =
     options.workspacePathIndex ??
     new WorkspaceRegionPathIndex(options.workspaceContext);
-  if (isAutoCheckerMode(options.config)) {
-    return resolveAutoCheckerSelections({
-      activatedRegions,
-      config: options.config,
-      importAnalysisContext: options.importAnalysisContext,
-      projectConfigCache: options.projectConfigCache,
-      workspaceSourceConfigPaths: options.workspaceContext.sourceConfigPaths,
-    });
-  }
-  return resolveExplicitCheckerSelections({
+  return resolveCheckerOwnership({
+    activatedRegions,
     config: options.config,
-    sourceConfigPaths: options.workspaceContext.sourceConfigPaths,
+    importAnalysisContext: resolveBuildGraphImportAnalysis(options),
+    projectConfigCache: options.projectConfigCache,
+    workspaceSourceConfigPaths: options.workspaceContext.sourceConfigPaths,
   });
 }
 
@@ -91,12 +51,12 @@ export async function resolveGeneratedGraphCheckers(
       config,
       rawPackages: await collectRawWorkspacePackages(config),
     }));
-  const selections = await resolveGeneratedGraphCheckerSelections({
+  const resolution = await resolveGeneratedGraphCheckerSelections({
     config,
     importAnalysisContext: options.importAnalysisContext,
     projectConfigCache: options.projectConfigCache,
     workspaceContext,
     workspacePathIndex: options.workspacePathIndex,
   });
-  return selections.map(({ checker }) => checker);
+  return resolution.selections.map(({ checker }) => checker);
 }

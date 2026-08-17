@@ -43,13 +43,18 @@ export type CheckerConfig = CheckerScope;
 
 export interface AutoCheckerConfig {
   exclude?: string[];
-  mode: 'auto';
   useTsgo?: boolean;
 }
 
-export type CheckerConfigMode =
-  | AutoCheckerConfig
-  | Partial<Record<CheckerName, CheckerScope>>;
+export type NamedCheckerConfig = Partial<Record<CheckerName, CheckerScope>>;
+
+/**
+ * Unified checker configuration. Named checker scopes establish explicit
+ * ownership; `auto` discovers and classifies the remaining active roots.
+ */
+export type CheckerConfigMode = NamedCheckerConfig & {
+  auto?: AutoCheckerConfig;
+};
 
 export interface ResolvedCheckerConfig {
   exclude: string[];

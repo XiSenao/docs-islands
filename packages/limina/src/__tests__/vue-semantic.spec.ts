@@ -12,10 +12,15 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import {
+  createUnsupportedVueToolchainCompatibilityError,
+  resolveVueSemanticAdapter,
+} from '../checker/vue-semantic-toolchain';
 import { VueSemanticContextManager } from '../core/vue-semantic/context';
 import { collectSemanticDependencyEvidence } from '../core/vue-semantic/dependency';
 import { resolveVueSemanticImport } from '../core/vue-semantic/resolution';
 import { createProfilingMetricsRecorder } from '../profiling/metrics';
+import { createFixturePathResolver, toPortablePath } from './helpers/path';
 
 const requireFromTest = createRequire(import.meta.url);
 
@@ -24,7 +29,10 @@ async function writeText(filePath: string, text: string): Promise<void> {
   await writeFile(filePath, text);
 }
 
-async function createFixture(files: Record<string, string>): Promise<{
+async function createFixture(
+  files: Record<string, string>,
+  options: { linkVueTsc?: boolean } = {},
+): Promise<{
   cleanup: () => Promise<void>;
   path: (...segments: string[]) => string;
   rootDir: string;
@@ -41,14 +49,16 @@ async function createFixture(files: Record<string, string>): Promise<{
   })) {
     await writeText(path.join(rootDir, relativePath), text);
   }
-  const vueTscManifest = requireFromTest.resolve('vue-tsc/package.json');
-  const vueTscTarget = path.dirname(vueTscManifest);
-  const vueTscLink = path.join(rootDir, 'node_modules/vue-tsc');
-  await mkdir(path.dirname(vueTscLink), { recursive: true });
-  await symlink(vueTscTarget, vueTscLink, 'junction');
+  if (options.linkVueTsc !== false) {
+    const vueTscManifest = requireFromTest.resolve('vue-tsc/package.json');
+    const vueTscTarget = path.dirname(vueTscManifest);
+    const vueTscLink = path.join(rootDir, 'node_modules/vue-tsc');
+    await mkdir(path.dirname(vueTscLink), { recursive: true });
+    await symlink(vueTscTarget, vueTscLink, 'junction');
+  }
   return {
     cleanup: () => rm(rootDir, { force: true, recursive: true }),
-    path: (...segments) => path.join(rootDir, ...segments),
+    path: createFixturePathResolver(rootDir),
     rootDir,
   };
 }
@@ -95,6 +105,102 @@ function parseIdentity(options: {
 }
 
 describe('Vue semantic architecture', () => {
+  it('roots vue-tsc at the checker execution scope and resolves only its internal toolchain', async () => {
+    const fixture = await createFixture({
+      'packages/app/node_modules/vue-tsc/package.json':
+        '{"name":"vue-tsc","version":"3.2.4"}\n',
+      'packages/app/src/App.vue':
+        '<script setup lang="ts">const value = 1</script>\n',
+      'packages/app/tsconfig.json': config(),
+    });
+    const requireFromFixture = createRequire(fixture.path('package.json'));
+
+    try {
+      expect(() =>
+        requireFromFixture.resolve('@vue/language-core/package.json'),
+      ).toThrow();
+      expect(() =>
+        requireFromFixture.resolve('@volar/typescript/package.json'),
+      ).toThrow();
+
+      const parsed = parseCheckerProjectConfigForContext({
+        configPath: fixture.path('packages', 'app', 'tsconfig.json'),
+        context: { checkerPresets: ['vue-tsc'], extensions: [] },
+        projectRootDir: fixture.rootDir,
+      });
+
+      expect(parsed.vueSemanticIdentity?.toolchain.adapter).toEqual({
+        family: 'vue-tsc-3.2',
+        kind: 'supported',
+      });
+      expect(parsed.vueSemanticIdentity?.toolchain.paths.vueTsc).not.toContain(
+        toPortablePath(fixture.path('packages', 'app', 'node_modules')),
+      );
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it('reports missing and incomplete vue-tsc ownership without installing internals directly', async () => {
+    const missing = await createFixture(
+      {
+        'src/App.vue': '<script setup lang="ts">export {}</script>\n',
+        'tsconfig.json': config(),
+      },
+      { linkVueTsc: false },
+    );
+    const incomplete = await createFixture(
+      {
+        'node_modules/vue-tsc/package.json':
+          '{"name":"vue-tsc","version":"3.2.4"}\n',
+        'src/App.vue': '<script setup lang="ts">export {}</script>\n',
+        'tsconfig.json': config(),
+      },
+      { linkVueTsc: false },
+    );
+
+    try {
+      expect(() => parseIdentity({ rootDir: missing.rootDir })).toThrow(
+        /Missing external checker:[\s\S]*checker: vue-tsc/u,
+      );
+
+      let thrown: unknown;
+      try {
+        parseIdentity({ rootDir: incomplete.rootDir });
+      } catch (error) {
+        thrown = error;
+      }
+      expect(String(thrown)).toContain('Unsupported vue-tsc toolchain:');
+      expect(String(thrown)).toContain(
+        'upgrade, downgrade, or reinstall vue-tsc',
+      );
+      expect(String(thrown)).not.toContain('pnpm add -D @vue/language-core');
+      expect(String(thrown)).not.toContain('pnpm add -D @volar/typescript');
+    } finally {
+      await Promise.all([missing.cleanup(), incomplete.cleanup()]);
+    }
+  });
+
+  it('reports an incompatible version tuple as one vue-tsc toolchain failure', () => {
+    const tuple = {
+      languageCore: '3.2.4',
+      typeScript: '6.0.3',
+      volarTypeScript: '2.4.26',
+      vueTsc: '3.2.4',
+    };
+
+    expect(resolveVueSemanticAdapter(tuple).kind).toBe('unsupported');
+    const error = createUnsupportedVueToolchainCompatibilityError({
+      checkerExecutionRootDir: '/fixture',
+      tuple,
+    });
+    expect(String(error)).toContain('Unsupported vue-tsc toolchain:');
+    expect(String(error)).toContain('@volar/typescript 2.4.26');
+    expect(String(error)).toContain('upgrade, downgrade, or reinstall vue-tsc');
+    expect(String(error)).not.toContain('pnpm add -D @vue/language-core');
+    expect(String(error)).not.toContain('pnpm add -D @volar/typescript');
+  });
+
   it('uses one overlay-aware identity for profiles and Program options', async () => {
     const fixture = await createFixture({
       'src/App.component': '<script setup lang="ts">const value = 1</script>\n',

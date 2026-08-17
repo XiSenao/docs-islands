@@ -1,5 +1,9 @@
 import type { VueProjectSemanticIdentity } from '#checkers';
 import { normalizeAbsolutePath } from '#utils/path';
+import {
+  createFrameworkSemanticEvidence,
+  createFrameworkSemanticFailure,
+} from '../framework-semantic/contracts';
 import type { VueSemanticContextManager } from '../vue-semantic/context';
 import { resolveVueSemanticImport } from '../vue-semantic/resolution';
 import type { ImportRecord } from './records';
@@ -28,8 +32,13 @@ export function resolveVueSemanticPair(options: {
   if (options.manager === undefined) {
     return {
       oxc: options.oxc,
-      semanticFailure:
-        'Vue semantic module resolution is unavailable outside an analysis provider generation.',
+      semanticFailure: createFrameworkSemanticFailure({
+        framework: 'vue',
+        reason:
+          'Vue semantic module resolution is unavailable outside an analysis provider generation.',
+        scopeIdentity: options.identity.id,
+        stage: 'context-creation',
+      }),
       typescript: null,
     };
   }
@@ -41,13 +50,22 @@ export function resolveVueSemanticPair(options: {
   if (semantic.kind === 'unsupported') {
     return {
       oxc: options.oxc,
-      semanticFailure: semantic.reason,
+      semanticFailure: createFrameworkSemanticFailure({
+        framework: 'vue',
+        reason: semantic.reason,
+        scopeIdentity: options.identity.id,
+        stage: semantic.stage,
+      }),
       typescript: null,
     };
   }
   return {
     oxc: options.oxc,
-    semanticEvidence: semantic.evidence,
+    semanticEvidence: createFrameworkSemanticEvidence({
+      candidate: semantic.evidence,
+      resolutionMode: semantic.resolutionMode,
+      target: semantic.resolution,
+    }),
     typescript: semantic.resolution,
   };
 }

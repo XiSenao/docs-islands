@@ -26,7 +26,6 @@ export {
 } from './framework-target-preflight';
 export {
   collectFrameworkCapabilityDescriptors,
-  collectFrameworkSupplementalCapabilityDescriptors,
   createFrameworkCheckerTarget,
   createFrameworkCheckerTargets,
 } from './framework-targets';
@@ -60,12 +59,12 @@ function createCheckerDependencyRequirements(
     );
   }
   return [
-    ...adapter.dependencies.checkerBinaryPackages.map((packageName) => ({
-      category: 'checker-binary' as const,
+    ...adapter.dependencies.externalCheckerPackages.map((packageName) => ({
+      category: 'external-checker' as const,
       packageName,
     })),
-    ...adapter.dependencies.checkerRuntimePeerPackages.map((packageName) => ({
-      category: 'checker-runtime-peer' as const,
+    ...adapter.dependencies.liminaRuntimePackages.map((packageName) => ({
+      category: 'limina-runtime' as const,
       packageName,
     })),
   ];

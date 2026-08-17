@@ -1,6 +1,6 @@
 import type { CheckerPackageResolver } from '#checkers';
 import type { ResolvedLiminaConfig } from '#config/runner';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import {
   mkdir,
   mkdtemp,
@@ -34,23 +34,93 @@ import { createFixturePathResolver, toPortablePath } from './helpers/path';
 
 const requireFromTest = createRequire(import.meta.url);
 
+function resolveInstalledPackageRoot(options: {
+  installedName: string;
+  packageName: string;
+}): string {
+  const readPackageName = (manifestPath: string): string | undefined => {
+    try {
+      return (
+        JSON.parse(readFileSync(manifestPath, 'utf8')) as { name?: string }
+      ).name;
+    } catch {
+      return undefined;
+    }
+  };
+  try {
+    const manifestPath = requireFromTest.resolve(
+      `${options.installedName}/package.json`,
+    );
+    if (readPackageName(manifestPath) === options.packageName) {
+      return path.dirname(manifestPath);
+    }
+  } catch {
+    // Packages may intentionally hide package.json behind exports.
+  }
+  let directory = path.dirname(requireFromTest.resolve(options.installedName));
+  while (true) {
+    if (
+      readPackageName(path.join(directory, 'package.json')) ===
+      options.packageName
+    )
+      return directory;
+    const parent = path.dirname(directory);
+    if (parent === directory) {
+      throw new Error(
+        `Unable to find the ${options.packageName} package root for ${options.installedName}.`,
+      );
+    }
+    directory = parent;
+  }
+}
+
 async function writeText(filePath: string, text: string): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, text);
 }
 
-async function linkAstroCompiler(rootDir: string): Promise<void> {
-  const compilerPackagePath = requireFromTest.resolve(
-    '@astrojs/compiler/package.json',
+async function linkInstalledPackage(options: {
+  installedName: string;
+  packageName: string;
+  rootDir: string;
+}): Promise<void> {
+  const packageRoot = resolveInstalledPackageRoot({
+    installedName: options.installedName,
+    packageName: options.packageName,
+  });
+  const segments = options.packageName.split('/');
+  const packageBaseName = segments.pop()!;
+  const nodeModulesDir = path.join(
+    options.rootDir,
+    'node_modules',
+    ...segments,
   );
-  const nodeModulesDir = path.join(rootDir, 'node_modules', '@astrojs');
-
   await mkdir(nodeModulesDir, { recursive: true });
   await symlink(
-    path.dirname(compilerPackagePath),
-    path.join(nodeModulesDir, 'compiler'),
+    packageRoot,
+    path.join(nodeModulesDir, packageBaseName),
     'junction',
   );
+}
+
+async function linkAstroToolchain(rootDir: string): Promise<void> {
+  await Promise.all([
+    linkInstalledPackage({
+      installedName: '@astrojs/check',
+      packageName: '@astrojs/check',
+      rootDir,
+    }),
+    linkInstalledPackage({
+      installedName: 'astro-v7-current',
+      packageName: 'astro',
+      rootDir,
+    }),
+    linkInstalledPackage({
+      installedName: 'typescript',
+      packageName: 'typescript',
+      rootDir,
+    }),
+  ]);
 }
 
 async function linkVueToolchain(rootDir: string): Promise<void> {
@@ -72,9 +142,19 @@ async function createFixture(files: Record<string, string>): Promise<{
   const rootDir = await realpath(
     await mkdtemp(path.join(tmpdir(), 'limina-typecheck-')),
   );
+  const hasAstro = Object.keys(files).some((filePath) =>
+    filePath.endsWith('.astro'),
+  );
   const fixtureFiles = {
     'package.json': `${JSON.stringify(
       {
+        dependencies: hasAstro
+          ? {
+              '@astrojs/check': '0.9.10',
+              astro: '7.2.0',
+              typescript: '6.0.3',
+            }
+          : undefined,
         name: 'root',
         private: true,
       },
@@ -105,8 +185,8 @@ async function createFixture(files: Record<string, string>): Promise<{
     await writeText(path.join(rootDir, relativePath), text);
   }
   await linkVueToolchain(rootDir);
-  if (Object.keys(files).some((filePath) => filePath.endsWith('.astro'))) {
-    await linkAstroCompiler(rootDir);
+  if (hasAstro) {
+    await linkAstroToolchain(rootDir);
   }
 
   return {
@@ -215,7 +295,7 @@ function createLiminaConfig(rootDir: string): ResolvedLiminaConfig {
           include: ['svelte/tsconfig.json'],
         },
         tsc: {
-          include: ['tsconfig.json', 'svelte/tsconfig.json'],
+          include: ['tsconfig.json'],
         },
         'vue-tsc': {
           include: ['vue/tsconfig.json'],
@@ -231,8 +311,12 @@ describe('runCheckerBuild', () => {
   it('runs only build checker entries', async () => {
     const calls: TypecheckTarget[] = [];
     const fixture = await createFixture({
+      'src/index.ts': 'export const value = 1;\n',
+      'tsconfig.json': tsconfig({ include: ['src/**/*.ts'] }),
       'tsconfig.build.json': tsconfig({ files: [] }),
       'tsconfig.svelte.build.json': tsconfig({ files: [] }),
+      'vue/src/App.vue': '<script setup lang="ts">const value = 1;</script>\n',
+      'vue/tsconfig.json': tsconfig({ include: ['src/**/*'] }),
       'tsconfig.vue.build.json': tsconfig({ files: [] }),
     });
 
@@ -244,8 +328,14 @@ describe('runCheckerBuild', () => {
       });
 
       expect(result.passed).toBe(true);
-      expect(calls.map((target) => target.command)).toEqual(['tsc', 'vue-tsc']);
-      expect(calls.map((target) => target.args)).toEqual([
+      const orderedCalls = calls.toSorted((left, right) =>
+        left.command.localeCompare(right.command),
+      );
+      expect(orderedCalls.map((target) => target.command)).toEqual([
+        'tsc',
+        'vue-tsc',
+      ]);
+      expect(orderedCalls.map((target) => target.args)).toEqual([
         [
           '-b',
           '.limina/tsconfig/checkers/tsc/tsconfig.build.json',
@@ -330,7 +420,7 @@ describe('runCheckerBuild', () => {
     }
   });
 
-  it('disables supplemental typecheck before peer preflight when no capability exists', async () => {
+  it('preflights framework-owned typecheck targets even without build targets', async () => {
     const buildCalls: TypecheckTarget[] = [];
     const typecheckCalls: TypecheckTarget[] = [];
     const typecheckIssues: LiminaCheckIssue[] = [];
@@ -392,8 +482,8 @@ describe('runCheckerBuild', () => {
           runner: passingRunner(typecheckCalls),
         }),
       ).resolves.toMatchObject({
-        disabled: true,
-        passed: true,
+        disabled: false,
+        passed: false,
       });
 
       expect(buildCalls.map((target) => target.command)).toEqual([
@@ -401,7 +491,7 @@ describe('runCheckerBuild', () => {
         'tsc',
       ]);
       expect(typecheckCalls).toEqual([]);
-      expect(typecheckIssues).toEqual([]);
+      expect(typecheckIssues).toHaveLength(1);
     } finally {
       await fixture.cleanup();
     }
@@ -414,7 +504,11 @@ describe('runCheckerBuild', () => {
       delayMs: (target) => (target.command === 'tsc' ? 30 : 10),
     });
     const fixture = await createFixture({
+      'src/index.ts': 'export const value = 1;\n',
+      'tsconfig.json': tsconfig({ include: ['src/**/*.ts'] }),
       'tsconfig.build.json': tsconfig({ files: [] }),
+      'vue/src/App.vue': '<script setup lang="ts">const value = 1;</script>\n',
+      'vue/tsconfig.json': tsconfig({ include: ['src/**/*'] }),
       'tsconfig.vue.build.json': tsconfig({ files: [] }),
     });
 
@@ -439,7 +533,10 @@ describe('runCheckerBuild', () => {
       });
 
       expect(result.passed).toBe(true);
-      expect(calls.map((target) => target.command)).toEqual(['tsc', 'vue-tsc']);
+      expect(calls.map((target) => target.command).sort()).toEqual([
+        'tsc',
+        'vue-tsc',
+      ]);
       expect(delayed.getMaxActive()).toBe(
         getExpectedDefaultBuildConcurrency(2),
       );
@@ -567,7 +664,7 @@ describe('runCheckerBuild', () => {
           runner: passingRunner(calls),
         }),
       ).rejects.toThrow(
-        /Ambiguous inherited checker ownership[\s\S]*first checker: tsgo[\s\S]*conflicting checker: vue-tsc/u,
+        /Checker ownership conflict[\s\S]*checker: tsgo[\s\S]*checker: vue-tsc/u,
       );
 
       expect(calls).toEqual([]);
@@ -643,6 +740,8 @@ describe('runCheckerBuild', () => {
   it('runs tsgo checker entries with build mode', async () => {
     const calls: TypecheckTarget[] = [];
     const fixture = await createFixture({
+      'src/index.ts': 'export const value = 1;\n',
+      'tsconfig.json': tsconfig({ include: ['src/**/*.ts'] }),
       'tsconfig.build.json': tsconfig({ files: [] }),
     });
 
@@ -687,7 +786,11 @@ describe('runCheckerBuild', () => {
       .spyOn(TypecheckLogger, 'error')
       .mockImplementation(() => {});
     const fixture = await createFixture({
+      'src/index.ts': 'export const value = 1;\n',
+      'tsconfig.json': tsconfig({ include: ['src/**/*.ts'] }),
       'tsconfig.build.json': tsconfig({ files: [] }),
+      'vue/src/App.vue': '<script setup lang="ts">const value = 1;</script>\n',
+      'vue/tsconfig.json': tsconfig({ include: ['src/**/*'] }),
       'tsconfig.vue.build.json': tsconfig({ files: [] }),
     });
 
@@ -716,7 +819,10 @@ describe('runCheckerBuild', () => {
       });
 
       expect(result.passed).toBe(true);
-      expect(calls.map((target) => target.command)).toEqual(['tsc', 'vue-tsc']);
+      expect(calls.map((target) => target.command).sort()).toEqual([
+        'tsc',
+        'vue-tsc',
+      ]);
       expect(errorSpy).not.toHaveBeenCalled();
     } finally {
       errorSpy.mockRestore();
@@ -733,6 +839,8 @@ describe('runCheckerBuild', () => {
       .spyOn(TypecheckLogger, 'warn')
       .mockImplementation(() => {});
     const fixture = await createFixture({
+      'src/index.ts': 'export const value = 1;\n',
+      'tsconfig.json': tsconfig({ include: ['src/**/*.ts'] }),
       'tsconfig.build.json': tsconfig({ files: [] }),
     });
 
@@ -773,8 +881,12 @@ describe('runCheckerBuild', () => {
   it('reports failed build checker entries', async () => {
     const calls: TypecheckTarget[] = [];
     const fixture = await createFixture({
+      'src/index.ts': 'export const value = 1;\n',
+      'tsconfig.json': tsconfig({ include: ['src/**/*.ts'] }),
       'tsconfig.build.json': tsconfig({ files: [] }),
       'tsconfig.svelte.build.json': tsconfig({ files: [] }),
+      'vue/src/App.vue': '<script setup lang="ts">const value = 1;</script>\n',
+      'vue/tsconfig.json': tsconfig({ include: ['src/**/*'] }),
       'tsconfig.vue.build.json': tsconfig({ files: [] }),
     });
 
@@ -803,7 +915,11 @@ describe('runCheckerBuild', () => {
       status: 1,
     });
     const fixture = await createFixture({
+      'src/index.ts': 'export const value = 1;\n',
+      'tsconfig.json': tsconfig({ include: ['src/**/*.ts'] }),
       'tsconfig.build.json': tsconfig({ files: [] }),
+      'vue/src/App.vue': '<script setup lang="ts">const value = 1;</script>\n',
+      'vue/tsconfig.json': tsconfig({ include: ['src/**/*'] }),
       'tsconfig.vue.build.json': tsconfig({ files: [] }),
     });
 
@@ -834,7 +950,10 @@ describe('runCheckerBuild', () => {
       const vuePath = '.limina/tsconfig/checkers/vue-tsc/tsconfig.build.json';
 
       expect(result.passed).toBe(false);
-      expect(calls.map((target) => target.command)).toEqual(['tsc', 'vue-tsc']);
+      expect(calls.map((target) => target.command).sort()).toEqual([
+        'tsc',
+        'vue-tsc',
+      ]);
       expect(delayed.getMaxActive()).toBe(
         getExpectedDefaultBuildConcurrency(2),
       );
@@ -1325,7 +1444,7 @@ describe('runBuild', () => {
     }
   });
 
-  it('builds a pure framework dependency solution over its TypeScript provider closure', async () => {
+  it('does not create a declaration build target for a framework-owned config', async () => {
     const calls: TypecheckTarget[] = [];
     const infoSpy = vi
       .spyOn(TypecheckLogger, 'info')
@@ -1361,8 +1480,11 @@ describe('runBuild', () => {
         config: {
           config: {
             checkers: {
+              astro: {
+                include: ['packages/a/tsconfig.json'],
+              },
               tsc: {
-                include: ['packages/**/tsconfig.json'],
+                include: ['packages/b/tsconfig.json'],
               },
             },
           },
@@ -1374,23 +1496,17 @@ describe('runBuild', () => {
         runner: passingRunner(calls),
       });
 
-      expect(result.passed).toBe(true);
-      expect(calls.map(({ command }) => command)).toEqual(['tsc']);
-      expect(calls.map(({ configPath }) => toPortablePath(configPath))).toEqual(
-        [expect.stringContaining('/solutions/packages/a/tsconfig.build.json')],
+      expect(result).toMatchObject({
+        failureKind: 'target-selection',
+        passed: false,
+      });
+      expect(result.problems?.join('\n')).toContain(
+        'Unmanaged Limina output build config',
       );
-      const solutionConfig = JSON.parse(
-        await readFile(calls[0]!.configPath, 'utf8'),
-      ) as { files: string[]; references: { path: string }[] };
-      expect(solutionConfig.files).toEqual([]);
-      expect(solutionConfig.references).toEqual([]);
-      expect(
-        infoSpy.mock.calls.some(([message]) =>
-          String(message).includes(
-            'TypeScript dependency solution (framework application build is not included).',
-          ),
-        ),
-      ).toBe(true);
+      expect(calls).toEqual([]);
+      expect(infoSpy.mock.calls.join('\n')).not.toContain(
+        'TypeScript dependency solution',
+      );
     } finally {
       infoSpy.mockRestore();
       await fixture.cleanup();
@@ -2454,7 +2570,7 @@ describe('runBuild', () => {
     }
   });
 
-  it('rejects explicit checker configs without a build checker', async () => {
+  it('accepts framework-only checker configs without creating build targets', async () => {
     const calls: TypecheckTarget[] = [];
     const errorSpy = vi
       .spyOn(TypecheckLogger, 'error')
@@ -2474,26 +2590,26 @@ describe('runBuild', () => {
     });
 
     try {
-      await expect(
-        runBuild({
+      const result = await runBuild({
+        config: {
           config: {
-            config: {
-              checkers: {
-                'svelte-check': {
-                  include: ['svelte/tsconfig.json'],
-                },
+            checkers: {
+              'svelte-check': {
+                include: ['svelte/tsconfig.json'],
               },
             },
-            configPath: path.join(fixture.rootDir, 'limina.config.mjs'),
-            rootDir: fixture.rootDir,
           },
-          cwd: fixture.rootDir,
-          configPath: 'svelte/tsconfig.json',
-          runner: passingRunner(calls),
-        }),
-      ).rejects.toThrow(
-        'explicit checker config requires at least one build checker',
-      );
+          configPath: path.join(fixture.rootDir, 'limina.config.mjs'),
+          rootDir: fixture.rootDir,
+        },
+        cwd: fixture.rootDir,
+        configPath: 'svelte/tsconfig.json',
+        runner: passingRunner(calls),
+      });
+      expect(result).toMatchObject({
+        failureKind: 'target-selection',
+        passed: false,
+      });
       expect(calls).toHaveLength(0);
     } finally {
       errorSpy.mockRestore();
@@ -2560,13 +2676,11 @@ describe('runBuild', () => {
           configPath: 'packages/shared/tsconfig.lib.json',
           runner: passingRunner(calls),
         }),
-      ).rejects.toThrow('Ambiguous inherited checker ownership');
+      ).rejects.toThrow('Checker ownership conflict');
       expect(calls).toHaveLength(0);
       expect(errorSpy.mock.calls.join('\n')).toContain(
-        'Ambiguous inherited checker ownership',
+        'Checker ownership conflict',
       );
-      expect(errorSpy.mock.calls.join('\n')).toContain('tsgo');
-      expect(errorSpy.mock.calls.join('\n')).toContain('tsc');
     } finally {
       errorSpy.mockRestore();
       await fixture.cleanup();
@@ -2759,10 +2873,10 @@ describe('runBuild', () => {
           project: 'packages/shared/tsconfig.lib.json',
           runner: passingRunner(calls),
         }),
-      ).rejects.toThrow('Ambiguous inherited checker ownership');
+      ).rejects.toThrow('Checker ownership conflict');
       expect(calls).toHaveLength(0);
       expect(errorSpy.mock.calls.join('\n')).toContain(
-        'Ambiguous inherited checker ownership',
+        'Checker ownership conflict',
       );
     } finally {
       errorSpy.mockRestore();
@@ -2901,11 +3015,9 @@ describe('runBuild', () => {
         thrown = error;
       }
 
-      expect(String(thrown)).toContain(
-        'Unsupported cross-checker declaration provider',
-      );
-      expect(String(thrown)).toContain('consumer checker: tsc (tsc)');
-      expect(String(thrown)).toContain('provider checker: vue-tsc (vue-tsc)');
+      expect(String(thrown)).toContain('Checker ownership conflict');
+      expect(String(thrown)).toContain('local owner: tsc');
+      expect(String(thrown)).toContain('incompatible requirement: vue-tsc');
       expect(String(thrown)).toContain('packages/theme/src/theme.ts');
       expect(calls).toEqual([]);
     } finally {
@@ -3007,10 +3119,8 @@ describe('runBuild', () => {
         thrown = error;
       }
 
-      expect(String(thrown)).toContain(
-        'Unsupported cross-checker declaration provider',
-      );
-      expect(String(thrown)).toContain('provider checker: vue-tsc (vue-tsc)');
+      expect(String(thrown)).toContain('Checker ownership conflict');
+      expect(String(thrown)).toContain('incompatible requirement: vue-tsc');
       expect(String(thrown)).toContain('packages/theme/src/theme.ts');
       expect(calls).toEqual([]);
     } finally {
@@ -3197,7 +3307,7 @@ describe('runBuild', () => {
 });
 
 describe('runCheckerTypecheck', () => {
-  it('runs only supplemental checker entries', async () => {
+  it('runs framework-owned checker entries', async () => {
     const calls: TypecheckTarget[] = [];
     const fixture = await createFixture({
       'svelte/src/App.svelte': '<script lang="ts">const value = 1;</script>\n',
@@ -3229,7 +3339,7 @@ describe('runCheckerTypecheck', () => {
     }
   });
 
-  it('discovers supplemental targets without checking build-only peers', async () => {
+  it('discovers framework targets without checking build-only peers', async () => {
     const calls: TypecheckTarget[] = [];
     const fixture = await createFixture({
       'tsconfig.build.json': tsconfig({ files: [] }),

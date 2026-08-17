@@ -10,6 +10,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
+import {
+  getAstroParserIdentity,
+  loadAstroCompiler,
+  resolveAstroParser,
+} from '../core/import-analysis/astro-compiler';
+import { collectPositionedAstroImports } from '../core/import-analysis/astro-positioned-imports';
 import { collectOxcImports } from '../core/import-analysis/oxc-imports';
 import { collectRequireImportsFromSourceFile } from '../core/import-analysis/require-bindings';
 import { collectTypeScriptImports } from '../core/import-analysis/typescript-imports';
@@ -29,23 +35,6 @@ async function writeText(rootDir: string, filePath: string, text: string) {
   await writeFile(absolutePath, text);
 
   return absolutePath;
-}
-
-async function linkAstroCompiler(
-  rootDir: string,
-  packageName = '@astrojs/compiler',
-): Promise<void> {
-  const compilerPackagePath = requireFromTest.resolve(
-    `${packageName}/package.json`,
-  );
-  const nodeModulesDir = path.join(rootDir, 'node_modules', '@astrojs');
-
-  await mkdir(nodeModulesDir, { recursive: true });
-  await symlink(
-    path.dirname(compilerPackagePath),
-    path.join(nodeModulesDir, 'compiler'),
-    'junction',
-  );
 }
 
 async function linkSvelteCompiler(
@@ -605,7 +594,6 @@ describe('import analysis', () => {
     ].join('\r\n');
 
     try {
-      await linkAstroCompiler(rootDir);
       const filePath = await writeText(rootDir, 'src/Page.astro', sourceText);
       const metrics = createProfilingMetricsRecorder();
       const context = createImportAnalysisContext({ metrics });
@@ -700,13 +688,13 @@ describe('import analysis', () => {
     }
   });
 
-  it('resolves the actual Astro compiler from the supplied leaf root', async () => {
+  it('uses the Limina Astro runtime instead of a conflicting leaf installation', async () => {
     const rootDir = await createTempDir();
     const leafRootDir = path.join(rootDir, 'packages/leaf');
 
     try {
       await writeText(
-        rootDir,
+        leafRootDir,
         'node_modules/@astrojs/compiler/package.json',
         JSON.stringify({
           main: './index.cjs',
@@ -715,11 +703,10 @@ describe('import analysis', () => {
         }),
       );
       await writeText(
-        rootDir,
+        leafRootDir,
         'node_modules/@astrojs/compiler/index.cjs',
-        'throw new Error("wrong compiler scope");\n',
+        'throw new Error("leaf compiler must not load");\n',
       );
-      await linkAstroCompiler(leafRootDir);
       const filePath = await writeText(
         rootDir,
         'packages/leaf/src/Page.astro',
@@ -742,39 +729,102 @@ describe('import analysis', () => {
     }
   });
 
-  it('parses imports with the selected minimum actual Astro compiler', async () => {
+  it('accepts the minimum supported Limina Astro runtime contract', async () => {
     const rootDir = await createTempDir();
 
     try {
-      await linkAstroCompiler(rootDir, '@astrojs/compiler-v2');
-      const filePath = await writeText(
+      const compilerEntry = await writeText(
         rootDir,
-        'src/Page.astro',
-        '---\nimport value from "./value";\n---\n<h1>Astro 2</h1>\n',
+        'node_modules/@astrojs/compiler/index.mjs',
+        'export async function parse() { return { ast: { type: "root" } }; }\n',
       );
-      const context = createImportAnalysisContext();
+      await writeText(
+        rootDir,
+        'node_modules/@astrojs/compiler/package.json',
+        JSON.stringify({
+          exports: { '.': { import: './index.mjs' } },
+          name: '@astrojs/compiler',
+          type: 'module',
+          version: '2.0.0',
+        }),
+      );
 
-      await prewarmImportsFromFile({
-        context,
-        filePath,
-        packageRootDir: rootDir,
-      });
       expect(
-        context
-          .collectImportsFromFile(filePath, rootDir)
-          .map((record) => record.specifier),
-      ).toEqual(['./value']);
+        resolveAstroParser({
+          packageRootDir: rootDir,
+          resolveCompilerEntry: () => compilerEntry,
+        }).version,
+      ).toBe('2.0.0');
     } finally {
       await rm(rootDir, { force: true, recursive: true });
     }
   });
 
-  it('does not inherit an Astro compiler from an ancestor package root', async () => {
+  it.each([
+    ['@astrojs/compiler-v2', '2.0.0'],
+    ['@astrojs/compiler-v3', '3.0.1'],
+    ['@astrojs/compiler', '4.0.0'],
+  ])(
+    'keeps real ImportRecord source offsets stable with %s',
+    async (packageName, expectedVersion) => {
+      const sourceText = [
+        '---',
+        'import component from "./component.astro";',
+        '---',
+        '<component />',
+        '<script>',
+        '  import "./client.ts";',
+        '</script>',
+        '',
+      ].join('\n');
+      const resolved = resolveAstroParser({
+        packageRootDir: process.cwd(),
+        resolveCompilerEntry: () => requireFromTest.resolve(packageName),
+      });
+      const compiler = await loadAstroCompiler({
+        packageRootDir: process.cwd(),
+        resolvedPath: resolved.resolvedPath,
+      });
+      const parsed = await compiler.parse(sourceText, { position: true });
+      const records = collectPositionedAstroImports({
+        filePath: path.join(process.cwd(), 'src/Page.astro'),
+        packageRootDir: process.cwd(),
+        root: parsed.ast,
+        sourceText,
+      });
+      const frontmatterToken = '"./component.astro"';
+      const clientToken = '"./client.ts"';
+
+      expect(resolved.version).toBe(expectedVersion);
+      expect(records).toMatchObject([
+        {
+          domain: 'astro-frontmatter',
+          locator: {
+            occurrence: 0,
+            sourceEnd:
+              sourceText.indexOf(frontmatterToken) + frontmatterToken.length,
+            sourceStart: sourceText.indexOf(frontmatterToken),
+          },
+          specifier: './component.astro',
+        },
+        {
+          domain: 'astro-client-script',
+          locator: {
+            occurrence: 0,
+            sourceEnd: sourceText.indexOf(clientToken) + clientToken.length,
+            sourceStart: sourceText.indexOf(clientToken),
+          },
+          specifier: './client.ts',
+        },
+      ]);
+    },
+  );
+
+  it('does not require an Astro compiler in the source leaf', async () => {
     const rootDir = await createTempDir();
     const leafRootDir = path.join(rootDir, 'packages/leaf');
 
     try {
-      await linkAstroCompiler(rootDir);
       await writeText(
         rootDir,
         'packages/leaf/package.json',
@@ -793,24 +843,18 @@ describe('import analysis', () => {
           filePath,
           packageRootDir: leafRootDir,
         }),
-      ).rejects.toThrow(
-        /Unable to load Astro compiler for import analysis:[\s\S]*leaf package root/u,
-      );
+      ).resolves.toBeUndefined();
     } finally {
       await rm(rootDir, { force: true, recursive: true });
     }
   });
 
-  it('isolates concurrent Astro import caches by leaf root and compiler version', async () => {
+  it('uses one Astro runtime identity across leaf roots while isolating source caches', async () => {
     const rootDir = await createTempDir();
     const currentLeaf = path.join(rootDir, 'packages/current');
     const minimumLeaf = path.join(rootDir, 'packages/minimum');
 
     try {
-      await Promise.all([
-        linkAstroCompiler(currentLeaf),
-        linkAstroCompiler(minimumLeaf, '@astrojs/compiler-v2'),
-      ]);
       const filePath = await writeText(
         rootDir,
         'shared/Page.astro',
@@ -818,6 +862,8 @@ describe('import analysis', () => {
       );
       const metrics = createProfilingMetricsRecorder();
       const context = createImportAnalysisContext({ metrics });
+
+      expect(getAstroParserIdentity()).toEqual(getAstroParserIdentity());
 
       await Promise.all([
         prewarmImportsFromFile({
@@ -850,55 +896,46 @@ describe('import analysis', () => {
     }
   });
 
-  it('reports missing and unsupported Astro analysis runtimes', async () => {
+  it('reports missing and unsupported Limina Astro runtimes', async () => {
     const missingRootDir = await createTempDir();
     const unsupportedRootDir = await createTempDir();
 
     try {
-      const missingFilePath = await writeText(
-        missingRootDir,
-        'src/Page.astro',
-        '<h1>Missing</h1>\n',
-      );
-      const missingContext = createImportAnalysisContext();
-      await expect(
-        prewarmImportsFromFile({
-          context: missingContext,
-          filePath: missingFilePath,
+      expect(() =>
+        resolveAstroParser({
           packageRootDir: missingRootDir,
+          resolveCompilerEntry: () => {
+            throw Object.assign(new Error('fixture module not found'), {
+              code: 'MODULE_NOT_FOUND',
+            });
+          },
         }),
-      ).rejects.toThrow(
-        /Unable to load Astro compiler for import analysis:[\s\S]*dependency category: analysis runtime/u,
+      ).toThrow(
+        /Missing Limina runtime dependency:[\s\S]*workspace running Limina/u,
       );
 
+      const unsupportedEntry = await writeText(
+        unsupportedRootDir,
+        'node_modules/@astrojs/compiler/index.mjs',
+        'export async function parse() { return { ast: { type: "root" } }; }\n',
+      );
       await writeText(
         unsupportedRootDir,
         'node_modules/@astrojs/compiler/package.json',
         JSON.stringify({
-          main: './index.cjs',
+          exports: { '.': { import: './index.mjs' } },
           name: '@astrojs/compiler',
+          type: 'module',
           version: '1.0.0',
         }),
       );
-      await writeText(
-        unsupportedRootDir,
-        'node_modules/@astrojs/compiler/index.cjs',
-        'exports.parse = async () => ({ ast: { type: "root" } });\n',
-      );
-      const unsupportedFilePath = await writeText(
-        unsupportedRootDir,
-        'src/Page.astro',
-        '<h1>Unsupported</h1>\n',
-      );
-      const unsupportedContext = createImportAnalysisContext();
-      await expect(
-        prewarmImportsFromFile({
-          context: unsupportedContext,
-          filePath: unsupportedFilePath,
+      expect(() =>
+        resolveAstroParser({
           packageRootDir: unsupportedRootDir,
+          resolveCompilerEntry: () => unsupportedEntry,
         }),
-      ).rejects.toThrow(
-        /Unsupported Astro compiler for import analysis:[\s\S]*installed version: 1\.0\.0[\s\S]*supported range: >=2\.0\.0 <5\.0\.0/u,
+      ).toThrow(
+        /Missing Limina runtime dependency:[\s\S]*installed version: 1\.0\.0[\s\S]*supported range: >=2\.0\.0 <5\.0\.0/u,
       );
     } finally {
       await Promise.all([
@@ -912,7 +949,6 @@ describe('import analysis', () => {
     const rootDir = await createTempDir();
 
     try {
-      await linkAstroCompiler(rootDir);
       const filePath = await writeText(
         rootDir,
         'src/Page.astro',

@@ -396,7 +396,7 @@ describe('LiminaFlowReporter', () => {
             'vue checker entry',
           ]);
           const [secondClassEntries] = checkerTypecheck.children([
-            'supplemental checker entries',
+            'framework checker entries',
           ]);
 
           root.start();
@@ -443,7 +443,7 @@ describe('LiminaFlowReporter', () => {
     expect(lastFrame).toContain('◆      checker build (500ms)\n');
     expect(lastFrame).toContain('└  limina check failed\n');
     expect(lastFrame).not.toContain('project routes and configs');
-    expect(lastFrame).not.toContain('supplemental checker entries');
+    expect(lastFrame).not.toContain('framework checker entries');
   });
 
   it('reserves the shell command row for public CLI check flows', async () => {
@@ -491,7 +491,7 @@ describe('LiminaFlowReporter', () => {
             'vue checker entry',
           ]);
           const [secondClassEntries] = checkerTypecheck.children([
-            'supplemental checker entries',
+            'framework checker entries',
           ]);
 
           root.start();
@@ -538,7 +538,7 @@ describe('LiminaFlowReporter', () => {
     expect(lastFrame).toContain('✕    default check (900ms)\n');
     expect(lastFrame).toContain('└  limina check failed\n');
     expect(lastFrame).not.toContain('project routes and configs');
-    expect(lastFrame).not.toContain('supplemental checker entries');
+    expect(lastFrame).not.toContain('framework checker entries');
   });
 
   it('compacts check-flow history to direct task states in short terminals', async () => {
@@ -583,8 +583,8 @@ describe('LiminaFlowReporter', () => {
           checkerBuild.pass('checker build', { depth: 1, elapsedTimeMs: 14010 });
 
           const checkerTypecheck = flow.start('checker typecheck', { depth: 1 });
-          const supplementalEntries = flow.start('supplemental checker entries', { depth: 2 });
-          supplementalEntries.pass('supplemental checker entries', { depth: 2, elapsedTimeMs: 0 });
+          const frameworkEntries = flow.start('framework checker entries', { depth: 2 });
+          frameworkEntries.pass('framework checker entries', { depth: 2, elapsedTimeMs: 0 });
           checkerTypecheck.pass('checker typecheck', { depth: 1, elapsedTimeMs: 1 });
 
           defaultCheck.pass('default check', { elapsedTimeMs: 14120 });
@@ -613,7 +613,7 @@ describe('LiminaFlowReporter', () => {
     expect(lastFrame).toContain('└  limina check passed\n');
     expect(lastFrame).not.toContain('source graph routes');
     expect(lastFrame).not.toContain('project routes and configs');
-    expect(lastFrame).not.toContain('supplemental checker entries');
+    expect(lastFrame).not.toContain('framework checker entries');
   });
 
   it('compacts process-rendered final check-flow frames when terminal rows are unavailable', async () => {

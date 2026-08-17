@@ -1,6 +1,7 @@
 import type { VueProjectSemanticIdentity } from '#checkers';
 import type { ImportAnalysisContext } from '#core/import-analysis/runner';
 import { normalizeAbsolutePathIdentity } from '#utils/path';
+import { formatFrameworkSemanticFailure } from '../framework-semantic/contracts';
 import type {
   ImportResolutionEvidence,
   ImportRuntimeResolutionEvidence,
@@ -120,7 +121,7 @@ export class TypeEvidenceCore {
         ...pair.runtimeEvidence,
         type: createUnsupportedCheckerEvidence({
           checkerName: options.checkerName,
-          reason: pair.semanticFailure,
+          reason: formatFrameworkSemanticFailure(pair.semanticFailure),
         }),
       };
     }

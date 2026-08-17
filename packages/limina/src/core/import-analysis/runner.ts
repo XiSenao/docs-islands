@@ -16,7 +16,9 @@ export type {
   ImportRecordKind,
 } from './records';
 export { createOxcResolverProfileIdentity } from './resolver-profile';
+export type { SemanticEligibility } from './semantic-eligibility';
 export type {
+  CanonicalImportResolutionEvidence,
   CreateImportAnalysisContextOptions,
   ImportAnalysisContext,
   ImportAnalysisMetricsRecorder,

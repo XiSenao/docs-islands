@@ -54,9 +54,10 @@ function createTypeScriptAdapter(options: {
   return {
     createCommandTarget,
     dependencies: {
-      analysisRuntimePackages: [],
-      checkerBinaryPackages: [options.packageName],
-      checkerRuntimePeerPackages: [],
+      externalCheckerPackages:
+        options.preset === 'tsgo' ? [options.packageName] : [],
+      liminaRuntimePackages:
+        options.preset === 'tsc' ? [options.packageName] : [],
     },
     extensions: resolveTypeScriptExtensions,
     execution: 'build',
@@ -113,9 +114,8 @@ function createVueAdapter(options: {
   return {
     ...behavior,
     dependencies: {
-      analysisRuntimePackages: [],
-      checkerBinaryPackages: options.packageNames,
-      checkerRuntimePeerPackages: [],
+      externalCheckerPackages: options.packageNames,
+      liminaRuntimePackages: [],
     },
     execution: options.execution,
     emitProjection: 'vue-bounded',

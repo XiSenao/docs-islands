@@ -1,5 +1,6 @@
 import { isSourceKnipEnabled, type ResolvedLiminaConfig } from '#config/runner';
 import { collectRawWorkspacePackages } from '#core/workspace/actions';
+import { AstroSemanticContextManager } from '../astro-semantic/context';
 import { VueSemanticContextManager } from '../vue-semantic/context';
 import {
   collectValidatedWorkspaceContext,
@@ -53,6 +54,13 @@ function createOwnedVueSemanticContexts(
   return new VueSemanticContextManager();
 }
 
+function createOwnedAstroSemanticContexts(
+  options: PrepareGeneratedTsconfigGraphOptions,
+): AstroSemanticContextManager | undefined {
+  if (options.importAnalysisContext !== undefined) return undefined;
+  return new AstroSemanticContextManager();
+}
+
 function disposeOwnedVueSemanticContexts(
   contexts: VueSemanticContextManager | undefined,
 ): void {
@@ -92,24 +100,31 @@ export async function prepareGeneratedTsconfigGraph(
     workspacePathIndex: options.workspacePathIndex,
   });
   const ownedVueSemanticContexts = createOwnedVueSemanticContexts(options);
+  const ownedAstroSemanticContexts = createOwnedAstroSemanticContexts(options);
   const importAnalysisContext = resolveBuildGraphImportAnalysis({
+    astroSemanticContexts: ownedAstroSemanticContexts,
     config,
     importAnalysisContext: options.importAnalysisContext,
     vueSemanticContexts: ownedVueSemanticContexts,
   });
   try {
-    const checkerSelections = await resolveGeneratedGraphCheckerSelections({
+    const checkerResolution = await resolveGeneratedGraphCheckerSelections({
       config,
       importAnalysisContext,
       projectConfigCache: options.projectConfigCache,
       workspaceContext,
       workspacePathIndex: activatedRegions,
     });
+    const checkerSelections = checkerResolution.selections;
     const checkers = checkerSelections.map(({ checker }) => checker);
-    const state = createGeneratedGraphPreparationState(config.rootDir);
+    const state = createGeneratedGraphPreparationState(
+      config.rootDir,
+      checkerResolution.ownershipPlan,
+    );
     const preparedCheckers = prepareCheckerGraphs({
       activatedRegions,
       config,
+      ownershipPlan: checkerResolution.ownershipPlan,
       projectConfigCache: options.projectConfigCache,
       selections: checkerSelections,
     });
@@ -150,6 +165,7 @@ export async function prepareGeneratedTsconfigGraph(
       state,
     });
   } finally {
+    ownedAstroSemanticContexts?.dispose();
     disposeOwnedVueSemanticContexts(ownedVueSemanticContexts);
   }
 }

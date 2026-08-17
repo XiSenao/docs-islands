@@ -125,7 +125,7 @@ describe('project references public CLI integration', () => {
     const manifest = await readJson<GeneratedManifest>(
       preparedFixture.path('repo/.limina/manifest.json'),
     );
-    expect(manifest.version).toBe(4);
+    expect(manifest.version).toBe(5);
     expect(manifest.generatedBy).toBe('limina');
     expect(manifest.checkers.tsc.entry).toBe(
       '.limina/tsconfig/checkers/tsc/tsconfig.build.json',

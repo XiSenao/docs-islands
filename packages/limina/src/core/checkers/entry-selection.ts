@@ -152,7 +152,7 @@ function assertValidEntryPaths(options: {
   rootDir: string;
 }): void {
   const invalidEntryPaths = options.entryPaths.filter(
-    (configPath) => !isDefaultSourceTsconfigPath(configPath),
+    (configPath) => !isDefaultSourceTsconfigPath(configPath, options.rootDir),
   );
 
   if (invalidEntryPaths.length > 0) {

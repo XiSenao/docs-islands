@@ -2,18 +2,14 @@ import type { VolarSourceScript, VueSourceProfile } from '#checkers';
 import type { ImportRecord } from '#core/import-analysis/runner';
 import { normalizeAbsolutePath } from '#utils/path';
 import type ts from 'typescript';
+import type { FrameworkSemanticCandidate } from '../framework-semantic/contracts';
 import type { VueSemanticContext } from './context';
 
-export interface SemanticDependencyEvidence {
-  containingSourceFile: ts.SourceFile;
-  identityId: string;
-  literal: ts.StringLiteralLike;
-  profile?: VueSourceProfile;
-  provenance: 'direct-source' | 'strict-source-map';
-  semanticSpecifier: string;
-  sourceRecord: ImportRecord;
-  sourceSpecifier: string;
-}
+export type SemanticDependencyEvidence = FrameworkSemanticCandidate<
+  ts.SourceFile,
+  ts.StringLiteralLike,
+  VueSourceProfile
+>;
 
 export type SemanticDependencyResult =
   | {
@@ -127,6 +123,7 @@ function createEvidence(options: {
 }): SemanticDependencyEvidence[] {
   return options.literals.map((literal) => ({
     containingSourceFile: literal.getSourceFile(),
+    framework: 'vue',
     identityId: options.context.identity.id,
     literal,
     profile: options.profile,

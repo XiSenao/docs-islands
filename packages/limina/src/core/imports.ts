@@ -8,6 +8,8 @@ import {
 } from '#core/import-analysis/runner';
 import type { ProjectInfo } from '#core/import-graph/context';
 import { normalizeAbsolutePath } from '#utils/path';
+import type { AstroSemanticContextManager } from './astro-semantic/context';
+import { selectCanonicalImportFilePath } from './import-analysis/canonical-resolution';
 import type { VueSemanticContextManager } from './vue-semantic/context';
 
 export interface ResolveImportOptions {
@@ -21,31 +23,31 @@ export interface ResolvedImportRecord {
   resolvedFilePath: string | null;
 }
 
+interface ImportCoreOptions {
+  astroSemanticContexts?: AstroSemanticContextManager;
+  metrics?: ImportAnalysisMetricsRecorder;
+  vueSemanticContexts?: VueSemanticContextManager;
+}
+
 export class ImportCore {
   readonly #config: ResolvedLiminaConfig;
   #context: ImportAnalysisContext;
 
-  constructor(
-    config: ResolvedLiminaConfig,
-    metrics?: ImportAnalysisMetricsRecorder,
-    vueSemanticContexts?: VueSemanticContextManager,
-  ) {
+  constructor(config: ResolvedLiminaConfig, options: ImportCoreOptions = {}) {
     this.#config = config;
-    this.#context = this.#createContext(metrics, vueSemanticContexts);
+    this.#context = this.#createContext(options);
   }
 
   get context(): ImportAnalysisContext {
     return this.#context;
   }
 
-  #createContext(
-    metrics?: ImportAnalysisMetricsRecorder,
-    vueSemanticContexts?: VueSemanticContextManager,
-  ): ImportAnalysisContext {
+  #createContext(options: ImportCoreOptions): ImportAnalysisContext {
     return createImportAnalysisContext({
-      metrics,
+      astroSemanticContexts: options.astroSemanticContexts,
+      metrics: options.metrics,
       projectRootDir: this.#config.rootDir,
-      vueSemanticContexts,
+      vueSemanticContexts: options.vueSemanticContexts,
     });
   }
 
@@ -71,24 +73,33 @@ export class ImportCore {
     filePath: string,
     project: ProjectInfo,
   ): ResolvedImportRecord[] {
-    return this.getImports(filePath).map((importRecord) => ({
-      importRecord,
-      resolvedFilePath: this.resolveImport({
-        containingFile: importRecord.filePath,
-        project,
-        specifier: importRecord.specifier,
-      }),
-    }));
+    return this.getImports(filePath).map((importRecord) => {
+      const evidence = this.#context.resolveImportEvidence(
+        importRecord,
+        importRecord.filePath,
+        project.options,
+        createProjectResolveContext(project),
+      );
+      return {
+        importRecord,
+        resolvedFilePath: selectCanonicalImportFilePath({
+          evidence,
+          includeResource: true,
+        }),
+      };
+    });
   }
 }
 
 function createProjectResolveContext(
   project: ProjectInfo,
 ): CheckerProjectParseContext & {
+  astroSemanticProject?: ProjectInfo['astroSemanticProject'];
   configPath: string;
   resolverConfigPath: string;
 } {
   return {
+    astroSemanticProject: project.astroSemanticProject,
     checkerPresets: project.checkerPresets,
     configPath: project.configPath,
     extensions: project.extensions,

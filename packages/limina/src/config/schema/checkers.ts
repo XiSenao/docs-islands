@@ -1,4 +1,11 @@
 import { z } from 'zod';
+import {
+  autoCheckerKeys,
+  checkerNames,
+  legacyAutoCheckerConfigReason,
+  unsupportedCheckerNameReason,
+} from './checker-schema-constants';
+import { checkerConfigShapeSchema } from './checker-scope-schema';
 import { validateImports } from './imports';
 import {
   addConfigIssue,
@@ -10,21 +17,14 @@ import {
 } from './shared';
 import { validateSourceBoundary } from './source-boundary';
 
-export const unsupportedCheckerNameReason =
-  'config.checkers keys must be one of: tsc, tsgo, vue-tsc, svelte-check, astro.';
-export const autoCheckerMixedConfigReason =
-  'auto checker config must not be mixed with named checker entries.';
-export const missingBuildCheckerReason =
-  'explicit checker config requires at least one build checker: tsc, tsgo, or vue-tsc.';
+export {
+  legacyAutoCheckerConfigReason,
+  unsupportedCheckerNameReason,
+} from './checker-schema-constants';
+export { checkerConfigShapeSchema } from './checker-scope-schema';
 
 const checkerConfigReason =
-  'config.checkers must be an object auto config or an object keyed by checker name.';
-const autoCheckerModeConfigReason =
-  'auto checker config requires mode: "auto".';
-const checkerConfigKeys = new Set(['exclude', 'include']);
-const autoCheckerKeys = new Set(['exclude', 'mode', 'useTsgo']);
-const buildCheckerNames = new Set(['tsc', 'tsgo', 'vue-tsc']);
-const checkerNames = new Set([...buildCheckerNames, 'svelte-check', 'astro']);
+  'config.checkers must be an object keyed by auto or checker name.';
 
 function addCheckerIssue(
   ctx: ConfigValidationContext,
@@ -34,117 +34,6 @@ function addCheckerIssue(
   addConfigIssue(ctx, path, message);
 }
 
-function validateCheckerSelectorEntry(options: {
-  ctx: ConfigValidationContext;
-  field: 'exclude' | 'include';
-  index: number;
-  value: unknown;
-}): void {
-  if (!isNonEmptyString(options.value)) {
-    addCheckerIssue(
-      options.ctx,
-      [options.field, options.index],
-      `checker ${options.field} entries must be non-empty string paths.`,
-    );
-    return;
-  }
-  if (!isAbsolutePublicSelector(options.value)) return;
-  addCheckerIssue(
-    options.ctx,
-    [options.field, options.index],
-    `checker ${options.field} entries must be config.rootDir-relative paths; ../ is allowed.`,
-  );
-}
-
-function handleMissingSelector(options: {
-  ctx: ConfigValidationContext;
-  field: 'exclude' | 'include';
-  required: boolean;
-}): null {
-  if (!options.required) return null;
-  addCheckerIssue(
-    options.ctx,
-    [options.field],
-    `checker ${options.field} must be a non-empty string array.`,
-  );
-  return null;
-}
-
-function validateSelectorArrayShape(options: {
-  ctx: ConfigValidationContext;
-  field: 'exclude' | 'include';
-  required: boolean;
-  value: unknown[];
-}): unknown[] | null {
-  if (!options.required || options.value.length > 0) return options.value;
-  addCheckerIssue(
-    options.ctx,
-    [options.field],
-    'checker include must be a non-empty string array.',
-  );
-  return null;
-}
-
-function getCheckerSelectorArray(options: {
-  checker: Record<string, unknown>;
-  ctx: ConfigValidationContext;
-  field: 'exclude' | 'include';
-  required: boolean;
-}): unknown[] | null {
-  const value = options.checker[options.field];
-  if (value === undefined) return handleMissingSelector(options);
-  if (Array.isArray(value))
-    return validateSelectorArrayShape({ ...options, value });
-  addCheckerIssue(
-    options.ctx,
-    [options.field],
-    `checker ${options.field} must be a string array when configured.`,
-  );
-  return null;
-}
-
-function validateCheckerSelectorArray(options: {
-  checker: Record<string, unknown>;
-  ctx: ConfigValidationContext;
-  field: 'exclude' | 'include';
-  required: boolean;
-}): void {
-  const values = getCheckerSelectorArray(options);
-  if (values === null) return;
-  for (const [index, value] of values.entries()) {
-    validateCheckerSelectorEntry({
-      ctx: options.ctx,
-      field: options.field,
-      index,
-      value,
-    });
-  }
-}
-
-export const checkerConfigShapeSchema: z.ZodType<Record<string, unknown>> = z
-  .looseObject({})
-  .superRefine((checker, ctx) => {
-    addUnknownFieldIssues({
-      allowed: checkerConfigKeys,
-      ctx,
-      message: 'unknown checker config field.',
-      path: [],
-      value: checker,
-    });
-    validateCheckerSelectorArray({
-      checker,
-      ctx,
-      field: 'include',
-      required: true,
-    });
-    validateCheckerSelectorArray({
-      checker,
-      ctx,
-      field: 'exclude',
-      required: false,
-    });
-  });
-
 function validateAutoExcludeEntry(options: {
   ctx: ConfigValidationContext;
   index: number;
@@ -153,7 +42,7 @@ function validateAutoExcludeEntry(options: {
   if (!isNonEmptyString(options.value)) {
     addCheckerIssue(
       options.ctx,
-      ['checkers', 'exclude', options.index],
+      ['checkers', 'auto', 'exclude', options.index],
       'auto checker exclude entries must be non-empty string paths.',
     );
     return;
@@ -161,7 +50,7 @@ function validateAutoExcludeEntry(options: {
   if (!isAbsolutePublicSelector(options.value)) return;
   addCheckerIssue(
     options.ctx,
-    ['checkers', 'exclude', options.index],
+    ['checkers', 'auto', 'exclude', options.index],
     'auto checker exclude entries must be config.rootDir-relative paths; ../ is allowed.',
   );
 }
@@ -175,7 +64,7 @@ function getAutoExclude(
   if (Array.isArray(exclude)) return exclude;
   addCheckerIssue(
     ctx,
-    ['checkers', 'exclude'],
+    ['checkers', 'auto', 'exclude'],
     'auto checker exclude must be a string array when configured.',
   );
   return null;
@@ -200,7 +89,7 @@ function validateAutoUseTsgo(
   if (typeof checkers.useTsgo === 'boolean') return;
   addCheckerIssue(
     ctx,
-    ['checkers', 'useTsgo'],
+    ['checkers', 'auto', 'useTsgo'],
     'auto checker useTsgo must be a boolean when configured.',
   );
 }
@@ -209,16 +98,13 @@ function validateAutoCheckers(
   checkers: Record<string, unknown>,
   ctx: ConfigValidationContext,
 ): void {
-  if (checkers.mode !== 'auto') {
-    addCheckerIssue(ctx, ['checkers', 'mode'], autoCheckerModeConfigReason);
-  }
   validateAutoExclude(checkers, ctx);
   validateAutoUseTsgo(checkers, ctx);
   addUnknownFieldIssues({
     allowed: autoCheckerKeys,
     ctx,
-    message: autoCheckerMixedConfigReason,
-    path: ['checkers'],
+    message: 'unknown auto checker config field.',
+    path: ['checkers', 'auto'],
     value: checkers,
   });
 }
@@ -255,8 +141,31 @@ function validateNamedChecker(options: {
   );
 }
 
-function hasNamedBuildChecker(checkers: Record<string, unknown>): boolean {
-  return Object.keys(checkers).some((name) => buildCheckerNames.has(name));
+function validateAutoCheckerValue(
+  checker: unknown,
+  ctx: ConfigValidationContext,
+): void {
+  if (isPlainConfigRecord(checker)) {
+    validateAutoCheckers(checker, ctx);
+    return;
+  }
+  addCheckerIssue(
+    ctx,
+    ['checkers', 'auto'],
+    'config.checkers.auto must be an object when configured.',
+  );
+}
+
+function validateCheckerValue(options: {
+  checker: unknown;
+  checkerName: string;
+  ctx: ConfigValidationContext;
+}): void {
+  if (options.checkerName === 'auto') {
+    validateAutoCheckerValue(options.checker, options.ctx);
+    return;
+  }
+  validateNamedChecker(options);
 }
 
 function validateNamedCheckers(
@@ -264,10 +173,7 @@ function validateNamedCheckers(
   ctx: ConfigValidationContext,
 ): void {
   for (const [checkerName, checker] of Object.entries(checkers)) {
-    validateNamedChecker({ checker, checkerName, ctx });
-  }
-  if (!hasNamedBuildChecker(checkers)) {
-    addCheckerIssue(ctx, ['checkers'], missingBuildCheckerReason);
+    validateCheckerValue({ checker, checkerName, ctx });
   }
 }
 
@@ -275,8 +181,11 @@ function validateCheckerRecord(
   value: Record<string, unknown>,
   ctx: ConfigValidationContext,
 ): void {
-  if (Object.hasOwn(value, 'mode')) validateAutoCheckers(value, ctx);
-  else validateNamedCheckers(value, ctx);
+  if (Object.hasOwn(value, 'mode')) {
+    addCheckerIssue(ctx, ['checkers', 'mode'], legacyAutoCheckerConfigReason);
+    return;
+  }
+  validateNamedCheckers(value, ctx);
 }
 
 function validateCheckers(value: unknown, ctx: ConfigValidationContext): void {

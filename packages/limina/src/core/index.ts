@@ -4,6 +4,7 @@ import {
   createLiminaArtifactNamespace,
   type LiminaArtifactNamespace,
 } from '../domain/artifacts/namespace';
+import { AstroSemanticContextManager } from './astro-semantic/context';
 import { BuildGraphCore } from './build-graph';
 import type { ImportAnalysisMetricsRecorder } from './import-analysis/runner';
 import { ImportCore } from './imports';
@@ -54,6 +55,7 @@ interface AnalysisProviderSetOptions {
 
 export class AnalysisProviderSet {
   readonly artifactNamespace: LiminaArtifactNamespace;
+  readonly astroSemanticContexts: AstroSemanticContextManager;
   readonly buildGraph: BuildGraphCore;
   readonly config: ResolvedLiminaConfig;
   readonly imports: ImportCore;
@@ -78,11 +80,14 @@ export class AnalysisProviderSet {
       options.dependencies.workspace,
     );
     this.vueSemanticContexts = new VueSemanticContextManager(options.metrics);
-    this.imports = new ImportCore(
-      options.config,
-      options.metrics,
-      this.vueSemanticContexts,
-    );
+    this.astroSemanticContexts = new AstroSemanticContextManager({
+      metrics: options.metrics,
+    });
+    this.imports = new ImportCore(options.config, {
+      astroSemanticContexts: this.astroSemanticContexts,
+      metrics: options.metrics,
+      vueSemanticContexts: this.vueSemanticContexts,
+    });
     this.tsconfig = new TsconfigCore({
       config: options.config,
       generatedGraphProvider: () => buildGraph.getGraph(),
@@ -111,6 +116,7 @@ export class AnalysisProviderSet {
 
   dispose(): void {
     this.typeEvidence.dispose();
+    this.astroSemanticContexts.dispose();
     this.vueSemanticContexts.dispose();
   }
 }

@@ -97,14 +97,23 @@ function addGovernedCheckerUnitMappings(options: {
 }): void {
   for (const unit of options.governedSources.values()) {
     addCheckerName(options.namesByPath, unit.configPath, options.checkerName);
-    addCheckerName(
-      options.namesByPath,
-      'buildConfigPath' in unit.buildProjection
-        ? unit.buildProjection.buildConfigPath
-        : unit.buildProjection.dtsConfigPath,
-      options.checkerName,
-    );
+    addGovernedProjectionMapping({ ...options, unit });
   }
+}
+
+function addGovernedProjectionMapping(options: {
+  checkerName: string;
+  namesByPath: Map<string, string[]>;
+  unit: GovernedSourceUnit;
+}): void {
+  if (options.unit.buildProjection.kind === 'framework-checker') return;
+  addCheckerName(
+    options.namesByPath,
+    'buildConfigPath' in options.unit.buildProjection
+      ? options.unit.buildProjection.buildConfigPath
+      : options.unit.buildProjection.dtsConfigPath,
+    options.checkerName,
+  );
 }
 
 export function createGeneratedProjectCheckerNamesByPath(

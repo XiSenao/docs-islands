@@ -64,8 +64,10 @@
     "oxc-resolver": "catalog:prod"
   },
   "devDependencies": {
+    "@astrojs/check": "catalog:dev",
     "@astrojs/compiler": "catalog:dev",
     "@astrojs/compiler-v2": "catalog:dev",
+    "@astrojs/compiler-v3": "catalog:dev",
     "@types/picomatch": "catalog:dev",
     "@types/semver": "catalog:dev",
     "@types/ssri": "catalog:dev",
@@ -78,6 +80,7 @@
     "boxen": "catalog:dev",
     "logaria": "workspace:*",
     "@publint/pack": "catalog:lint",
+    "astro-v7-current": "catalog:dev",
     "astro-v7-min": "catalog:dev",
     "cac": "catalog:dev",
     "es-module-lexer": "catalog:dev",

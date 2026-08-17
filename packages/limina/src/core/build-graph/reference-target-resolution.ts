@@ -8,8 +8,8 @@ import {
 } from '../import-graph/declaration-provider';
 import { getDtsProjectsForSourcePath } from './project-indexes';
 import {
+  addFrameworkSemanticDependencyProblem,
   formatOxcOnlyDeclarationProviderProblem,
-  formatVueSemanticDependencyProblem,
 } from './provider-problems';
 import { formatReferenceBoundaryProblem } from './reference-boundary';
 import type {
@@ -42,14 +42,12 @@ function addSemanticFailureProblem(options: {
   provider: DeclarationProviderResolution;
 }): boolean {
   if (options.provider.kind !== 'semantic-failure') return false;
-  options.base.context.problems.push(
-    formatVueSemanticDependencyProblem({
-      config: options.base.context.config,
-      importRecord: options.base.importRecord,
-      project: options.base.project,
-      reason: options.provider.reason,
-    }),
-  );
+  addFrameworkSemanticDependencyProblem({
+    context: options.base.context,
+    failure: options.provider.failure,
+    importRecord: options.base.importRecord,
+    project: options.base.project,
+  });
   return true;
 }
 
@@ -57,6 +55,15 @@ function isResolvedProvider(
   provider: DeclarationProviderResolution,
 ): provider is ResolvedProvider {
   return provider.kind === 'declaration' || provider.kind === 'source';
+}
+
+function getProviderResolutionContext(
+  options: ReferenceImportOptions,
+): NonNullable<ReferenceImportOptions['resolutionContext']> {
+  if (options.resolutionContext !== undefined) {
+    return options.resolutionContext;
+  }
+  return options.project.context;
 }
 
 export function resolveUsableProvider(
@@ -69,7 +76,8 @@ export function resolveUsableProvider(
     importAnalysis: options.context.importAnalysis,
     importRecord: options.importRecord,
     project: {
-      ...options.project.context,
+      ...getProviderResolutionContext(options),
+      astroSemanticProject: options.astroSemanticProject,
       configPath: options.project.configPath,
       resolverConfigPath: options.project.configPath,
     },

@@ -145,8 +145,8 @@ export function addSourceReferenceRoleFindings(options: {
   solutionConfigPaths: ReadonlySet<string>;
   workspaceLookup: WorkspaceLookupIndex;
 }): void {
-  const sourceConfigPaths = options.ordinaryConfigPaths.filter(
-    isOrdinarySourceTypecheckConfigPath,
+  const sourceConfigPaths = options.ordinaryConfigPaths.filter((configPath) =>
+    isOrdinarySourceTypecheckConfigPath(configPath, options.config.rootDir),
   );
 
   for (const configPath of sourceConfigPaths) {

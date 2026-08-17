@@ -86,7 +86,7 @@ Limina 会使用当前检查器解析每个可达配置。解析后的有效文�
 
 ### limina checker build 和 checker typecheck 如何选择目标？
 
-`checker build` 会运行已配置的构建检查器 identity，也就是 `tsc -b`、`tsgo -b` 和 `vue-tsc -b`。`tsgo` 由 Microsoft 的 `@typescript/native-preview` package 提供。`checker typecheck` 会运行从实际框架模块发现的 Astro 与 Svelte 补充 target。补充 scope 只过滤 target，不拥有声明。
+`checker build` 会运行 final build owner，也就是 `tsc -b`、`tsgo -b` 和 `vue-tsc -b`。`tsgo` 由 Microsoft 的 `@typescript/native-preview` package 提供。`checker typecheck` 会对 final owner 为 Astro 或 Svelte 的 config 按 leaf 执行一次；solution closure 由 Limina 自己展开，共享 leaf 会去重。
 
 ### 为什么包检查需要先构建？
 
@@ -100,7 +100,7 @@ Limina 会使用当前检查器解析每个可达配置。解析后的有效文�
 
 ### Vue 或 Svelte 文件应该放进 TypeScript 图吗？
 
-Vue 文件由 `vue-tsc` 覆盖；实际 Astro 与 Svelte 模块会获得对应的补充 target。Limina 不会把 `.astro` 或 `.svelte` 文件伪装成普通 `tsc -b` 声明构建 leaf。
+包含 Vue root 的 type config 由 `vue-tsc` 负责；包含 Astro 或 Svelte root 的 config 由对应 framework checker 负责。Astro/Svelte-owned config 不生成声明，需要 emit declaration 的 TypeScript 必须拆到独立 `tsc`、`tsgo` 或 `vue-tsc` boundary。
 
 ### `--mode` 有什么用途？
 

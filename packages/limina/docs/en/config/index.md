@@ -3,7 +3,7 @@
 Limina configuration starts from `limina.config.mts` inside the workspace. Read the reference by topic:
 
 - [Config File](./config-file.md): `defineConfig`, function config, `mode`, and `command`.
-- [Checker Configuration](./checkers.md): auto mode, fixed checker keys, `useTsgo`, `include`, `exclude`, and supplemental target policy.
+- [Checker Configuration](./checkers.md): flat auto/named scopes, fixed checker ownership, solution constraints, dependency evidence, and execution targets.
 - [Source Boundary](./source-boundary.md): `config.source.include` / `exclude` — the managed source boundary for source coverage checks.
 - [Regions](./regions.md): workspace package governance, nested package-scope extension, and region exclusion.
 - [Source Checks](./source-checks.md): top-level `source.knip` — dependency, module, and ordinary tsconfig ownership checks.

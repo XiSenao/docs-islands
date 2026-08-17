@@ -20,6 +20,7 @@ export function createImportAnalysisContext(
   });
   const source = createSourceProvider({ caches, contextOptions: options });
   const resolution = createResolutionProvider({
+    astroSemanticContexts: options.astroSemanticContexts,
     caches,
     metrics: options.metrics,
     requests,

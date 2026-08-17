@@ -1,4 +1,7 @@
-import type { CheckerProjectParseContext } from '#checkers';
+import type {
+  AstroSemanticProject,
+  CheckerProjectParseContext,
+} from '#checkers';
 import type {
   ImportAnalysisContext,
   ImportRecord,
@@ -6,9 +9,10 @@ import type {
 } from '#core/import-analysis/runner';
 import type ts from 'typescript';
 import {
-  classifyImportRuntimeEvidence,
-  type ImportRuntimeResolutionEvidence,
-} from '../import-analysis/evidence';
+  formatFrameworkSemanticFailure,
+  type FrameworkSemanticFailure,
+} from '../framework-semantic/contracts';
+import type { ImportRuntimeResolutionEvidence } from '../import-analysis/evidence';
 import { isDeclarationFile } from './declaration-classifier';
 
 export interface DeclarationProviderProjectContext
@@ -16,6 +20,7 @@ export interface DeclarationProviderProjectContext
     CheckerProjectParseContext,
     'checkerPresets' | 'extensions' | 'vueSemanticIdentity'
   > {
+  astroSemanticProject?: AstroSemanticProject;
   configPath: string;
   resolverConfigPath: string;
 }
@@ -46,6 +51,7 @@ export type DeclarationProviderResolution =
       typeScriptResolution: null;
     }
   | {
+      failure: FrameworkSemanticFailure;
       kind: 'semantic-failure';
       oxcResolvedFilePath: string | null;
       reason: string;
@@ -125,14 +131,15 @@ function createTypeScriptResolution(options: {
 function createNonResourceResolution(options: {
   fileOwnerLookup: Map<string, string[]>;
   oxcResolvedFilePath: string | null;
-  semanticFailure: string | undefined;
+  semanticFailure: FrameworkSemanticFailure | undefined;
   typeScriptResolution: ResolvedCheckerModuleName | null;
 }): DeclarationProviderResolution {
   if (options.semanticFailure !== undefined) {
     return {
+      failure: { ...options.semanticFailure },
       kind: 'semantic-failure',
       oxcResolvedFilePath: options.oxcResolvedFilePath,
-      reason: options.semanticFailure,
+      reason: formatFrameworkSemanticFailure(options.semanticFailure),
       typeScriptResolution: null,
     };
   }
@@ -155,24 +162,16 @@ export function resolveDeclarationProvider(options: {
   project: DeclarationProviderProjectContext;
 }): DeclarationProviderResolution {
   const {
-    oxc: oxcResolvedFilePath,
+    oxcResolvedFilePath,
+    runtimeEvidence: evidence,
     semanticFailure,
-    typescript: typeScriptResolution,
-  } = options.importAnalysis.resolveModulePairForImport(
+    typeScriptResolution,
+  } = options.importAnalysis.resolveImportEvidence(
     options.importRecord,
     options.containingFile,
     options.compilerOptions,
     options.project,
   );
-  const evidence = classifyImportRuntimeEvidence({
-    compilerOptions: options.compilerOptions,
-    containingFile: options.containingFile,
-    extensions: options.project.extensions,
-    oxcResolvedFilePath,
-    specifier: options.importRecord.specifier,
-    typeScriptResolution,
-  });
-
   if (isResourceEvidence(evidence)) {
     return createResourceResolution({
       evidence,

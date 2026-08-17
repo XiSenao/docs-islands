@@ -8,7 +8,7 @@ It does not replace `TypeScript`, framework checkers, bundlers, test frameworks,
 
 A [checker entry](./config/checkers.md) tells Limina which source `tsconfig.json` files should be handled by which checker.
 
-When `config.checkers` is omitted, Limina uses the default `auto` mode. Auto mode discovers ordinary `tsconfig.json` files, chooses `tsc` or `vue-tsc` as the single declaration-build owner, and supplements it with per-config Astro or Svelte checks when those framework files are present. Set `useTsgo: true` to use `tsgo` for ordinary TypeScript, or switch to explicit checker configuration for precise ownership ranges.
+Auto discovery is always enabled, including when named checker scopes are present. It discovers ordinary `tsconfig.json` entries and assigns each reachable type config exactly one owner from `tsc`, `tsgo`, `vue-tsc`, `astro`, or `svelte-check`. Use `auto.useTsgo: true` to choose `tsgo` as the ordinary TypeScript fallback; named scopes provide direct ownership evidence for selected default entries.
 
 ```js
 import { defineConfig } from 'limina';
@@ -16,9 +16,12 @@ import { defineConfig } from 'limina';
 export default defineConfig({
   config: {
     checkers: {
+      auto: {
+        exclude: ['**/docs/**'],
+        useTsgo: false,
+      },
       tsc: {
         include: ['tsconfig.json', 'packages/**/tsconfig.json'],
-        exclude: ['**/docs/**'],
       },
       'vue-tsc': {
         include: ['packages/app/tsconfig.json'],
@@ -28,14 +31,14 @@ export default defineConfig({
 });
 ```
 
-Entry selection is region-scoped: Limina first limits discovery to activated workspace package regions, applies `include`, and then subtracts `exclude`. Paths below an excluded or inaccessible region are therefore outside `include` by construction and do not need a duplicate checker exclusion. Do not list `tsconfig.lib.json`, `tsconfig.test.json`, `tsconfig.build.json`, or generated configs under `.limina` directly in `checker.include`. These non-entry source configs enter Limina's managed scope only when they are reached through `references` from a selected `tsconfig.json` entry. References are not filtered by checker `exclude`; an existing ordinary source config reached outside the activated regions is reported as a cross-region reference.
+Entry selection is region-scoped. Named `include` fields only select default source `tsconfig.json` entries, while `auto.exclude` filters automatic root discovery. Do not list `tsconfig.lib.json`, `tsconfig.test.json`, `tsconfig.build.json`, or generated configs under `.limina` directly in a named checker scope. These non-entry source configs enter Limina's managed scope only when reached through `references` from a selected `tsconfig.json` entry. Neither `auto.exclude` nor a named scope's `exclude` cuts an established references closure; an existing ordinary source config reached outside the activated regions is reported as a cross-region reference.
 
 Fixed checker identities have different roles:
 
 - `tsc`, `tsgo`, and `vue-tsc` own source configs and execute generated declaration build entries;
-- `svelte-check` and `astro` filter supplemental targets discovered from actual framework modules and never own declarations.
+- `svelte-check` and `astro` own complete framework type configs and execute them per leaf without declaration output.
 
-This distinction affects later commands. `limina checker build` runs build checker identities, while `limina checker typecheck` runs discovered supplemental targets.
+This distinction affects later commands. `limina checker build` runs declaration-capable owners, while `limina checker typecheck` runs framework-owned leaves.
 
 ## Source Config
 

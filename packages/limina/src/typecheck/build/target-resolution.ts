@@ -6,9 +6,9 @@ import type {
 } from '#config/runner';
 import type { AnalysisProviderSet } from '#core';
 import type { GeneratedTsconfigGraphResult } from '#core/build-graph/runner';
+import { isLiminaArtifactPath } from '#core/tsconfig/actions';
 import { uniqueSortedStrings } from '#utils/collections';
 import { normalizeAbsolutePath, toRelativePath } from '#utils/path';
-import path from 'pathe';
 import type { LiminaPreflightManager } from '../../preflight';
 import { resolvePreflight } from '../../preflight';
 import { resolveBuildConfigPath } from './config-path';
@@ -150,7 +150,9 @@ function assertRawUserConfig(options: {
   projectRootDir: string;
   targetConfigPath: string;
 }): void {
-  if (!options.targetConfigPath.split(path.sep).includes('.limina')) return;
+  if (!isLiminaArtifactPath(options.targetConfigPath, options.projectRootDir)) {
+    return;
+  }
   throw new Error(
     [
       'Invalid raw build config:',
@@ -191,6 +193,7 @@ async function resolveManagedBuildTarget(options: {
   const managed = getManagedBuildTargets({
     allCheckers,
     generatedGraph,
+    rootDir: options.request.config.rootDir,
     sourceConfigPath: options.sourceConfigPath,
   });
   const buildCapableDeclarationTargets =

@@ -176,7 +176,7 @@ export function createVueProjectSemanticIdentity(
 ): SemanticProjectParseResult {
   const configPath = normalizeAbsolutePath(options.configPath);
   const projectRootDir = normalizeAbsolutePath(options.projectRootDir);
-  const toolchain = resolveVueSemanticToolchain(configPath);
+  const toolchain = resolveVueSemanticToolchain(projectRootDir);
   const virtualFiles = normalizeVueVirtualFiles(options.virtualFiles);
   const recorder = createVueConfigReadRecorder();
   const host = createVueOverlaySystem({

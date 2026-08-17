@@ -1,3 +1,4 @@
+import type { AstroSemanticContextManager } from '../astro-semantic/context';
 import type { VueSemanticContextManager } from '../vue-semantic/context';
 import type { ModuleResolutionRequestIndex } from './request-index';
 import type {
@@ -9,13 +10,14 @@ import type {
 export type ResolutionProvider = Pick<
   ImportAnalysisContext,
   | 'resolveInternalImport'
+  | 'resolveImportEvidence'
   | 'resolveModulePair'
-  | 'resolveModulePairForImport'
   | 'resolveOxcImport'
   | 'resolveTypeScriptImport'
 >;
 
 export interface ProviderDependencies {
+  astroSemanticContexts?: AstroSemanticContextManager;
   caches: ImportAnalysisCaches;
   metrics: ImportAnalysisMetricsRecorder | undefined;
   requests: ModuleResolutionRequestIndex;

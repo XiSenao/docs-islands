@@ -278,7 +278,7 @@ describe('framework checker targets', () => {
     }
   });
 
-  it('filters discovered framework targets without creating capabilities from policy', async () => {
+  it('derives framework targets from ownership without re-filtering them by config policy', async () => {
     const fixture = await createFixture();
     try {
       const aConfig = fixture.path('packages', 'a', 'tsconfig.json');
@@ -293,11 +293,6 @@ describe('framework checker targets', () => {
             }),
             descriptor({
               family: 'astro',
-              packageRootDir: fixture.path('packages', 'b'),
-              sourceConfigPath: bConfig,
-            }),
-            descriptor({
-              family: 'svelte',
               packageRootDir: fixture.path('packages', 'b'),
               sourceConfigPath: bConfig,
             }),
@@ -325,7 +320,7 @@ describe('framework checker targets', () => {
           generatedGraph: graph,
           workspaceRootDir: fixture.rootDir,
         }).map((target) => target.checkerName),
-      ).toEqual(['svelte-check']);
+      ).toEqual(['svelte-check', 'astro']);
 
       const emptyGraph = createGraph({
         descriptorsByChecker: { tsc: [] },
@@ -343,7 +338,7 @@ describe('framework checker targets', () => {
     }
   });
 
-  it('keeps supplemental targets outside the build checker registry', async () => {
+  it('keeps framework typecheck targets outside the build checker registry', async () => {
     const fixture = await createFixture();
     try {
       const packageRootDir = fixture.path('packages', 'a');
@@ -507,11 +502,53 @@ describe('framework checker targets', () => {
         'missing package: svelte',
       );
       expect(failures[0]!.problems.join('\n')).toContain(
-        'dependency category: checker runtime peer',
+        'dependency category: checker runtime dependency',
       );
       expect(failures[0]!.problems.join('\n')).toContain(
         'pnpm --dir packages/a add -D svelte typescript',
       );
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it('reports an unsupported svelte-check from the leaf checker scope', async () => {
+    const fixture = await createFixture();
+    try {
+      const packageRootDir = fixture.path('packages', 'a');
+      const svelteCheckManifest = fixture.path(
+        'packages',
+        'a',
+        'node_modules',
+        'svelte-check',
+        'package.json',
+      );
+      await writeText(
+        svelteCheckManifest,
+        JSON.stringify({ name: 'svelte-check', version: '5.0.0' }),
+      );
+      const target = createFrameworkCheckerTarget({
+        descriptor: descriptor({
+          family: 'svelte',
+          packageRootDir,
+          sourceConfigPath: fixture.path('packages', 'a', 'tsconfig.json'),
+        }),
+        workspaceRootDir: fixture.rootDir,
+      });
+      const failures = collectFrameworkTargetPreflightFailures({
+        resolvePackage: ({ packageName }) =>
+          packageName === 'svelte-check' ? svelteCheckManifest : packageName,
+        targets: [target],
+        workspaceRootDir: fixture.rootDir,
+      });
+      const problems = failures
+        .flatMap((failure) => failure.problems)
+        .join('\n');
+
+      expect(problems).toContain('Unsupported external checker:');
+      expect(problems).toContain('installed version: 5.0.0');
+      expect(problems).toContain('supported range: >=4.0.0 <5.0.0');
+      expect(problems).toContain('checker execution scope: packages/a');
     } finally {
       await fixture.cleanup();
     }

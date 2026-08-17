@@ -1,6 +1,27 @@
 import type { CheckerPreset } from '#config/runner';
 import { getCheckerAdapter } from './checker/registry';
 
+export {
+  createAstroMaterializedIdentity,
+  createAstroSemanticProject,
+  materializeAstroSemanticProject,
+} from './checker/astro-semantic-identity';
+export { resolveAstroSemanticToolchain } from './checker/astro-semantic-toolchain';
+export type {
+  AstroConfigClosureEntry,
+  AstroLanguage,
+  AstroLanguagePlugin,
+  AstroMaterializedProject,
+  AstroSemanticProject,
+  AstroSemanticProjectSnapshot,
+  AstroSemanticProjectSnapshotInput,
+  AstroSemanticSeed,
+  AstroSemanticToolchain,
+  AstroServiceScript,
+  AstroSourceScript,
+  AstroUri,
+  AstroVirtualCode,
+} from './checker/astro-semantic-types';
 export { getCheckerExtensions, getResolvedCheckers } from './checker/config';
 export {
   CheckerProjectConfigCache,

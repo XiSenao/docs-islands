@@ -265,8 +265,8 @@ export function getCheckerImplementationFingerprint(options: {
     );
   }
   const packageNames = [
-    ...adapter.dependencies.checkerBinaryPackages,
-    ...adapter.dependencies.checkerRuntimePeerPackages,
+    ...adapter.dependencies.externalCheckerPackages,
+    ...adapter.dependencies.liminaRuntimePackages,
   ];
   return hashValue({
     commandIdentity: getCommandIdentity(options),

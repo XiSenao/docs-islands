@@ -1,7 +1,7 @@
 export default {
   config: {
     checkers: {
-      tsc: {
+      tsgo: {
         include: ['packages/app/tsconfig.json'],
       },
     },

@@ -93,6 +93,9 @@ export function parseVueProjectConfig(
 ): ParsedCheckerProjectConfig {
   const result = parseSemanticProject({ packageName, parseOptions: options });
   return {
+    configClosure: result.identity.configClosure.map((entry) => ({
+      ...entry,
+    })),
     extensions: [...result.extensions],
     fileNames: result.parsed.fileNames.map(normalizeAbsolutePath).sort(),
     options: { ...result.parsed.options },

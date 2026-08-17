@@ -1,203 +1,19 @@
-import {
-  type ResolvedCheckerModuleName,
-  resolveModuleNameWithCheckersDetailed,
-} from '#checkers';
-import {
-  resolveBaseUrlModuleCandidate,
-  resolvePathMappedModuleCandidate,
-  resolveRelativeModuleCandidate,
-} from '#utils/module-resolution';
-import { resolveModuleNameWithOxcCaches } from './oxc-resolution';
+import { createCanonicalResolver } from './canonical-resolution-provider';
+import { createInternalResolver } from './internal-resolution';
 import type {
   ProviderDependencies,
   ResolutionProvider,
 } from './resolution-provider-types';
 import {
-  cloneTypeScriptResolution,
-  getTypeScriptModuleResolutionCache,
-} from './resolver-caches';
-import {
-  getResolverExtensions,
-  hasTypeScriptOnlyResolutionOptions,
-} from './resolver-profile';
+  resolveOxcResult,
+  resolveTypeScriptResult,
+} from './resolution-results';
 import type {
   ImportAnalysisContext,
-  ImportAnalysisMetricsRecorder,
   ImportResolutionArguments,
   ModuleResolutionPair,
   NormalizedModuleResolutionRequest,
 } from './types';
-import {
-  resolveVueSemanticPair,
-  shouldUseVueSemanticResolution,
-} from './vue-pair-resolution';
-
-function resolveTypeScriptRaw(
-  dependencies: ProviderDependencies,
-  request: NormalizedModuleResolutionRequest,
-): ResolvedCheckerModuleName | null {
-  return resolveModuleNameWithCheckersDetailed({
-    compilerOptions: request.compilerOptions,
-    containingFile: request.containingFile,
-    context: request.context,
-    metrics: dependencies.metrics,
-    moduleResolutionCache: getTypeScriptModuleResolutionCache(
-      dependencies.caches,
-      {
-        compilerOptions: request.compilerOptions,
-        context: request.context,
-      },
-    ),
-    specifier: request.specifier,
-  });
-}
-
-function resolveTypeScriptResult(
-  dependencies: ProviderDependencies,
-  request: NormalizedModuleResolutionRequest,
-): ResolvedCheckerModuleName | null {
-  const hit = request.record.hasTypeScriptResult;
-  dependencies.requests.recordIndexAccess('typescript', hit);
-  if (!hit) {
-    request.record.typeScriptResult = cloneTypeScriptResolution(
-      resolveTypeScriptRaw(dependencies, request),
-    );
-    request.record.hasTypeScriptResult = true;
-  }
-  return cloneTypeScriptResolution(request.record.typeScriptResult);
-}
-
-function resolveOxcRaw(
-  dependencies: ProviderDependencies,
-  request: NormalizedModuleResolutionRequest,
-): string | null {
-  return resolveModuleNameWithOxcCaches(dependencies.caches, {
-    compilerOptions: request.compilerOptions,
-    containingFile: request.containingFile,
-    context: request.context,
-    metrics: dependencies.metrics,
-    specifier: request.specifier,
-  });
-}
-
-function resolveOxcResult(
-  dependencies: ProviderDependencies,
-  request: NormalizedModuleResolutionRequest,
-): string | null {
-  const hit = request.record.hasOxcResult;
-  dependencies.requests.recordIndexAccess('oxc', hit);
-  if (!hit) {
-    request.record.oxcResult = resolveOxcRaw(dependencies, request);
-    request.record.hasOxcResult = true;
-  }
-  return request.record.oxcResult;
-}
-
-function recordInternalResolution(
-  metrics: ImportAnalysisMetricsRecorder | undefined,
-): void {
-  metrics?.record({
-    kind: 'request',
-    name: 'internal-import-resolution',
-    provider: 'import-core',
-  });
-}
-
-function recordInternalCacheAccess(options: {
-  hit: boolean;
-  metrics: ImportAnalysisMetricsRecorder | undefined;
-}): void {
-  options.metrics?.record({
-    kind: 'internal-import',
-    name: options.hit
-      ? 'import-resolution-cache-hit'
-      : 'import-resolution-cache-miss',
-    provider: 'import-core',
-  });
-}
-
-function getResolvedFileName(
-  resolution: ResolvedCheckerModuleName | null,
-): string | null {
-  if (resolution === null) return null;
-  return resolution.resolvedFileName;
-}
-
-function resolveTypeScriptPreferred(
-  dependencies: ProviderDependencies,
-  request: NormalizedModuleResolutionRequest,
-): string | null {
-  if (!hasTypeScriptOnlyResolutionOptions(request.compilerOptions)) return null;
-  return getResolvedFileName(resolveTypeScriptResult(dependencies, request));
-}
-
-function resolveLocalCandidate(
-  request: NormalizedModuleResolutionRequest,
-): string | null {
-  const extensions = getResolverExtensions({
-    compilerOptions: request.compilerOptions,
-    context: request.context,
-  });
-  return (
-    resolveRelativeModuleCandidate({
-      containingFile: request.containingFile,
-      extensions,
-      specifier: request.specifier,
-    }) ??
-    resolvePathMappedModuleCandidate({
-      compilerOptions: request.compilerOptions,
-      extensions,
-      specifier: request.specifier,
-    }) ??
-    resolveBaseUrlModuleCandidate({
-      compilerOptions: request.compilerOptions,
-      extensions,
-      specifier: request.specifier,
-    })
-  );
-}
-
-function resolveNonTypeScriptFallback(
-  dependencies: ProviderDependencies,
-  request: NormalizedModuleResolutionRequest,
-): string | null {
-  const oxc = resolveOxcResult(dependencies, request);
-  if (oxc !== null) return oxc;
-  return getResolvedFileName(resolveTypeScriptResult(dependencies, request));
-}
-
-function resolveProviderFallback(
-  dependencies: ProviderDependencies,
-  request: NormalizedModuleResolutionRequest,
-): string | null {
-  if (hasTypeScriptOnlyResolutionOptions(request.compilerOptions)) return null;
-  return resolveNonTypeScriptFallback(dependencies, request);
-}
-
-function resolveInternalResult(
-  dependencies: ProviderDependencies,
-  request: NormalizedModuleResolutionRequest,
-): string | null {
-  const typeScript = resolveTypeScriptPreferred(dependencies, request);
-  if (typeScript !== null) return typeScript;
-  const local = resolveLocalCandidate(request);
-  if (local !== null) return local;
-  return resolveProviderFallback(dependencies, request);
-}
-
-function resolveInternalRequest(
-  dependencies: ProviderDependencies,
-  request: NormalizedModuleResolutionRequest,
-): string | null {
-  const hit = request.record.hasInternalImportResult;
-  dependencies.requests.recordIndexAccess('internal-import', hit);
-  recordInternalCacheAccess({ hit, metrics: dependencies.metrics });
-  if (hit) return request.record.internalImportResult;
-  const resolved = resolveInternalResult(dependencies, request);
-  request.record.internalImportResult = resolved;
-  request.record.hasInternalImportResult = true;
-  return resolved;
-}
 
 function getRequest(
   dependencies: ProviderDependencies,
@@ -240,53 +56,13 @@ function createPairResolver(
   };
 }
 
-function createImportPairResolver(
-  dependencies: ProviderDependencies,
-): ImportAnalysisContext['resolveModulePairForImport'] {
-  return (...args): ModuleResolutionPair => {
-    const [importRecord, containingFile, compilerOptions, context] = args;
-    const request = getRequest(dependencies, [
-      importRecord.specifier,
-      containingFile,
-      compilerOptions,
-      context,
-    ]);
-    dependencies.requests.recordRequest('oxc');
-    const oxc = resolveOxcResult(dependencies, request);
-    if (!shouldUseVueSemanticResolution({ importRecord, request })) {
-      dependencies.requests.recordRequest('typescript');
-      return {
-        oxc,
-        typescript: resolveTypeScriptResult(dependencies, request),
-      };
-    }
-    dependencies.requests.recordRequest('typescript');
-    return resolveVueSemanticPair({
-      identity: request.context.vueSemanticIdentity!,
-      importRecord,
-      manager: dependencies.vueSemanticContexts,
-      oxc,
-    });
-  };
-}
-
-function createInternalResolver(
-  dependencies: ProviderDependencies,
-): ImportAnalysisContext['resolveInternalImport'] {
-  return (...args) => {
-    dependencies.requests.recordRequest('internal-import');
-    recordInternalResolution(dependencies.metrics);
-    return resolveInternalRequest(dependencies, getRequest(dependencies, args));
-  };
-}
-
 export function createResolutionProvider(
   dependencies: ProviderDependencies,
 ): ResolutionProvider {
   return {
     resolveInternalImport: createInternalResolver(dependencies),
+    resolveImportEvidence: createCanonicalResolver(dependencies),
     resolveModulePair: createPairResolver(dependencies),
-    resolveModulePairForImport: createImportPairResolver(dependencies),
     resolveOxcImport: createOxcResolver(dependencies),
     resolveTypeScriptImport: createTypeScriptResolver(dependencies),
   };

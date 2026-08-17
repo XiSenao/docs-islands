@@ -39,10 +39,10 @@ export function isLiminaSolutionConfig(
  * reachable during migration but cannot be a Limina-managed solution entry.
  */
 export function isUnsupportedNamedSolutionConfig(
-  input: TsconfigSolutionRoleInput,
+  input: TsconfigSolutionRoleInput & { rootDir: string },
 ): boolean {
   return (
-    isOrdinarySourceTypecheckConfigPath(input.configPath) &&
+    isOrdinarySourceTypecheckConfigPath(input.configPath, input.rootDir) &&
     path.basename(input.configPath) !== 'tsconfig.json' &&
     isTypeScriptSolutionConfig(input)
   );

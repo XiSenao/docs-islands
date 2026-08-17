@@ -51,6 +51,7 @@ export async function finalizeGeneratedGraph(options: {
       expectedFiles: options.state.writeContext.expectedFiles,
       manifestPath,
     }),
+    ownershipPlan: options.state.checkerOwnershipPlan,
     projectsByChecker: options.state.projectsByChecker,
     dependencyEdges: options.state.dependencyEdges,
     rootDir: options.config.rootDir,
@@ -92,6 +93,7 @@ export async function finalizeGeneratedGraph(options: {
     manifestPath,
     outputDeclarationCopiesByChecker:
       options.state.outputDeclarationCopiesByChecker,
+    ownershipPlan: options.state.checkerOwnershipPlan,
     rootDir: options.config.rootDir,
   });
 }
