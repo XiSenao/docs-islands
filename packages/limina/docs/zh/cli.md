@@ -356,7 +356,7 @@ pnpm exec limina checker typecheck --verbose
 
 该命令消费 graph prepare 生成的 ownership plan。Solution config 由 Limina 递归展开；正确性不依赖 external framework checker 是否支持递归 TypeScript project references。
 
-自动发现的 Astro 目标执行 `astro check --noSync --root <leaf> --tsconfig <source-config>`，要求叶子包内存在 `astro`、`@astrojs/check`、`typescript` 和 `.astro/types.d.ts`。自动发现的 Svelte 目标执行 `svelte-check --workspace <leaf> --tsconfig <source-config>`，要求叶子包安装 `svelte-check`、`svelte` 和 `typescript`。Limina 不会运行 Astro sync，也不会启用 Svelte 增量缓存行为。
+自动发现的 Astro 目标执行 `astro check --noSync --root <leaf> --tsconfig <source-config>`，要求叶子包内存在 `astro`、`@astrojs/check`、`typescript` 和 `.astro/types.d.ts`。自动发现的 Svelte 目标执行 `svelte-check --workspace <leaf> --tsconfig <source-config>`，要求叶子包安装 `svelte-check`、`svelte2tsx`、`svelte` 和 `typescript`。Limina 不会运行 Astro sync，也不会启用 Svelte 增量缓存行为。
 
 `checker typecheck` 不接受配置路径、`--preset` 或 `--watch`。这些框架 target 明确不支持 watch；源码配置、解析器 package、框架生成类型或框架源码变化后，需要重新运行命令。如果没有 framework-owned leaf，runner 会把任务记录为 disabled，跳过 peer preflight 和生成产物物化，并正常退出。
 

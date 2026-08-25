@@ -7,7 +7,6 @@ import {
   getFrameworkImportProvider,
   getTypeScriptParserIdentity,
 } from './framework-providers';
-import { collectSourceTextImports } from './oxc-imports';
 import type { ImportRecord } from './records';
 import type {
   CreateImportAnalysisContextOptions,
@@ -15,6 +14,7 @@ import type {
   ImportAnalysisCaches,
   ImportAnalysisMetricsRecorder,
 } from './types';
+import { collectTypeScriptSourceTextImports } from './typescript-imports';
 
 interface SourceProvider {
   collectImportsFromFile(
@@ -110,7 +110,7 @@ function collectFileImports(options: {
       sourceProfile: options.sourceProfile,
     });
   }
-  return collectSourceTextImports({
+  return collectTypeScriptSourceTextImports({
     filePath: options.filePath,
     sourceText: options.sourceText,
   });

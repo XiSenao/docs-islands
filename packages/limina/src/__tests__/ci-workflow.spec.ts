@@ -162,7 +162,11 @@ describe('Limina CI change detection', () => {
     expect(commands).toContain(
       'pnpm --dir packages/limina/fixtures/vue-semantic-matrix matrix',
     );
-    expect(runnerSource).toContain("new URL('../../dist/bin/limina.js'");
+    expect(runnerSource).toContain(
+      "requireFromCase.resolve('limina/package.json')",
+    );
+    expect(runnerSource).toContain('installed.liminaCli');
+    expect(runnerSource).not.toContain("new URL('../../dist/bin/limina.js'");
     expect(runnerSource).not.toContain("new URL('../../bin/limina.js'");
   });
 });

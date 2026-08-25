@@ -507,10 +507,13 @@ describe('framework checker targets', () => {
         'missing package: svelte',
       );
       expect(failures[0]!.problems.join('\n')).toContain(
+        'missing package: svelte2tsx',
+      );
+      expect(failures[0]!.problems.join('\n')).toContain(
         'dependency category: checker runtime dependency',
       );
       expect(failures[0]!.problems.join('\n')).toContain(
-        'pnpm --dir packages/a add -D svelte typescript',
+        'pnpm --dir packages/a add -D svelte svelte2tsx typescript',
       );
     } finally {
       await fixture.cleanup();

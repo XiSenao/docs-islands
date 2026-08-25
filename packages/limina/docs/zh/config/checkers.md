@@ -12,7 +12,7 @@
 
 key 本身就是检查器 identity，不再有 `preset` 字段，也不再支持自定义检查器 alias。这样，源码归属、生成路径、执行工具和缓存行为只使用同一个名字。
 
-`vue-tsc`、`svelte-check` 与 `@typescript/native-preview` 是 optional external-checker peer。它们的 peer range 表达 Limina 支持的 checker 版本，每个 checker 都从其 target 实际执行的 scope 解析。`typescript` 仍是 Limina 必需的 runtime peer，从运行 Limina 的 workspace 安装环境解析。
+`vue-tsc`、`svelte-check` 与 `@typescript/native-preview` 是 optional external-checker peer。它们的 peer range 表达 Limina 支持的 checker 版本，每个 checker 都从其 target 实际执行的 scope 解析。`svelte2tsx` 是独立的 optional checker-toolchain peer：请在每个 Svelte leaf 中与 `svelte-check` 一并安装；Limina 不会把它作为 production dependency 发布。`typescript` 仍是 Limina 必需的 runtime peer，从运行 Limina 的 workspace 安装环境解析。
 
 Auto discovery 始终启用。Named scope 先接管命中的入口；未被 named scope 接管的入口仍然自动分析：
 
@@ -126,9 +126,9 @@ Astro/Svelte owner 不生成 declaration project、wrapper 或 transparent build
 框架 checker 命令及其执行 runtime 都从拥有源码配置的叶子包解析：
 
 - Astro 需要 `astro`、`@astrojs/check` 和 `typescript`，以及叶子包已生成的 `.astro/types.d.ts`。Limina 执行 `astro check --noSync --root <leaf> --tsconfig <source-config>`，不会运行 `astro sync`。
-- Svelte 需要 `svelte-check`、`svelte` 和 `typescript`。Limina 执行 `svelte-check --workspace <leaf> --tsconfig <source-config>`，不会运行 SvelteKit sync、启用增量模式、写入 `.svelte-check` cache 或覆盖输出格式。
+- Svelte 需要 `svelte-check`、`svelte2tsx`、`svelte` 和 `typescript`。Limina 执行 `svelte-check --workspace <leaf> --tsconfig <source-config>`，不会运行 SvelteKit sync、启用增量模式、写入 `.svelte-check` cache 或覆盖输出格式。
 
-源码坐标收集与 checker 执行使用不同归属：`@astrojs/compiler` 是 Limina runtime，从运行 Limina 的 workspace 安装环境解析，因此整个 workspace 安装一次即可，叶子包中的冲突副本也不能 shadow 它。Limina 只在实际需要 Astro 源码检查时预检该 runtime；同一个共享环境故障无论涉及多少个 `.astro` 文件，都只报告一个 issue。Svelte semantic analysis 从所属叶子包解析 `svelte/compiler`，并使用 Limina 的公共、固定版本 `svelte2tsx` 依赖生成 TypeScript。框架 checker 依赖缺失时，预检仍会在启动检查器进程前失败。
+源码坐标收集与 checker 执行使用不同归属：`@astrojs/compiler` 是 Limina runtime，从运行 Limina 的 workspace 安装环境解析，因此整个 workspace 安装一次即可，叶子包中的冲突副本也不能 shadow 它。Limina 只在实际需要 Astro 源码检查时预检该 runtime；同一个共享环境故障无论涉及多少个 `.astro` 文件，都只报告一个 issue。Svelte semantic analysis 会从所属叶子包同时解析 `svelte/compiler` 与受支持的 `svelte2tsx` peer。框架 checker 依赖缺失时，预检仍会在启动检查器进程前失败。
 
 `checker typecheck` 是完整重跑，不是框架 watch 模式。稳定 target ID 只表示多次运行之间的 target identity 稳定，不提供增量失效能力。
 
@@ -187,7 +187,7 @@ Vue import 收集不再提供配置字段。Limina 会从 inline `<script>`、`<
 
 ## Svelte 语义 dependency 分析
 
-对于 locked Svelte project，Limina 从所属叶子包解析公共 `svelte/compiler` 入口，以确定 instance script 与 module script 的源码范围。随后，Limina 固定版本的公共 `svelte2tsx` adapter 会把原始 component 转成 generated TSX 与 source map。Limina 使用 TypeScript AST 从 generated TSX 枚举 dependency，经 trace mapping 把它严格反向映射到唯一 source-authored record，再执行 TypeScript-compatible module resolution。
+对于 locked Svelte project，Limina 从所属叶子包解析公共 `svelte/compiler` 入口，以确定 instance script 与 module script 的源码范围；随后从同一 leaf 解析受支持的公共 `svelte2tsx` peer，并用该 adapter 把原始 component 转成 generated TSX 与 source map。Limina 不会为非 Svelte consumer 打包或安装这个 Svelte-only adapter。Limina 使用 TypeScript AST 从 generated TSX 枚举 dependency，经 trace mapping 把它严格反向映射到唯一 source-authored record，再执行 TypeScript-compatible module resolution。
 
 这条有界路径不会执行用户 preprocessor，也不会导入 `svelte-check` private bundle。Generated synthetic dependency 只能成为 observation；provenance 缺失或存在歧义，以及 adapter/toolchain failure 都会 fail closed。Locked Svelte resolution 不会回退到 Oxc。Svelte config 中的普通 TypeScript file 继续使用 direct TypeScript sub-semantics。
 

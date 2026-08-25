@@ -1,4 +1,4 @@
 <script setup lang="ts">
-import { value } from './dep';
-void value;
+import { second, value } from './reexport';
+void [second, value];
 </script>

@@ -434,14 +434,14 @@ Limina 会把它视为已有声明文件。即使这个文件位于 `src` 下，
 几类工具各自负责不同部分：
 
 ```text
-oxc-parser
-  -> 收集源码里的 import/export 模块标识符
+TypeScript 语法 AST 与 scanner
+  -> 收集源码中的 import、export、import-type 与 CommonJS 证据
 
-TypeScript 解析器
+检查器语义下的 TypeScript 解析器
   -> 在当前检查器和 tsconfig 下确定声明提供者
 
 Oxc 解析器
-  -> 用于普通源码图、运行时解析线索和诊断提示
+  -> 仅在 pending ownership discovery 中限定物理 framework candidate
 
 Limina 图模型
   -> 将声明提供者映射为项目引用、声明文件消费或诊断
@@ -452,5 +452,7 @@ Limina 图模型
 第一，运行时能解析到源码文件，不代表声明构建应该引用这个源码文件所在的 `tsconfig`。
 
 第二，解析到 `.d.ts` 不代表 Limina 会自动构建这个声明文件；它只说明当前项目引用推断不需要把这条边当作源码提供者项目引用。
+
+一旦项目的 semantic authority 已锁定，checker-semantic import 解析失败就保持失败。Oxc 不会救援该导入，也不会把它转成图或声明提供者证据。
 
 第三，源码 `import` 可能比最终 `.d.ts` 的最小依赖关系更保守。Limina 当前默认信任源码声明提供者关系，而不是对最终声明产物做引用图裁剪。

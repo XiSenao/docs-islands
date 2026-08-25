@@ -434,14 +434,14 @@ Do not think of Limina as a stronger module resolver. A more accurate model is t
 Each tool is responsible for a different part:
 
 ```text
-oxc-parser
-  -> collect import/export module specifiers from source code
+TypeScript syntax AST and scanner
+  -> collect source-authored import, export, import-type, and CommonJS evidence
 
-TypeScript resolver
+Checker-semantic TypeScript resolver
   -> determine declaration providers under the current checker and tsconfig
 
 Oxc resolver
-  -> provide general source graph, runtime resolution clues, and diagnostics
+  -> qualify physical framework candidates only during pending ownership discovery
 
 Limina graph model
   -> map declaration providers to project references, declaration-file consumption, or diagnostics
@@ -452,5 +452,7 @@ This boundary avoids several common misunderstandings.
 First, a file being resolvable at runtime does not mean the declaration build should reference the `tsconfig` that owns that source file.
 
 Second, resolving to `.d.ts` does not mean Limina will automatically build that declaration file. It only means current project-reference inference does not need to treat that edge as a source-provider project reference.
+
+Once a project has a locked semantic authority, an unresolved checker-semantic import remains unresolved. Oxc does not rescue that import or turn it into graph or declaration-provider evidence.
 
 Third, source-level `import` relationships may be more conservative than the minimal dependency relation of the final `.d.ts`. Limina currently trusts source-level declaration provider relationships by default, rather than tree-shaking the reference graph based on final declaration output.

@@ -55,6 +55,7 @@ const EXPECTED_PEER_RANGES = {
   knip: '>=6.0.0 <7.0.0',
   'npm-package-json-lint': '>=9.1.0 <10.0.0',
   publint: '>=0.3.0 <0.4.0',
+  svelte2tsx: '^0.7.61',
   'svelte-check': '>=4.0.0 <5.0.0',
   tsx: '^4.9.0',
   typescript: '>=5.4.0 <5.10.0 || >=6.0.0 <6.1.0',
@@ -577,6 +578,14 @@ if (manifest.name !== 'limina') {
 }
 if (!schema || typeof schema !== 'object') {
   throw new Error('limina schema export did not resolve to JSON content.');
+}
+try {
+  import.meta.resolve('svelte2tsx');
+  throw new Error('The non-Svelte consumer unexpectedly installed svelte2tsx.');
+} catch (error) {
+  if (error instanceof Error && error.message.includes('unexpectedly installed')) {
+    throw error;
+  }
 }
 
 console.log('limina exports ok');

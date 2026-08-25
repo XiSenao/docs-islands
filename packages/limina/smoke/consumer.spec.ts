@@ -37,6 +37,41 @@ describe('limina published package smoke', () => {
       expect(installedManifest.peerDependenciesMeta).toEqual(
         manifest.peerDependenciesMeta,
       );
+      for (const packageManifest of [manifest, installedManifest]) {
+        for (const section of [
+          packageManifest.dependencies,
+          packageManifest.devDependencies,
+          packageManifest.optionalDependencies,
+          packageManifest.peerDependencies,
+          packageManifest.peerDependenciesMeta,
+        ]) {
+          expect(section?.['oxc-parser']).toBeUndefined();
+        }
+        for (const section of [
+          packageManifest.dependencies,
+          packageManifest.devDependencies,
+          packageManifest.optionalDependencies,
+          packageManifest.peerDependencies,
+          packageManifest.peerDependenciesMeta,
+        ]) {
+          expect(section?.['@jridgewell/trace-mapping']).toBeUndefined();
+        }
+        for (const section of [
+          packageManifest.dependencies,
+          packageManifest.devDependencies,
+          packageManifest.optionalDependencies,
+        ]) {
+          expect(section?.svelte2tsx).toBeUndefined();
+        }
+        expect(packageManifest.peerDependencies?.svelte2tsx).toBe('^0.7.61');
+        expect(packageManifest.peerDependenciesMeta?.svelte2tsx?.optional).toBe(
+          true,
+        );
+      }
+      expect(manifest.dependencies?.['oxc-resolver']).toBeDefined();
+      expect(installedManifest.dependencies?.['oxc-resolver']).toBe(
+        manifest.dependencies?.['oxc-resolver'],
+      );
       for (const packageName of ['@vue/language-core', '@volar/typescript']) {
         expect(installedManifest.dependencies?.[packageName]).toBeUndefined();
         expect(

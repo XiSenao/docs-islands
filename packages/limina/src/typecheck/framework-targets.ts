@@ -26,6 +26,7 @@ const frameworkRequirements = {
   svelte: [
     { category: 'external-checker', packageName: 'svelte-check' },
     { category: 'checker-runtime', packageName: 'svelte' },
+    { category: 'checker-runtime', packageName: 'svelte2tsx' },
     { category: 'checker-runtime', packageName: 'typescript' },
   ],
 } as const satisfies Record<

@@ -222,7 +222,7 @@ import { helper } from '@acme/core';
 
 `checker:typecheck` 会按规范化 config path 去重，执行 final owner 为 `astro` 或 `svelte-check` 的每个 type config。一个 leaf 只会执行 `astro check --noSync --root <leaf> --tsconfig <config>` 或 `svelte-check --workspace <leaf> --tsconfig <config>` 之一，不能同时成为两种 checker target。solution config 由 Limina 展开，不会作为依赖框架 checker 递归能力的执行目标。这些任务不产出声明文件。
 
-框架目标会从所属叶子包解析依赖。Astro 要求 `astro`、`@astrojs/check`、`typescript` 和已存在的 `.astro/types.d.ts`；Svelte 要求 `svelte-check`、`svelte` 和 `typescript`。Limina 绝不运行 `astro sync`，不会启用 Svelte 检查器缓存，并且这个命令不接受 `--watch`。源码配置、解析器依赖、框架生成类型或框架源码变化后，需要重新运行完整命令。
+框架目标会从所属叶子包解析依赖。Astro 要求 `astro`、`@astrojs/check`、`typescript` 和已存在的 `.astro/types.d.ts`；Svelte 要求 `svelte-check`、`svelte2tsx`、`svelte` 和 `typescript`。Limina 绝不运行 `astro sync`，不会启用 Svelte 检查器缓存，并且这个命令不接受 `--watch`。源码配置、解析器依赖、框架生成类型或框架源码变化后，需要重新运行完整命令。
 
 如果没有 managed type config 归 `astro` 或 `svelte-check` 所有，`checker:typecheck` 会记录为 disabled，跳过 peer preflight 和 artifact materialization，并正常退出；build-capable owner 仍由 `checker:build` 执行。
 

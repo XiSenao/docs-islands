@@ -222,7 +222,7 @@ Before running, Limina checks whether `peer dependency` packages required by con
 
 `checker:typecheck` runs each type config whose final owner is `astro` or `svelte-check`, deduplicated by normalized config path. A leaf executes exactly one of `astro check --noSync --root <leaf> --tsconfig <config>` or `svelte-check --workspace <leaf> --tsconfig <config>`; it cannot be targeted by both checkers. Solution configs are expanded by Limina and are not passed to framework checkers as recursive execution targets. These tasks do not emit declaration files.
 
-Framework targets resolve their dependencies from the leaf package. Astro requires `astro`, `@astrojs/check`, `typescript`, and an existing `.astro/types.d.ts`; Svelte requires `svelte-check`, `svelte`, and `typescript`. Limina never runs `astro sync`, never enables a Svelte checker cache, and does not accept `--watch` for this command. Rerun the whole command after source config, parser dependency, generated type, or framework source changes.
+Framework targets resolve their dependencies from the leaf package. Astro requires `astro`, `@astrojs/check`, `typescript`, and an existing `.astro/types.d.ts`; Svelte requires `svelte-check`, `svelte2tsx`, `svelte`, and `typescript`. Limina never runs `astro sync`, never enables a Svelte checker cache, and does not accept `--watch` for this command. Rerun the whole command after source config, parser dependency, generated type, or framework source changes.
 
 If no managed type config is owned by Astro or Svelte, `checker:typecheck` is recorded as disabled, skips peer preflight and artifact materialization, and exits successfully. Build-capable owners continue to run through `checker:build`.
 

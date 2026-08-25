@@ -1,9 +1,20 @@
 import { normalizeAbsolutePath } from '#utils/path';
-import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { svelte2tsx } from 'svelte2tsx';
+import type { svelte2tsx } from 'svelte2tsx';
+import {
+  checkerToolchainDependencyContracts,
+  isSupportedDependencyVersion,
+  LiminaDependencyError,
+  readResolvedPackageVersion,
+} from '../../dependency-contract';
 import { isResolvedFromLeafInstalledPackage } from '../packages/leaf-package-resolution';
+
+type SvelteTransform = typeof svelte2tsx;
+
+interface Svelte2TsxModule {
+  svelte2tsx?: unknown;
+}
 
 export interface SvelteCompiler {
   VERSION?: string;
@@ -14,7 +25,9 @@ export interface SvelteSemanticToolchain {
   compiler: SvelteCompiler;
   compilerPath: string;
   compilerVersion: string;
-  transform: typeof svelte2tsx;
+  transform: SvelteTransform;
+  transformPath: string;
+  transformVersion: string;
 }
 
 function hasErrorCode(error: unknown): error is { code: unknown } {
@@ -38,76 +51,107 @@ function createMissingCompilerError(packageRootDir: string): Error {
   );
 }
 
-function collectAncestorDirectories(resolvedPath: string): string[] {
-  const directories: string[] = [];
-  let directory = path.dirname(resolvedPath);
-  while (true) {
-    directories.push(directory);
-    const parentDirectory = path.dirname(directory);
-    if (parentDirectory === directory) return directories;
-    directory = parentDirectory;
-  }
+const svelte2tsxContract = checkerToolchainDependencyContracts.svelte2tsx;
+
+function createMissingTransformError(packageRootDir: string): Error {
+  return new LiminaDependencyError({
+    failureKind: 'missing',
+    message: [
+      'Unable to load the Svelte semantic toolchain:',
+      '  package: svelte2tsx',
+      `  leaf package root: ${packageRootDir}`,
+      '  dependency category: checker toolchain',
+      '  reason: svelte2tsx is not installed in the source config leaf dependency scope.',
+      `  fix: install svelte2tsx@${svelte2tsxContract.supportedRange} alongside svelte-check in ${packageRootDir}`,
+    ].join('\n'),
+    ownership: svelte2tsxContract.ownership,
+    packageName: svelte2tsxContract.packageName,
+    scope: packageRootDir,
+  });
 }
 
-function readManifest(manifestPath: string): {
-  name?: unknown;
-  version?: unknown;
-} | null {
+function createUnsupportedTransformError(options: {
+  packageRootDir: string;
+  version: string | undefined;
+}): Error {
+  const installedVersion = options.version ?? 'unknown';
+  return new LiminaDependencyError({
+    failureKind: 'unsupported',
+    message: [
+      'Unable to load the Svelte semantic toolchain:',
+      '  package: svelte2tsx',
+      `  leaf package root: ${options.packageRootDir}`,
+      '  dependency category: checker toolchain',
+      `  installed version: ${installedVersion}`,
+      `  supported range: ${svelte2tsxContract.supportedRange}`,
+      `  fix: install svelte2tsx@${svelte2tsxContract.supportedRange} alongside svelte-check in ${options.packageRootDir}`,
+    ].join('\n'),
+    ownership: svelte2tsxContract.ownership,
+    packageName: svelte2tsxContract.packageName,
+    scope: options.packageRootDir,
+    version: options.version,
+  });
+}
+
+function resolvePackageSpecifier(options: {
+  missingError: () => Error;
+  requireFromLeaf: ReturnType<typeof createRequire>;
+  specifier: string;
+}): string {
   try {
-    return JSON.parse(readFileSync(manifestPath, 'utf8')) as {
-      name?: unknown;
-      version?: unknown;
-    };
-  } catch {
-    return null;
+    return normalizeAbsolutePath(
+      options.requireFromLeaf.resolve(options.specifier),
+    );
+  } catch (error) {
+    if (isModuleNotFoundError(error)) throw options.missingError();
+    throw error;
   }
 }
 
-function getSvelteManifestVersion(
-  manifest: {
-    name?: unknown;
-    version?: unknown;
-  } | null,
-): string | null | undefined {
-  if (manifest === null) return undefined;
-  if (manifest.name !== 'svelte') return undefined;
-  return normalizeManifestVersion(manifest.version);
-}
-
-function normalizeManifestVersion(version: unknown): string | null {
-  return typeof version === 'string' ? version : null;
-}
-
-function readManifestVersion(manifestPath: string): string | null | undefined {
-  return getSvelteManifestVersion(readManifest(manifestPath));
-}
-
-function readSvelteManifestVersion(resolvedPath: string): string | null {
-  for (const directory of collectAncestorDirectories(resolvedPath)) {
-    const version = readManifestVersion(path.join(directory, 'package.json'));
-    if (version !== undefined) return version;
+function requireLeafInstalledPackage(options: {
+  missingError: () => Error;
+  packageName: string;
+  packageRootDir: string;
+  resolvedPath: string;
+}): string {
+  if (
+    !isResolvedFromLeafInstalledPackage({
+      packageName: options.packageName,
+      packageRootDir: options.packageRootDir,
+      resolvedPath: options.resolvedPath,
+    })
+  ) {
+    throw options.missingError();
   }
-  return null;
+  return options.resolvedPath;
+}
+
+function resolveLeafPackageEntry(options: {
+  missingError: () => Error;
+  packageName: string;
+  packageRootDir: string;
+  requireFromLeaf: ReturnType<typeof createRequire>;
+  specifier: string;
+}): string {
+  return requireLeafInstalledPackage({
+    ...options,
+    resolvedPath: resolvePackageSpecifier(options),
+  });
 }
 
 function loadLeafCompiler(options: {
   packageRootDir: string;
   requireFromLeaf: ReturnType<typeof createRequire>;
 }): { compiler: SvelteCompiler; compilerPath: string } {
-  const compilerPath = normalizeAbsolutePath(
-    options.requireFromLeaf.resolve('svelte/compiler'),
-  );
-  if (
-    !isResolvedFromLeafInstalledPackage({
-      packageName: 'svelte',
-      packageRootDir: options.packageRootDir,
-      resolvedPath: compilerPath,
-    })
-  ) {
-    throw createMissingCompilerError(options.packageRootDir);
-  }
+  const compilerPath = resolveLeafPackageEntry({
+    missingError: () => createMissingCompilerError(options.packageRootDir),
+    packageName: 'svelte',
+    packageRootDir: options.packageRootDir,
+    requireFromLeaf: options.requireFromLeaf,
+    specifier: 'svelte/compiler',
+  });
   return {
-    compiler: options.requireFromLeaf('svelte/compiler') as SvelteCompiler,
+    compiler: options.requireFromLeaf(compilerPath) as SvelteCompiler,
     compilerPath,
   };
 }
@@ -117,10 +161,64 @@ function getCompilerVersion(options: {
   compilerPath: string;
 }): string {
   return (
-    readSvelteManifestVersion(options.compilerPath) ??
+    readResolvedPackageVersion({
+      packageName: 'svelte',
+      resolvedPath: options.compilerPath,
+    }) ??
     options.compiler.VERSION ??
     'unknown'
   );
+}
+
+function requireTransform(
+  requireFromLeaf: ReturnType<typeof createRequire>,
+  transformPath: string,
+): SvelteTransform {
+  const module = requireFromLeaf(transformPath) as Svelte2TsxModule;
+  if (typeof module.svelte2tsx === 'function') {
+    return module.svelte2tsx as SvelteTransform;
+  }
+  throw new TypeError(
+    `The installed svelte2tsx entry does not export a svelte2tsx function: ${transformPath}`,
+  );
+}
+
+function loadLeafTransform(options: {
+  packageRootDir: string;
+  requireFromLeaf: ReturnType<typeof createRequire>;
+}): {
+  transform: SvelteTransform;
+  transformPath: string;
+  transformVersion: string;
+} {
+  const transformPath = resolveLeafPackageEntry({
+    missingError: () => createMissingTransformError(options.packageRootDir),
+    packageName: svelte2tsxContract.packageName,
+    packageRootDir: options.packageRootDir,
+    requireFromLeaf: options.requireFromLeaf,
+    specifier: svelte2tsxContract.packageName,
+  });
+  const transformVersion = readResolvedPackageVersion({
+    packageName: svelte2tsxContract.packageName,
+    resolvedPath: transformPath,
+  });
+  if (
+    transformVersion === undefined ||
+    !isSupportedDependencyVersion({
+      contract: svelte2tsxContract,
+      version: transformVersion,
+    })
+  ) {
+    throw createUnsupportedTransformError({
+      packageRootDir: options.packageRootDir,
+      version: transformVersion,
+    });
+  }
+  return {
+    transform: requireTransform(options.requireFromLeaf, transformPath),
+    transformPath,
+    transformVersion,
+  };
 }
 
 export function resolveSvelteSemanticToolchain(
@@ -129,21 +227,15 @@ export function resolveSvelteSemanticToolchain(
   const requireFromLeaf = createRequire(
     path.join(packageRootDir, 'package.json'),
   );
-  try {
-    const { compiler, compilerPath } = loadLeafCompiler({
-      packageRootDir,
-      requireFromLeaf,
-    });
-    return {
-      compiler,
-      compilerPath,
-      compilerVersion: getCompilerVersion({ compiler, compilerPath }),
-      transform: svelte2tsx,
-    };
-  } catch (error) {
-    if (isModuleNotFoundError(error)) {
-      throw createMissingCompilerError(packageRootDir);
-    }
-    throw error;
-  }
+  const { compiler, compilerPath } = loadLeafCompiler({
+    packageRootDir,
+    requireFromLeaf,
+  });
+  const transform = loadLeafTransform({ packageRootDir, requireFromLeaf });
+  return {
+    compiler,
+    compilerPath,
+    compilerVersion: getCompilerVersion({ compiler, compilerPath }),
+    ...transform,
+  };
 }

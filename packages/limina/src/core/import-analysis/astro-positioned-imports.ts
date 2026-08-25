@@ -1,7 +1,6 @@
 import path from 'node:path';
 import ts from 'typescript';
 import type { AstroNode } from './astro-compiler';
-import { collectSourceTextImports } from './oxc-imports';
 import {
   buildLineStarts,
   getLine,
@@ -9,6 +8,7 @@ import {
   type ImportRecord,
   setImportRecordDomain,
 } from './records';
+import { collectTypeScriptSourceTextImports } from './typescript-imports';
 
 interface AstroSourceRegion {
   domain: Extract<ImportDomain, 'astro-client-script' | 'astro-frontmatter'>;
@@ -228,7 +228,7 @@ function collectRegionImports(options: {
   region: PositionedSourceRegion;
 }): ImportRecord[] {
   return setImportRecordDomain(
-    collectSourceTextImports({
+    collectTypeScriptSourceTextImports({
       filePath: options.filePath,
       lineOffset: getLine(options.lineStarts, options.region.sourceStart) - 1,
       scriptKind: ts.ScriptKind.TS,

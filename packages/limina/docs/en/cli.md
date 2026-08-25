@@ -356,7 +356,7 @@ pnpm exec limina checker typecheck --verbose
 
 The command consumes the ownership plan produced by graph preparation. Solution configs are recursively expanded by Limina; the command does not depend on external framework checkers recursively supporting TypeScript project references.
 
-Auto-detected Astro targets run `astro check --noSync --root <leaf> --tsconfig <source-config>` and require leaf-local `astro`, `@astrojs/check`, `typescript`, and `.astro/types.d.ts`. Auto-detected Svelte targets run `svelte-check --workspace <leaf> --tsconfig <source-config>` and require leaf-local `svelte-check`, `svelte`, and `typescript`. Limina does not run Astro sync or enable Svelte incremental cache behavior.
+Auto-detected Astro targets run `astro check --noSync --root <leaf> --tsconfig <source-config>` and require leaf-local `astro`, `@astrojs/check`, `typescript`, and `.astro/types.d.ts`. Auto-detected Svelte targets run `svelte-check --workspace <leaf> --tsconfig <source-config>` and require leaf-local `svelte-check`, `svelte2tsx`, `svelte`, and `typescript`. Limina does not run Astro sync or enable Svelte incremental cache behavior.
 
 `checker typecheck` does not accept a config path, `--preset`, or `--watch`. Watch is explicitly unsupported for these framework targets; rerun the command after source config, parser package, generated type, or framework source changes. If no framework-owned leaf exists, the runner records the task as disabled, skips peer preflight and generated-artifact materialization, and exits successfully.
 

@@ -138,6 +138,7 @@ async function createFixture(
     astroToolchain?: boolean;
     source?: SourceCheckConfig;
     svelteCompiler?: boolean;
+    svelteTransform?: boolean;
   } = {},
 ): Promise<{
   cleanup: () => Promise<void>;
@@ -181,6 +182,13 @@ async function createFixture(
     await linkInstalledPackage({
       installedName: 'svelte-v4-min',
       packageName: 'svelte',
+      rootDir,
+    });
+  }
+  if (options.svelteTransform !== false && hasSvelte) {
+    await linkInstalledPackage({
+      installedName: 'svelte2tsx',
+      packageName: 'svelte2tsx',
       rootDir,
     });
   }
@@ -3342,15 +3350,23 @@ describe('prepareGeneratedTsconfigGraph', () => {
       expected: 'Unable to load the Svelte semantic toolchain',
       file: '<h1>Missing compiler</h1>\n',
       svelteCompiler: false,
+      svelteTransform: true,
+    },
+    {
+      expected: 'package: svelte2tsx',
+      file: '<h1>Missing transform</h1>\n',
+      svelteCompiler: true,
+      svelteTransform: false,
     },
     {
       expected: 'Svelte semantic service-script materialization failed',
       file: '<syntax-error>\n',
       svelteCompiler: true,
+      svelteTransform: true,
     },
   ])(
     'converts Svelte parser failures into generated-graph structured diagnostics',
-    async ({ expected, file, svelteCompiler }) => {
+    async ({ expected, file, svelteCompiler, svelteTransform }) => {
       const fixture = await createFixture(
         {
           'packages/app/src/App.svelte': file,
@@ -3359,7 +3375,7 @@ describe('prepareGeneratedTsconfigGraph', () => {
             include: ['src/**/*'],
           }),
         },
-        { svelteCompiler },
+        { svelteCompiler, svelteTransform },
       );
 
       try {

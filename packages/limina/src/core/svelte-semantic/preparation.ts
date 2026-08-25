@@ -106,6 +106,8 @@ function createIdentity(options: {
     compilerVersion: options.toolchain.compilerVersion,
     configPath: options.project.configPath,
     generation: options.project.generation,
+    transformPath: options.toolchain.transformPath,
+    transformVersion: options.toolchain.transformVersion,
   });
 }
 

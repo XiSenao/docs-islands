@@ -332,6 +332,8 @@ describe('project dependency authority', () => {
       compilerPath: '/workspace/node_modules/svelte/compiler/index.js',
       compilerVersion: '4.2.20',
       transform,
+      transformPath: '/workspace/node_modules/svelte2tsx/index.js',
+      transformVersion: '0.7.61',
     };
     const project = createSvelteSemanticProject({
       configPath: '/workspace/tsconfig.json',

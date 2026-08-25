@@ -154,14 +154,21 @@ function getSvelteFixtureRoots(
   ];
 }
 
-async function linkSvelteCompiler(rootDir: string): Promise<void> {
-  const packageRoot = resolveInstalledPackageRoot(
+async function linkSvelteSemanticToolchain(rootDir: string): Promise<void> {
+  const compilerRoot = resolveInstalledPackageRoot(
     'svelte-v4-min/package.json',
     'svelte',
   );
+  const transformRoot = resolveInstalledPackageRoot(
+    'svelte2tsx/package.json',
+    'svelte2tsx',
+  );
   const nodeModulesDir = path.join(rootDir, 'node_modules');
   await mkdir(nodeModulesDir, { recursive: true });
-  await symlink(packageRoot, path.join(nodeModulesDir, 'svelte'), 'junction');
+  await Promise.all([
+    symlink(compilerRoot, path.join(nodeModulesDir, 'svelte'), 'junction'),
+    symlink(transformRoot, path.join(nodeModulesDir, 'svelte2tsx'), 'junction'),
+  ]);
 }
 
 async function createFixture(files: Record<string, string>): Promise<{
@@ -178,7 +185,7 @@ async function createFixture(files: Record<string, string>): Promise<{
     await writeText(path.join(rootDir, relativePath), text);
   }
   await Promise.all(
-    getSvelteFixtureRoots(files, rootDir).map(linkSvelteCompiler),
+    getSvelteFixtureRoots(files, rootDir).map(linkSvelteSemanticToolchain),
   );
   const vueTscManifest = requireFromTest.resolve('vue-tsc/package.json');
   await mkdir(path.join(rootDir, 'node_modules'), { recursive: true });

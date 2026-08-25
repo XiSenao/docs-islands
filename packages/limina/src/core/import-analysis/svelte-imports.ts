@@ -4,7 +4,6 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import ts from 'typescript';
 import { isResolvedFromLeafInstalledPackage } from '../packages/leaf-package-resolution';
-import { collectSourceTextImports } from './oxc-imports';
 import {
   buildLineStarts,
   getLine,
@@ -14,6 +13,7 @@ import {
 } from './records';
 import { maskSvelteScriptContents } from './svelte-script-mask';
 import type { FrameworkImportParserIdentity } from './types';
+import { collectTypeScriptSourceTextImports } from './typescript-imports';
 
 interface SvelteProgram {
   end: number;
@@ -212,7 +212,7 @@ function collectScriptImports(options: {
     options.script.content.end,
   );
   return setImportRecordDomain(
-    collectSourceTextImports({
+    collectTypeScriptSourceTextImports({
       filePath: options.filePath,
       lineOffset: getLine(options.lineStarts, contentStart) - 1,
       scriptKind: ts.ScriptKind.TS,

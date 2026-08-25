@@ -9,6 +9,7 @@ import {
   formatMissingCheckerPeerDependencies,
 } from '../checker/peers';
 import {
+  checkerToolchainDependencyContracts,
   externalCheckerDependencyContracts,
   isSupportedDependencyVersion,
   liminaRuntimeDependencyContracts,
@@ -59,6 +60,7 @@ describe('dependency ownership contract', () => {
       await readFile(manifestPath, 'utf8'),
     ) as PackageManifest;
     const contracts = {
+      ...checkerToolchainDependencyContracts,
       ...liminaRuntimeDependencyContracts,
       ...externalCheckerDependencyContracts,
     };

@@ -16,8 +16,6 @@ import {
   resolveAstroParser,
 } from '../core/import-analysis/astro-compiler';
 import { collectPositionedAstroImports } from '../core/import-analysis/astro-positioned-imports';
-import { collectOxcImports } from '../core/import-analysis/oxc-imports';
-import { collectRequireImportsFromSourceFile } from '../core/import-analysis/require-bindings';
 import { collectTypeScriptImports } from '../core/import-analysis/typescript-imports';
 import { createProfilingMetricsRecorder } from '../profiling/metrics';
 import { toPortablePath } from './helpers/path';
@@ -202,6 +200,67 @@ describe('import analysis', () => {
     }
   });
 
+  it('emits one export record per source literal and preserves statement occurrences', async () => {
+    const rootDir = await createTempDir();
+    const sourceText = [
+      "export { first, second } from './shared';",
+      "export { third } from './shared';",
+      '',
+    ].join('\n');
+
+    try {
+      const filePath = await writeText(rootDir, 'src/reexports.ts', sourceText);
+
+      expect(
+        collectImportsFromFile(filePath, rootDir).map((record) => ({
+          kind: record.kind,
+          occurrence: record.locator.occurrence,
+          specifier: record.specifier,
+          token: sourceText.slice(
+            record.locator.sourceStart,
+            record.locator.sourceEnd,
+          ),
+        })),
+      ).toEqual([
+        {
+          kind: 'export',
+          occurrence: 0,
+          specifier: './shared',
+          token: "'./shared'",
+        },
+        {
+          kind: 'export',
+          occurrence: 1,
+          specifier: './shared',
+          token: "'./shared'",
+        },
+      ]);
+    } finally {
+      await rm(rootDir, { force: true, recursive: true });
+    }
+  });
+
+  it('collects import types from declaration files', async () => {
+    const rootDir = await createTempDir();
+
+    try {
+      const filePath = await writeText(
+        rootDir,
+        'src/import-type.d.ts',
+        "export type VueModule = typeof import('vue');\n",
+      );
+
+      expect(
+        collectImportsFromFile(filePath, rootDir).map((record) => ({
+          kind: record.kind,
+          specifier: record.specifier,
+        })),
+      ).toEqual([{ kind: 'import-type', specifier: 'vue' }]);
+    } finally {
+      await rm(rootDir, { force: true, recursive: true });
+    }
+  });
+
   it('collects CommonJS, require.resolve, import-equals, and literal template dependencies', async () => {
     const rootDir = await createTempDir();
 
@@ -279,13 +338,6 @@ describe('import analysis', () => {
     ];
 
     expect(
-      collectOxcImports(options)
-        ?.filter((record) =>
-          ['commonjs', 'require-resolve'].includes(record.kind),
-        )
-        .map((record) => [record.kind, record.specifier]),
-    ).toEqual(expected);
-    expect(
       collectTypeScriptImports(options)
         .filter((record) =>
           ['commonjs', 'require-resolve'].includes(record.kind),
@@ -294,7 +346,7 @@ describe('import analysis', () => {
     ).toEqual(expected);
   });
 
-  it('excludes root imports, declarations, and reassigned createRequire aliases in both parser paths', () => {
+  it('excludes imported, declared, and reassigned require bindings during tolerant TypeScript parsing', () => {
     const validSource = [
       "import { require } from './shim';",
       "require('./import-shadow');",
@@ -311,10 +363,11 @@ describe('import analysis', () => {
     ].join('\n');
 
     expect(
-      collectOxcImports({
+      collectTypeScriptImports({
         filePath: '/fixture/shadowed.ts',
+        scriptKind: ts.ScriptKind.TS,
         sourceText: validSource,
-      })?.filter((record) =>
+      }).filter((record) =>
         ['commonjs', 'require-resolve'].includes(record.kind),
       ),
     ).toEqual([]);
@@ -327,28 +380,6 @@ describe('import analysis', () => {
         ['commonjs', 'require-resolve'].includes(record.kind),
       ),
     ).toEqual([]);
-  });
-
-  it('reuses the TypeScript fallback SourceFile for require collection', () => {
-    const sourceText = "const = ;\nrequire('./fallback');\n";
-    const options = {
-      filePath: '/fixture/fallback.ts',
-      scriptKind: ts.ScriptKind.TS,
-      sourceText,
-    };
-    const sourceFile = ts.createSourceFile(
-      options.filePath,
-      sourceText,
-      ts.ScriptTarget.Latest,
-      true,
-      options.scriptKind,
-    );
-
-    expect(
-      collectRequireImportsFromSourceFile({ ...options, sourceFile }).map(
-        (record) => [record.kind, record.specifier],
-      ),
-    ).toEqual([['commonjs', './fallback']]);
   });
 
   it('collects dependency pragmas from comments', async () => {
@@ -418,7 +449,7 @@ describe('import analysis', () => {
           '</script>',
           '<script src="./external.ts"></script>',
           '<script lang="tsx">',
-          "export { Widget } from './Widget';",
+          "export { Widget, WidgetProps } from './Widget';",
           "void import('./lazy');",
           '</script>',
         ].join('\n'),
@@ -574,7 +605,7 @@ describe('import analysis', () => {
       '---',
       "const label = '資料😀';",
       "import Page from './Page.astro';",
-      "export { server } from './server';",
+      "export { server, serverValue } from './server';",
       "void import('./lazy');",
       "import { getCollection } from 'astro:content';",
       "import './theme.css?inline';",
@@ -972,7 +1003,7 @@ describe('import analysis', () => {
       const rootDir = await createTempDir();
       const sourceText = [
         `<script ${moduleAttribute}>`,
-        "export { server } from './server';",
+        "export { server, serverValue } from './server';",
         '</script>',
         '<h1>Component</h1>',
         '<script lang="ts">',
@@ -1255,7 +1286,7 @@ describe('import analysis', () => {
     }
   });
 
-  it('falls back to TypeScript import collection when OXC rejects a file', async () => {
+  it('collects imports from files with recoverable TypeScript syntax errors', async () => {
     const rootDir = await createTempDir();
 
     try {

@@ -58,12 +58,9 @@
     "clean": "del-cli .tsbuild .eslintcache dist coverage node_modules"
   },
   "dependencies": {
-    "@jridgewell/trace-mapping": "catalog:prod",
     "picomatch": "catalog:prod",
     "tinyglobby": "catalog:prod",
-    "oxc-parser": "catalog:prod",
-    "oxc-resolver": "catalog:prod",
-    "svelte2tsx": "catalog:prod"
+    "oxc-resolver": "catalog:prod"
   },
   "devDependencies": {
     "@astrojs/check": "catalog:dev",
@@ -79,6 +76,7 @@
     "@types/node": "catalog:dev",
     "@arethetypeswrong/core": "catalog:lint",
     "@clack/prompts": "catalog:dev",
+    "@jridgewell/trace-mapping": "catalog:dev",
     "boxen": "catalog:dev",
     "logaria": "workspace:*",
     "@publint/pack": "catalog:lint",
@@ -104,6 +102,7 @@
     "shescape": "catalog:dev",
     "ssri": "catalog:dev",
     "string-width": "catalog:dev",
+    "svelte2tsx": "catalog:dev",
     "svelte-check-v4-min": "catalog:dev",
     "svelte-v4-min": "catalog:dev",
     "typescript": "catalog:dev",
@@ -117,6 +116,7 @@
     "knip": ">=6.0.0 <7.0.0",
     "npm-package-json-lint": ">=9.1.0 <10.0.0",
     "publint": ">=0.3.0 <0.4.0",
+    "svelte2tsx": "^0.7.61",
     "svelte-check": ">=4.0.0 <5.0.0",
     "tsx": "^4.9.0",
     "typescript": ">=5.4.0 <5.10.0 || >=6.0.0 <6.1.0",
@@ -139,6 +139,9 @@
       "optional": true
     },
     "publint": {
+      "optional": true
+    },
+    "svelte2tsx": {
       "optional": true
     },
     "svelte-check": {

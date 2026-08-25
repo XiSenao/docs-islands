@@ -182,11 +182,18 @@ async function createFixture(files: Record<string, string>): Promise<{
     await linkAstroToolchain(rootDir);
   }
   if (hasSvelte) {
-    await linkInstalledPackage({
-      installedName: 'svelte-v4-min',
-      packageName: 'svelte',
-      rootDir,
-    });
+    await Promise.all([
+      linkInstalledPackage({
+        installedName: 'svelte-v4-min',
+        packageName: 'svelte',
+        rootDir,
+      }),
+      linkInstalledPackage({
+        installedName: 'svelte2tsx',
+        packageName: 'svelte2tsx',
+        rootDir,
+      }),
+    ]);
   }
 
   return {
@@ -387,13 +394,14 @@ describe('runCheckerBuild', () => {
     };
 
     try {
-      await expect(
-        runCheckerBuild({
-          config,
-          cwd: fixture.rootDir,
-          report: { defer: true },
-        }),
-      ).resolves.toMatchObject({ passed: true });
+      const result = await runCheckerBuild({
+        config,
+        cwd: fixture.rootDir,
+        report: { defer: true },
+      });
+      expect(result, JSON.stringify(result, null, 2)).toMatchObject({
+        passed: true,
+      });
       expect(
         existsSync(
           path.join(

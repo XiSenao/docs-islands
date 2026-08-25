@@ -19,6 +19,8 @@ export type ExternalCheckerPackageName =
   | 'svelte-check'
   | 'vue-tsc';
 
+export type CheckerToolchainPackageName = 'svelte2tsx';
+
 export type LiminaRuntimePackageName =
   | '@arethetypeswrong/core'
   | '@astrojs/compiler'
@@ -98,6 +100,17 @@ export const externalCheckerDependencyContracts: Readonly<
   },
 };
 
+export const checkerToolchainDependencyContracts: Readonly<
+  Record<CheckerToolchainPackageName, LiminaDependencyContract>
+> = {
+  svelte2tsx: {
+    optional: true,
+    ownership: 'checker-toolchain',
+    packageName: 'svelte2tsx',
+    supportedRange: '^0.7.61',
+  },
+};
+
 export const vueCheckerToolchainPackages = [
   '@vue/language-core',
   '@volar/typescript',
@@ -115,6 +128,12 @@ function isExternalCheckerPackageName(
   return Object.hasOwn(externalCheckerDependencyContracts, packageName);
 }
 
+function isCheckerToolchainPackageName(
+  packageName: string,
+): packageName is CheckerToolchainPackageName {
+  return Object.hasOwn(checkerToolchainDependencyContracts, packageName);
+}
+
 function isLiminaRuntimePackageName(
   packageName: string,
 ): packageName is LiminaRuntimePackageName {
@@ -126,6 +145,13 @@ export function getExternalCheckerDependencyContract(
 ): LiminaDependencyContract | undefined {
   if (!isExternalCheckerPackageName(packageName)) return undefined;
   return externalCheckerDependencyContracts[packageName];
+}
+
+export function getCheckerToolchainDependencyContract(
+  packageName: string,
+): LiminaDependencyContract | undefined {
+  if (!isCheckerToolchainPackageName(packageName)) return undefined;
+  return checkerToolchainDependencyContracts[packageName];
 }
 
 export function getLiminaRuntimeDependencyContract(

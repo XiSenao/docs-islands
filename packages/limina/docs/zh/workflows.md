@@ -106,7 +106,7 @@ Module semantics 会更早确定，并与 target ownership 分开冻结。只有
 
 在自动 scope 中，包含 Vue root 的 type config 由 `vue-tsc` 负责；包含 Astro 或 Svelte root 的 config 由对应 framework checker 负责。显式 owner 则具有权威性：Astro 只在 TypeScript 基础上增加 `.astro` 观测，Svelte 只增加 `.svelte`；其他已配置源码扩展会成为 proof 覆盖缺口。Astro/Svelte-owned config 不生成声明，需要 emit declaration 的 TypeScript 必须拆到独立 `tsc`、`tsgo` 或 `vue-tsc` boundary。
 
-对于 project dependency，locked semantic authority 才是边界。Vue 与 Astro dependency 来自各自 generated service script；Svelte dependency 来自公共 `svelte2tsx` 输出。Limina 使用 checker toolchain 枚举 generated TypeScript，要求严格反向 provenance 到源码，并把 synthetic generated import 限定为 observation。Checker-semantic miss 或 mapping failure 不会由 Oxc rescue。只有自动 config 仍处于 pending、且 TypeScript type evidence 为 `missing` 时，Oxc 才能用于识别 governed framework candidate。
+对于 project dependency，locked semantic authority 才是边界。Vue 与 Astro dependency 来自各自 generated service script；Svelte dependency 来自所属 leaf 的公共 `svelte2tsx` peer 输出。Limina 使用 checker toolchain 枚举 generated TypeScript，要求严格反向 provenance 到源码，并把 synthetic generated import 限定为 observation。Checker-semantic miss 或 mapping failure 不会由 Oxc rescue。只有自动 config 仍处于 pending、且 TypeScript type evidence 为 `missing` 时，Oxc 才能用于识别 governed framework candidate。
 
 ### `--mode` 有什么用途？
 

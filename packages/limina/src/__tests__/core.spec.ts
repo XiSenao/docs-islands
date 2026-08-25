@@ -117,6 +117,11 @@ async function linkFrameworkToolchains(packageRootDir: string): Promise<void> {
       rootDir: packageRootDir,
     }),
     linkInstalledPackage({
+      installedName: 'svelte2tsx',
+      packageName: 'svelte2tsx',
+      rootDir: packageRootDir,
+    }),
+    linkInstalledPackage({
       installedName: 'typescript',
       packageName: 'typescript',
       rootDir: packageRootDir,

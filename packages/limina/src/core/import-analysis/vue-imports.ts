@@ -1,12 +1,12 @@
 import type { VueSourceProfile } from '#checkers';
 import ts from 'typescript';
-import { collectSourceTextImports } from './oxc-imports';
 import {
   buildLineStarts,
   getLine,
   type ImportRecord,
   setImportRecordDomain,
 } from './records';
+import { collectTypeScriptSourceTextImports } from './typescript-imports';
 import { maskVitePressMarkdownCodeRanges } from './vue-markdown-source';
 
 const scriptExtractorRE =
@@ -253,7 +253,7 @@ function collectRegexScriptBlock(options: {
   if (getHtmlAttributeValue(attrs, 'src') !== null) return [];
   const content = getMatchContent(options.match);
   const contentStart = getContentStart(options.match, content);
-  return collectSourceTextImports({
+  return collectTypeScriptSourceTextImports({
     filePath: options.filePath,
     lineOffset: getLine(options.lineStarts, contentStart) - 1,
     scriptKind: getVueScriptKind(attrs),

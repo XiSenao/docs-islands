@@ -12,7 +12,7 @@
 
 The key is the checker identity. There is no `preset` field and no custom checker alias. This keeps ownership, generated paths, execution, and cache behavior under one name.
 
-`vue-tsc`, `svelte-check`, and `@typescript/native-preview` are optional external-checker peers. Their peer ranges state which checker versions Limina supports, and each checker resolves from the scope where its target actually executes. `typescript` remains Limina's required runtime peer and resolves from the workspace installation running Limina.
+`vue-tsc`, `svelte-check`, and `@typescript/native-preview` are optional external-checker peers. Their peer ranges state which checker versions Limina supports, and each checker resolves from the scope where its target actually executes. `svelte2tsx` is a separate optional checker-toolchain peer: install it in each Svelte leaf alongside `svelte-check`; Limina does not ship it as a production dependency. `typescript` remains Limina's required runtime peer and resolves from the workspace installation running Limina.
 
 Auto discovery is always enabled. Named scopes claim selected entries first; entries not claimed by a named scope are still analyzed automatically.
 
@@ -126,9 +126,9 @@ When `checker:typecheck` has no framework-owned leaf, it is recorded as `disable
 Framework checker commands and their execution runtimes resolve from the leaf package that owns the source config:
 
 - Astro requires `astro`, `@astrojs/check`, and `typescript`, plus the leaf's generated `.astro/types.d.ts`. Limina runs `astro check --noSync --root <leaf> --tsconfig <source-config>` and never runs `astro sync`.
-- Svelte requires `svelte-check`, `svelte`, and `typescript`. Limina runs `svelte-check --workspace <leaf> --tsconfig <source-config>` without SvelteKit sync, incremental mode, a `.svelte-check` cache, or an output-format override.
+- Svelte requires `svelte-check`, `svelte2tsx`, `svelte`, and `typescript`. Limina runs `svelte-check --workspace <leaf> --tsconfig <source-config>` without SvelteKit sync, incremental mode, a `.svelte-check` cache, or an output-format override.
 
-Source-coordinate collection is different from checker execution: `@astrojs/compiler` is a Limina runtime and resolves from the workspace installation that runs Limina, so one installation serves the workspace and a conflicting leaf copy cannot shadow it. Limina preflights this runtime only when Astro source inspection is needed and reports one environment issue for a shared failure, regardless of the number of `.astro` files. Svelte semantic analysis resolves `svelte/compiler` from the owning leaf and uses Limina's public, versioned `svelte2tsx` dependency for generated TypeScript. Missing framework checker dependencies still fail preflight before checker processes start.
+Source-coordinate collection is different from checker execution: `@astrojs/compiler` is a Limina runtime and resolves from the workspace installation that runs Limina, so one installation serves the workspace and a conflicting leaf copy cannot shadow it. Limina preflights this runtime only when Astro source inspection is needed and reports one environment issue for a shared failure, regardless of the number of `.astro` files. Svelte semantic analysis resolves both `svelte/compiler` and the supported `svelte2tsx` peer from the owning leaf. Missing framework checker dependencies still fail preflight before checker processes start.
 
 `checker typecheck` is a full rerun, not framework watch mode. Stable target IDs preserve target identity between runs but do not provide incremental invalidation.
 
@@ -187,7 +187,7 @@ An unsupported tuple does not disable lightweight source collection. Operations 
 
 ## Svelte semantic dependency analysis
 
-For a locked Svelte project, Limina resolves the public `svelte/compiler` entry from the owning leaf to identify instance- and module-script source ranges. Limina's pinned public `svelte2tsx` adapter then converts the original component to generated TSX plus a source map. Dependencies are enumerated from the generated TSX with the TypeScript AST and reverse-mapped to exactly one source-authored record with trace mapping before TypeScript-compatible module resolution runs.
+For a locked Svelte project, Limina resolves the public `svelte/compiler` entry from the owning leaf to identify instance- and module-script source ranges. It resolves the supported public `svelte2tsx` peer from the same leaf and uses that adapter to convert the original component to generated TSX plus a source map. Limina does not bundle or install this Svelte-only adapter for non-Svelte consumers. Dependencies are enumerated from the generated TSX with the TypeScript AST and reverse-mapped to exactly one source-authored record with trace mapping before TypeScript-compatible module resolution runs.
 
 This bounded path does not run user preprocessors and does not import private `svelte-check` bundles. A generated synthetic dependency is observation-only; missing or ambiguous provenance and adapter/toolchain failures fail closed. Locked Svelte resolution never falls back to Oxc. Ordinary TypeScript files in the Svelte config retain direct TypeScript sub-semantics.
 
