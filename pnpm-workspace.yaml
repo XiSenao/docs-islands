@@ -226,6 +226,7 @@ overrides:
   shell-quote: 1.9.0
   axios: 1.18.0
   postcss: ^8.5.23
+  less: ^4.9.0
 
 packageExtensions:
   '@pnpm/manifest-utils@*':
