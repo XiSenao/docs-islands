@@ -5,7 +5,7 @@ import {
 } from '#core/import-graph/context';
 import { toRelativePath } from '#utils/path';
 import { LIMINA_CHECK_ISSUE_CODES } from '../check-reporting/codes';
-import { isDeclarationFileFamily } from '../core/import-graph/declaration-provider';
+import { isDeclarationFile as isDeclarationFileFamily } from '../core/import-graph/declaration-classifier';
 import {
   addBuildArtifactImportProblem,
   shouldSkipWorkspaceExportResolvedOutsideGraph,

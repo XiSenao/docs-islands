@@ -1,5 +1,5 @@
 import type { ProjectInfo } from '#core/import-graph/context';
-import { isDeclarationFileFamily } from '../core/import-graph/declaration-provider';
+import { isDeclarationFile as isDeclarationFileFamily } from '../core/import-graph/declaration-classifier';
 import type { ManagedOutputDeclarationProvider } from '../core/import-graph/managed-output-provider';
 import type { ExpectedReferenceCollectionContext } from './reference-types';
 

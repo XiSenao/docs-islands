@@ -67,37 +67,6 @@ function stringifyConfig(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-const svelteCompilerFixture = [
-  `'use strict';`,
-  'exports.VERSION = "5.1.0";',
-  'exports.preprocess = async function preprocess(source, preprocessor) {',
-  '  const replacements = [];',
-  '  const pattern = /<script\\b([^>]*)>([\\s\\S]*?)<\\/script>/giu;',
-  '  for (const match of source.matchAll(pattern)) {',
-  '    const content = match[2] || "";',
-  '    const start = (match.index || 0) + match[0].indexOf(content);',
-  '    const processed = await preprocessor.script({ content });',
-  '    replacements.push({ start, end: start + content.length, code: processed.code });',
-  '  }',
-  '  let code = source;',
-  '  for (const replacement of replacements.reverse()) {',
-  '    code = code.slice(0, replacement.start) + replacement.code + code.slice(replacement.end);',
-  '  }',
-  '  return { code };',
-  '};',
-  'exports.parse = function parse(source) {',
-  '  const root = { instance: null, module: null };',
-  '  const pattern = /<script\\b([^>]*)>([\\s\\S]*?)<\\/script>/giu;',
-  '  for (const match of source.matchAll(pattern)) {',
-  '    const content = match[2] || "";',
-  '    const start = (match.index || 0) + match[0].indexOf(content);',
-  '    root.instance = { content: { start, end: start + content.length } };',
-  '  }',
-  '  return root;',
-  '};',
-  '',
-].join('\n');
-
 const svelteCheckerPeerFiles = {
   'node_modules/svelte-check/package.json': stringifyConfig({
     name: 'svelte-check',
@@ -161,17 +130,38 @@ function createFixtureFiles(
 
   return {
     'pnpm-workspace.yaml': 'packages:\n  - app\n  - packages/*\n',
-    'node_modules/svelte/compiler.cjs': svelteCompilerFixture,
-    'node_modules/svelte/package.json': stringifyConfig({
-      exports: { './compiler': './compiler.cjs' },
-      name: 'svelte-check',
-      type: 'commonjs',
-      version: '5.1.0',
-    }),
     ...packageManifests,
     ...files,
     '.gitignore': gitignore,
   };
+}
+
+function getSvelteFixtureRoots(
+  files: Record<string, string>,
+  rootDir: string,
+): string[] {
+  return [
+    ...new Set(
+      Object.keys(files)
+        .filter((filePath) => filePath.endsWith('.svelte'))
+        .map((filePath) => {
+          const segments = filePath.split('/');
+          return segments[0] === 'packages' && segments[1]
+            ? path.join(rootDir, 'packages', segments[1])
+            : rootDir;
+        }),
+    ),
+  ];
+}
+
+async function linkSvelteCompiler(rootDir: string): Promise<void> {
+  const packageRoot = resolveInstalledPackageRoot(
+    'svelte-v4-min/package.json',
+    'svelte',
+  );
+  const nodeModulesDir = path.join(rootDir, 'node_modules');
+  await mkdir(nodeModulesDir, { recursive: true });
+  await symlink(packageRoot, path.join(nodeModulesDir, 'svelte'), 'junction');
 }
 
 async function createFixture(files: Record<string, string>): Promise<{
@@ -187,6 +177,9 @@ async function createFixture(files: Record<string, string>): Promise<{
   for (const [relativePath, text] of Object.entries(fixtureFiles)) {
     await writeText(path.join(rootDir, relativePath), text);
   }
+  await Promise.all(
+    getSvelteFixtureRoots(files, rootDir).map(linkSvelteCompiler),
+  );
   const vueTscManifest = requireFromTest.resolve('vue-tsc/package.json');
   await mkdir(path.join(rootDir, 'node_modules'), { recursive: true });
   await symlink(
@@ -524,13 +517,6 @@ describe('runProofCheck dts config semantics', () => {
       'node_modules/typescript/package.json': stringifyConfig({
         name: 'tsc',
         version: '5.9.0',
-      }),
-      'packages/app/node_modules/svelte/compiler.cjs': svelteCompilerFixture,
-      'packages/app/node_modules/svelte/package.json': stringifyConfig({
-        exports: { './compiler': './compiler.cjs' },
-        name: 'svelte-check',
-        type: 'commonjs',
-        version: '5.1.0',
       }),
       'packages/app/node_modules/svelte-check/package.json': stringifyConfig({
         name: 'svelte-check',

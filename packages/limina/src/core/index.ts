@@ -9,6 +9,7 @@ import { BuildGraphCore } from './build-graph';
 import type { ImportAnalysisMetricsRecorder } from './import-analysis/runner';
 import { ImportCore } from './imports';
 import { PackageDomainCore } from './packages';
+import { SvelteSemanticContextManager } from './svelte-semantic/context';
 import { TsconfigCore } from './tsconfig';
 import { TypeEvidenceCore } from './type-evidence';
 import type { TypeEvidenceMetricsRecorder } from './type-evidence/cache';
@@ -61,6 +62,7 @@ export class AnalysisProviderSet {
   readonly imports: ImportCore;
   readonly packages: PackageDomainCore;
   readonly projectConfigs: CheckerProjectConfigCache;
+  readonly svelteSemanticContexts: SvelteSemanticContextManager;
   readonly tsconfig: TsconfigCore;
   readonly typeEvidence: TypeEvidenceCore;
   readonly workspace: WorkspaceCore;
@@ -83,9 +85,11 @@ export class AnalysisProviderSet {
     this.astroSemanticContexts = new AstroSemanticContextManager({
       metrics: options.metrics,
     });
+    this.svelteSemanticContexts = new SvelteSemanticContextManager();
     this.imports = new ImportCore(options.config, {
       astroSemanticContexts: this.astroSemanticContexts,
       metrics: options.metrics,
+      svelteSemanticContexts: this.svelteSemanticContexts,
       vueSemanticContexts: this.vueSemanticContexts,
     });
     this.tsconfig = new TsconfigCore({
@@ -117,6 +121,7 @@ export class AnalysisProviderSet {
   dispose(): void {
     this.typeEvidence.dispose();
     this.astroSemanticContexts.dispose();
+    this.svelteSemanticContexts.dispose();
     this.vueSemanticContexts.dispose();
   }
 }

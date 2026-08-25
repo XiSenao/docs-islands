@@ -6,6 +6,7 @@ import {
 } from '#checkers';
 import type { ResolvedLiminaConfig } from '#config/runner';
 import { uniqueCodeUnitSortedStrings as uniqueSortedStrings } from '#utils/collections';
+import { createSvelteSemanticProject } from '../svelte-semantic/project';
 import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
 import { getFrameworkFilePackageRoot } from './framework-file-root';
 import { getGeneratedLeafSolutionBuildConfigPath } from './generated/paths';
@@ -160,6 +161,30 @@ function createGovernedAstroSemanticProject(options: {
   });
 }
 
+function getSemanticGeneration(
+  cache: CheckerProjectConfigCache | undefined,
+): number {
+  return cache?.generation ?? 0;
+}
+
+function createGovernedSvelteSemanticProject(options: {
+  capability: FrameworkCapabilityDescriptor | undefined;
+  ownedFileNames: string[];
+  project: SourceProject;
+  projectConfigCache: CheckerProjectConfigCache | undefined;
+}): GovernedSourceUnit['svelteSemanticProject'] {
+  if (options.project.semanticAuthority.family !== 'svelte') return undefined;
+  if (options.capability === undefined) return undefined;
+  return createSvelteSemanticProject({
+    configPath: options.project.configPath,
+    extensions: options.project.context.extensions,
+    fileNames: options.ownedFileNames,
+    generation: getSemanticGeneration(options.projectConfigCache),
+    options: options.project.options,
+    packageRootDir: options.capability.packageRootDir,
+  });
+}
+
 export function createGovernedSourceUnit(options: {
   activatedRegions: WorkspaceRegionPathIndex;
   config: ResolvedLiminaConfig;
@@ -195,6 +220,15 @@ export function createGovernedSourceUnit(options: {
     project: options.project,
     projectConfigCache: options.projectConfigCache,
   });
+  const svelteCapability = frameworkCapabilities.find(
+    (capability) => capability.family === 'svelte',
+  );
+  const svelteSemanticProject = createGovernedSvelteSemanticProject({
+    capability: svelteCapability,
+    ownedFileNames,
+    project: options.project,
+    projectConfigCache: options.projectConfigCache,
+  });
 
   return {
     astroSemanticProject,
@@ -217,5 +251,7 @@ export function createGovernedSourceUnit(options: {
     packageRootDir: options.project.packageRootDir,
     primaryCheckerName: options.project
       .checkerName as GovernedSourceUnit['primaryCheckerName'],
+    semanticAuthority: { ...options.project.semanticAuthority },
+    svelteSemanticProject,
   };
 }

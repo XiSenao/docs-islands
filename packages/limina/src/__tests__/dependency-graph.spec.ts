@@ -352,7 +352,7 @@ describe('collectDependencyGraph', () => {
         evidence: [
           {
             importer: 'packages/a/src/index.ts',
-            resolvedPath: 'packages/b/dist/runtime.js',
+            resolvedPath: 'packages/b/dist/runtime.d.ts',
             specifier: '@example/b/runtime',
           },
         ],

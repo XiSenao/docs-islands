@@ -9,6 +9,7 @@ import type {
   SolutionOwnershipState,
   TypeConfigOwnershipState,
 } from './checker-ownership-types';
+import { createPendingSemanticAuthority } from './checker-semantic-authority';
 import type { AutoScope } from './types';
 
 export function collectOwnershipScopes(options: {
@@ -249,6 +250,7 @@ function createTypeState(configPath: string): TypeConfigOwnershipState {
     evidence: [],
     kind: 'type',
     localOwner: { kind: 'pending' },
+    semanticAuthority: createPendingSemanticAuthority(),
   };
 }
 

@@ -23,6 +23,10 @@ import {
   validateOwnershipConstraints,
 } from './checker-ownership-finalization';
 import type { TypeConfigOwnershipState } from './checker-ownership-types';
+import {
+  freezeSemanticAuthorities,
+  validateFrozenSemanticAuthorities,
+} from './checker-semantic-authority';
 import { getUniqueConstraint } from './checker-solution-constraints';
 import { createGeneratedGraphStructuredError } from './problems';
 import type {
@@ -168,7 +172,7 @@ export async function resolveCheckerOwnership(options: {
   assertOwnershipPhase({
     config: options.config,
     fallback: 'Failed to collect checker dependency evidence.',
-    problems: collectCheckerDependencyFacts({
+    problems: await collectCheckerDependencyFacts({
       config: options.config,
       discovery,
       importAnalysis: options.importAnalysisContext,
@@ -176,6 +180,14 @@ export async function resolveCheckerOwnership(options: {
     }),
   });
   runDependencyRequirements({ config: options.config, discovery });
+  assertOwnershipPhase({
+    config: options.config,
+    fallback: 'Failed to freeze checker semantic authorities.',
+    problems: freezeSemanticAuthorities({
+      config: options.config,
+      states: discovery.plan.typeConfigs.values(),
+    }),
+  });
   runVuePromotion({ config: options.config, discovery });
   assertOwnershipPhase({
     config: options.config,
@@ -190,7 +202,23 @@ export async function resolveCheckerOwnership(options: {
     discovery,
     phase: 'build checker component coloring',
   });
+  assertOwnershipPhase({
+    config: options.config,
+    fallback: 'Checker build coloring changed frozen semantic authority.',
+    problems: validateFrozenSemanticAuthorities({
+      config: options.config,
+      states: discovery.plan.typeConfigs.values(),
+    }),
+  });
   finalizeOwnership({ config: options.config, discovery });
+  assertOwnershipPhase({
+    config: options.config,
+    fallback: 'Final checker ownership changed frozen semantic authority.',
+    problems: validateFrozenSemanticAuthorities({
+      config: options.config,
+      states: discovery.plan.typeConfigs.values(),
+    }),
+  });
   return {
     ownershipPlan: discovery.plan,
     selections: createOwnershipSelections({

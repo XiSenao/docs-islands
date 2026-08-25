@@ -2,15 +2,7 @@ import { compareCodeUnits } from '#utils/collections';
 import { isRelativeSpecifier } from '#utils/module-specifier';
 import { normalizeAbsolutePath, toRelativePath } from '#utils/path';
 import path from 'pathe';
-import {
-  type DeclarationProviderResolution,
-  resolveDeclarationProvider,
-} from '../import-graph/declaration-provider';
 import { getDtsProjectsForSourcePath } from './project-indexes';
-import {
-  addFrameworkSemanticDependencyProblem,
-  formatOxcOnlyDeclarationProviderProblem,
-} from './provider-problems';
 import { formatReferenceBoundaryProblem } from './reference-boundary';
 import type {
   ReferenceImportOptions,
@@ -19,76 +11,56 @@ import type {
 } from './reference-import-types';
 import { isLocalPathOutsideActivatedRegions } from './source-projects';
 
-function addOxcOnlyProblem(options: {
-  base: ReferenceImportOptions;
-  provider: DeclarationProviderResolution;
-}): boolean {
-  if (options.provider.kind !== 'oxc-only') {
-    return false;
-  }
-  options.base.context.problems.push(
-    formatOxcOnlyDeclarationProviderProblem({
-      config: options.base.context.config,
-      importRecord: options.base.importRecord,
-      oxcResolvedFilePath: options.provider.oxcResolvedFilePath,
-      project: options.base.project,
-    }),
+const FRAMEWORK_SOURCE_EXTENSIONS = ['.astro', '.svelte', '.vue'];
+
+function isFrameworkSourceDependency(
+  dependency: ReferenceImportOptions['projectDependency'],
+): boolean {
+  if (dependency.targetKind !== 'source') return false;
+  const normalized = dependency.resolvedFilePath.toLowerCase();
+  return FRAMEWORK_SOURCE_EXTENSIONS.some((extension) =>
+    normalized.endsWith(extension),
   );
-  return true;
 }
 
-function addSemanticFailureProblem(options: {
-  base: ReferenceImportOptions;
-  provider: DeclarationProviderResolution;
-}): boolean {
-  if (options.provider.kind !== 'semantic-failure') return false;
-  addFrameworkSemanticDependencyProblem({
-    context: options.base.context,
-    failure: options.provider.failure,
-    importRecord: options.base.importRecord,
-    project: options.base.project,
-  });
-  return true;
+function createProjectDependencyTypeScriptResolution(
+  dependency: ReferenceImportOptions['projectDependency'],
+) {
+  return {
+    isExternalLibraryImport: false,
+    resolvedBy: isFrameworkSourceDependency(dependency)
+      ? ('checker-source' as const)
+      : ('typescript' as const),
+    resolvedFileName: dependency.resolvedFilePath,
+  };
 }
 
-function isResolvedProvider(
-  provider: DeclarationProviderResolution,
-): provider is ResolvedProvider {
-  return provider.kind === 'declaration' || provider.kind === 'source';
-}
-
-function getProviderResolutionContext(
+function resolveProjectDependencyProvider(
   options: ReferenceImportOptions,
-): NonNullable<ReferenceImportOptions['resolutionContext']> {
-  if (options.resolutionContext !== undefined) {
-    return options.resolutionContext;
+): ResolvedProvider {
+  const dependency = options.projectDependency;
+  const typeScriptResolution =
+    createProjectDependencyTypeScriptResolution(dependency);
+  if (dependency.targetKind === 'declaration') {
+    return {
+      kind: 'declaration',
+      oxcResolvedFilePath: null,
+      typeScriptResolution,
+    };
   }
-  return options.project.context;
+  return {
+    kind: 'source',
+    ownerProjectPaths:
+      options.context.fileOwnerLookup.get(dependency.resolvedFilePath) ?? [],
+    oxcResolvedFilePath: null,
+    typeScriptResolution,
+  };
 }
 
 export function resolveUsableProvider(
   options: ReferenceImportOptions,
-): ResolvedProvider | null {
-  const provider = resolveDeclarationProvider({
-    compilerOptions: options.project.options,
-    containingFile: options.fileName,
-    fileOwnerLookup: options.context.fileOwnerLookup,
-    importAnalysis: options.context.importAnalysis,
-    importRecord: options.importRecord,
-    project: {
-      ...getProviderResolutionContext(options),
-      astroSemanticProject: options.astroSemanticProject,
-      configPath: options.project.configPath,
-      resolverConfigPath: options.project.configPath,
-    },
-  });
-  const hasProblem = [
-    addOxcOnlyProblem({ base: options, provider }),
-    addSemanticFailureProblem({ base: options, provider }),
-  ].some(Boolean);
-  if (hasProblem) return null;
-  if (!isResolvedProvider(provider)) return null;
-  return provider;
+): ResolvedProvider {
+  return resolveProjectDependencyProvider(options);
 }
 
 function chooseSourceOwner(options: {
@@ -106,7 +78,7 @@ function chooseSourceOwner(options: {
 }
 
 function resolveExplicitSpecifierPath(
-  options: ReferenceImportOptions,
+  options: Omit<ReferenceImportOptions, 'projectDependency'>,
 ): string | null {
   const specifier = options.importRecord.specifier.split(/[?#]/u)[0]!;
   if (!isRelativeSpecifier(specifier)) return null;
@@ -122,7 +94,9 @@ function getOwnedConfigPaths(
   return context.fileOwnerLookup.get(filePath) ?? [];
 }
 
-function resolveExplicitOwnedSource(options: ReferenceImportOptions): {
+function resolveExplicitOwnedSource(
+  options: Omit<ReferenceImportOptions, 'projectDependency'>,
+): {
   resolvedFilePath: string;
   targetSourceConfigPath: string;
 } | null {
@@ -138,7 +112,7 @@ function resolveExplicitOwnedSource(options: ReferenceImportOptions): {
 }
 
 export function addMissingOwnedDeclarationProviderProblem(
-  options: ReferenceImportOptions,
+  options: Omit<ReferenceImportOptions, 'projectDependency'>,
 ): void {
   const target = resolveExplicitOwnedSource(options);
   if (target === null) return;

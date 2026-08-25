@@ -1,4 +1,6 @@
 import { createCanonicalResolver } from './canonical-resolution-provider';
+import { createCheckerDependencyPreparation } from './checker-dependency-preparation';
+import { createCheckerSemanticResolver } from './checker-resolution-provider';
 import { createInternalResolver } from './internal-resolution';
 import type {
   ProviderDependencies,
@@ -60,6 +62,9 @@ export function createResolutionProvider(
   dependencies: ProviderDependencies,
 ): ResolutionProvider {
   return {
+    prepareCheckerSemanticDependencies:
+      createCheckerDependencyPreparation(dependencies),
+    resolveCheckerImportEvidence: createCheckerSemanticResolver(dependencies),
     resolveInternalImport: createInternalResolver(dependencies),
     resolveImportEvidence: createCanonicalResolver(dependencies),
     resolveModulePair: createPairResolver(dependencies),

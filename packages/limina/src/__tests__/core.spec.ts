@@ -1,6 +1,6 @@
 import type { ResolvedLiminaConfig } from '#config/runner';
 import { type AnalysisProviderSet, createAnalysisProviders } from '#core';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import {
   mkdir,
   mkdtemp,
@@ -42,54 +42,91 @@ async function writeText(filePath: string, text: string): Promise<void> {
   await writeFile(filePath, text);
 }
 
-async function linkAstroCompiler(packageRootDir: string): Promise<void> {
-  const compilerPackagePath = requireFromTest.resolve(
-    '@astrojs/compiler/package.json',
+async function linkInstalledPackage(options: {
+  installedName: string;
+  packageName: string;
+  rootDir: string;
+}): Promise<void> {
+  const readPackageName = (manifestPath: string): string | undefined => {
+    try {
+      return (
+        JSON.parse(readFileSync(manifestPath, 'utf8')) as { name?: string }
+      ).name;
+    } catch {
+      return undefined;
+    }
+  };
+  let packageRoot: string | undefined;
+  try {
+    const manifestPath = requireFromTest.resolve(
+      `${options.installedName}/package.json`,
+    );
+    if (readPackageName(manifestPath) === options.packageName) {
+      packageRoot = path.dirname(manifestPath);
+    }
+  } catch {
+    // Some supported checker packages hide package.json behind exports.
+  }
+  let directory = path.dirname(requireFromTest.resolve(options.installedName));
+  while (packageRoot === undefined) {
+    if (
+      readPackageName(path.join(directory, 'package.json')) ===
+      options.packageName
+    ) {
+      packageRoot = directory;
+      break;
+    }
+    const parent = path.dirname(directory);
+    if (parent === directory) {
+      throw new Error(
+        `Unable to find ${options.packageName} for ${options.installedName}.`,
+      );
+    }
+    directory = parent;
+  }
+  const segments = options.packageName.split('/');
+  const packageBaseName = segments.pop()!;
+  const nodeModulesDir = path.join(
+    options.rootDir,
+    'node_modules',
+    ...segments,
   );
-  const nodeModulesDir = path.join(packageRootDir, 'node_modules', '@astrojs');
-
   await mkdir(nodeModulesDir, { recursive: true });
   await symlink(
-    path.dirname(compilerPackagePath),
-    path.join(nodeModulesDir, 'compiler'),
+    packageRoot,
+    path.join(nodeModulesDir, packageBaseName),
     'junction',
   );
+}
+
+async function linkFrameworkToolchains(packageRootDir: string): Promise<void> {
+  await Promise.all([
+    linkInstalledPackage({
+      installedName: '@astrojs/check',
+      packageName: '@astrojs/check',
+      rootDir: packageRootDir,
+    }),
+    linkInstalledPackage({
+      installedName: 'astro-v7-current',
+      packageName: 'astro',
+      rootDir: packageRootDir,
+    }),
+    linkInstalledPackage({
+      installedName: 'svelte-v4-min',
+      packageName: 'svelte',
+      rootDir: packageRootDir,
+    }),
+    linkInstalledPackage({
+      installedName: 'typescript',
+      packageName: 'typescript',
+      rootDir: packageRootDir,
+    }),
+  ]);
 }
 
 function stringifyJson(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
-
-const svelteCompilerFixture = [
-  `'use strict';`,
-  'exports.VERSION = "5.1.0";',
-  'exports.preprocess = async function preprocess(source, preprocessor) {',
-  '  const replacements = [];',
-  '  const pattern = /<script\\b([^>]*)>([\\s\\S]*?)<\\/script>/giu;',
-  '  for (const match of source.matchAll(pattern)) {',
-  '    const content = match[2] || "";',
-  '    const start = (match.index || 0) + match[0].indexOf(content);',
-  '    const processed = await preprocessor.script({ content });',
-  '    replacements.push({ start, end: start + content.length, code: processed.code });',
-  '  }',
-  '  let code = source;',
-  '  for (const replacement of replacements.reverse()) {',
-  '    code = code.slice(0, replacement.start) + replacement.code + code.slice(replacement.end);',
-  '  }',
-  '  return { code };',
-  '};',
-  'exports.parse = function parse(source) {',
-  '  const root = { instance: null, module: null };',
-  '  const pattern = /<script\\b[^>]*>([\\s\\S]*?)<\\/script>/giu;',
-  '  for (const match of source.matchAll(pattern)) {',
-  '    const content = match[1] || "";',
-  '    const start = (match.index || 0) + match[0].indexOf(content);',
-  '    root.instance = { content: { start, end: start + content.length } };',
-  '  }',
-  '  return root;',
-  '};',
-  '',
-].join('\n');
 
 async function createCoreFixture(): Promise<{
   cleanup: () => Promise<void>;
@@ -127,24 +164,17 @@ async function createCoreFixture(): Promise<{
   await writeText(
     path.join(rootDir, 'packages/a/package.json'),
     stringifyJson({
+      dependencies: {
+        '@astrojs/check': '0.9.10',
+        astro: '7.2.0',
+        svelte: '4.0.0',
+        typescript: '6.0.3',
+      },
       name: '@fixture/a',
       version: '1.0.0',
     }),
   );
-  await writeText(
-    path.join(rootDir, 'packages/a/node_modules/svelte/package.json'),
-    stringifyJson({
-      exports: { './compiler': './compiler.cjs' },
-      name: 'svelte-check',
-      type: 'commonjs',
-      version: '5.1.0',
-    }),
-  );
-  await writeText(
-    path.join(rootDir, 'packages/a/node_modules/svelte/compiler.cjs'),
-    svelteCompilerFixture,
-  );
-  await linkAstroCompiler(path.join(rootDir, 'packages/a'));
+  await linkFrameworkToolchains(path.join(rootDir, 'packages/a'));
   await writeText(
     path.join(rootDir, 'packages/a/tsconfig.json'),
     stringifyJson({

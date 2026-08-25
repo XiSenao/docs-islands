@@ -102,11 +102,20 @@ Default solution 可以直接引用 named terminal config，例如 `tsconfig.jso
 
 ## Framework ownership 与 dependency boundary
 
-在自动 scope 中，checker-aware effective root file、dependency evidence 与 Vue promotion 可以解析 pending owner。显式 scope 会跳过这些隐式 owner 推断，但仍参与依赖构图。一个 type config 可以同时包含 TS/JS 与一个 framework family；冲突的自动 framework evidence 会 fail closed。
+Limina 为每个 project 记录两个回答不同问题的 identity：
+
+- **Semantic authority** 决定使用哪一种 checker-compatible module semantics 解释 project dependency。
+- **Final owner** 决定由哪个 checker 执行 build 或 typecheck target。
+
+只有显式 checker selection、checker-specific config evidence、effective root-file evidence，以及已确认的 pending framework dependency 可以锁定 semantic authority。Limina 收集完 pending dependency requirement 后会冻结该 authority。Vue promotion、solution constraint、declaration-component coloring、TypeScript fallback 与 `finalOwner` 可以选择或传播 build owner，但不能重新解释 project dependency。因此，TypeScript-semantic project 可以在 build coloring 后由 `vue-tsc` 构建，同时继续使用 TypeScript module semantics。
+
+仍处于 pending 的自动 scope 以 TypeScript 作为中立语义基线。Limina 从已解析的 TypeScript project 及其 TypeScript AST 枚举 dependency，再对每条 source-authored dependency 执行 checker type-evidence gate。`ambient`、`concrete-declaration` 与 `checker-source` evidence 都停在 TypeScript boundary；不受支持的 semantic evidence 会 fail closed。只有 `missing` evidence 可以调用 Oxc，而且 Oxc 在这里仅用于为 ownership inference 识别物理 framework-source candidate。Candidate 必须是恰好一个 governed config 的 effective member，并且只属于一个 framework semantic domain。普通 TypeScript file、resource、excluded file 与 ambiguous target 都不能给 checker 染色。Limina 会先收集完整 requirement set，再解析 pending owner，因此 Astro/Svelte/Vue 冲突是确定性的，不受 import 顺序影响。
+
+Semantic authority 一旦锁定，所有 project-aware consumer 都使用对应的 TypeScript、Vue、Astro 或 Svelte semantic provider。Checker-semantic miss 的最终结果仍是 missing；toolchain、materialization、source-map、ambiguity 与 resolution-host failure 都会 fail closed。Locked project dependency resolution 不会把 Oxc 或轻量 collector 当作 fallback。
+
+`SourceEvidence` 继续提供 source-only syntax、diagnostic 与源码坐标，但不是 graph 或 checker authority。Architecture consumer 只接受具有 `direct-source` 或严格 `mapped-source` provenance 的 source-authored `ProjectDependency`。无法唯一映射到源码 dependency 的 generated dependency 只能成为 observation，绝不会创建 source-derived edge；ambiguous reverse mapping 会直接报错。
 
 显式 Astro owner 观测 TypeScript 文件与 `.astro`；显式 Svelte owner 观测 TypeScript 文件与 `.svelte`；显式 `vue-tsc` owner 观测 TypeScript 与 checker 实际解析出的 Vue 扩展。一个 framework 名称不会顺带加入其他 framework 扩展。位于 proof source boundary 内、但 final owner 无法观测的文件，不会仅因存在就阻断 graph prepare；`proof check` 会以 `LIMINA_PROOF_UNCOVERED_SOURCE_FILE` 报告。
-
-`ambient`、`concrete-declaration` 与 `checker-source` evidence 会建立 TypeScript domain boundary。只有 `missing` 才继续 physical resolution；`unsupported-checker` 会 fail closed。Physical target 只有实际属于唯一 managed file set 时才能传播 framework requirement。目录接近、nearest package、nearest tsconfig 与 excluded file 都不能证明 ownership。Side-effect import 与消费 export 的 import 使用相同规则。
 
 Astro/Svelte owner 不生成 declaration project、wrapper 或 transparent build solution。`checker:typecheck` 会对其完整 type config 按 leaf 执行一次。需要 emit declaration 的 TypeScript 必须拆到独立 `tsc`、`tsgo` 或 `vue-tsc` config。
 
@@ -119,20 +128,15 @@ Astro/Svelte owner 不生成 declaration project、wrapper 或 transparent build
 - Astro 需要 `astro`、`@astrojs/check` 和 `typescript`，以及叶子包已生成的 `.astro/types.d.ts`。Limina 执行 `astro check --noSync --root <leaf> --tsconfig <source-config>`，不会运行 `astro sync`。
 - Svelte 需要 `svelte-check`、`svelte` 和 `typescript`。Limina 执行 `svelte-check --workspace <leaf> --tsconfig <source-config>`，不会运行 SvelteKit sync、启用增量模式、写入 `.svelte-check` cache 或覆盖输出格式。
 
-Astro 的轻量 import 收集与 checker 执行使用不同归属：`@astrojs/compiler` 是 Limina runtime，从运行 Limina 的 workspace 安装环境解析，因此整个 workspace 安装一次即可，叶子包中的冲突副本也不能 shadow 它。Limina 只在实际需要 Astro 源码收集时预检该 runtime；同一个共享环境故障无论涉及多少个 `.astro` 文件，都只报告一个 issue。Svelte import analysis 仍从所属叶子包解析 `svelte/compiler`。框架 checker 依赖缺失时，预检仍会在启动检查器进程前失败。
+源码坐标收集与 checker 执行使用不同归属：`@astrojs/compiler` 是 Limina runtime，从运行 Limina 的 workspace 安装环境解析，因此整个 workspace 安装一次即可，叶子包中的冲突副本也不能 shadow 它。Limina 只在实际需要 Astro 源码检查时预检该 runtime；同一个共享环境故障无论涉及多少个 `.astro` 文件，都只报告一个 issue。Svelte semantic analysis 从所属叶子包解析 `svelte/compiler`，并使用 Limina 的公共、固定版本 `svelte2tsx` 依赖生成 TypeScript。框架 checker 依赖缺失时，预检仍会在启动检查器进程前失败。
 
 `checker typecheck` 是完整重跑，不是框架 watch 模式。稳定 target ID 只表示多次运行之间的 target identity 稳定，不提供增量失效能力。
 
 ## Astro 语义 import 解析
 
-当真实 `.astro` 源码 import 可能影响生成图时，Limina 可以用有界 Astro 语义解析增强轻量 ImportRecord。这条路径没有用户配置，不运行 Language Service、不创建 TypeScript Program，也不执行完整 Astro typecheck。它按需创建 Volar Language 与 decorated TypeScript host，在同一个 analysis provider 内复用这份有界 context，用真实源码映射找到 semantic module literal，再由该 host 确认物理 target。
+对于 locked Astro project，源码检查先记录 source-authored import 及其坐标。Project dependency provider 随后从有界 Astro/Volar context 物化 primary 与 extra TypeScript service script，使用该 toolchain 的 TypeScript AST 枚举 dependency，并把每条 generated dependency 反向映射到一条源码 record。轻量 record 只提供坐标 evidence，不决定 project dependency。
 
-流水线明确区分两个判断：
-
-1. 真实源码 ImportRecord、原始 specifier 与廉价 Oxc/filesystem evidence 只判断是否需要语义解析。
-2. 只有 eligible record 才使用 Astro semantic host；随后，已经得到的 Oxc 与 TypeScript evidence 仍进入正常的最终 runtime classification。
-
-已知 virtual module、query/resource import 与显式非源码扩展会跳过 semantic context，继续使用现有非语义路径。eligible record 一旦启动 Astro semantic resolution，toolchain 或 source-map failure 就会 fail closed，不会退回普通 TypeScript resolver。正常 Astro/Volar virtual code 可以包含 synthetic import；这些 import 不参与 candidate discovery，也永远不会形成 graph edge。只有真实源码 record 没有严格 source mapping、映射存在歧义，或严格候选无法全部证明相同的 source specifier、resolution mode 与 canonical target 时，才报告 `source-map-mismatch`。
+只有严格 source mapping 才能形成 `mapped-source` dependency。Generated synthetic import 即使能解析到 governed workspace source，也只能成为 `unmapped-generated` observation，绝不会创建 graph edge。Reverse mapping 缺失或存在歧义、toolchain 不兼容、service-script failure 与 resolution-host failure 都会 fail closed。映射完成后，由 Astro decorated TypeScript host 解析 semantic literal；这条 locked path 不会使用 Oxc 做 eligibility、resolution 或 fallback。
 
 首个 adapter family 有明确边界：
 
@@ -151,7 +155,7 @@ TypeScript peer range 是 `>=5.4.0 <5.10.0 || >=6.0.0 <6.1.0`。Astro `7.0.0` �
 
 依赖解析遵循 package ownership。Limina 依次从所属 leaf、`@astrojs/check`、Language Server、`@volar/kit` 创建解析 scope。依赖必须由拥有它的 scope 声明；owner-scoped 解析失败后不会改从 workspace root 重试。resolved file 可以位于 pnpm store、hoisted directory 或其他 symlink layout。路径只记录为 provenance，并用于隔离不同 module instance；物理路径相等永远不是兼容条件。因此，两份受支持的 TypeScript 可以来自不同 realpath，甚至可以是范围内不同版本。
 
-semantic resolver 只确认 target；runtime classification、源码 ownership、provider 选择、scheduling 与 graph policy 仍由 Limina 决定：
+Semantic provider 只确认 source-authored dependency 与 target；源码 ownership、provider 选择、scheduling 与 graph policy 仍由 Limina 决定：
 
 | Astro 源码 target | 图策略                                                            |
 | ----------------- | ----------------------------------------------------------------- |
@@ -164,9 +168,9 @@ semantic resolver 只确认 target；runtime classification、源码 ownership�
 
 ## Vue 源码与语义 import 分析
 
-Vue import 收集不再提供配置字段。Limina 始终从 inline `<script>`、`<script setup>`、`<script src>` attribute，以及 `generic` attribute 内的 `import()` 表达式收集轻量源码证据。对于 `vitepress-markdown` source profile，行内反引号代码与反引号围栏代码块不会成为这类证据，同时源码 offset 与换行保持不变；波浪号围栏不会被排除。这条面向文件的收集路径不会初始化 `vue-tsc`，standalone import analysis 仍可使用它。
+Vue import 收集不再提供配置字段。Limina 会从 inline `<script>`、`<script setup>`、`<script src>` attribute，以及 `generic` attribute 内的 `import()` 表达式收集 source-only record 与坐标。对于 `vitepress-markdown` source profile，行内反引号代码与反引号围栏代码块不会成为这类 evidence，同时源码 offset 与换行保持不变；波浪号围栏不会被排除。这条面向文件的视图不会初始化 `vue-tsc`，standalone source inspection 仍可使用它，但它不是 project dependency authority。
 
-当源码归属于 `vue-tsc` project 时，生成 reference 准备和 `graph:check` 可以把源码记录增强为 checker 语义证据。Limina 先从 checker execution scope 解析 `vue-tsc`，再从这份已安装 `vue-tsc` 的依赖环境解析 Vue Language Core、Volar TypeScript 和 toolchain 使用的 TypeScript。它以同一套 toolchain 和 virtual config overlay 完成 project membership 与语义分析；只有严格的 source-to-virtual mapping 才会被接受。没有源码证据的 service-script synthetic import 永远不会成为 graph edge。TypeScript/declaration resolution 使用映射后的 semantic literal；Oxc/runtime 与 resource evidence 继续使用原始 source specifier。
+对于 locked Vue-semantic project，Limina 先从 checker execution scope 解析 `vue-tsc`，再从这份已安装 `vue-tsc` 的依赖环境解析 Vue Language Core、Volar TypeScript 和 toolchain 使用的 TypeScript。它会物化 Vue service script，使用 toolchain AST 枚举 generated TypeScript dependency，并且只接受到唯一源码 record 的严格 reverse mapping。一条 dependency 会同时保留 `sourceSpecifier` 与 `semanticSpecifier`；例如源码 `<script src="./entry.ts">` 可以映射到 semantic literal `./entry.js`。Synthetic service-script import 只能成为 observation，绝不会形成 graph edge。Vue/TypeScript resolution 使用映射后的 semantic literal，不会回退到 Oxc。同一个 project 内的 TypeScript file 继续使用 direct TypeScript sub-semantics。
 
 支持的 adapter matrix 有明确边界：
 
@@ -180,6 +184,12 @@ Vue import 收集不再提供配置字段。Limina 始终从 inline `<script>`�
 该 Vue tuple 使用的 TypeScript 属于 checker-toolchain 角色，通过 `vue-tsc` 解析；它不要求与 Limina 自身必需的 TypeScript runtime 是同一个物理安装。
 
 不受支持的 tuple 不会关闭轻量源码收集；需要 checker-parity semantic dependency 或 reference resolution 的操作会 fail closed，不会回退到近似的 Vue extension resolver。
+
+## Svelte 语义 dependency 分析
+
+对于 locked Svelte project，Limina 从所属叶子包解析公共 `svelte/compiler` 入口，以确定 instance script 与 module script 的源码范围。随后，Limina 固定版本的公共 `svelte2tsx` adapter 会把原始 component 转成 generated TSX 与 source map。Limina 使用 TypeScript AST 从 generated TSX 枚举 dependency，经 trace mapping 把它严格反向映射到唯一 source-authored record，再执行 TypeScript-compatible module resolution。
+
+这条有界路径不会执行用户 preprocessor，也不会导入 `svelte-check` private bundle。Generated synthetic dependency 只能成为 observation；provenance 缺失或存在歧义，以及 adapter/toolchain failure 都会 fail closed。Locked Svelte resolution 不会回退到 Oxc。Svelte config 中的普通 TypeScript file 继续使用 direct TypeScript sub-semantics。
 
 ### 从 `config.imports.vue` 迁移的 breaking change
 

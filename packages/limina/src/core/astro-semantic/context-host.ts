@@ -26,6 +26,7 @@ export function getAstroLanguageId(fileName: string): string | undefined {
     '.cts': 'typescript',
     '.js': 'javascript',
     '.jsx': 'javascriptreact',
+    '.json': 'json',
     '.mjs': 'javascript',
     '.mts': 'typescript',
     '.svelte': 'svelte',

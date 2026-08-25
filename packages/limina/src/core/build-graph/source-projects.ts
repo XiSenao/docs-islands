@@ -11,6 +11,7 @@ import {
   toRelativePath,
 } from '#utils/path';
 import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
+import type { LockedSemanticAuthority } from './checker-ownership-types';
 import {
   readGraphRules,
   readOutputOptions,
@@ -39,6 +40,7 @@ export function createSourceProject(options: {
   packageRootDir: string;
   projectConfigCache?: CheckerProjectConfigCache;
   sourceConfigPath: string;
+  semanticAuthority: LockedSemanticAuthority;
 }): SourceProject {
   const parseContext: CheckerProjectParseContext = {
     checkerPresets: [options.checkerPreset],
@@ -93,6 +95,7 @@ export function createSourceProject(options: {
     packageRootDir: options.packageRootDir,
     options: parsed.options,
     references: new Set(),
+    semanticAuthority: { ...options.semanticAuthority },
   };
 }
 

@@ -18,6 +18,7 @@ import {
 } from '../checker/vue-semantic-toolchain';
 import { VueSemanticContextManager } from '../core/vue-semantic/context';
 import { collectSemanticDependencyEvidence } from '../core/vue-semantic/dependency';
+import { prepareVueSemanticDependencies } from '../core/vue-semantic/preparation';
 import { resolveVueSemanticImport } from '../core/vue-semantic/resolution';
 import { createProfilingMetricsRecorder } from '../profiling/metrics';
 import { createFixturePathResolver, toPortablePath } from './helpers/path';
@@ -325,24 +326,61 @@ describe('Vue semantic architecture', () => {
       const importAnalysis = createImportAnalysisContext({
         projectRootDir: fixture.rootDir,
       });
-      const imports = [
-        ...importAnalysis.collectImportsFromFile(
-          filePath,
-          fixture.rootDir,
-          'vue-sfc',
-        ),
-        ...importAnalysis.collectImportsFromFile(
-          fixture.path('src/Generic.vue'),
-          fixture.rootDir,
-          'vue-sfc',
-        ),
-      ];
+      const appImports = importAnalysis.collectImportsFromFile(
+        filePath,
+        fixture.rootDir,
+        'vue-sfc',
+      );
+      const genericImports = importAnalysis.collectImportsFromFile(
+        fixture.path('src/Generic.vue'),
+        fixture.rootDir,
+        'vue-sfc',
+      );
+      const imports = [...appImports, ...genericImports];
       const context = manager.acquire(identity);
 
       expect(imports.map((record) => record.kind)).toEqual([
         'vue-script-src',
         'vue-generic-type',
       ]);
+      const prepared = [
+        prepareVueSemanticDependencies({
+          context,
+          filePath,
+          sourceRecords: appImports,
+        }),
+        prepareVueSemanticDependencies({
+          context,
+          filePath: fixture.path('src/Generic.vue'),
+          sourceRecords: genericImports,
+        }),
+      ];
+      expect(prepared.every((result) => result.kind === 'supported')).toBe(
+        true,
+      );
+      expect(
+        prepared.flatMap((result) =>
+          result.kind === 'supported'
+            ? result.candidates.map((candidate) => [
+                candidate.sourceSpecifier,
+                candidate.semanticSpecifier,
+              ])
+            : [],
+        ),
+      ).toEqual([
+        ['./entry.ts', './entry.js'],
+        ['./types', './types'],
+      ]);
+      expect(
+        prepareVueSemanticDependencies({
+          context,
+          filePath,
+          sourceRecords: [appImports[0]!, { ...appImports[0]! }],
+        }),
+      ).toMatchObject({
+        kind: 'unsupported',
+        stage: 'source-map-ambiguity',
+      });
       const mapped = imports.map((importRecord) =>
         collectSemanticDependencyEvidence({ context, importRecord }),
       );

@@ -40,8 +40,8 @@ function isKnownSourcePath(
   const normalized = filePath.toLowerCase();
   return (
     isNativeTypeScriptProjectInput(normalized) ||
-    ['.astro', '.svelte', '.vue', ...checkerExtensions].some((extension) =>
-      normalized.endsWith(extension.toLowerCase()),
+    ['.astro', '.json', '.svelte', '.vue', ...checkerExtensions].some(
+      (extension) => normalized.endsWith(extension.toLowerCase()),
     )
   );
 }

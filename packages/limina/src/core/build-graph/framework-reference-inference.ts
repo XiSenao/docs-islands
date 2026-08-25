@@ -1,17 +1,18 @@
 import { isBuildCapablePreset } from '#checkers';
 import type { formatImportRecordLocation } from '#core/import-graph/context';
-import { collectImportsFromFile } from '#core/import-graph/context';
 import { uniqueCodeUnitSortedStrings } from '#utils/collections';
-import { normalizeAbsolutePath } from '#utils/path';
+import {
+  collectProjectDependencies,
+  createSourceProjectSemanticContext,
+  type ProjectDependency,
+} from '../project-dependencies/runner';
 import {
   addAmbiguousFrameworkSourceOwnerProblem,
   addMissingFrameworkBuildOwnerProblem,
   createFrameworkDependencyEdge,
   recordFrameworkDependencyEdge,
 } from './framework-dependency-edge';
-import { getFrameworkFilePackageRoot } from './framework-file-root';
 import { reportUnresolvedFrameworkImport } from './framework-import-problems';
-import { addFrameworkSemanticDependencyProblem } from './provider-problems';
 import type { ReferenceImportContext } from './reference-import-types';
 import { processDeclarationProviderImport } from './reference-imports';
 import type {
@@ -32,6 +33,7 @@ interface FrameworkImportOptions {
   context: ReferenceImportContext;
   fileName: string;
   importRecord: FrameworkImportRecord;
+  projectDependency: ProjectDependency;
   project: SourceProject;
   source: GovernedSourceUnit;
 }
@@ -46,104 +48,27 @@ interface FrameworkImportTarget {
   targetConfigPath: string;
 }
 
-function getResolvedFilePath(
-  resolution: { resolvedFileName: string } | null | undefined,
-): string | null {
-  return resolution?.resolvedFileName ?? null;
-}
-
 function isFrameworkFile(filePath: string): boolean {
   return filePath.endsWith('.astro') || filePath.endsWith('.svelte');
 }
 
-function selectOwnedResolution(options: {
+function createOwnedResolution(options: {
   context: ReferenceImportContext;
-  oxcResolvedFilePath: string | null;
-  typeScriptResolvedFilePath: string | null;
+  resolvedFilePath: string;
 }): OwnedResolution | null {
-  const candidates = uniqueCodeUnitSortedStrings(
-    [options.typeScriptResolvedFilePath, options.oxcResolvedFilePath].filter(
-      (filePath): filePath is string => filePath !== null,
-    ),
-  );
-  return (
-    candidates
-      .map((candidate) => {
-        const filePath = normalizeAbsolutePath(candidate);
-        return {
-          filePath,
-          owners: options.context.fileOwnerLookup.get(filePath) ?? [],
-        };
-      })
-      .find(({ owners }) => owners.length > 0) ?? null
-  );
-}
-
-function selectFrameworkResolutionEvidence(options: {
-  oxcResolvedFilePath: string | null;
-  semanticFramework: 'astro' | 'vue' | undefined;
-  typeScriptResolvedFilePath: string | null;
-}): {
-  oxcResolvedFilePath: string | null;
-  typeScriptResolvedFilePath: string | null;
-} {
-  if (options.semanticFramework === 'astro') {
-    return {
-      oxcResolvedFilePath: null,
-      typeScriptResolvedFilePath: options.typeScriptResolvedFilePath,
-    };
-  }
-  return {
-    oxcResolvedFilePath: options.oxcResolvedFilePath,
-    typeScriptResolvedFilePath: options.typeScriptResolvedFilePath,
-  };
-}
-
-function hasBlockingFrameworkEvidence(options: {
-  evidence: ReturnType<
-    ReferenceImportContext['importAnalysis']['resolveImportEvidence']
-  >;
-  importOptions: FrameworkImportOptions;
-}): boolean {
-  if (options.evidence.runtimeEvidence.classification === 'resource') {
-    return true;
-  }
-  if (options.evidence.semanticFailure === undefined) return false;
-  addFrameworkSemanticDependencyProblem({
-    context: options.importOptions.context,
-    failure: options.evidence.semanticFailure,
-    importRecord: options.importOptions.importRecord,
-    project: options.importOptions.project,
-  });
-  return true;
+  const owners =
+    options.context.fileOwnerLookup.get(options.resolvedFilePath) ?? [];
+  return owners.length === 0
+    ? null
+    : { filePath: options.resolvedFilePath, owners };
 }
 
 function resolveFrameworkImportResolution(
   options: FrameworkImportOptions,
 ): OwnedResolution | null {
-  const evidence = options.context.importAnalysis.resolveImportEvidence(
-    options.importRecord,
-    options.fileName,
-    options.project.options,
-    {
-      ...options.source.context,
-      astroSemanticProject: options.source.astroSemanticProject,
-      configPath: options.source.configPath,
-      resolverConfigPath: options.source.configPath,
-    },
-  );
-  if (hasBlockingFrameworkEvidence({ evidence, importOptions: options })) {
-    return null;
-  }
-  const resolution = selectOwnedResolution({
+  const resolution = createOwnedResolution({
     context: options.context,
-    ...selectFrameworkResolutionEvidence({
-      oxcResolvedFilePath: evidence.oxcResolvedFilePath,
-      semanticFramework: evidence.semanticEvidence?.framework,
-      typeScriptResolvedFilePath: getResolvedFilePath(
-        evidence.typeScriptResolution,
-      ),
-    }),
+    resolvedFilePath: options.projectDependency.resolvedFilePath,
   });
   reportUnresolvedFrameworkImport({
     context: options.context,
@@ -228,40 +153,11 @@ function processFrameworkImport(options: FrameworkImportOptions): void {
   ) {
     processDeclarationProviderImport({
       ...options,
-      astroSemanticProject: options.source.astroSemanticProject,
-      resolutionContext: options.source.context,
+      projectDependency: options.projectDependency,
     });
     return;
   }
   recordFrameworkSchedulingDependency(options, target);
-}
-
-function processFrameworkFile(
-  options: Omit<FrameworkImportOptions, 'importRecord'>,
-): void {
-  let imports: ReturnType<typeof collectImportsFromFile>;
-  try {
-    imports = collectImportsFromFile(
-      options.fileName,
-      getFrameworkFilePackageRoot({
-        activatedRegions: options.context.activatedRegions,
-        fallbackPackageRootDir: options.source.packageRootDir,
-        fileName: options.fileName,
-      }),
-      options.context.importAnalysis,
-    );
-  } catch (error) {
-    options.context.problems.push(formatThrownError(error));
-    return;
-  }
-  for (const importRecord of imports) {
-    processFrameworkImport({ ...options, importRecord });
-  }
-}
-
-function formatThrownError(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
 }
 
 function getFrameworkSourceFileNames(source: GovernedSourceUnit): string[] {
@@ -271,19 +167,99 @@ function getFrameworkSourceFileNames(source: GovernedSourceUnit): string[] {
   return source.ownedFileNames.filter(isFrameworkFile);
 }
 
-function processFrameworkSource(options: {
+interface FrameworkSourceOptions {
   buildOwnersByConfigPath: ReadonlyMap<string, GovernedBuildOwner>;
   context: ReferenceImportContext;
   primaryProjectsByConfigPath: ReadonlyMap<string, SourceProject>;
   source: GovernedSourceUnit;
+}
+
+function processFrameworkDependencies(options: {
+  base: FrameworkSourceOptions;
+  dependencies: ReturnType<typeof collectProjectDependencies>['dependencies'];
+  frameworkFiles: ReadonlySet<string>;
+  project: SourceProject;
 }): void {
+  for (const projectDependency of options.dependencies) {
+    processFrameworkDependency({ ...options, projectDependency });
+  }
+}
+
+function processFrameworkDependency(options: {
+  base: FrameworkSourceOptions;
+  frameworkFiles: ReadonlySet<string>;
+  project: SourceProject;
+  projectDependency: ProjectDependency;
+}): void {
+  const fileName = options.projectDependency.importRecord.filePath;
+  if (!options.frameworkFiles.has(fileName)) return;
+  processFrameworkImport({
+    ...options.base,
+    fileName,
+    importRecord: options.projectDependency.importRecord,
+    project: options.project,
+    projectDependency: options.projectDependency,
+  });
+}
+
+function processFrameworkObservations(options: {
+  context: ReferenceImportContext;
+  frameworkFiles: ReadonlySet<string>;
+  observations: ReturnType<typeof collectProjectDependencies>['observations'];
+  source: GovernedSourceUnit;
+}): void {
+  for (const observation of options.observations) {
+    processFrameworkObservation({ ...options, observation });
+  }
+}
+
+function processFrameworkObservation(options: {
+  context: ReferenceImportContext;
+  frameworkFiles: ReadonlySet<string>;
+  observation: ReturnType<
+    typeof collectProjectDependencies
+  >['observations'][number];
+  source: GovernedSourceUnit;
+}): void {
+  if (options.observation.kind !== 'missing') return;
+  if (!options.frameworkFiles.has(options.observation.importRecord.filePath)) {
+    return;
+  }
+  reportUnresolvedFrameworkImport({
+    context: options.context,
+    importRecord: options.observation.importRecord,
+    resolutionFound: false,
+    source: options.source,
+  });
+}
+
+function processFrameworkSource(options: FrameworkSourceOptions): void {
   const project = options.primaryProjectsByConfigPath.get(
     options.source.configPath,
   );
   if (project === undefined) return;
-  for (const fileName of getFrameworkSourceFileNames(options.source)) {
-    processFrameworkFile({ ...options, fileName, project });
-  }
+  const frameworkFiles = new Set(getFrameworkSourceFileNames(options.source));
+  const collection = collectProjectDependencies({
+    caches: options.context.projectDependencyCaches,
+    context: createSourceProjectSemanticContext({
+      authority: options.source.semanticAuthority,
+      project,
+      source: options.source,
+    }),
+    importAnalysis: options.context.importAnalysis,
+  });
+  processFrameworkDependencies({
+    base: options,
+    dependencies: collection.dependencies,
+    frameworkFiles,
+    project,
+  });
+  processFrameworkObservations({
+    context: options.context,
+    frameworkFiles,
+    observations: collection.observations,
+    source: options.source,
+  });
 }
 
 export function processFrameworkSourceReferences(options: {

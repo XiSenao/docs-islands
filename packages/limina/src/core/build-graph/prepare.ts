@@ -1,6 +1,7 @@
 import { isSourceKnipEnabled, type ResolvedLiminaConfig } from '#config/runner';
 import { collectRawWorkspacePackages } from '#core/workspace/actions';
 import { AstroSemanticContextManager } from '../astro-semantic/context';
+import { SvelteSemanticContextManager } from '../svelte-semantic/context';
 import { VueSemanticContextManager } from '../vue-semantic/context';
 import {
   collectValidatedWorkspaceContext,
@@ -13,7 +14,7 @@ import { prewarmGeneratedFrameworkImports } from './framework-import-prewarm';
 import { prepareGeneratedKnipPackageConfigs } from './generated-knip';
 import { validateAndCompleteGeneratedGraph } from './graph-validation';
 import { resolveBuildGraphImportAnalysis } from './import-analysis-context';
-import { prepareCheckerGraphs } from './prepare-checkers';
+import { prepareCheckerGraphs } from './prepare-checker-graphs';
 import {
   createGeneratedGraphPreparationState,
   registerPreparedChecker,
@@ -61,8 +62,29 @@ function createOwnedAstroSemanticContexts(
   return new AstroSemanticContextManager();
 }
 
+function createOwnedSvelteSemanticContexts(
+  options: PrepareGeneratedTsconfigGraphOptions,
+): SvelteSemanticContextManager | undefined {
+  if (options.importAnalysisContext !== undefined) return undefined;
+  return new SvelteSemanticContextManager();
+}
+
 function disposeOwnedVueSemanticContexts(
   contexts: VueSemanticContextManager | undefined,
+): void {
+  if (contexts === undefined) return;
+  contexts.dispose();
+}
+
+function disposeOwnedAstroSemanticContexts(
+  contexts: AstroSemanticContextManager | undefined,
+): void {
+  if (contexts === undefined) return;
+  contexts.dispose();
+}
+
+function disposeOwnedSvelteSemanticContexts(
+  contexts: SvelteSemanticContextManager | undefined,
 ): void {
   if (contexts === undefined) return;
   contexts.dispose();
@@ -101,10 +123,13 @@ export async function prepareGeneratedTsconfigGraph(
   });
   const ownedVueSemanticContexts = createOwnedVueSemanticContexts(options);
   const ownedAstroSemanticContexts = createOwnedAstroSemanticContexts(options);
+  const ownedSvelteSemanticContexts =
+    createOwnedSvelteSemanticContexts(options);
   const importAnalysisContext = resolveBuildGraphImportAnalysis({
     astroSemanticContexts: ownedAstroSemanticContexts,
     config,
     importAnalysisContext: options.importAnalysisContext,
+    svelteSemanticContexts: ownedSvelteSemanticContexts,
     vueSemanticContexts: ownedVueSemanticContexts,
   });
   try {
@@ -165,7 +190,8 @@ export async function prepareGeneratedTsconfigGraph(
       state,
     });
   } finally {
-    ownedAstroSemanticContexts?.dispose();
+    disposeOwnedAstroSemanticContexts(ownedAstroSemanticContexts);
+    disposeOwnedSvelteSemanticContexts(ownedSvelteSemanticContexts);
     disposeOwnedVueSemanticContexts(ownedVueSemanticContexts);
   }
 }

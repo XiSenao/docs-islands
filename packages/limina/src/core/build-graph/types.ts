@@ -10,12 +10,16 @@ import type ts from 'typescript';
 import type { LiminaArtifactNamespace } from '../../domain/artifacts/namespace';
 import type { ArtifactChange, ArtifactPlan } from '../../domain/artifacts/plan';
 import type { CheckerEntrySelection } from '../checkers/entry-selection';
+import type { SvelteSemanticProject } from '../svelte-semantic/types';
 import type {
   ValidatedWorkspaceContext,
   WorkspaceRegionPathIndex,
 } from '../workspace/validated-context';
 import type { AutoScopeProject } from './auto-checker-types';
-import type { CheckerOwnershipPlan } from './checker-ownership-types';
+import type {
+  CheckerOwnershipPlan,
+  LockedSemanticAuthority,
+} from './checker-ownership-types';
 import type {
   GeneratedKnipPackageConfig,
   GeneratedKnipPackageDiagnostic,
@@ -115,6 +119,7 @@ export interface SourceProject {
   packageRootDir: string;
   options: ts.CompilerOptions;
   references: Set<string>;
+  semanticAuthority: LockedSemanticAuthority;
 }
 
 export interface FrameworkCapabilityDescriptor {
@@ -152,6 +157,8 @@ export interface GovernedSourceUnit {
   ownedFileNames: string[];
   packageRootDir: string;
   primaryCheckerName: ResolvedCheckerConfig['name'];
+  semanticAuthority: LockedSemanticAuthority;
+  svelteSemanticProject?: SvelteSemanticProject;
 }
 
 export interface SolutionProject {

@@ -78,6 +78,7 @@ describe('Astro pre-semantic eligibility', () => {
     expect(classify('astro:content').kind).toBe('skip');
     expect(classify('./theme.css?inline').kind).toBe('skip');
     expect(classify('./theme.css').kind).toBe('skip');
+    expect(classify('./data.json').kind).toBe('eligible');
     expect(
       classify('./asset', {
         oxcResolvedFilePath: '/workspace/src/asset.png',

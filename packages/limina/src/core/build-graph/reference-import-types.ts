@@ -1,20 +1,28 @@
-import type {
-  AstroSemanticProject,
-  CheckerProjectParseContext,
-} from '#checkers';
 import type { ResolvedLiminaConfig } from '#config/runner';
 import type {
   ImportAnalysisContext,
   ImportRecord,
+  ResolvedCheckerModuleName,
 } from '#core/import-analysis/runner';
-import type { DeclarationProviderResolution } from '../import-graph/declaration-provider';
+import type {
+  ProjectDependency,
+  ProjectDependencyCaches,
+} from '../project-dependencies/contracts';
 import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
 import type { GeneratedDependencyEdge, SourceProject } from './types';
 
-export type ResolvedProvider = Extract<
-  DeclarationProviderResolution,
-  { kind: 'declaration' | 'source' }
->;
+export type ResolvedProvider =
+  | {
+      kind: 'declaration';
+      oxcResolvedFilePath: null;
+      typeScriptResolution: ResolvedCheckerModuleName;
+    }
+  | {
+      kind: 'source';
+      ownerProjectPaths: string[];
+      oxcResolvedFilePath: null;
+      typeScriptResolution: ResolvedCheckerModuleName;
+    };
 
 export interface ReferenceImportContext {
   activatedRegions: WorkspaceRegionPathIndex;
@@ -22,18 +30,17 @@ export interface ReferenceImportContext {
   dtsProjectsBySourcePath: Map<string, SourceProject[]>;
   fileOwnerLookup: Map<string, string[]>;
   importAnalysis: ImportAnalysisContext;
+  projectDependencyCaches: ProjectDependencyCaches;
   problems: string[];
   dependencyEdgesByKey: Map<string, GeneratedDependencyEdge>;
-  semanticProblemIdentities: Set<string>;
 }
 
 export interface ReferenceImportOptions {
-  astroSemanticProject?: AstroSemanticProject;
   context: ReferenceImportContext;
   fileName: string;
   importRecord: ImportRecord;
+  projectDependency: ProjectDependency;
   project: SourceProject;
-  resolutionContext?: CheckerProjectParseContext;
 }
 
 export interface ReferenceTarget {

@@ -5,6 +5,8 @@ import type {
   VueProjectSemanticIdentity,
 } from '#checkers';
 import type ts from 'typescript';
+import type { LockedSemanticAuthority } from '../build-graph/checker-ownership-types';
+import type { SvelteSemanticProject } from '../svelte-semantic/types';
 
 export interface ProjectInfo {
   analysisGeneration: number;
@@ -21,6 +23,8 @@ export interface ProjectInfo {
   options: ts.CompilerOptions;
   references: Set<string>;
   resolverConfigPath: string;
+  semanticAuthority?: LockedSemanticAuthority;
+  svelteSemanticProject?: SvelteSemanticProject;
   vueSemanticIdentity?: VueProjectSemanticIdentity;
 }
 

@@ -22,12 +22,10 @@ export type AstroSemanticCandidateResult =
       stage: 'service-script-materialization' | 'source-map-mismatch';
     };
 
-type ServiceScriptResult =
-  | {
-      kind: 'supported';
-      services: ReturnType<AstroSemanticContext['getServiceScripts']>;
-    }
-  | Extract<AstroSemanticCandidateResult, { kind: 'unsupported' }>;
+interface ServiceScriptResult {
+  kind: 'supported';
+  services: ReturnType<AstroSemanticContext['getServiceScripts']>;
+}
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -46,6 +44,16 @@ function getLiteralRangeIdentities(
   return [rangeIdentity(start, end), rangeIdentity(start + 1, end - 1)];
 }
 
+function isMappedLiteral(options: {
+  literal: ts.StringLiteralLike;
+  rangeIdentities: ReadonlySet<string>;
+  sourceFile: ts.SourceFile;
+}): boolean {
+  return getLiteralRangeIdentities(options.literal, options.sourceFile).some(
+    (identity) => options.rangeIdentities.has(identity),
+  );
+}
+
 function findMappedLiterals(options: {
   rangeIdentities: ReadonlySet<string>;
   sourceFile: ts.SourceFile;
@@ -55,9 +63,7 @@ function findMappedLiterals(options: {
   const visit = (node: ts.Node): void => {
     if (
       options.tsModule.isStringLiteralLike(node) &&
-      getLiteralRangeIdentities(node, options.sourceFile).some((identity) =>
-        options.rangeIdentities.has(identity),
-      )
+      isMappedLiteral({ ...options, literal: node })
     ) {
       literals.push(node);
     }
@@ -67,7 +73,7 @@ function findMappedLiterals(options: {
   return literals;
 }
 
-function getMappedRangeIdentities(options: {
+export function getAstroMappedRangeIdentities(options: {
   context: AstroSemanticContext;
   importRecord: ImportRecord;
   service: AstroMaterializedServiceScript;
@@ -89,13 +95,13 @@ function createCandidates(options: {
   importRecord: ImportRecord;
   service: AstroMaterializedServiceScript;
 }): AstroSemanticCandidate[] {
-  const rangeIdentities = getMappedRangeIdentities(options);
+  const rangeIdentities = getAstroMappedRangeIdentities(options);
   if (rangeIdentities.size === 0) return [];
   const literals = findMappedLiterals({
     rangeIdentities,
     sourceFile: options.service.sourceFile,
     tsModule: options.context.toolchain.tsModule,
-  }).filter((literal) => literal.text === options.importRecord.specifier);
+  });
   return literals.map((literal) => ({
     containingSourceFile: options.service.sourceFile,
     framework: 'astro',
@@ -111,7 +117,7 @@ function createCandidates(options: {
 function materializeServiceScripts(options: {
   context: AstroSemanticContext;
   importRecord: ImportRecord;
-}): ServiceScriptResult {
+}): ServiceScriptResult | AstroSemanticCandidateResult {
   try {
     const services = options.context.getServiceScripts(
       options.importRecord.filePath,
@@ -163,6 +169,6 @@ export function collectAstroSemanticCandidates(options: {
 }): AstroSemanticCandidateResult {
   options.context.assertActive();
   const services = materializeServiceScripts(options);
-  if (services.kind === 'unsupported') return services;
+  if (!('services' in services)) return services;
   return discoverCandidates({ ...options, services: services.services });
 }

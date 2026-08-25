@@ -1,8 +1,11 @@
 import ts from 'typescript';
+import { collectCommentImports } from './comment-imports';
 import {
   buildLineStarts,
   type CollectedImportRecord,
   createImportRecord,
+  finalizeImportRecords,
+  type ImportRecord,
   type ImportRecordKind,
 } from './records';
 import { collectRequireImportsFromSourceFile } from './require-bindings';
@@ -196,16 +199,61 @@ export function collectTypeScriptImports(
     true,
     options.scriptKind,
   );
+  return collectTypeScriptImportsFromSourceFile({ ...options, sourceFile });
+}
+
+function collectTypeScriptImportsFromSourceFile(
+  options: TypeScriptImportCollectionOptions & { sourceFile: ts.SourceFile },
+): CollectedImportRecord[] {
   const imports: CollectedImportRecord[] = [];
   const add = createAddImport({
     collection: options,
     imports,
     lineStarts: buildLineStarts(options.sourceText),
-    sourceFile,
+    sourceFile: options.sourceFile,
   });
-  visitNode({ add, node: sourceFile });
-  return [
-    ...imports,
-    ...collectRequireImportsFromSourceFile({ ...options, sourceFile }),
-  ];
+  visitNode({ add, node: options.sourceFile });
+  return [...imports, ...collectRequireImportsFromSourceFile(options)];
+}
+
+export function collectTypeScriptSourceTextImports(options: {
+  filePath: string;
+  lineOffset?: number;
+  scriptKind?: ts.ScriptKind;
+  sourceOffset?: number;
+  sourceText: string;
+}): ImportRecord[] {
+  const syntax = collectTypeScriptImports({
+    ...options,
+    scriptKind: options.scriptKind ?? getSourceFileKind(options.filePath),
+  });
+  return finalizeImportRecords([...syntax, ...collectCommentImports(options)]);
+}
+
+export function collectTypeScriptSourceFileImports(options: {
+  filePath: string;
+  sourceFile: ts.SourceFile;
+}): ImportRecord[] {
+  ensureParentPointers(options.sourceFile);
+  const sourceText = options.sourceFile.text;
+  const syntax = collectTypeScriptImportsFromSourceFile({
+    filePath: options.filePath,
+    scriptKind: getSourceFileKind(options.filePath),
+    sourceFile: options.sourceFile,
+    sourceText,
+  });
+  return finalizeImportRecords([
+    ...syntax,
+    ...collectCommentImports({ filePath: options.filePath, sourceText }),
+  ]);
+}
+
+function ensureParentPointers(sourceFile: ts.SourceFile): void {
+  const visit = (node: ts.Node, parent?: ts.Node): void => {
+    if (parent !== undefined && node.parent === undefined) {
+      (node as unknown as { parent: ts.Node }).parent = parent;
+    }
+    ts.forEachChild(node, (child) => visit(child, node));
+  };
+  visit(sourceFile);
 }

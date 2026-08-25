@@ -1,4 +1,5 @@
 import type { AstroSemanticContextManager } from '../astro-semantic/context';
+import type { SvelteSemanticContextManager } from '../svelte-semantic/context';
 import type { VueSemanticContextManager } from '../vue-semantic/context';
 import type { ModuleResolutionRequestIndex } from './request-index';
 import type {
@@ -9,6 +10,8 @@ import type {
 
 export type ResolutionProvider = Pick<
   ImportAnalysisContext,
+  | 'prepareCheckerSemanticDependencies'
+  | 'resolveCheckerImportEvidence'
   | 'resolveInternalImport'
   | 'resolveImportEvidence'
   | 'resolveModulePair'
@@ -21,5 +24,6 @@ export interface ProviderDependencies {
   caches: ImportAnalysisCaches;
   metrics: ImportAnalysisMetricsRecorder | undefined;
   requests: ModuleResolutionRequestIndex;
+  svelteSemanticContexts?: SvelteSemanticContextManager;
   vueSemanticContexts?: VueSemanticContextManager;
 }

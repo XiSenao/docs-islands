@@ -111,6 +111,7 @@ export async function createGraphCheckState(
   const packages = await preflight.ensureWorkspacePackages();
   const workspaceExports = await createWorkspaceExportsResolutionIndex({
     config,
+    includeOxc: false,
     importAnalysis: preflight.importAnalysis,
     metrics: preflight.profilingMetrics,
     packages,

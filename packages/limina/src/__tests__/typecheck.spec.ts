@@ -145,16 +145,25 @@ async function createFixture(files: Record<string, string>): Promise<{
   const hasAstro = Object.keys(files).some((filePath) =>
     filePath.endsWith('.astro'),
   );
+  const hasSvelte = Object.keys(files).some((filePath) =>
+    filePath.endsWith('.svelte'),
+  );
   const fixtureFiles = {
     'package.json': `${JSON.stringify(
       {
-        dependencies: hasAstro
-          ? {
-              '@astrojs/check': '0.9.10',
-              astro: '7.2.0',
-              typescript: '6.0.3',
-            }
-          : undefined,
+        dependencies:
+          hasAstro || hasSvelte
+            ? {
+                ...(hasAstro
+                  ? {
+                      '@astrojs/check': '0.9.10',
+                      astro: '7.2.0',
+                      typescript: '6.0.3',
+                    }
+                  : {}),
+                ...(hasSvelte ? { svelte: '4.0.0' } : {}),
+              }
+            : undefined,
         name: 'root',
         private: true,
       },
@@ -162,22 +171,6 @@ async function createFixture(files: Record<string, string>): Promise<{
       2,
     )}\n`,
     'pnpm-workspace.yaml': 'packages:\n  - app\n  - packages/*\n',
-    ...(Object.keys(files).some((filePath) => filePath.endsWith('.svelte'))
-      ? {
-          'node_modules/svelte/compiler.cjs': [
-            "'use strict';",
-            'exports.VERSION = "5.1.0";',
-            'exports.preprocess = async (source) => ({ code: source });',
-            'exports.parse = () => ({ instance: null, module: null });',
-          ].join('\n'),
-          'node_modules/svelte/package.json': JSON.stringify({
-            exports: { './compiler': './compiler.cjs' },
-            name: 'svelte',
-            type: 'commonjs',
-            version: '5.1.0',
-          }),
-        }
-      : {}),
     ...files,
   };
 
@@ -187,6 +180,13 @@ async function createFixture(files: Record<string, string>): Promise<{
   await linkVueToolchain(rootDir);
   if (hasAstro) {
     await linkAstroToolchain(rootDir);
+  }
+  if (hasSvelte) {
+    await linkInstalledPackage({
+      installedName: 'svelte-v4-min',
+      packageName: 'svelte',
+      rootDir,
+    });
   }
 
   return {

@@ -5,7 +5,6 @@ import {
 import type { ResolvedLiminaConfig } from '#config/runner';
 import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
 import type { CheckerOwnershipPlan } from './checker-ownership-types';
-import { connectCrossCheckerReferences } from './explicit-checker-ownership';
 import { getGeneratedCheckerEntryPath } from './generated/paths';
 import { createGovernedSourceUnit } from './governed-sources';
 import { collectCheckerSourceConfigs } from './source-config-root-collection';
@@ -24,6 +23,21 @@ function getPackageRootDir(options: {
 }): string {
   return options.activatedRegions.findPackageForPath(options.sourceConfigPath)!
     .directory;
+}
+
+function getSemanticAuthority(options: {
+  configPath: string;
+  ownershipPlan: CheckerOwnershipPlan;
+}) {
+  const authority = options.ownershipPlan.typeConfigs.get(
+    options.configPath,
+  )?.frozenSemanticAuthority;
+  if (authority === undefined) {
+    throw new Error(
+      `Missing frozen semantic authority for ${options.configPath}.`,
+    );
+  }
+  return authority;
 }
 
 function createCheckerSolutions(options: {
@@ -192,6 +206,7 @@ export function prepareCheckerGraph(options: {
     string,
     ResolvedCheckerEntrySelection['checker']['name']
   >;
+  ownershipPlan: CheckerOwnershipPlan;
 }): PreparedCheckerGraph {
   const parsing = getCheckerParsingOptions(options.selection.checker.name);
   const collection = collectCheckerSourceConfigs({
@@ -218,6 +233,10 @@ export function prepareCheckerGraph(options: {
           sourceConfigPath,
         }),
         projectConfigCache: options.projectConfigCache,
+        semanticAuthority: getSemanticAuthority({
+          configPath: sourceConfigPath,
+          ownershipPlan: options.ownershipPlan,
+        }),
         sourceConfigPath,
       }),
     );
@@ -255,36 +274,4 @@ export function prepareCheckerGraph(options: {
       selection: options.selection,
     }),
   };
-}
-
-export function prepareCheckerGraphs(options: {
-  activatedRegions: WorkspaceRegionPathIndex;
-  config: ResolvedLiminaConfig;
-  ownershipPlan: CheckerOwnershipPlan;
-  projectConfigCache?: CheckerProjectConfigCache;
-  selections: ResolvedCheckerEntrySelection[];
-}): PreparedCheckerGraph[] {
-  const explicitOwnerByConfigPath = new Map([
-    ...[...options.ownershipPlan.typeConfigs.values()].flatMap((state) =>
-      state.finalOwner === undefined
-        ? []
-        : [[state.configPath, state.finalOwner] as const],
-    ),
-    ...[...options.ownershipPlan.solutions.values()].flatMap((state) =>
-      state.finalOwner === undefined
-        ? []
-        : [[state.configPath, state.finalOwner] as const],
-    ),
-  ]);
-  const inheritedOwnerByConfigPath = new Map(explicitOwnerByConfigPath);
-  const graphs = options.selections.map((selection) =>
-    prepareCheckerGraph({
-      ...options,
-      explicitOwnerByConfigPath,
-      inheritedOwnerByConfigPath,
-      selection,
-    }),
-  );
-  connectCrossCheckerReferences({ config: options.config, graphs });
-  return graphs;
 }

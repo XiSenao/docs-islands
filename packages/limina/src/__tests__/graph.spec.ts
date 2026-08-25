@@ -1686,7 +1686,7 @@ packages:
     }
   });
 
-  it('reports workspace package exports unresolved by TypeScript', async () => {
+  it('reports workspace package exports unresolved by TypeScript without consulting Oxc', async () => {
     const fixture = await createFixture({
       'packages/internal/package.json': stringifyConfig({
         main: 'lib/index.js',
@@ -1759,20 +1759,13 @@ packages:
           line.startsWith('    - .limina/tsconfig/checkers/tsc/'),
         ),
       ).toBe(true);
-      expect(runtimeIssue?.detailLines).toEqual(
-        expect.arrayContaining([
-          '  resolver: Oxc runtime resolver',
-          '  expected runtime candidates:',
-          '    - packages/internal/lib/index.js',
-          '  reason: package.json#exports declares this public entry, but no active checker profile can resolve it.',
-        ]),
-      );
+      expect(runtimeIssue).toBeUndefined();
     } finally {
       await fixture.cleanup();
     }
   });
 
-  it('reports source package exports unresolved by Oxc', async () => {
+  it('accepts source package exports resolved by TypeScript without consulting Oxc', async () => {
     const fixture = await createFixture({
       'packages/internal/package.json': stringifyConfig({
         exports: {
@@ -1805,33 +1798,8 @@ packages:
 
     try {
       const { issues, passed } = await runGraphCheckWithIssues(fixture.config);
-      const issue = issues.find(
-        (item) =>
-          item.title ===
-          'Workspace package export points to an unresolved public entry',
-      );
-
-      expect(passed).toBe(false);
-      expect(issue).toEqual(
-        expect.objectContaining({
-          packageManifestPath: 'packages/internal/package.json',
-          packageName: '@example/internal',
-          task: 'graph:check',
-        }),
-      );
-      expect(issue?.detailLines).toEqual(
-        expect.arrayContaining([
-          '  check: graph:check workspace exports preflight',
-          '  package: @example/internal',
-          '  package.json: packages/internal/package.json',
-          '  export: .',
-          '  specifier: @example/internal',
-          '  declared targets:',
-          '    - ./src/index.ts',
-          '  resolver: Oxc runtime resolver',
-          '  reason: package.json#exports declares this public entry, but no active checker profile can resolve it.',
-        ]),
-      );
+      expect(passed).toBe(true);
+      expect(issues).toEqual([]);
     } finally {
       await fixture.cleanup();
     }
@@ -2171,7 +2139,7 @@ packages:
     const fixture = await createFixture(
       createWorkspacePackageFiles({
         appSource:
-          "export const internalPath = require.resolve('@example/internal');\n",
+          "export const internalPath = require.resolve('@example/internal/runtime');\n",
       }),
     );
 
@@ -2189,6 +2157,11 @@ packages:
       expect(issues).not.toContainEqual(
         expect.objectContaining({
           code: LIMINA_CHECK_ISSUE_CODES.graphReferenceMissing,
+        }),
+      );
+      expect(issues).not.toContainEqual(
+        expect.objectContaining({
+          code: LIMINA_CHECK_ISSUE_CODES.graphWorkspaceImportUnresolved,
         }),
       );
     } finally {

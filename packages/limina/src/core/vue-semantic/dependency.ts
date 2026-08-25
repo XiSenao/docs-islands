@@ -3,6 +3,7 @@ import type { ImportRecord } from '#core/import-analysis/runner';
 import { normalizeAbsolutePath } from '#utils/path';
 import type ts from 'typescript';
 import type { FrameworkSemanticCandidate } from '../framework-semantic/contracts';
+import { rangeIdentity } from '../framework-semantic/generated-dependencies';
 import type { VueSemanticContext } from './context';
 
 export type SemanticDependencyEvidence = FrameworkSemanticCandidate<
@@ -21,8 +22,17 @@ export type SemanticDependencyResult =
       reason: string;
     };
 
-function rangeIdentity(start: number, end: number): string {
-  return JSON.stringify([start, end]);
+type GeneratedVueScript = NonNullable<VolarSourceScript['generated']>;
+type VueTypeScriptProvider = NonNullable<
+  GeneratedVueScript['languagePlugin']['typescript']
+>;
+type VueServiceScript = NonNullable<
+  ReturnType<VueTypeScriptProvider['getServiceScript']>
+>;
+
+interface VueServiceScriptPair {
+  serviceScript: VueServiceScript;
+  sourceScript: VolarSourceScript;
 }
 
 function getLiteralRangeIdentities(
@@ -34,6 +44,16 @@ function getLiteralRangeIdentities(
   return [rangeIdentity(start, end), rangeIdentity(start + 1, end - 1)];
 }
 
+function isLiteralInMappedRanges(options: {
+  literal: ts.StringLiteralLike;
+  rangeIdentities: ReadonlySet<string>;
+  sourceFile: ts.SourceFile;
+}): boolean {
+  return getLiteralRangeIdentities(options.literal, options.sourceFile).some(
+    (identity) => options.rangeIdentities.has(identity),
+  );
+}
+
 function findLiteralsAtRanges(options: {
   rangeIdentities: ReadonlySet<string>;
   sourceFile: ts.SourceFile;
@@ -43,9 +63,7 @@ function findLiteralsAtRanges(options: {
   const visit = (node: ts.Node): void => {
     if (
       options.tsModule.isStringLiteralLike(node) &&
-      getLiteralRangeIdentities(node, options.sourceFile).some((identity) =>
-        options.rangeIdentities.has(identity),
-      )
+      isLiteralInMappedRanges({ ...options, literal: node })
     ) {
       literals.push(node);
     }
@@ -55,34 +73,23 @@ function findLiteralsAtRanges(options: {
   return literals;
 }
 
-function getServiceScript(options: {
-  context: VueSemanticContext;
-  fileName: string;
-}) {
-  const sourceScript = options.context.language.scripts.get(
-    normalizeAbsolutePath(options.fileName),
-  );
-  if (sourceScript === undefined) return null;
-  return createServiceScriptPair(sourceScript);
-}
-
-function getGeneratedScript(sourceScript: VolarSourceScript) {
-  const generated = sourceScript.generated;
-  if (generated === undefined) return null;
-  return generated;
+function getGeneratedScript(
+  sourceScript: VolarSourceScript,
+): GeneratedVueScript | null {
+  return sourceScript.generated ?? null;
 }
 
 function getGeneratedServiceScript(
   generated: NonNullable<VolarSourceScript['generated']>,
-) {
+): VueServiceScript | null {
   const provider = generated.languagePlugin.typescript;
   if (provider === undefined) return null;
-  const serviceScript = provider.getServiceScript(generated.root);
-  if (serviceScript === undefined) return null;
-  return serviceScript;
+  return provider.getServiceScript(generated.root) ?? null;
 }
 
-function createServiceScriptPair(sourceScript: VolarSourceScript) {
+function createServiceScriptPair(
+  sourceScript: VolarSourceScript,
+): VueServiceScriptPair | null {
   const generated = getGeneratedScript(sourceScript);
   if (generated === null) return null;
   const serviceScript = getGeneratedServiceScript(generated);
@@ -90,11 +97,23 @@ function createServiceScriptPair(sourceScript: VolarSourceScript) {
   return { serviceScript, sourceScript };
 }
 
-function getMappedRangeIdentities(options: {
+export function getVueServiceScript(options: {
+  context: VueSemanticContext;
+  fileName: string;
+}): VueServiceScriptPair | null {
+  const sourceScript = options.context.language.scripts.get(
+    normalizeAbsolutePath(options.fileName),
+  );
+  return sourceScript === undefined
+    ? null
+    : createServiceScriptPair(sourceScript);
+}
+
+export function getVueMappedRangeIdentities(options: {
   context: VueSemanticContext;
   importRecord: ImportRecord;
 }): ReadonlySet<string> | null {
-  const service = getServiceScript({
+  const service = getVueServiceScript({
     context: options.context,
     fileName: options.importRecord.filePath,
   });
@@ -114,7 +133,7 @@ function getMappedRangeIdentities(options: {
   return new Set(ranges.map(([start, end]) => rangeIdentity(start, end)));
 }
 
-function createEvidence(options: {
+export function createVueEvidence(options: {
   context: VueSemanticContext;
   importRecord: ImportRecord;
   literals: readonly ts.StringLiteralLike[];
@@ -134,20 +153,8 @@ function createEvidence(options: {
   }));
 }
 
-function collectMappedDependency(options: {
-  context: VueSemanticContext;
-  importRecord: ImportRecord;
-  profile: VueSourceProfile;
-}): SemanticDependencyResult {
-  const ranges = getMappedRangeIdentities(options);
-  if (ranges === null) {
-    return {
-      kind: 'unsupported',
-      reason:
-        'Vue source dependency did not map to a strict semantic service-script range.',
-    };
-  }
-  return collectMappedLiterals(options, ranges);
+function createUnsupported(reason: string): SemanticDependencyResult {
+  return { kind: 'unsupported', reason };
 }
 
 function collectMappedLiterals(
@@ -162,10 +169,9 @@ function collectMappedLiterals(
     normalizeAbsolutePath(options.importRecord.filePath),
   );
   if (sourceFile === undefined) {
-    return {
-      kind: 'unsupported',
-      reason: 'Vue semantic Program does not contain the mapped source file.',
-    };
+    return createUnsupported(
+      'Vue semantic Program does not contain the mapped source file.',
+    );
   }
   const literals = findLiteralsAtRanges({
     rangeIdentities: ranges,
@@ -173,20 +179,31 @@ function collectMappedLiterals(
     tsModule: options.context.tsModule,
   });
   if (literals.length === 0) {
-    return {
-      kind: 'unsupported',
-      reason:
-        'Vue strict source-map ranges did not identify a semantic module literal.',
-    };
+    return createUnsupported(
+      'Vue strict source-map ranges did not identify a semantic module literal.',
+    );
   }
   return {
-    candidates: createEvidence({
+    candidates: createVueEvidence({
       ...options,
       literals,
       provenance: 'strict-source-map',
     }),
     kind: 'supported',
   };
+}
+
+function collectMappedDependency(options: {
+  context: VueSemanticContext;
+  importRecord: ImportRecord;
+  profile: VueSourceProfile;
+}): SemanticDependencyResult {
+  const ranges = getVueMappedRangeIdentities(options);
+  return ranges === null
+    ? createUnsupported(
+        'Vue source dependency did not map to a strict semantic service-script range.',
+      )
+    : collectMappedLiterals(options, ranges);
 }
 
 function collectDirectDependency(options: {
@@ -197,10 +214,9 @@ function collectDirectDependency(options: {
     normalizeAbsolutePath(options.importRecord.filePath),
   );
   if (sourceFile === undefined) {
-    return {
-      kind: 'unsupported',
-      reason: 'Vue semantic Program does not contain the source file.',
-    };
+    return createUnsupported(
+      'Vue semantic Program does not contain the source file.',
+    );
   }
   const targetRange = rangeIdentity(
     options.importRecord.locator.sourceStart,
@@ -212,14 +228,12 @@ function collectDirectDependency(options: {
     tsModule: options.context.tsModule,
   }).filter((literal) => literal.text === options.importRecord.specifier);
   if (literals.length !== 1) {
-    return {
-      kind: 'unsupported',
-      reason:
-        'Native source dependency did not identify one direct semantic module literal.',
-    };
+    return createUnsupported(
+      'Native source dependency did not identify one direct semantic module literal.',
+    );
   }
   return {
-    candidates: createEvidence({
+    candidates: createVueEvidence({
       ...options,
       literals,
       provenance: 'direct-source',

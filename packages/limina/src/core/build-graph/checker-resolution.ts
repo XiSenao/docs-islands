@@ -3,6 +3,7 @@ import type {
   ResolvedLiminaConfig,
 } from '#config/runner';
 import { collectRawWorkspacePackages } from '#core/workspace/actions';
+import { SvelteSemanticContextManager } from '../svelte-semantic/context';
 import { VueSemanticContextManager } from '../vue-semantic/context';
 import {
   collectValidatedWorkspaceContext,
@@ -99,12 +100,17 @@ function createOwnedImportAnalysis(options: {
   }
 
   const vueSemanticContexts = new VueSemanticContextManager();
+  const svelteSemanticContexts = new SvelteSemanticContextManager();
   return {
     context: resolveBuildGraphImportAnalysis({
       config: options.config,
+      svelteSemanticContexts,
       vueSemanticContexts,
     }),
-    dispose: () => vueSemanticContexts.dispose(),
+    dispose: () => {
+      svelteSemanticContexts.dispose();
+      vueSemanticContexts.dispose();
+    },
   };
 }
 

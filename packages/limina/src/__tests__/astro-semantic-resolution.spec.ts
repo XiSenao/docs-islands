@@ -33,6 +33,7 @@ import semver from 'semver';
 import ts from 'typescript';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AstroSemanticContextManager } from '../core/astro-semantic/context';
+import { prepareAstroSemanticDependencies } from '../core/astro-semantic/preparation';
 import {
   loadAstroCompiler,
   resolveAstroParser,
@@ -500,6 +501,50 @@ async function createHarness(
 }
 
 describe('Astro bounded semantic resolution', () => {
+  it('admits only reverse-mapped source dependencies from generated service scripts', async () => {
+    const harness = await createHarness();
+    const source = "---\nimport './target.ts';\n---\n";
+    const sourceFile = harness.fixture.path('src', 'entry.astro');
+    const targetFile = harness.fixture.path('src', 'target.ts');
+    await Promise.all([
+      writeText(sourceFile, source),
+      writeText(targetFile, 'export {};\n'),
+    ]);
+    const project = createTestAstroSemanticProject({
+      analysisGeneration: 1,
+      compilerOptions: {
+        moduleResolution: ts.ModuleResolutionKind.Bundler,
+      },
+      configPath: harness.fixture.path('tsconfig.json'),
+      fileNames: [sourceFile, targetFile],
+      packageRootDir: harness.fixture.rootDir,
+    });
+    const record = createRecord(sourceFile, source, './target.ts');
+
+    const preparation = harness.context.prepareCheckerSemanticDependencies({
+      context: {
+        astroSemanticProject: project,
+        checkerPresets: ['tsc'],
+        configPath: project.seed.configPath,
+        extensions: ['.astro'],
+        resolverConfigPath: project.seed.configPath,
+        semanticFamily: 'astro',
+      },
+      filePath: sourceFile,
+      sourceRecords: [record],
+    });
+
+    expect(preparation).toMatchObject({
+      kind: 'supported',
+      sourceRecords: [record],
+      unmapped: [
+        {
+          semanticSpecifier: './synthetic-helper',
+        },
+      ],
+    });
+  });
+
   it.each([
     ['@astrojs/compiler-v2', '2.0.0'],
     ['@astrojs/compiler-v3', '3.0.1'],
@@ -512,6 +557,8 @@ describe('Astro bounded semantic resolution', () => {
       const source = [
         '---',
         'import Component from "./Component.astro";',
+        'import data from "./data.json";',
+        'void data;',
         '---',
         '<Component />',
         '<script>',
@@ -522,10 +569,12 @@ describe('Astro bounded semantic resolution', () => {
       const sourceFile = fixture.path('src', 'Page.astro');
       const componentFile = fixture.path('src', 'Component.astro');
       const clientFile = fixture.path('src', 'client.ts');
+      const dataFile = fixture.path('src', 'data.json');
       await Promise.all([
         writeText(sourceFile, source),
         writeText(componentFile, '<h1>Component</h1>\n'),
         writeText(clientFile, 'export {};\n'),
+        writeText(dataFile, '{"value":true}\n'),
       ]);
       const parser = resolveAstroParser({
         packageRootDir: liminaPackageRoot,
@@ -549,19 +598,43 @@ describe('Astro bounded semantic resolution', () => {
       });
       const compilerOptions = {
         moduleResolution: ts.ModuleResolutionKind.Bundler,
+        resolveJsonModule: true,
       };
       const project = createTestAstroSemanticProject({
         analysisGeneration: 1,
         compilerOptions,
         configPath: fixture.path('tsconfig.json'),
-        fileNames: [sourceFile, componentFile, clientFile],
+        fileNames: [sourceFile, componentFile, clientFile, dataFile],
         packageRootDir: fixture.rootDir,
       });
 
       expect(parser.version).toBe(expectedVersion);
       expect(records.map((record) => record.domain)).toEqual([
         'astro-frontmatter',
+        'astro-frontmatter',
         'astro-client-script',
+      ]);
+      const prepared = prepareAstroSemanticDependencies({
+        context: manager.acquire(project),
+        filePath: sourceFile,
+        sourceRecords: records,
+      });
+      expect(prepared).toMatchObject({
+        kind: 'supported',
+        sourceRecords: records,
+      });
+      expect(
+        prepared.kind === 'supported'
+          ? prepared.candidates.map((candidate) => [
+              candidate.sourceRecord.domain,
+              candidate.sourceSpecifier,
+              candidate.semanticSpecifier,
+            ])
+          : [],
+      ).toEqual([
+        ['astro-frontmatter', './Component.astro', './Component.astro'],
+        ['astro-frontmatter', './data.json', './data.json'],
+        ['astro-client-script', './client.ts', './client.ts'],
       ]);
       expect(
         records.map((record) =>
@@ -577,6 +650,10 @@ describe('Astro bounded semantic resolution', () => {
         {
           semanticEvidence: { framework: 'astro' },
           typeScriptResolution: { resolvedFileName: componentFile },
+        },
+        {
+          semanticEvidence: { framework: 'astro' },
+          typeScriptResolution: { resolvedFileName: dataFile },
         },
         {
           semanticEvidence: { framework: 'astro' },

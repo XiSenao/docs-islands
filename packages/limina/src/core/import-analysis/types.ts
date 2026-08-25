@@ -8,9 +8,12 @@ import type { ResolverFactory } from 'oxc-resolver';
 import type ts from 'typescript';
 import type { AstroSemanticContextManager } from '../astro-semantic/context';
 import type {
+  FrameworkSemanticDependencyPreparation,
   FrameworkSemanticEvidence,
   FrameworkSemanticFailure,
 } from '../framework-semantic/contracts';
+import type { SvelteSemanticContextManager } from '../svelte-semantic/context';
+import type { SvelteSemanticProject } from '../svelte-semantic/types';
 import type { VueSemanticContextManager } from '../vue-semantic/context';
 import type { ImportRuntimeResolutionEvidence } from './evidence';
 import type { ImportRecord } from './records';
@@ -40,6 +43,8 @@ export interface ImportResolveContextFields
   astroSemanticProject?: AstroSemanticProject;
   configPath?: string;
   resolverConfigPath?: string;
+  semanticFamily?: 'astro' | 'svelte' | 'typescript' | 'vue';
+  svelteSemanticProject?: SvelteSemanticProject;
 }
 
 export type ImportResolveContextInput = ImportResolveContextFields | string[];
@@ -73,11 +78,20 @@ export interface ImportAnalysisContext {
     packageRootDir: string,
     sourceProfile?: VueSourceProfile,
   ) => ImportRecord[];
+  dispose?: () => void;
   prewarmImportsFromFile?: (
     filePath: string,
     packageRootDir: string,
     sourceProfile?: VueSourceProfile,
   ) => Promise<void>;
+  prepareCheckerSemanticDependencies: (options: {
+    context: ImportResolveContextFields;
+    filePath: string;
+    sourceRecords: readonly ImportRecord[];
+  }) => FrameworkSemanticDependencyPreparation;
+  resolveCheckerImportEvidence: (
+    ...args: ImportRecordResolutionArguments
+  ) => CanonicalImportResolutionEvidence;
   resolveInternalImport: (...args: ImportResolutionArguments) => string | null;
   resolveImportEvidence: (
     ...args: ImportRecordResolutionArguments
@@ -95,6 +109,7 @@ export interface CreateImportAnalysisContextOptions {
   astroSemanticContexts?: AstroSemanticContextManager;
   metrics?: ImportAnalysisMetricsRecorder;
   projectRootDir?: string;
+  svelteSemanticContexts?: SvelteSemanticContextManager;
   vueSemanticContexts?: VueSemanticContextManager;
 }
 
@@ -144,6 +159,8 @@ export type ResolvedImportContext = CheckerProjectParseContext & {
   astroSemanticProject?: AstroSemanticProject;
   configPath?: string;
   resolverConfigPath?: string;
+  semanticFamily?: 'astro' | 'svelte' | 'typescript' | 'vue';
+  svelteSemanticProject?: SvelteSemanticProject;
 };
 
 export interface LazyModuleResolutionRecord {
@@ -168,6 +185,7 @@ export interface ImportAnalysisCaches {
   importsCache: Map<string, ImportRecord[]>;
   importsPromiseCache: Map<string, Promise<ImportRecord[]>>;
   canonicalResolutionIndex: Map<string, CanonicalImportResolutionEvidence>;
+  checkerResolutionIndex: Map<string, CanonicalImportResolutionEvidence>;
   moduleResolutionIndex: Map<string, LazyModuleResolutionRecord>;
   moduleResolverIdentityCache: Map<string, number>;
   nextModuleResolverIdentity: number;

@@ -1,24 +1,7 @@
-import {
-  formatImportRecordLocation,
-  type ImportRecord,
-  type ProjectInfo,
-} from '#core/import-graph/context';
-import {
-  isNamedWorkspacePackage,
-  type NamedWorkspacePackage,
-  type WorkspacePackage,
-} from '#core/workspace/actions';
-import {
-  isPathInsideDirectory,
-  normalizeAbsolutePath,
-  toRelativePath,
-} from '#utils/path';
+import type { WorkspacePackage } from '#core/workspace/actions';
+import { isPathInsideDirectory, normalizeAbsolutePath } from '#utils/path';
 import path from 'pathe';
-import type { FrameworkSemanticFailure } from '../core/framework-semantic/contracts';
-import { getFrameworkSemanticFailureIdentity } from '../core/framework-semantic/contracts';
-import { withAstroSemanticProject } from '../core/import-analysis/astro-project';
-import { selectCanonicalImportFilePath } from '../core/import-analysis/canonical-resolution';
-import type { WorkspacePackageExportResolution } from '../core/workspace/exports';
+import type { ProjectDependency } from '../core/project-dependencies/contracts';
 import type { DependencyGraphCollectionContext } from './collection-types';
 import type { DependencyGraphEdgeKind } from './types';
 
@@ -80,179 +63,13 @@ export function viewAllowsEdge(
   return context.view === 'all' || context.view === edgeKind;
 }
 
-function getNamedTargetPackage(
-  targetPackage: WorkspacePackage | null,
-): NamedWorkspacePackage | null {
-  if (targetPackage === null) {
-    return null;
-  }
-
-  return isNamedWorkspacePackage(targetPackage) ? targetPackage : null;
-}
-
-function getWorkspaceExportResolution(options: {
-  context: DependencyGraphCollectionContext;
-  declaredTargetPackage: WorkspacePackage | null;
-  importRecord: ImportRecord;
-  project: ProjectInfo;
-}): WorkspacePackageExportResolution | null {
-  const targetPackage = getNamedTargetPackage(options.declaredTargetPackage);
-
-  if (targetPackage === null) {
-    return null;
-  }
-
-  if (!options.context.workspaceExports.hasExports(targetPackage.name)) {
-    return null;
-  }
-
-  return options.context.workspaceExports.get(
-    options.project.configPath,
-    options.importRecord.specifier,
-  );
-}
-
-function shouldUseWorkspaceExportResolution(options: {
-  declaredTargetPackage: WorkspacePackage | null;
-  internalResolvedFilePath: string | null;
-}): boolean {
-  return (
-    options.declaredTargetPackage !== null &&
-    options.internalResolvedFilePath === null
-  );
-}
-
-function getOxcResolvedPath(
-  resolution: WorkspacePackageExportResolution | null,
-): string | null {
-  return resolution === null ? null : resolution.oxcResolvedFileName;
-}
-
-function selectResolvedFilePath(options: {
-  internalResolvedFilePath: string | null;
-  useWorkspaceExportResolution: boolean;
-  workspaceExportResolution: WorkspacePackageExportResolution | null;
-}): string | null {
-  if (!options.useWorkspaceExportResolution) {
-    return options.internalResolvedFilePath;
-  }
-
-  return (
-    getOxcResolvedPath(options.workspaceExportResolution) ??
-    options.internalResolvedFilePath
-  );
-}
-
-function getTypeScriptResolvedPath(
-  resolution: WorkspacePackageExportResolution | null,
-): string | null {
-  return resolution === null ? null : resolution.typeScriptResolvedFileName;
-}
-
-function selectGraphResolvedFilePath(options: {
-  resolvedFilePath: string;
-  useWorkspaceExportResolution: boolean;
-  workspaceExportResolution: WorkspacePackageExportResolution | null;
-}): string {
-  if (!options.useWorkspaceExportResolution) {
-    return options.resolvedFilePath;
-  }
-
-  return (
-    getTypeScriptResolvedPath(options.workspaceExportResolution) ??
-    options.resolvedFilePath
-  );
-}
-
-function addSemanticResolutionProblem(options: {
-  context: DependencyGraphCollectionContext;
-  failure: FrameworkSemanticFailure;
-  importRecord: ImportRecord;
-  project: ProjectInfo;
-}): void {
-  const identity = getFrameworkSemanticFailureIdentity(options.failure);
-  if (options.context.semanticProblemIdentities.has(identity)) return;
-  options.context.semanticProblemIdentities.add(identity);
-  options.context.problems.push(
-    [
-      'Unable to resolve dependency graph import semantically:',
-      `  importing config: ${toRelativePath(options.context.config.rootDir, options.project.configPath)}`,
-      `  file: ${formatImportRecordLocation(options.context.config.rootDir, options.importRecord)}`,
-      `  source specifier: ${options.importRecord.specifier}`,
-      `  framework: ${options.failure.framework}`,
-      `  stage: ${options.failure.stage}`,
-      `  semantic scope: ${options.failure.scopeIdentity}`,
-      `  reason: ${options.failure.reason}`,
-    ].join('\n'),
-  );
-}
-
-function withFileAstroSemanticProject(options: {
-  context: DependencyGraphCollectionContext;
-  fileName: string;
-  project: ProjectInfo;
-}): ProjectInfo {
-  const owner = options.context.workspaceLookup.findOwnerForFile(
-    options.fileName,
-  );
-  if (owner === null) return options.project;
-  return withAstroSemanticProject({
-    filePath: options.fileName,
-    packageRootDir: owner.directory,
-    project: options.project,
-  });
-}
-
 export function resolveImportPaths(options: {
-  context: DependencyGraphCollectionContext;
-  declaredTargetPackage: WorkspacePackage | null;
-  fileName: string;
-  importRecord: ImportRecord;
-  project: ProjectInfo;
-}): ResolvedImportPaths | null {
-  const workspaceExportResolution = getWorkspaceExportResolution(options);
-  const project = withFileAstroSemanticProject(options);
-  const evidence = options.context.importAnalysis.resolveImportEvidence(
-    options.importRecord,
-    options.fileName,
-    project.options,
-    project,
-  );
-  if (evidence.semanticFailure !== undefined) {
-    addSemanticResolutionProblem({
-      context: options.context,
-      failure: evidence.semanticFailure,
-      importRecord: options.importRecord,
-      project,
-    });
-    return null;
-  }
-  const internalResolvedFilePath = selectCanonicalImportFilePath({
-    evidence,
-    includeResource: false,
-  });
-  const useWorkspaceExportResolution = shouldUseWorkspaceExportResolution({
-    declaredTargetPackage: options.declaredTargetPackage,
-    internalResolvedFilePath,
-  });
-  const resolvedFilePath = selectResolvedFilePath({
-    internalResolvedFilePath,
-    useWorkspaceExportResolution,
-    workspaceExportResolution,
-  });
-
-  if (resolvedFilePath === null) {
-    return null;
-  }
-
+  projectDependency: ProjectDependency;
+}): ResolvedImportPaths {
   return {
-    graphResolvedFilePath: selectGraphResolvedFilePath({
-      resolvedFilePath,
-      useWorkspaceExportResolution,
-      workspaceExportResolution,
-    }),
-    resolvedFilePath,
-    useWorkspaceExportResolution,
+    graphResolvedFilePath: options.projectDependency.resolvedFilePath,
+    resolvedFilePath: options.projectDependency.resolvedFilePath,
+    useWorkspaceExportResolution: false,
   };
 }
 

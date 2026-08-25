@@ -7,6 +7,7 @@ import type {
   SolutionOwnershipState,
   TypeConfigOwnershipState,
 } from './checker-ownership-types';
+import { lockSemanticAuthorityForEvidence } from './checker-semantic-authority';
 import { createGeneratedGraphStructuredError } from './problems';
 
 function formatLocalConflict(options: {
@@ -83,6 +84,16 @@ export function addLocalCheckerRequirement(options: {
   state: TypeConfigOwnershipState;
 }): string | null {
   addEvidenceIfMissing(options.state, options.evidence);
+  const semanticProblem = lockSemanticAuthorityForEvidence(options);
+  if (semanticProblem !== null) return semanticProblem;
+  return resolveLocalCheckerRequirement(options);
+}
+
+function resolveLocalCheckerRequirement(options: {
+  config: ResolvedLiminaConfig;
+  evidence: CheckerEvidence;
+  state: TypeConfigOwnershipState;
+}): string | null {
   const current = options.state.localOwner;
   if (current.kind === 'pending') {
     options.state.localOwner = {

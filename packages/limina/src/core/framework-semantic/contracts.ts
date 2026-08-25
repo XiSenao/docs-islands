@@ -1,7 +1,7 @@
 import type { ResolvedCheckerModuleName } from '#checkers';
 import type { ImportRecord } from '#core/import-analysis/runner';
 
-export type FrameworkSemanticKind = 'astro' | 'vue';
+export type FrameworkSemanticKind = 'astro' | 'svelte' | 'vue';
 
 export type FrameworkSemanticProvenance = 'direct-source' | 'strict-source-map';
 
@@ -33,10 +33,36 @@ export interface FrameworkSemanticEvidence<Profile = unknown> {
   target: ResolvedCheckerModuleName | null;
 }
 
+export interface FrameworkSemanticUnmappedGeneratedDependency {
+  generatedFilePath: string;
+  semanticSpecifier: string;
+}
+
+export type FrameworkSemanticDependencyPreparation =
+  | {
+      kind: 'supported';
+      sourceRecords: ImportRecord[];
+      unmapped: FrameworkSemanticUnmappedGeneratedDependency[];
+    }
+  | {
+      kind: 'unsupported';
+      reason: string;
+      stage: Extract<
+        FrameworkSemanticFailureStage,
+        | 'context-creation'
+        | 'service-script-materialization'
+        | 'source-map-ambiguity'
+        | 'source-map-mismatch'
+        | 'toolchain-compatibility'
+        | 'toolchain-resolution'
+      >;
+    };
+
 export type FrameworkSemanticFailureStage =
   | 'context-creation'
   | 'module-resolution'
   | 'service-script-materialization'
+  | 'source-map-ambiguity'
   | 'source-map-mismatch'
   | 'toolchain-compatibility'
   | 'toolchain-resolution';

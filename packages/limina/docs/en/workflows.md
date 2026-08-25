@@ -90,6 +90,8 @@ Limina uses the active checker to parse each reachable config. A config is a Typ
 
 Named checker entries lock their complete terminal-leaf closure. Automatic evidence is evaluated only for still-pending configs. Before targets are created, solution leaves and accepted declaration relations are colored as components, so every internal declaration-provider relationship uses one identical build-checker identity.
 
+Module semantics are selected earlier and frozen separately from target ownership. Only explicit selection, checker-specific config, effective root files, or a confirmed pending framework dependency can lock semantic authority. Vue promotion, component coloring, fallback, and the final build owner cannot change it. For example, a TypeScript-semantic config may be colored into a `vue-tsc` build component without having its imports reinterpreted as Vue source.
+
 ### Why do package checks require a build first?
 
 ::: warning
@@ -103,6 +105,8 @@ Yes. Workspace package exports may point to source entries or built artifacts. L
 ### Should `Vue` or `Svelte` files be placed in the TypeScript graph?
 
 In automatic scope, a type config containing Vue roots is owned by `vue-tsc`; a config containing Astro or Svelte roots is owned by its corresponding framework checker. An explicit owner is authoritative instead: Astro adds only `.astro` observation and Svelte adds only `.svelte` observation to TypeScript. Other configured source extensions remain proof coverage gaps. Astro- and Svelte-owned configs do not generate declarations, so TypeScript that must emit declarations needs a separate `tsc`, `tsgo`, or `vue-tsc` boundary.
+
+For project dependencies, the locked semantic authority is the boundary. Vue and Astro dependencies come from their generated service scripts; Svelte dependencies come from public `svelte2tsx` output. Limina enumerates generated TypeScript with the checker toolchain, requires strict reverse provenance to source, and treats synthetic generated imports as observation-only. A checker-semantic miss or mapping failure is not rescued by Oxc. Oxc can identify a governed framework candidate only while an automatic config is still pending and TypeScript type evidence is `missing`.
 
 ### What is `--mode` for?
 

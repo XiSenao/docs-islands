@@ -3,6 +3,7 @@ import type {
   ImportRecord,
 } from '#core/import-analysis/runner';
 import type { ProjectInfo } from '#core/import-graph/context';
+import type ts from 'typescript';
 import type { FrameworkSemanticFailure } from '../framework-semantic/contracts';
 import type { ImportRuntimeResolutionEvidence } from '../import-analysis/evidence';
 import { isDeclarationFile } from '../import-graph/declaration-classifier';
@@ -23,8 +24,13 @@ export interface ResolveImportEvidenceOptions {
     | 'fileNames'
     | 'options'
     | 'resolverConfigPath'
+    | 'svelteSemanticProject'
     | 'vueSemanticIdentity'
-  >;
+  > & {
+    projectReferences?: readonly ts.ProjectReference[];
+    semanticFamily?: 'astro' | 'svelte' | 'typescript' | 'vue';
+  };
+  resolutionMode?: 'canonical' | 'checker-only';
 }
 
 export interface ResolvedImportPair {
@@ -39,7 +45,11 @@ export function resolveImportPair(options: {
   importAnalysis: ImportAnalysisContext;
   request: ResolveImportEvidenceOptions;
 }): ResolvedImportPair {
-  const evidence = options.importAnalysis.resolveImportEvidence(
+  const resolve =
+    options.request.resolutionMode === 'checker-only'
+      ? options.importAnalysis.resolveCheckerImportEvidence
+      : options.importAnalysis.resolveImportEvidence;
+  const evidence = resolve(
     options.request.importRecord,
     options.request.importRecord.filePath,
     options.request.project.options,

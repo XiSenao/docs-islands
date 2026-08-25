@@ -5,6 +5,7 @@ import {
   type ProjectInfo,
 } from '#core/import-graph/context';
 import type { WorkspacePackage } from '#core/workspace/actions';
+import { createProjectDependencyCaches } from '../core/project-dependencies/runner';
 import {
   createWorkspaceExportsResolutionIndex,
   type WorkspaceExportsResolutionProfile,
@@ -110,6 +111,7 @@ export async function createDependencyGraphCollectionContext(options: {
     const importAnalysis = core.imports.context;
     const workspaceExports = await createWorkspaceExportsResolutionIndex({
       config: options.config,
+      includeOxc: false,
       importAnalysis,
       packages: workspacePackages,
       profiles: createWorkspaceExportsResolutionProfiles(projects),
@@ -125,7 +127,7 @@ export async function createDependencyGraphCollectionContext(options: {
       importAnalysis,
       ownsCore,
       problems,
-      semanticProblemIdentities: new Set(),
+      projectDependencyCaches: createProjectDependencyCaches(),
       projects,
       view: normalizeDependencyGraphView(options.graphOptions.view),
       workspaceExports,

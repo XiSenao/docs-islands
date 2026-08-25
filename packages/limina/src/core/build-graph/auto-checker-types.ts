@@ -17,4 +17,5 @@ export interface AutoScopeProject {
   options: ts.CompilerOptions;
   packageRootByFileName: Map<string, string>;
   packageRootDir: string;
+  references: readonly ts.ProjectReference[];
 }

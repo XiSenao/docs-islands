@@ -58,10 +58,12 @@
     "clean": "del-cli .tsbuild .eslintcache dist coverage node_modules"
   },
   "dependencies": {
+    "@jridgewell/trace-mapping": "catalog:prod",
     "picomatch": "catalog:prod",
     "tinyglobby": "catalog:prod",
     "oxc-parser": "catalog:prod",
-    "oxc-resolver": "catalog:prod"
+    "oxc-resolver": "catalog:prod",
+    "svelte2tsx": "catalog:prod"
   },
   "devDependencies": {
     "@astrojs/check": "catalog:dev",

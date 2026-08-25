@@ -106,6 +106,11 @@ function createGovernedSource(options: {
     ownedFileNames: [],
     packageRootDir: options.packageRootDir,
     primaryCheckerName: 'tsc',
+    semanticAuthority: {
+      family: 'typescript',
+      kind: 'locked',
+      source: 'explicit',
+    },
   };
 }
 

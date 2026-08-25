@@ -7,6 +7,7 @@ import {
 } from '#checkers';
 import type { CheckerName, ResolvedLiminaConfig } from '#config/runner';
 import { normalizeAbsolutePath } from '#utils/path';
+import { getRawReferencePaths } from '../tsconfig/actions';
 import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
 import {
   addExplicitVueFiles,
@@ -223,6 +224,9 @@ export function createAutoScopeProject(options: {
       ]),
     ),
     packageRootDir: options.packageRootDir,
+    references: getRawReferencePaths(options.config, options.configPath).map(
+      (referencePath) => ({ path: referencePath }),
+    ),
   };
 }
 
@@ -286,5 +290,8 @@ export function createExplicitScopeProject(options: {
       ]),
     ),
     packageRootDir: options.packageRootDir,
+    references: getRawReferencePaths(options.config, options.configPath).map(
+      (referencePath) => ({ path: referencePath }),
+    ),
   };
 }

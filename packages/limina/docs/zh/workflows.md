@@ -90,6 +90,8 @@ Limina 会使用当前检查器解析每个可达配置。解析后的有效文�
 
 Named checker entry 会锁定完整 terminal-leaf closure；自动 evidence 只处理仍为 pending 的 config。创建 target 前，solution leaf 与有效 declaration relation 会按 component 统一染色，因此每条内部 declaration-provider relationship 都使用完全相同的 build-checker identity。
 
+Module semantics 会更早确定，并与 target ownership 分开冻结。只有显式 selection、checker-specific config、effective root file，或已确认的 pending framework dependency 可以锁定 semantic authority。Vue promotion、component coloring、fallback 与 final build owner 都不能改变它。例如，一个 TypeScript-semantic config 可以被染色进 `vue-tsc` build component，但其 import 不会因此被重新解释成 Vue source。
+
 ### 为什么包检查需要先构建？
 
 ::: warning
@@ -103,6 +105,8 @@ Named checker entry 会锁定完整 terminal-leaf closure；自动 evidence 只�
 ### Vue 或 Svelte 文件应该放进 TypeScript 图吗？
 
 在自动 scope 中，包含 Vue root 的 type config 由 `vue-tsc` 负责；包含 Astro 或 Svelte root 的 config 由对应 framework checker 负责。显式 owner 则具有权威性：Astro 只在 TypeScript 基础上增加 `.astro` 观测，Svelte 只增加 `.svelte`；其他已配置源码扩展会成为 proof 覆盖缺口。Astro/Svelte-owned config 不生成声明，需要 emit declaration 的 TypeScript 必须拆到独立 `tsc`、`tsgo` 或 `vue-tsc` boundary。
+
+对于 project dependency，locked semantic authority 才是边界。Vue 与 Astro dependency 来自各自 generated service script；Svelte dependency 来自公共 `svelte2tsx` 输出。Limina 使用 checker toolchain 枚举 generated TypeScript，要求严格反向 provenance 到源码，并把 synthetic generated import 限定为 observation。Checker-semantic miss 或 mapping failure 不会由 Oxc rescue。只有自动 config 仍处于 pending、且 TypeScript type evidence 为 `missing` 时，Oxc 才能用于识别 governed framework candidate。
 
 ### `--mode` 有什么用途？
 

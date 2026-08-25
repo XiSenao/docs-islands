@@ -1,5 +1,6 @@
 import type { ResolvedLiminaConfig } from '#config/runner';
 import { compareCodeUnits } from '#utils/collections';
+import { createProjectDependencyCaches } from '../project-dependencies/runner';
 import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
 import {
   type GovernedBuildOwner,
@@ -111,10 +112,18 @@ function addImplicitReferences(options: {
 
 function processReferenceImports(options: {
   context: ReferenceImportContext;
+  governedSources: GovernedSourceUnit[];
   projects: SourceProject[];
 }): void {
+  const sourcesByConfigPath = new Map(
+    options.governedSources.map((source) => [source.configPath, source]),
+  );
   for (const project of options.projects) {
-    processProjectReferenceImports({ context: options.context, project });
+    processProjectReferenceImports({
+      context: options.context,
+      project,
+      source: sourcesByConfigPath.get(project.configPath),
+    });
   }
 }
 
@@ -152,11 +161,15 @@ export function inferProjectReferences(options: {
     dtsProjectsBySourcePath: createDtsProjectsBySourcePath(ownerProjects),
     fileOwnerLookup: createOwnerLookup(ownerGovernedSources),
     importAnalysis: resolveBuildGraphImportAnalysis(options),
+    projectDependencyCaches: createProjectDependencyCaches(),
     problems,
     dependencyEdgesByKey,
-    semanticProblemIdentities: new Set(),
   };
-  processReferenceImports({ context, projects: options.projects });
+  processReferenceImports({
+    context,
+    governedSources: options.governedSources,
+    projects: options.projects,
+  });
   processFrameworkSourceReferences({
     buildOwnersByConfigPath: createGovernedBuildOwners({
       governedSources: ownerGovernedSources,

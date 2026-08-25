@@ -5,9 +5,14 @@ import {
   parseCheckerProjectConfigForContext,
 } from '#checkers';
 import type { CheckerName } from '#config/runner';
+import type ts from 'typescript';
+import { createAutoProjectSemanticContext } from '../project-dependencies/context';
+import type { ProjectSemanticContext } from '../project-dependencies/contracts';
 import type { AutoScopeProject } from './auto-checker-types';
-import type { TypeConfigOwnershipState } from './checker-ownership-types';
-import { capabilityDiscoveryExtensions } from './generated/file-extensions';
+import type {
+  SemanticFamily,
+  TypeConfigOwnershipState,
+} from './checker-ownership-types';
 
 export interface EvidenceProject {
   checkerName: CheckerName;
@@ -17,30 +22,38 @@ export interface EvidenceProject {
     extensions: string[];
     fileNames: string[];
     options: AutoScopeProject['options'];
+    projectReferences: readonly ts.ProjectReference[];
     resolverConfigPath: string;
+    semanticFamily: SemanticFamily;
+    astroSemanticProject?: ProjectSemanticContext['astroSemanticProject'];
+    svelteSemanticProject?: ProjectSemanticContext['svelteSemanticProject'];
     vueSemanticIdentity?: CheckerProjectParseContext['vueSemanticIdentity'];
   };
 }
 
-const evidenceCheckerByOwner = {
-  astro: 'tsc',
-  'svelte-check': 'tsc',
-  tsc: 'tsc',
-  tsgo: 'tsgo',
-  'vue-tsc': 'tsc',
-} as const satisfies Record<CheckerName, CheckerName>;
-
 function getEvidenceChecker(state: TypeConfigOwnershipState): CheckerName {
-  if (state.authoritativeOwner !== undefined) return 'tsc';
-  if (state.localOwner.kind === 'pending') return 'tsc';
-  return evidenceCheckerByOwner[state.localOwner.checker];
+  if (state.semanticAuthority.kind === 'pending') return 'tsc';
+  return getLockedEvidenceChecker(
+    state.semanticAuthority,
+    state.authoritativeOwner,
+  );
 }
 
-function isResolvedVue(state: TypeConfigOwnershipState): boolean {
-  return (
-    state.localOwner.kind === 'resolved' &&
-    state.localOwner.checker === 'vue-tsc'
-  );
+function getLockedEvidenceChecker(
+  authority: Extract<
+    TypeConfigOwnershipState['semanticAuthority'],
+    { kind: 'locked' }
+  >,
+  authoritativeOwner: CheckerName | undefined,
+): CheckerName {
+  if (authority.family === 'vue') return 'vue-tsc';
+  return getTypeScriptEvidenceChecker(authoritativeOwner);
+}
+
+function getTypeScriptEvidenceChecker(
+  authoritativeOwner: CheckerName | undefined,
+): CheckerName {
+  return authoritativeOwner === 'tsgo' ? 'tsgo' : 'tsc';
 }
 
 function createDefaultParseContext(
@@ -49,7 +62,7 @@ function createDefaultParseContext(
   if (checkerName === 'tsc' || checkerName === 'tsgo') {
     return {
       checkerPresets: [checkerName],
-      extensions: capabilityDiscoveryExtensions,
+      extensions: [],
     };
   }
   return { checkerPresets: [checkerName], extensions: [] };
@@ -60,17 +73,10 @@ function createParseContext(
   project: AutoScopeProject,
   state: TypeConfigOwnershipState,
 ): CheckerProjectParseContext {
-  if (state.authoritativeOwner !== undefined) {
+  if (state.semanticAuthority.kind === 'locked') {
     return {
-      checkerPresets: ['tsc'],
+      checkerPresets: [checkerName],
       extensions: [...project.context.extensions],
-      vueSemanticIdentity: project.context.vueSemanticIdentity,
-    };
-  }
-  if (isResolvedVue(state)) {
-    return {
-      checkerPresets: ['tsc'],
-      extensions: capabilityDiscoveryExtensions,
       vueSemanticIdentity: project.context.vueSemanticIdentity,
     };
   }
@@ -79,10 +85,56 @@ function createParseContext(
 
 function getSemanticExtensions(
   checkerName: CheckerName,
-  parsed: ReturnType<typeof parseCheckerProjectConfigForContext>,
+  project: AutoScopeProject,
+  state: TypeConfigOwnershipState,
 ): string[] {
-  if (checkerName === 'vue-tsc') return parsed.extensions;
+  if (
+    state.semanticAuthority.kind === 'locked' &&
+    state.semanticAuthority.family !== 'typescript'
+  ) {
+    return [...project.context.extensions];
+  }
   return getBuildCheckerSupportedExtensions(checkerName);
+}
+
+function getEvidenceSemanticFamily(
+  state: TypeConfigOwnershipState,
+): SemanticFamily {
+  return state.semanticAuthority.kind === 'locked'
+    ? state.semanticAuthority.family
+    : 'typescript';
+}
+
+function createEvidenceSemanticContext(options: {
+  project: AutoScopeProject;
+  state: TypeConfigOwnershipState;
+}): ProjectSemanticContext | undefined {
+  if (options.state.semanticAuthority.kind !== 'locked') return undefined;
+  return createAutoProjectSemanticContext({
+    authority: options.state.semanticAuthority,
+    project: options.project,
+  });
+}
+
+function getAstroSemanticProject(
+  context: ProjectSemanticContext | undefined,
+): ProjectSemanticContext['astroSemanticProject'] {
+  return context?.astroSemanticProject;
+}
+
+function getSvelteSemanticProject(
+  context: ProjectSemanticContext | undefined,
+): ProjectSemanticContext['svelteSemanticProject'] {
+  return context?.svelteSemanticProject;
+}
+
+function getVueSemanticIdentity(options: {
+  context: CheckerProjectParseContext;
+  parsed: ReturnType<typeof parseCheckerProjectConfigForContext>;
+}) {
+  return (
+    options.context.vueSemanticIdentity ?? options.parsed.vueSemanticIdentity
+  );
 }
 
 export function createEvidenceProject(options: {
@@ -104,17 +156,24 @@ export function createEvidenceProject(options: {
     context,
     projectRootDir: options.rootDir,
   });
+  const semanticFamily = getEvidenceSemanticFamily(options.state);
+  const semanticContext = createEvidenceSemanticContext(options);
   return {
     checkerName,
     project: {
       checkerPresets: [checkerName],
+      astroSemanticProject: getAstroSemanticProject(semanticContext),
       configPath: options.project.configPath,
-      extensions: [...getSemanticExtensions(checkerName, parsed)],
+      extensions: [
+        ...getSemanticExtensions(checkerName, options.project, options.state),
+      ],
       fileNames: [...parsed.fileNames],
       options: parsed.options,
+      projectReferences: options.project.references,
       resolverConfigPath: options.project.configPath,
-      vueSemanticIdentity:
-        context.vueSemanticIdentity ?? parsed.vueSemanticIdentity,
+      semanticFamily,
+      svelteSemanticProject: getSvelteSemanticProject(semanticContext),
+      vueSemanticIdentity: getVueSemanticIdentity({ context, parsed }),
     },
   };
 }
