@@ -34,6 +34,9 @@ describe('limina published package smoke', () => {
       expect(installedManifest.peerDependencies).toEqual(
         manifest.peerDependencies,
       );
+      expect(installedManifest.devDependencies).toEqual(
+        manifest.devDependencies,
+      );
       expect(installedManifest.peerDependenciesMeta).toEqual(
         manifest.peerDependenciesMeta,
       );
@@ -49,20 +52,22 @@ describe('limina published package smoke', () => {
         }
         for (const section of [
           packageManifest.dependencies,
-          packageManifest.devDependencies,
           packageManifest.optionalDependencies,
           packageManifest.peerDependencies,
           packageManifest.peerDependenciesMeta,
         ]) {
           expect(section?.['@jridgewell/trace-mapping']).toBeUndefined();
         }
+        expect(
+          packageManifest.devDependencies?.['@jridgewell/trace-mapping'],
+        ).toBe('^0.3.31');
         for (const section of [
           packageManifest.dependencies,
-          packageManifest.devDependencies,
           packageManifest.optionalDependencies,
         ]) {
           expect(section?.svelte2tsx).toBeUndefined();
         }
+        expect(packageManifest.devDependencies?.svelte2tsx).toBe('^0.7.61');
         expect(packageManifest.peerDependencies?.svelte2tsx).toBe('^0.7.61');
         expect(packageManifest.peerDependenciesMeta?.svelte2tsx?.optional).toBe(
           true,
@@ -73,6 +78,16 @@ describe('limina published package smoke', () => {
         expect(
           packageManifest.peerDependenciesMeta?.['@astrojs/check']?.optional,
         ).toBe(true);
+        for (const workspacePackageName of [
+          '@docs-islands/eslint-config',
+          '@docs-islands/plugin-license',
+          '@docs-islands/utils',
+        ]) {
+          expect(
+            packageManifest.devDependencies?.[workspacePackageName],
+          ).toBeUndefined();
+        }
+        expect(packageManifest.devDependencies?.logaria).toBe('0.0.3');
       }
       expect(manifest.dependencies?.['oxc-resolver']).toBeDefined();
       expect(installedManifest.dependencies?.['oxc-resolver']).toBe(

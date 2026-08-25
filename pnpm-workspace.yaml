@@ -15,7 +15,6 @@ allowBuilds:
   esbuild: true
   nx: true
   playwright-chromium: true
-  sharp: false
 
 auditConfig:
   ignoreGhsas:
@@ -34,12 +33,11 @@ auditConfig:
     - GHSA-rcqx-6q8c-2c42
     - GHSA-pr6f-5x2q-rwfp
     # astro-v7-min is the exact dev-only Astro 7.0.0 CLI compatibility floor;
-    # tests do not execute the affected runtime or optional sharp image paths.
+    # tests do not execute the affected runtime paths.
     - GHSA-4g3v-8h47-v7g6
     - GHSA-8mv7-9c27-98vc
     - GHSA-f48w-9m4c-m7f5
     - GHSA-7pw4-f3q4-r2p2
-    - GHSA-f88m-g3jw-g9cj
 
 autoInstallPeers: false
 
@@ -204,6 +202,11 @@ minimumReleaseAge: 1440
 nodeVersion: 22.18.0
 
 overrides:
+  # Keep Astro's optional image dependency patched in the compatibility fixtures.
+  # Limina does not exercise Astro image services, and Astro 7.0.0's declared
+  # sharp range remains narrower than this security override.
+  'astro@7.0.0>sharp': 0.35.3
+  'astro@7.2.0>sharp': 0.35.3
   'js-yaml@^4.0.0': 4.3.1
   '@swc/core': 1.15.43
   '@types/node': 22.18.0

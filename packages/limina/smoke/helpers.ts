@@ -242,8 +242,10 @@ export function assertDistArtifacts(): DistPackageJson {
     throw new Error('Expected dist package.json to expose ./index.d.ts.');
   }
 
-  const expectedPeerNames = Object.keys(EXPECTED_PEER_RANGES).sort();
-  const actualPeerNames = Object.keys(manifest.peerDependencies ?? {}).sort();
+  const expectedPeerNames = Object.keys(EXPECTED_PEER_RANGES).toSorted();
+  const actualPeerNames = Object.keys(
+    manifest.peerDependencies ?? {},
+  ).toSorted();
   if (JSON.stringify(actualPeerNames) !== JSON.stringify(expectedPeerNames)) {
     throw new Error(
       `Expected dist package.json to expose exactly ${expectedPeerNames.join(', ')} as peers, got ${actualPeerNames.join(', ')}.`,
@@ -254,7 +256,7 @@ export function assertDistArtifacts(): DistPackageJson {
   );
   const actualPeerMetaNames = Object.keys(
     manifest.peerDependenciesMeta ?? {},
-  ).sort();
+  ).toSorted();
   if (
     JSON.stringify(actualPeerMetaNames) !==
     JSON.stringify(expectedOptionalPeerNames)

@@ -30,6 +30,7 @@ export type DependencyFieldName =
 
 export interface DependencyResolutionOptions {
   allowInternal?: boolean;
+  dropPrivateWorkspaceDependencies?: boolean;
   dropWorkspaceDependencies?: boolean;
   dropUnsupportedProtocols?: boolean;
   internalScopes?: readonly string[];
@@ -123,7 +124,7 @@ const DEFAULT_PACKAGE_FILE_IGNORE_PATTERNS = [
 const DEFAULT_DEPENDENCY_FIELDS = {
   dependencies: {},
   devDependencies: {
-    dropWorkspaceDependencies: true,
+    dropPrivateWorkspaceDependencies: true,
   },
   optionalDependencies: {},
   peerDependencies: {},
@@ -142,6 +143,16 @@ type PnpmProjectManifest = Parameters<typeof createExportableManifest>[1];
 interface PackageFilesEntry {
   isNegated: boolean;
   path: string;
+}
+
+interface PnpmExportablePackageJsonResult {
+  packageJson: PackageJsonObject;
+  privateWorkspacePackageNames: ReadonlySet<string>;
+}
+
+interface WorkspacePackageManifest {
+  name?: unknown;
+  private?: unknown;
 }
 
 interface OutputOptionsLike {
@@ -325,9 +336,62 @@ function createWorkspaceCatalogs(
   return catalogs as Catalogs;
 }
 
+async function collectPrivateWorkspacePackageNames(
+  workspaceRootDir: string,
+  workspaceManifest: WorkspaceManifest | undefined,
+): Promise<ReadonlySet<string>> {
+  const workspacePackageDirs = workspaceManifest?.packages.length
+    ? await glob(workspaceManifest.packages, {
+        absolute: false,
+        cwd: workspaceRootDir,
+        dot: true,
+        expandDirectories: false,
+        followSymbolicLinks: false,
+        onlyDirectories: true,
+      })
+    : [];
+  workspacePackageDirs.push('.');
+
+  const privateWorkspacePackageNames = new Set<string>();
+  for (const workspacePackageDir of new Set(workspacePackageDirs)) {
+    const packageJsonPath = path.join(
+      workspaceRootDir,
+      workspacePackageDir,
+      'package.json',
+    );
+    if (!existsSync(packageJsonPath)) {
+      continue;
+    }
+
+    const workspacePackageManifest = JSON.parse(
+      readFileSync(packageJsonPath, 'utf8'),
+    ) as WorkspacePackageManifest;
+    if (
+      typeof workspacePackageManifest.name === 'string' &&
+      workspacePackageManifest.private === true
+    ) {
+      privateWorkspacePackageNames.add(workspacePackageManifest.name);
+    }
+  }
+
+  return privateWorkspacePackageNames;
+}
+
+function isPrivateWorkspaceDependency(
+  packageName: string,
+  versionRange: string,
+  privateWorkspacePackageNames: ReadonlySet<string>,
+): boolean {
+  return (
+    versionRange.startsWith('workspace:') &&
+    privateWorkspacePackageNames.has(packageName)
+  );
+}
+
 function filterDependencyMapForPnpmExport(
   dependencies: DependencyMap | undefined,
   options: DependencyResolutionOptions,
+  privateWorkspacePackageNames: ReadonlySet<string>,
 ): DependencyMap | undefined {
   if (!dependencies || typeof dependencies !== 'object') {
     return undefined;
@@ -335,10 +399,15 @@ function filterDependencyMapForPnpmExport(
 
   const {
     allowInternal = true,
+    dropPrivateWorkspaceDependencies = false,
     dropWorkspaceDependencies = false,
     internalScopes = INTERNAL_SCOPES,
   } = options;
-  if (allowInternal && !dropWorkspaceDependencies) {
+  if (
+    allowInternal &&
+    !dropPrivateWorkspaceDependencies &&
+    !dropWorkspaceDependencies
+  ) {
     return dependencies;
   }
 
@@ -346,7 +415,13 @@ function filterDependencyMapForPnpmExport(
     ([packageName, versionRange]) =>
       (allowInternal ||
         !internalScopes.some((scope) => packageName.startsWith(scope))) &&
-      (!dropWorkspaceDependencies || !versionRange.startsWith('workspace:')),
+      (!dropWorkspaceDependencies || !versionRange.startsWith('workspace:')) &&
+      (!dropPrivateWorkspaceDependencies ||
+        !isPrivateWorkspaceDependency(
+          packageName,
+          versionRange,
+          privateWorkspacePackageNames,
+        )),
   );
 
   if (resolvedEntries.length === 0) {
@@ -361,6 +436,7 @@ function createPnpmExportInputPackageJson(
   dependencyFields: Partial<
     Record<DependencyFieldName, DependencyResolutionOptions | false>
   >,
+  privateWorkspacePackageNames: ReadonlySet<string>,
 ): PackageJsonObject {
   const pnpmExportInputPackageJson: PackageJsonObject = {
     ...packageJson,
@@ -378,6 +454,7 @@ function createPnpmExportInputPackageJson(
     const filteredDependencies = filterDependencyMapForPnpmExport(
       packageJson[fieldName],
       options,
+      privateWorkspacePackageNames,
     );
     if (filteredDependencies) {
       pnpmExportInputPackageJson[fieldName] = filteredDependencies;
@@ -396,19 +473,29 @@ async function createPnpmExportablePackageJson(
   dependencyFields: Partial<
     Record<DependencyFieldName, DependencyResolutionOptions | false>
   >,
-): Promise<PackageJsonObject> {
+): Promise<PnpmExportablePackageJsonResult> {
   const workspaceManifest = await readWorkspaceManifest(workspaceRootDir);
-
-  return (await createExportableManifest(
+  const privateWorkspacePackageNames =
+    await collectPrivateWorkspacePackageNames(
+      workspaceRootDir,
+      workspaceManifest,
+    );
+  const exportablePackageJson = (await createExportableManifest(
     packageRootDir,
     createPnpmExportInputPackageJson(
       packageJson,
       dependencyFields,
+      privateWorkspacePackageNames,
     ) as PnpmProjectManifest,
     {
       catalogs: createWorkspaceCatalogs(workspaceManifest),
     },
   )) as PackageJsonObject;
+
+  return {
+    packageJson: exportablePackageJson,
+    privateWorkspacePackageNames,
+  };
 }
 
 function createResolvedVersionRangeMap(
@@ -445,6 +532,7 @@ function createResolvedVersionRangeMap(
 function sanitizeDependencyMap(
   dependencies: DependencyMap | undefined,
   options: DependencyResolutionOptions = {},
+  privateWorkspacePackageNames: ReadonlySet<string> = new Set(),
 ): DependencyMap | undefined {
   if (!dependencies || typeof dependencies !== 'object') {
     return undefined;
@@ -452,6 +540,7 @@ function sanitizeDependencyMap(
 
   const {
     allowInternal = true,
+    dropPrivateWorkspaceDependencies = false,
     dropWorkspaceDependencies = false,
     dropUnsupportedProtocols = false,
     internalScopes = INTERNAL_SCOPES,
@@ -467,6 +556,17 @@ function sanitizeDependencyMap(
       }
 
       if (dropWorkspaceDependencies && versionRange.startsWith('workspace:')) {
+        return [];
+      }
+
+      if (
+        dropPrivateWorkspaceDependencies &&
+        isPrivateWorkspaceDependency(
+          packageName,
+          versionRange,
+          privateWorkspacePackageNames,
+        )
+      ) {
         return [];
       }
 
@@ -500,6 +600,7 @@ function createPluginContext(
   packageRootDir: string,
   workspaceConfigPath: string,
   resolvedVersionRanges: ReadonlyMap<string, string>,
+  privateWorkspacePackageNames: ReadonlySet<string>,
 ): PackageJsonPluginContext {
   const resolvePublishedVersionRange = (
     packageName: string,
@@ -515,7 +616,12 @@ function createPluginContext(
   return {
     packageRootDir,
     resolvePublishedVersionRange,
-    sanitizeDependencyMap,
+    sanitizeDependencyMap: (dependencies, options) =>
+      sanitizeDependencyMap(
+        dependencies,
+        options,
+        privateWorkspacePackageNames,
+      ),
     workspaceConfigPath,
   };
 }
@@ -673,7 +779,10 @@ export function createPackagePlugin(
     generateBundle: {
       order: 'post',
       async handler(outputOptions: OutputOptionsLike | undefined) {
-        const resolvedPackageJson = await createPnpmExportablePackageJson(
+        const {
+          packageJson: resolvedPackageJson,
+          privateWorkspacePackageNames,
+        } = await createPnpmExportablePackageJson(
           packageRootDir,
           packageJson,
           workspaceRootDir,
@@ -683,6 +792,7 @@ export function createPackagePlugin(
           packageRootDir,
           workspaceConfigPath,
           createResolvedVersionRangeMap(packageJson, resolvedPackageJson),
+          privateWorkspacePackageNames,
         );
         const packageJsonObject: PackageJsonObject = {
           ...resolvedPackageJson,

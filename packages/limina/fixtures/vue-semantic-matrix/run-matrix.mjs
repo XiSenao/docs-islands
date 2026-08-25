@@ -166,7 +166,6 @@ function assertLiminaDependencyContract(testCase, installed) {
   }
   for (const sectionName of [
     'dependencies',
-    'devDependencies',
     'optionalDependencies',
     'peerDependencies',
     'peerDependenciesMeta',
@@ -175,25 +174,27 @@ function assertLiminaDependencyContract(testCase, installed) {
       continue;
     }
     throw new Error(
-      `[vue-semantic-matrix] ${testCase.name} installed Limina still publishes @jridgewell/trace-mapping in ${sectionName}.`,
+      `[vue-semantic-matrix] ${testCase.name} installed Limina must keep @jridgewell/trace-mapping as development metadata only; found it in ${sectionName}.`,
     );
   }
-  for (const sectionName of [
-    'dependencies',
-    'devDependencies',
-    'optionalDependencies',
-  ]) {
+  if (manifest.devDependencies?.['@jridgewell/trace-mapping'] !== '^0.3.31') {
+    throw new Error(
+      `[vue-semantic-matrix] ${testCase.name} installed Limina must retain @jridgewell/trace-mapping@^0.3.31 in devDependencies.`,
+    );
+  }
+  for (const sectionName of ['dependencies', 'optionalDependencies']) {
     if (manifest[sectionName]?.svelte2tsx === undefined) continue;
     throw new Error(
       `[vue-semantic-matrix] ${testCase.name} installed Limina must not publish svelte2tsx in ${sectionName}.`,
     );
   }
   if (
+    manifest.devDependencies?.svelte2tsx !== '^0.7.61' ||
     manifest.peerDependencies?.svelte2tsx !== '^0.7.61' ||
     manifest.peerDependenciesMeta?.svelte2tsx?.optional !== true
   ) {
     throw new Error(
-      `[vue-semantic-matrix] ${testCase.name} installed Limina must expose svelte2tsx as an optional peer.`,
+      `[vue-semantic-matrix] ${testCase.name} installed Limina must retain svelte2tsx@^0.7.61 as development metadata and expose it as an optional peer.`,
     );
   }
   if (installed.optionalPeerInstalled.svelte2tsx) {

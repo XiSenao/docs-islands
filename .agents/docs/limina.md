@@ -14,12 +14,14 @@ This record is an unstamped AI draft. It has not been human-vouched.
 
 ### Package and public surface
 
-Limina is an independently built and published ESM CLI package. Its manifest currently declares version `0.2.0` and exposes:
+Limina is an independently built and published ESM CLI package. Its manifest currently declares version `0.2.3` and exposes:
 
 - the `limina` executable through `bin/limina.js`
 - the main module
 - the TypeScript configuration schema
 - the package manifest
+
+The published package manifest retains resolved non-workspace `devDependencies` as package-development metadata while omitting private `workspace:` development dependencies. Development entries do not become production dependencies; bundled build inputs such as `@jridgewell/trace-mapping` remain declared only in `devDependencies`.
 
 The main module exports `defineConfig`, validation error classes, governance issue types, issue severity, and the public Limina configuration types.
 
@@ -110,6 +112,8 @@ Source inspection uses ownership-scoped parser providers only to recover source-
 Astro graph semantics use a bounded generated-script-first pipeline. Source inspection establishes real source records and coordinates; it does not establish project dependencies. A locked Astro provider materializes the primary and extra service scripts from a Volar Language and its decorated TypeScript host, enumerates all generated dependencies with that toolchain's TypeScript AST, and then performs strict reverse mapping to source records. The seed contains existing config/project identity, analysis generation, overlay generation, and the owning package root, while config closure fingerprints, compiler options, files, project references, and toolchain provenance enter only the lazy materialized identity. One analysis provider retains at most one active Astro context, reuses it by seed and toolchain identity, and disposes it before switching identity.
 
 The first Astro semantic adapter accepts Astro `>=7.0.0 <8.0.0`, `@astrojs/check` 0.9.10, Language Server 2.16.13, LS-owned compiler 2.13.1, and Volar Language Core, Kit, and TypeScript 2.4.28. Limina publishes `@astrojs/check` as an optional peer while retaining it as a development dependency; users install the supported version explicitly in every Astro-owning leaf. Leaf-visible and check-visible TypeScript are each checked against Limina's declared `>=5.4.0 <5.10.0 || >=6.0.0 <6.1.0` range; they need not have equal versions or real paths. Internal exports and callable shapes remain part of compatibility. Resolution follows declared ownership scopes from leaf to check to Language Server to Kit, with no workspace-root retry. Resolved paths are provenance and materialized module-instance identity only: pnpm store, symlink, and hoist layouts are never compatibility predicates and never enter stable issue identity.
+
+The exact Astro compatibility fixtures retain Astro's optional `sharp` dependency at the workspace-pinned patched version even when an older fixture declares a narrower range. Limina does not execute Astro image services, so this override is security maintenance for a development-only dependency rather than an image-service compatibility claim. The repository-wide Dependency Review license policy admits `LGPL-3.0-or-later`, including sharp's libvips and Windows platform packages, and the permissive `0BSD` license used by `tslib`. Astro's transitive `vscode-css-languageservice` and `vscode-html-languageservice` are excluded from license enforcement by package PURL because their distributed artifacts contain MDN/W3C-derived Creative Commons material; this remains a package-scoped exception rather than admitting those Creative Commons licenses repository-wide.
 
 Astro semantic mapping starts from the generated TypeScript dependencies in the complete primary/extra service-script set and reverse-maps them to complete locators of real source records. Synthetic virtual imports may exist normally, but they remain observations and never create graph edges. Missing, ambiguous, or unprovable mapping for a real record fails closed; an unresolved target with a valid mapping remains an ordinary module-not-found result. Resolution uses the mapped semantic literal and the Astro decorated TypeScript host. Oxc does not participate in locked Astro eligibility, resolution, or fallback. `.astro` imports to Astro, Svelte, Vue, or build-owned TypeScript targets remain framework scheduling relationships because the Astro consumer has no declaration project; Astro semantic evidence confirms physical targets without changing their owners. In `A.astro -> B.vue -> C.ts`, Astro owns `A -> B`, while Vue owns `B -> C` only when `B.vue` is analyzed independently.
 
