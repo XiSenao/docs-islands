@@ -128,6 +128,8 @@ Framework checker commands and their execution runtimes resolve from the leaf pa
 - Astro requires `astro`, `@astrojs/check`, and `typescript`, plus the leaf's generated `.astro/types.d.ts`. Limina runs `astro check --noSync --root <leaf> --tsconfig <source-config>` and never runs `astro sync`.
 - Svelte requires `svelte-check`, `svelte2tsx`, `svelte`, and `typescript`. Limina runs `svelte-check --workspace <leaf> --tsconfig <source-config>` without SvelteKit sync, incremental mode, a `.svelte-check` cache, or an output-format override.
 
+`@astrojs/check` is an optional Limina peer dependency. Install the supported version explicitly in every Astro-owning leaf; installing Limina does not install it for the leaf.
+
 Source-coordinate collection is different from checker execution: `@astrojs/compiler` is a Limina runtime and resolves from the workspace installation that runs Limina, so one installation serves the workspace and a conflicting leaf copy cannot shadow it. Limina preflights this runtime only when Astro source inspection is needed and reports one environment issue for a shared failure, regardless of the number of `.astro` files. Svelte semantic analysis resolves both `svelte/compiler` and the supported `svelte2tsx` peer from the owning leaf. Missing framework checker dependencies still fail preflight before checker processes start.
 
 `checker typecheck` is a full rerun, not framework watch mode. Stable target IDs preserve target identity between runs but do not provide incremental invalidation.

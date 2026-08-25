@@ -15,6 +15,7 @@ export interface LiminaDependencyContract {
 }
 
 export type ExternalCheckerPackageName =
+  | '@astrojs/check'
   | '@typescript/native-preview'
   | 'svelte-check'
   | 'vue-tsc';
@@ -80,6 +81,12 @@ export const liminaRuntimeDependencyContracts: Readonly<
 export const externalCheckerDependencyContracts: Readonly<
   Record<ExternalCheckerPackageName, LiminaDependencyContract>
 > = {
+  '@astrojs/check': {
+    optional: true,
+    ownership: 'external-checker',
+    packageName: '@astrojs/check',
+    supportedRange: '0.9.10',
+  },
   '@typescript/native-preview': {
     optional: true,
     ownership: 'external-checker',

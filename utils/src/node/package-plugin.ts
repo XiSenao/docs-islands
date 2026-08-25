@@ -30,6 +30,7 @@ export type DependencyFieldName =
 
 export interface DependencyResolutionOptions {
   allowInternal?: boolean;
+  dropWorkspaceDependencies?: boolean;
   dropUnsupportedProtocols?: boolean;
   internalScopes?: readonly string[];
 }
@@ -121,7 +122,9 @@ const DEFAULT_PACKAGE_FILE_IGNORE_PATTERNS = [
 ] as const;
 const DEFAULT_DEPENDENCY_FIELDS = {
   dependencies: {},
-  devDependencies: false,
+  devDependencies: {
+    dropWorkspaceDependencies: true,
+  },
   optionalDependencies: {},
   peerDependencies: {},
 } as const satisfies Partial<
@@ -330,14 +333,20 @@ function filterDependencyMapForPnpmExport(
     return undefined;
   }
 
-  const { allowInternal = true, internalScopes = INTERNAL_SCOPES } = options;
-  if (allowInternal) {
+  const {
+    allowInternal = true,
+    dropWorkspaceDependencies = false,
+    internalScopes = INTERNAL_SCOPES,
+  } = options;
+  if (allowInternal && !dropWorkspaceDependencies) {
     return dependencies;
   }
 
   const resolvedEntries = Object.entries(dependencies).filter(
-    ([packageName]) =>
-      !internalScopes.some((scope) => packageName.startsWith(scope)),
+    ([packageName, versionRange]) =>
+      (allowInternal ||
+        !internalScopes.some((scope) => packageName.startsWith(scope))) &&
+      (!dropWorkspaceDependencies || !versionRange.startsWith('workspace:')),
   );
 
   if (resolvedEntries.length === 0) {
@@ -443,6 +452,7 @@ function sanitizeDependencyMap(
 
   const {
     allowInternal = true,
+    dropWorkspaceDependencies = false,
     dropUnsupportedProtocols = false,
     internalScopes = INTERNAL_SCOPES,
   } = options;
@@ -453,6 +463,10 @@ function sanitizeDependencyMap(
       );
 
       if (!allowInternal && isInternal) {
+        return [];
+      }
+
+      if (dropWorkspaceDependencies && versionRange.startsWith('workspace:')) {
         return [];
       }
 

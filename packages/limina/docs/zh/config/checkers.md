@@ -128,6 +128,8 @@ Astro/Svelte owner 不生成 declaration project、wrapper 或 transparent build
 - Astro 需要 `astro`、`@astrojs/check` 和 `typescript`，以及叶子包已生成的 `.astro/types.d.ts`。Limina 执行 `astro check --noSync --root <leaf> --tsconfig <source-config>`，不会运行 `astro sync`。
 - Svelte 需要 `svelte-check`、`svelte2tsx`、`svelte` 和 `typescript`。Limina 执行 `svelte-check --workspace <leaf> --tsconfig <source-config>`，不会运行 SvelteKit sync、启用增量模式、写入 `.svelte-check` cache 或覆盖输出格式。
 
+`@astrojs/check` 是 Limina 的可选 peer dependency。请在每个由 Astro 拥有的 leaf 中主动安装受支持版本；安装 Limina 不会替该 leaf 安装它。
+
 源码坐标收集与 checker 执行使用不同归属：`@astrojs/compiler` 是 Limina runtime，从运行 Limina 的 workspace 安装环境解析，因此整个 workspace 安装一次即可，叶子包中的冲突副本也不能 shadow 它。Limina 只在实际需要 Astro 源码检查时预检该 runtime；同一个共享环境故障无论涉及多少个 `.astro` 文件，都只报告一个 issue。Svelte semantic analysis 会从所属叶子包同时解析 `svelte/compiler` 与受支持的 `svelte2tsx` peer。框架 checker 依赖缺失时，预检仍会在启动检查器进程前失败。
 
 `checker typecheck` 是完整重跑，不是框架 watch 模式。稳定 target ID 只表示多次运行之间的 target identity 稳定，不提供增量失效能力。

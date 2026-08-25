@@ -67,6 +67,12 @@ describe('limina published package smoke', () => {
         expect(packageManifest.peerDependenciesMeta?.svelte2tsx?.optional).toBe(
           true,
         );
+        expect(packageManifest.peerDependencies?.['@astrojs/check']).toBe(
+          '0.9.10',
+        );
+        expect(
+          packageManifest.peerDependenciesMeta?.['@astrojs/check']?.optional,
+        ).toBe(true);
       }
       expect(manifest.dependencies?.['oxc-resolver']).toBeDefined();
       expect(installedManifest.dependencies?.['oxc-resolver']).toBe(

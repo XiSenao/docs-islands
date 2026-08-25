@@ -12,12 +12,6 @@ catalogs:
     '@astrojs/compiler':
       specifier: ^4.0.0
       version: 4.0.0
-    '@astrojs/compiler-v2':
-      specifier: npm:@astrojs/compiler@2.0.0
-      version: 2.0.0
-    '@astrojs/compiler-v3':
-      specifier: npm:@astrojs/compiler@3.0.1
-      version: 3.0.1
     '@babel/generator':
       specifier: ^7.29.1
       version: 7.29.1
@@ -102,12 +96,6 @@ catalogs:
     '@vue/compiler-sfc':
       specifier: ^3.5.28
       version: 3.5.28
-    astro-v7-current:
-      specifier: npm:astro@7.2.0
-      version: 7.2.0
-    astro-v7-min:
-      specifier: npm:astro@7.0.0
-      version: 7.0.0
     boxen:
       specifier: ^8.0.1
       version: 8.0.1
@@ -195,12 +183,6 @@ catalogs:
     string-width:
       specifier: ^8.2.2
       version: 8.2.2
-    svelte-check-v4-min:
-      specifier: npm:svelte-check@4.0.0
-      version: 4.0.0
-    svelte-v4-min:
-      specifier: npm:svelte@4.0.0
-      version: 4.0.0
     svelte2tsx:
       specifier: ^0.7.61
       version: 0.7.61
@@ -369,9 +351,21 @@ catalogs:
       specifier: ^3.5.39
       version: 3.5.39
   test:
+    '@astrojs/compiler-v2':
+      specifier: npm:@astrojs/compiler@2.0.0
+      version: 2.0.0
+    '@astrojs/compiler-v3':
+      specifier: npm:@astrojs/compiler@3.0.1
+      version: 3.0.1
     '@vitest/eslint-plugin':
       specifier: ^1.6.17
       version: 1.6.17
+    astro-v7-current:
+      specifier: npm:astro@7.2.0
+      version: 7.2.0
+    astro-v7-min:
+      specifier: npm:astro@7.0.0
+      version: 7.0.0
     execa:
       specifier: 9.6.1
       version: 9.6.1
@@ -387,6 +381,12 @@ catalogs:
     playwright-chromium:
       specifier: 1.62.0
       version: 1.62.0
+    svelte-check-v4-min:
+      specifier: npm:svelte-check@4.0.0
+      version: 4.0.0
+    svelte-v4-min:
+      specifier: npm:svelte@4.0.0
+      version: 4.0.0
     vitest:
       specifier: 4.1.7
       version: 4.1.7
@@ -806,10 +806,10 @@ importers:
         specifier: catalog:dev
         version: 4.0.0
       '@astrojs/compiler-v2':
-        specifier: catalog:dev
+        specifier: catalog:test
         version: '@astrojs/compiler@2.0.0'
       '@astrojs/compiler-v3':
-        specifier: catalog:dev
+        specifier: catalog:test
         version: '@astrojs/compiler@3.0.1'
       '@clack/prompts':
         specifier: catalog:dev
@@ -845,10 +845,10 @@ importers:
         specifier: catalog:dev
         version: 7.1.5
       astro-v7-current:
-        specifier: catalog:dev
+        specifier: catalog:test
         version: astro@7.2.0(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@types/node@22.18.0)(jiti@2.7.0)(less@4.4.2)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0)
       astro-v7-min:
-        specifier: catalog:dev
+        specifier: catalog:test
         version: astro@7.0.0(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@types/node@22.18.0)(jiti@2.7.0)(less@4.4.2)(rollup@4.62.2)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0)
       boxen:
         specifier: catalog:dev
@@ -905,10 +905,10 @@ importers:
         specifier: catalog:dev
         version: 8.2.2
       svelte-check-v4-min:
-        specifier: catalog:dev
+        specifier: catalog:test
         version: svelte-check@4.0.0(picomatch@4.0.5)(svelte@4.0.0)(typescript@6.0.3)
       svelte-v4-min:
-        specifier: catalog:dev
+        specifier: catalog:test
         version: svelte@4.0.0
       svelte2tsx:
         specifier: catalog:dev
@@ -14209,7 +14209,7 @@ snapshots:
 
   '@astrojs/internal-helpers@0.10.0':
     dependencies:
-      '@types/hast': 3.0.4
+      '@types/hast': 3.0.5
       '@types/mdast': 4.0.4
       js-yaml: 4.3.1
       picomatch: 4.0.5
@@ -19376,7 +19376,7 @@ snapshots:
       micromark-util-sanitize-uri: 2.0.1
       trim-lines: 3.0.1
       unist-util-position: 5.0.0
-      unist-util-visit: 5.0.0
+      unist-util-visit: 5.1.0
       vfile: 6.0.3
 
   mdast-util-to-markdown@2.1.2:
@@ -19388,7 +19388,7 @@ snapshots:
       mdast-util-to-string: 4.0.0
       micromark-util-classify-character: 2.0.1
       micromark-util-decode-string: 2.0.1
-      unist-util-visit: 5.0.0
+      unist-util-visit: 5.1.0
       zwitch: 2.0.4
 
   mdast-util-to-string@4.0.0:
@@ -20406,19 +20406,19 @@ snapshots:
 
   rehype-parse@9.0.1:
     dependencies:
-      '@types/hast': 3.0.4
+      '@types/hast': 3.0.5
       hast-util-from-html: 2.0.3
       unified: 11.0.5
 
   rehype-stringify@10.0.1:
     dependencies:
-      '@types/hast': 3.0.4
+      '@types/hast': 3.0.5
       hast-util-to-html: 9.0.5
       unified: 11.0.5
 
   rehype@13.0.2:
     dependencies:
-      '@types/hast': 3.0.4
+      '@types/hast': 3.0.5
       rehype-parse: 9.0.1
       rehype-stringify: 10.0.1
       unified: 11.0.5
@@ -20499,7 +20499,7 @@ snapshots:
     dependencies:
       '@types/nlcst': 2.0.3
       nlcst-to-string: 4.0.0
-      unist-util-visit: 5.0.0
+      unist-util-visit: 5.1.0
 
   reusify@1.1.0: {}
 
@@ -20650,7 +20650,7 @@ snapshots:
   satteri@0.9.5:
     dependencies:
       '@types/estree-jsx': 1.0.5
-      '@types/hast': 3.0.4
+      '@types/hast': 3.0.5
       '@types/mdast': 4.0.4
       '@types/unist': 3.0.3
     optionalDependencies:

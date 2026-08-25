@@ -50,6 +50,7 @@ const REQUIRED_DIST_FILES = [
 ] as const;
 const EXPECTED_PEER_RANGES = {
   '@arethetypeswrong/core': '^0.18.0',
+  '@astrojs/check': '0.9.10',
   '@astrojs/compiler': '>=2.0.0 <5.0.0',
   '@typescript/native-preview': '>=7.0.0-dev.20260421.2 <7.0.0',
   knip: '>=6.0.0 <7.0.0',
