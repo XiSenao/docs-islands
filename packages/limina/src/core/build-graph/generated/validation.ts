@@ -203,8 +203,3 @@ export function addOverlappingCheckerEntryProblems(options: {
     });
   }
 }
-
-export {
-  addUnsupportedSourceConfigExtensionProblems,
-  type SourceProjectLike,
-} from './source-extension-validation';

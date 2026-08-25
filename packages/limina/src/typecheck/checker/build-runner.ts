@@ -4,7 +4,6 @@ import path from 'pathe';
 import { withGeneratedArtifactReadLease } from '../../core/build-graph/materializer';
 import { TypecheckLogger } from '../../logger';
 import { resolvePreflight } from '../../preflight';
-import { reportBuildCheckerCacheWarnings } from '../build/combination-warning';
 import { shouldLogCheckReport } from '../runner-shared';
 import type {
   RunCheckerBuildOptions,
@@ -139,7 +138,6 @@ async function runSelectedCheckerBuild(
     watch: context.options.watch,
   });
   const rootConfigPaths = targets.map((target) => target.configPath);
-  reportCombinationWarning(context);
   reportSelectedTargetCount(context, targets.length);
   const execution = await executeCheckerBuildTargets({
     allCheckers: context.allCheckers,
@@ -165,16 +163,6 @@ async function runSelectedCheckerBuild(
   return createResult({ context, execution, rootConfigPaths });
 }
 
-function reportCombinationWarning(context: CheckerBuildContext): void {
-  reportBuildCheckerCacheWarnings({
-    dependencyEdges: context.generatedGraph.dependencyEdges,
-    flow: context.options.flow,
-    flowDepth: context.flowDepth,
-    projectRootDir: context.projectRootDir,
-    report: context.options.report,
-  });
-}
-
 async function runGeneratedCheckerBuild(
   context: CheckerBuildContext,
 ): Promise<RunCheckerBuildResult> {
@@ -196,7 +184,6 @@ async function runGeneratedCheckerBuild(
     projectRootDir: context.projectRootDir,
   });
   const rootConfigPaths = targets.map((target) => target.configPath);
-  reportCombinationWarning(context);
   logGeneratedBuildStart({
     context,
     rootConfigPaths,

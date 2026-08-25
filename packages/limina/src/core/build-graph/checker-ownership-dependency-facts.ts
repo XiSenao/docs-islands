@@ -1,11 +1,8 @@
 import {
   type CheckerProjectConfigCache,
-  type CheckerProjectParseContext,
-  getBuildCheckerSupportedExtensions,
-  parseCheckerProjectConfigForContext,
   resolveVueSourceProfile,
 } from '#checkers';
-import type { CheckerName, ResolvedLiminaConfig } from '#config/runner';
+import type { ResolvedLiminaConfig } from '#config/runner';
 import { collectImportsFromFile } from '#core/import-graph/context';
 import { compareCodeUnits } from '#utils/collections';
 import { normalizeAbsolutePath, toRelativePath } from '#utils/path';
@@ -16,24 +13,14 @@ import { TypeEvidenceCore } from '../type-evidence';
 import { getAutoScopeFilePackageRoot } from './auto-checker-file-roots';
 import type { AutoScopeProject } from './auto-checker-types';
 import type { CheckerOwnershipDiscovery } from './checker-ownership-discovery';
+import {
+  createEvidenceProject,
+  type EvidenceProject,
+} from './checker-ownership-evidence-project';
 import type {
   CheckerDependencyFact,
   TypeConfigOwnershipState,
 } from './checker-ownership-types';
-import { capabilityDiscoveryExtensions } from './generated/file-extensions';
-
-interface EvidenceProject {
-  checkerName: CheckerName;
-  project: {
-    checkerPresets: CheckerProjectParseContext['checkerPresets'];
-    configPath: string;
-    extensions: string[];
-    fileNames: string[];
-    options: AutoScopeProject['options'];
-    resolverConfigPath: string;
-    vueSemanticIdentity?: CheckerProjectParseContext['vueSemanticIdentity'];
-  };
-}
 
 interface FactCollectionContext {
   config: ResolvedLiminaConfig;
@@ -41,66 +28,6 @@ interface FactCollectionContext {
   importAnalysis: ImportAnalysisContext;
   project: AutoScopeProject;
   semantic: EvidenceProject;
-}
-
-function getEvidenceChecker(state: TypeConfigOwnershipState): CheckerName {
-  if (state.localOwner.kind === 'pending') return 'tsc';
-  return {
-    astro: 'tsc',
-    'svelte-check': 'tsc',
-    tsc: 'tsc',
-    tsgo: 'tsgo',
-    'vue-tsc': 'vue-tsc',
-  }[state.localOwner.checker] as CheckerName;
-}
-
-function createParseContext(
-  checkerName: CheckerName,
-): CheckerProjectParseContext {
-  if (checkerName === 'tsc' || checkerName === 'tsgo') {
-    return {
-      checkerPresets: [checkerName],
-      extensions: capabilityDiscoveryExtensions,
-    };
-  }
-  return { checkerPresets: [checkerName], extensions: [] };
-}
-
-function getSemanticExtensions(
-  checkerName: CheckerName,
-  parsed: ReturnType<typeof parseCheckerProjectConfigForContext>,
-): string[] {
-  if (checkerName === 'vue-tsc') return parsed.extensions;
-  return getBuildCheckerSupportedExtensions(checkerName);
-}
-
-function createEvidenceProject(options: {
-  project: AutoScopeProject;
-  projectConfigCache?: CheckerProjectConfigCache;
-  rootDir: string;
-  state: TypeConfigOwnershipState;
-}): EvidenceProject {
-  const checkerName = getEvidenceChecker(options.state);
-  const context = createParseContext(checkerName);
-  const parsed = parseCheckerProjectConfigForContext({
-    allowNoInputDiagnostics: true,
-    cache: options.projectConfigCache,
-    configPath: options.project.configPath,
-    context,
-    projectRootDir: options.rootDir,
-  });
-  return {
-    checkerName,
-    project: {
-      checkerPresets: [checkerName],
-      configPath: options.project.configPath,
-      extensions: [...getSemanticExtensions(checkerName, parsed)],
-      fileNames: [...parsed.fileNames],
-      options: parsed.options,
-      resolverConfigPath: options.project.configPath,
-      vueSemanticIdentity: parsed.vueSemanticIdentity,
-    },
-  };
 }
 
 function physicalTargetFromEvidence(
@@ -141,11 +68,6 @@ function collectImportFact(options: {
   if (!shouldInferDeclarationReferenceFromImportRecord(options.importRecord)) {
     return;
   }
-  const typeEvidence = options.context.core.resolveImportEvidence({
-    checkerName: options.context.semantic.checkerName,
-    importRecord: options.importRecord,
-    project: options.context.semantic.project,
-  });
   const physicalEvidence = options.context.importAnalysis.resolveImportEvidence(
     options.importRecord,
     options.fileName,
@@ -157,17 +79,35 @@ function collectImportFact(options: {
     importRecord: options.importRecord,
     physicalTargetPath: physicalTargetFromEvidence(physicalEvidence),
   };
+  collectTypeEvidenceFact({ ...options, base });
+}
+
+function collectTypeEvidenceFact(options: {
+  base: Omit<CheckerDependencyFact, 'typeEvidenceKind'>;
+  context: FactCollectionContext;
+  facts: CheckerDependencyFact[];
+  importRecord: CheckerDependencyFact['importRecord'];
+  problems: string[];
+}): void {
+  const typeEvidence = options.context.core.resolveImportEvidence({
+    checkerName: options.context.semantic.checkerName,
+    importRecord: options.importRecord,
+    project: options.context.semantic.project,
+  });
   if (typeEvidence.type.kind === 'unsupported-checker') {
     options.problems.push(
       createUnsupportedProblem({
         config: options.context.config,
         evidence: typeEvidence.type,
-        fact: base,
+        fact: options.base,
       }),
     );
     return;
   }
-  options.facts.push({ ...base, typeEvidenceKind: typeEvidence.type.kind });
+  options.facts.push({
+    ...options.base,
+    typeEvidenceKind: typeEvidence.type.kind,
+  });
 }
 
 function collectFileFacts(options: {
@@ -212,11 +152,31 @@ function collectProjectFacts(options: {
       state: options.state,
     }),
   };
-  for (const fileName of options.project.filePartition.typescriptFiles) {
+  const factFileNames = getFactFileNames(options.project, options.state);
+  for (const fileName of factFileNames) {
     collectFileFacts({ context, facts, fileName, problems });
   }
   options.core.completeProject(options.project.configPath);
   return { facts, problems };
+}
+
+function isVueFactOwner(state: TypeConfigOwnershipState): boolean {
+  return (
+    state.authoritativeOwner === 'vue-tsc' ||
+    (state.localOwner.kind === 'resolved' &&
+      state.localOwner.checker === 'vue-tsc')
+  );
+}
+
+function getFactFileNames(
+  project: AutoScopeProject,
+  state: TypeConfigOwnershipState,
+): string[] {
+  if (!isVueFactOwner(state)) return project.filePartition.typescriptFiles;
+  return [
+    ...project.filePartition.typescriptFiles,
+    ...project.filePartition.vueFiles,
+  ];
 }
 
 function getGeneration(cache?: CheckerProjectConfigCache): number {
@@ -236,15 +196,21 @@ function collectAllProjectFacts(options: {
     (left, right) => compareCodeUnits(left.configPath, right.configPath),
   );
   for (const project of projects) {
+    const state = options.discovery.plan.typeConfigs.get(project.configPath)!;
+    if (isFrameworkAuthoritative(state)) continue;
     const collected = collectProjectFacts({
       ...options,
       project,
-      state: options.discovery.plan.typeConfigs.get(project.configPath)!,
+      state,
     });
     facts.push(...collected.facts);
     problems.push(...collected.problems);
   }
   return { facts, problems };
+}
+
+function isFrameworkAuthoritative(state: TypeConfigOwnershipState): boolean {
+  return ['astro', 'svelte-check'].includes(state.authoritativeOwner ?? '');
 }
 
 export function collectCheckerDependencyFacts(options: {

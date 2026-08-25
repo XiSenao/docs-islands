@@ -2,6 +2,7 @@ import type { ResolvedLiminaConfig } from '#config/runner';
 import { toRelativePath } from '#utils/path';
 import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
 import { promoteDirectedCheckerDependencies } from './auto-checker-promotion';
+import { colorBuildCheckerComponents } from './checker-build-coloring';
 import {
   applyDependencyRequirementPass,
   collectCheckerDependencyFacts,
@@ -176,6 +177,19 @@ export async function resolveCheckerOwnership(options: {
   });
   runDependencyRequirements({ config: options.config, discovery });
   runVuePromotion({ config: options.config, discovery });
+  assertOwnershipPhase({
+    config: options.config,
+    fallback: 'Failed to color build checker declaration components.',
+    problems: colorBuildCheckerComponents({
+      config: options.config,
+      discovery,
+    }),
+  });
+  validateOwnershipConstraints({
+    config: options.config,
+    discovery,
+    phase: 'build checker component coloring',
+  });
   finalizeOwnership({ config: options.config, discovery });
   return {
     ownershipPlan: discovery.plan,

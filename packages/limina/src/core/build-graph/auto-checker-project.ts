@@ -2,11 +2,17 @@ import {
   type CheckerProjectConfigCache,
   type CheckerProjectParseContext,
   getBuildCheckerSupportedExtensions,
+  isBuildCapablePreset,
   parseCheckerProjectConfigForContext,
 } from '#checkers';
-import type { ResolvedLiminaConfig } from '#config/runner';
+import type { CheckerName, ResolvedLiminaConfig } from '#config/runner';
 import { normalizeAbsolutePath } from '#utils/path';
 import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
+import {
+  addExplicitVueFiles,
+  getExplicitAnalysisGeneration,
+  getVueProfileFileNames,
+} from './explicit-checker-project-helpers';
 import {
   capabilityDiscoveryExtensions,
   getFileExtension,
@@ -206,6 +212,69 @@ export function createAutoScopeProject(options: {
     fileNames,
     filePartition,
     options: selectProjectOptions({ neutral, vue }),
+    packageRootByFileName: new Map(
+      fileNames.map((fileName) => [
+        fileName,
+        getPackageRootForFile({
+          activatedRegions: options.activatedRegions,
+          fallbackPackageRootDir: options.packageRootDir,
+          fileName,
+        }),
+      ]),
+    ),
+    packageRootDir: options.packageRootDir,
+  };
+}
+
+function getScopedParseContext(
+  checkerName: CheckerName,
+): CheckerProjectParseContext {
+  if (isBuildCapablePreset(checkerName)) {
+    return { checkerPresets: [checkerName], extensions: [] };
+  }
+  return {
+    checkerPresets: ['tsc'],
+    extensions: checkerName === 'astro' ? ['.astro'] : ['.svelte'],
+  };
+}
+
+export function createExplicitScopeProject(options: {
+  activatedRegions: WorkspaceRegionPathIndex;
+  checkerName: CheckerName;
+  config: ResolvedLiminaConfig;
+  configPath: string;
+  packageRootDir: string;
+  projectConfigCache?: CheckerProjectConfigCache;
+}): AutoScopeProject {
+  const parseContext = getScopedParseContext(options.checkerName);
+  const parsed = parseCheckerProjectConfigForContext({
+    allowNoInputDiagnostics: true,
+    cache: options.projectConfigCache,
+    configPath: options.configPath,
+    context: parseContext,
+    projectRootDir: options.config.rootDir,
+  });
+  const fileNames = parsed.fileNames.map(normalizeAbsolutePath).sort();
+  const filePartition = partitionSourceFiles(fileNames);
+  addExplicitVueFiles({
+    checkerName: options.checkerName,
+    filePartition,
+    profileFileNames: getVueProfileFileNames(parsed.vueSemanticIdentity),
+  });
+  return {
+    analysisGeneration: getExplicitAnalysisGeneration(
+      options.projectConfigCache,
+    ),
+    configClosure: parsed.configClosure.map((entry) => ({ ...entry })),
+    configPath: options.configPath,
+    context: {
+      ...parseContext,
+      extensions: [...parsed.extensions],
+      vueSemanticIdentity: parsed.vueSemanticIdentity,
+    },
+    fileNames,
+    filePartition,
+    options: parsed.options,
     packageRootByFileName: new Map(
       fileNames.map((fileName) => [
         fileName,

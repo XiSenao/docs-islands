@@ -8,7 +8,6 @@ import type {
   ImportRecord,
 } from '#core/import-analysis/runner';
 import type { DeclarationProviderResolution } from '../import-graph/declaration-provider';
-import type { ManagedOutputDeclarationLookup } from '../import-graph/managed-output-provider';
 import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
 import type { GeneratedDependencyEdge, SourceProject } from './types';
 
@@ -23,7 +22,6 @@ export interface ReferenceImportContext {
   dtsProjectsBySourcePath: Map<string, SourceProject[]>;
   fileOwnerLookup: Map<string, string[]>;
   importAnalysis: ImportAnalysisContext;
-  managedOutputLookup: ManagedOutputDeclarationLookup;
   problems: string[];
   dependencyEdgesByKey: Map<string, GeneratedDependencyEdge>;
   semanticProblemIdentities: Set<string>;

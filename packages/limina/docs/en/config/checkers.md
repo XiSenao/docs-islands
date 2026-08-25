@@ -71,7 +71,7 @@ export default defineConfig({
 });
 ```
 
-`useTsgo` changes only the final fallback for configs that remain ordinary TypeScript after framework analysis. Vue promotion propagates only from a Vue provider to a pending consumer along `consumer -> provider` dependency edges; it does not traverse an undirected component or overwrite an already resolved owner.
+`useTsgo` changes only the fallback for build components that remain uncolored after framework analysis. Before generated checker paths exist, Limina joins build-capable leaves that must share declarations: leaves of one solution and configs connected by accepted source imports or `liminaOptions.implicitRefs`. One existing `tsc`, `tsgo`, or `vue-tsc` identity colors the complete component; an uncolored component uses the configured fallback; two different identities fail graph preparation.
 
 Vue capability is confirmed from the checker-resolved file set, not from `vueCompilerOptions` alone. Limina first traverses entries, solutions, referenced leaves, and effective `extends`, then asks the Vue parser for its actual extensions and files. A custom Vue extension is routed to `vue-tsc` only when a matching file exists. A configuration hint without a matching module does not change ownership.
 
@@ -94,17 +94,17 @@ interface CheckerScope {
 
 Limina distinguishes solution configs from terminal type configs. A solution organizes references and is not itself an Astro, Svelte, or Vue execution target. Limina recursively expands nested solutions, deduplicates terminal type configs by normalized path, and runs the selected checker once for each leaf.
 
-A named checker on a solution is a declared constraint, not an early rewrite of each pending leaf's local owner. Constraints propagate to a fixed point across the solution/leaf bipartite graph, including overlapping solutions connected by a shared pending leaf. Pending leaves continue through root-file and dependency analysis. If local evidence later requires another checker, preparation reports a checker ownership conflict instead of hiding the evidence.
+A named checker is authoritative for its complete terminal-leaf closure. Config hints, effective root files, dependency requirements, and Vue promotion do not recolor that domain. Overlapping named scopes with the same checker merge their evidence; different checker identities on the same terminal leaf fail graph preparation.
 
-After all evidence and fallback resolution, every solution leaf must have the same final owner. Different owners on different standalone configs remain valid; typed dependency edges preserve their execution ordering.
+A reference may go directly from a default solution to a named terminal config, such as `tsconfig.json -> tsconfig.node.json`. A nested solution must itself use the default name, for example `tsconfig.json -> packages/lib/tsconfig.json -> packages/lib/tsconfig.lib.json`. A named config that declares references is not a supported intermediate solution.
 
 Non-entry configs such as `tsconfig.lib.json` or `tsconfig.test.json` enter the managed graph only when selected `tsconfig.json` entries reference them. Generated files stay under Limina's `.limina` namespace; source config paths remain the paths used in user configuration and diagnostics.
 
 ## Framework ownership and dependency boundaries
 
-Config selectors, checker-aware effective root files, missing-type dependency evidence, and directed Vue promotion contribute local ownership evidence. A type config may contain TS/JS plus one framework family. Two framework root families, two explicit owners, or a resolved owner plus an incompatible requirement fail closed.
+For automatic scopes, checker-aware effective root files, dependency evidence, and Vue promotion can resolve a pending owner. Explicit scopes skip that implicit owner inference while still participating in dependency construction. A type config may contain TS/JS plus one framework family; conflicting automatic framework evidence fails closed.
 
-Dependency analysis scans every managed type config, including configs whose local owner is already resolved. It collects every import requirement before reducing them. For a pending config it uses a neutral TypeScript semantic context, even when a solution constraint exists. Astro- and Svelte-owned configs also use neutral TypeScript evidence for TS/JS imports because those external checkers are not TypeEvidence providers.
+An explicit Astro owner observes TypeScript files plus `.astro`; an explicit Svelte owner observes TypeScript files plus `.svelte`; an explicit `vue-tsc` owner observes TypeScript and its checker-resolved Vue extensions. A framework name does not implicitly add the other framework extensions. Files inside the configured proof source boundary that the final owner cannot observe do not block graph preparation merely because they exist; `proof check` reports them with `LIMINA_PROOF_UNCOVERED_SOURCE_FILE`.
 
 `ambient`, `concrete-declaration`, and `checker-source` evidence establish a TypeScript domain boundary. Only `missing` evidence continues to physical resolution; `unsupported-checker` fails closed. A physical target can propagate a framework requirement only when it is an actual member of one uniquely owning managed file set. Directory proximity, the nearest package, and excluded files do not establish ownership. Side-effect imports follow the same rule as imports that consume exports.
 
@@ -153,14 +153,14 @@ Dependency resolution follows package ownership. Limina creates resolution scope
 
 The semantic resolver confirms only the target. Limina still owns runtime classification, source ownership, provider selection, scheduling, and graph policy:
 
-| Astro source target | Graph policy                                                                                                |
-| ------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `.astro`            | framework scheduling                                                                                        |
-| `.svelte`           | framework scheduling                                                                                        |
-| `.vue`              | Astro confirms the physical target, then the existing Vue-owned declaration/checker provider policy applies |
-| `.ts` / `.tsx`      | TypeScript declaration-provider policy                                                                      |
+| Astro source target | Graph policy                                                                           |
+| ------------------- | -------------------------------------------------------------------------------------- |
+| `.astro`            | framework scheduling                                                                   |
+| `.svelte`           | framework scheduling                                                                   |
+| `.vue`              | Astro confirms the physical target, then records framework scheduling to the Vue owner |
+| `.ts` / `.tsx`      | framework scheduling to the target's build owner                                       |
 
-For `A.astro -> B.vue -> C.ts`, Astro remains the authority for `A -> B`. Vue semantic resolution is used only when `B.vue` is analyzed as its own source, so it cannot reinterpret the import written in `A.astro`. `.astro` and `.svelte` files remain outside generated declaration `files`; that exclusion does not prevent their real imports from producing valid scheduling or declaration-provider relationships.
+For `A.astro -> B.vue -> C.ts`, Astro remains the authority for `A -> B`. Vue semantic resolution is used only when `B.vue` is analyzed as its own source, so it cannot reinterpret the import written in `A.astro`. `.astro` and `.svelte` files remain outside generated declaration `files`; their real cross-owner imports can still produce framework scheduling, while declaration-provider edges remain inside one build-checker identity.
 
 ## Vue source and semantic import analysis
 
@@ -187,7 +187,7 @@ Delete `config.imports.vue`; there is no replacement field. Loading a configurat
 
 Limina no longer provides compiler-sfc-specific structural diagnostics for duplicate script blocks or `<script setup src>`. Vue checkers and editor tooling remain responsible for SFC validity. Limina reports only source-provenance, resolution, and graph failures within its own analysis boundary.
 
-## Cross-checker dependencies and cache reuse
+## Declaration dependencies and checker identity
 
 Limina distinguishes declaration dependencies from framework scheduling dependencies:
 
@@ -196,15 +196,7 @@ Limina distinguishes declaration dependencies from framework scheduling dependen
 
 Providers run before consumers. Pure framework-scheduling cycles run as one scheduling component; declaration cycles still fail.
 
-Cache reuse is directional:
-
-| Consumer                      | Provider           | Cache reuse |
-| ----------------------------- | ------------------ | ----------- |
-| same checker identity         | same identity      | yes         |
-| `vue-tsc`                     | `tsc`              | yes         |
-| any other cross-identity pair | different identity | no          |
-
-When the consumer can compile the provider's complete declaration closure, Limina preserves the reference. If cache reuse is unavailable, it warns before the first build target starts because the underlying tools may rebuild work or churn their caches. When the consumer cannot compile the provider closure, graph preparation fails. For example, a `tsc` or `tsgo` consumer cannot depend on a provider closure containing `.vue` or a custom Vue extension.
+Every successful `declaration-provider` edge has the same `tsc`, `tsgo`, or `vue-tsc` identity on both ends and records `cacheReuse: "reusable"` in manifest version 5. A canonical declaration relation therefore colors its whole build component before generated configs and targets are materialized. If the component already contains different build identities, graph preparation fails instead of preserving a cross-checker reference or issuing a cache-churn warning. `framework-schedule` may still cross checker identities because it is not a compiler project reference.
 
 ## Migrating from named aliases and `preset`
 

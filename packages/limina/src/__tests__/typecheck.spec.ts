@@ -545,7 +545,7 @@ describe('runCheckerBuild', () => {
     }
   });
 
-  it('runs cyclic cross-checker provider entries in the same build layer', async () => {
+  it('rejects cyclic cross-checker provider entries before execution', async () => {
     const calls: TypecheckTarget[] = [];
     const delayed = delayedRunner({
       calls,
@@ -579,33 +579,27 @@ describe('runCheckerBuild', () => {
     });
 
     try {
-      const result = await runCheckerBuild({
-        config: {
+      await expect(
+        runCheckerBuild({
           config: {
-            checkers: {
-              tsc: {
-                include: ['packages/app/tsconfig.json'],
-              },
-              tsgo: {
-                include: ['packages/theme/tsconfig.json'],
+            config: {
+              checkers: {
+                tsc: {
+                  include: ['packages/app/tsconfig.json'],
+                },
+                tsgo: {
+                  include: ['packages/theme/tsconfig.json'],
+                },
               },
             },
+            configPath: path.join(fixture.rootDir, 'limina.config.mjs'),
+            rootDir: fixture.rootDir,
           },
-          configPath: path.join(fixture.rootDir, 'limina.config.mjs'),
-          rootDir: fixture.rootDir,
-        },
-        cwd: fixture.rootDir,
-        runner: delayed.runner,
-      });
-
-      expect(result.passed).toBe(true);
-      expect(calls.map((target) => target.command).sort()).toEqual([
-        'tsc',
-        'tsgo',
-      ]);
-      expect(delayed.getMaxActive()).toBe(
-        getExpectedDefaultBuildConcurrency(2),
-      );
+          cwd: fixture.rootDir,
+          runner: delayed.runner,
+        }),
+      ).rejects.toThrow('Build checker ownership conflict');
+      expect(calls).toEqual([]);
     } finally {
       await fixture.cleanup();
     }
@@ -673,7 +667,7 @@ describe('runCheckerBuild', () => {
     }
   });
 
-  it('allows compatible cross-checker traversal and warns before checker build', async () => {
+  it('rejects cache-incompatible traversal before checker build', async () => {
     const calls: TypecheckTarget[] = [];
     const warnSpy = vi
       .spyOn(TypecheckLogger, 'warn')
@@ -705,32 +699,28 @@ describe('runCheckerBuild', () => {
     });
 
     try {
-      const result = await runCheckerBuild({
-        config: {
+      await expect(
+        runCheckerBuild({
           config: {
-            checkers: {
-              tsgo: {
-                include: ['packages/shared/tsconfig.json'],
-              },
-              'vue-tsc': {
-                include: ['packages/theme/tsconfig.json'],
+            config: {
+              checkers: {
+                tsgo: {
+                  include: ['packages/shared/tsconfig.json'],
+                },
+                'vue-tsc': {
+                  include: ['packages/theme/tsconfig.json'],
+                },
               },
             },
+            configPath: path.join(fixture.rootDir, 'limina.config.mjs'),
+            rootDir: fixture.rootDir,
           },
-          configPath: path.join(fixture.rootDir, 'limina.config.mjs'),
-          rootDir: fixture.rootDir,
-        },
-        cwd: fixture.rootDir,
-        runner: passingRunner(calls),
-      });
-      expect(result.passed).toBe(true);
-      expect(calls.map((target) => target.command)).toEqual([
-        'tsgo',
-        'vue-tsc',
-      ]);
-      expect(warnSpy.mock.calls.join('\n')).toContain(
-        'Build checker cache cannot be reused',
-      );
+          cwd: fixture.rootDir,
+          runner: passingRunner(calls),
+        }),
+      ).rejects.toThrow('Build checker ownership conflict');
+      expect(calls).toEqual([]);
+      expect(warnSpy).not.toHaveBeenCalled();
     } finally {
       warnSpy.mockRestore();
       await fixture.cleanup();
@@ -2884,7 +2874,7 @@ describe('runBuild', () => {
     }
   });
 
-  it('warns for compatible cross-checker traversal before failed checker builds', async () => {
+  it('rejects incompatible traversal before failed checker runners start', async () => {
     const calls: TypecheckTarget[] = [];
     const errorSpy = vi
       .spyOn(TypecheckLogger, 'error')
@@ -2919,32 +2909,28 @@ describe('runBuild', () => {
     });
 
     try {
-      const result = await runCheckerBuild({
-        config: {
+      await expect(
+        runCheckerBuild({
           config: {
-            checkers: {
-              tsgo: {
-                include: ['packages/shared/tsconfig.json'],
-              },
-              'vue-tsc': {
-                include: ['packages/theme/tsconfig.json'],
+            config: {
+              checkers: {
+                tsgo: {
+                  include: ['packages/shared/tsconfig.json'],
+                },
+                'vue-tsc': {
+                  include: ['packages/theme/tsconfig.json'],
+                },
               },
             },
+            configPath: path.join(fixture.rootDir, 'limina.config.mjs'),
+            rootDir: fixture.rootDir,
           },
-          configPath: path.join(fixture.rootDir, 'limina.config.mjs'),
-          rootDir: fixture.rootDir,
-        },
-        cwd: fixture.rootDir,
-        runner: failingRunner(calls),
-      });
-      expect(result.passed).toBe(false);
-      expect(calls.map((target) => target.command)).toEqual([
-        'tsgo',
-        'vue-tsc',
-      ]);
-      expect(warnSpy.mock.calls.join('\n')).toContain(
-        'Build checker cache cannot be reused',
-      );
+          cwd: fixture.rootDir,
+          runner: failingRunner(calls),
+        }),
+      ).rejects.toThrow('Build checker ownership conflict');
+      expect(calls).toEqual([]);
+      expect(warnSpy).not.toHaveBeenCalled();
     } finally {
       errorSpy.mockRestore();
       warnSpy.mockRestore();
@@ -3015,10 +3001,9 @@ describe('runBuild', () => {
         thrown = error;
       }
 
-      expect(String(thrown)).toContain('Checker ownership conflict');
-      expect(String(thrown)).toContain('local owner: tsc');
-      expect(String(thrown)).toContain('incompatible requirement: vue-tsc');
-      expect(String(thrown)).toContain('packages/theme/src/theme.ts');
+      expect(String(thrown)).toContain('Build checker ownership conflict');
+      expect(String(thrown)).toContain('checker: tsc');
+      expect(String(thrown)).toContain('checker: vue-tsc');
       expect(calls).toEqual([]);
     } finally {
       errorSpy.mockRestore();
@@ -3119,9 +3104,8 @@ describe('runBuild', () => {
         thrown = error;
       }
 
-      expect(String(thrown)).toContain('Checker ownership conflict');
-      expect(String(thrown)).toContain('incompatible requirement: vue-tsc');
-      expect(String(thrown)).toContain('packages/theme/src/theme.ts');
+      expect(String(thrown)).toContain('Build checker ownership conflict');
+      expect(String(thrown)).toContain('checker: vue-tsc');
       expect(calls).toEqual([]);
     } finally {
       errorSpy.mockRestore();
@@ -3129,7 +3113,7 @@ describe('runBuild', () => {
     }
   });
 
-  it('builds cross-checker providers before consumers', async () => {
+  it('rejects cross-checker providers before selected builds start', async () => {
     const calls: TypecheckTarget[] = [];
     const delayed = delayedRunner({
       calls,
@@ -3169,43 +3153,28 @@ describe('runBuild', () => {
     });
 
     try {
-      const result = await runBuild({
-        config: {
+      await expect(
+        runBuild({
           config: {
-            checkers: {
-              tsc: {
-                include: ['packages/app/tsconfig.json'],
-              },
-              tsgo: {
-                include: ['packages/theme/tsconfig.json'],
+            config: {
+              checkers: {
+                tsc: {
+                  include: ['packages/app/tsconfig.json'],
+                },
+                tsgo: {
+                  include: ['packages/theme/tsconfig.json'],
+                },
               },
             },
+            configPath: path.join(fixture.rootDir, 'limina.config.mjs'),
+            rootDir: fixture.rootDir,
           },
-          configPath: path.join(fixture.rootDir, 'limina.config.mjs'),
-          rootDir: fixture.rootDir,
-        },
-        cwd: fixture.rootDir,
-        project: 'packages/app',
-        runner: delayed.runner,
-      });
-
-      expect(result.passed).toBe(true);
-      expect(calls.map((target) => target.command)).toEqual(['tsgo', 'tsc']);
-      expect(delayed.getMaxActive()).toBe(1);
-      expect(calls.map((target) => target.args)).toEqual([
-        [
-          '-b',
-          '.limina/tsconfig/checkers/tsgo/outputs/projects/packages/theme/tsconfig.output.json',
-          '--pretty',
-          'false',
-        ],
-        [
-          '-b',
-          '.limina/tsconfig/checkers/tsc/outputs/projects/packages/app/tsconfig.output.json',
-          '--pretty',
-          'false',
-        ],
-      ]);
+          cwd: fixture.rootDir,
+          project: 'packages/app',
+          runner: delayed.runner,
+        }),
+      ).rejects.toThrow('Build checker ownership conflict');
+      expect(calls).toEqual([]);
     } finally {
       await fixture.cleanup();
     }
@@ -3258,10 +3227,10 @@ describe('runBuild', () => {
           config: {
             checkers: {
               tsc: {
-                include: ['packages/app/tsconfig.json'],
-              },
-              tsgo: {
-                include: ['packages/theme/tsconfig.json'],
+                include: [
+                  'packages/app/tsconfig.json',
+                  'packages/theme/tsconfig.json',
+                ],
               },
             },
           },
@@ -3277,7 +3246,7 @@ describe('runBuild', () => {
       expect(result.passed).toBe(true);
       expect(calls.map((target) => target.command).sort()).toEqual([
         'tsc',
-        'tsgo',
+        'tsc',
       ]);
       expect(delayed.getMaxActive()).toBe(2);
       expect(calls.map((target) => target.args)).toEqual(
@@ -3292,7 +3261,7 @@ describe('runBuild', () => {
           ],
           [
             '-b',
-            '.limina/tsconfig/checkers/tsgo/outputs/projects/packages/theme/tsconfig.output.json',
+            '.limina/tsconfig/checkers/tsc/outputs/projects/packages/theme/tsconfig.output.json',
             '--pretty',
             'false',
             '--watch',

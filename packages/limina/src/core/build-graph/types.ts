@@ -252,6 +252,7 @@ export type ProviderSelectionResult =
     };
 
 export interface AutoScope {
+  authoritativeChecker?: ResolvedCheckerConfig['name'];
   collection: CheckerSourceConfigCollection;
   entryConfigPath: string;
   frameworkEvidence: AutoFrameworkEvidence[];

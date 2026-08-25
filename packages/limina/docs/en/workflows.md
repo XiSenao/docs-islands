@@ -88,6 +88,8 @@ Limina uses the active checker to parse each reachable config. A config is a Typ
 
 `checker build` runs final build owners: `tsc -b`, `tsgo -b`, and `vue-tsc -b`. `tsgo` is backed by Microsoft's `@typescript/native-preview` package. `checker typecheck` runs final Astro and Svelte owners once per leaf config. Limina expands solution closures itself and deduplicates shared leaves.
 
+Named checker entries lock their complete terminal-leaf closure. Automatic evidence is evaluated only for still-pending configs. Before targets are created, solution leaves and accepted declaration relations are colored as components, so every internal declaration-provider relationship uses one identical build-checker identity.
+
 ### Why do package checks require a build first?
 
 ::: warning
@@ -96,11 +98,11 @@ They inspect the package output under `package.entries[].outDir`. That output mu
 
 ### Can workspace exports point to dist?
 
-Yes. Workspace package exports may point to source entries or built artifacts. Limina first requires the active resolver configuration to resolve every public export. Generated graph references are required for imports whose resolved entry is owned by a declaration project, with `liminaOptions.implicitRefs` available for real dynamic or virtual edges that static imports cannot prove. Built declarations such as `dist/*.d.ts` do not require project references. When an import resolves into `dist`, Limina reports an artifact dependency edge in the condition domain of the importing tsconfig. That edge is useful for review and diagnostics, but it is not a task-ordering guarantee.
+Yes. Workspace package exports may point to source entries or built artifacts. Limina first requires the active resolver configuration to resolve every public export. Generated graph references are required for imports whose resolved entry is owned source in a declaration project, with `liminaOptions.implicitRefs` available for real dynamic or virtual edges that static imports cannot prove. Built declarations such as `dist/*.d.ts` are artifact boundaries: they do not create manifest `declaration-provider` edges, generated project references, or output-build references. Limina may reverse-attribute a managed declaration to source for type evidence or diagnostics, but that attribution is not a build dependency or task-ordering guarantee.
 
 ### Should `Vue` or `Svelte` files be placed in the TypeScript graph?
 
-A type config containing Vue roots is owned by `vue-tsc`; a config containing Astro or Svelte roots is owned by its corresponding framework checker. Astro- and Svelte-owned configs do not generate declarations, so TypeScript that must emit declarations needs a separate `tsc`, `tsgo`, or `vue-tsc` boundary.
+In automatic scope, a type config containing Vue roots is owned by `vue-tsc`; a config containing Astro or Svelte roots is owned by its corresponding framework checker. An explicit owner is authoritative instead: Astro adds only `.astro` observation and Svelte adds only `.svelte` observation to TypeScript. Other configured source extensions remain proof coverage gaps. Astro- and Svelte-owned configs do not generate declarations, so TypeScript that must emit declarations needs a separate `tsc`, `tsgo`, or `vue-tsc` boundary.
 
 ### What is `--mode` for?
 

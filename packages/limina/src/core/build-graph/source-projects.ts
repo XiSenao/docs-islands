@@ -35,13 +35,14 @@ export function createSourceProject(options: {
   checkerName: SourceProject['checkerName'];
   checkerPreset: SourceProject['context']['checkerPresets'][number];
   config: ResolvedLiminaConfig;
+  discoveryExtensions?: string[];
   packageRootDir: string;
   projectConfigCache?: CheckerProjectConfigCache;
   sourceConfigPath: string;
 }): SourceProject {
   const parseContext: CheckerProjectParseContext = {
     checkerPresets: [options.checkerPreset],
-    extensions: [],
+    extensions: options.discoveryExtensions ?? [],
   };
   const parsed = parseCheckerProjectConfigForContext({
     allowNoInputDiagnostics: true,

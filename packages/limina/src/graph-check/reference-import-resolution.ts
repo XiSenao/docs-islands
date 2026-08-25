@@ -244,7 +244,6 @@ export function resolveImportForReferenceExpectation(
   const managed = resolveManagedOutput({
     context: options.context,
     graphResolvedFilePath,
-    importRecord: options.importRecord,
     project: options.project,
   });
   if (!managed) {

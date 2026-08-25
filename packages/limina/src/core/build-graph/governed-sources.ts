@@ -2,17 +2,13 @@ import type { CheckerProjectConfigCache } from '#checkers';
 import {
   createAstroSemanticProject,
   isBuildCapablePreset,
-  normalizeExtensions,
   parseCheckerProjectConfigForContext,
 } from '#checkers';
 import type { ResolvedLiminaConfig } from '#config/runner';
 import { uniqueCodeUnitSortedStrings as uniqueSortedStrings } from '#utils/collections';
-import { normalizeAbsolutePath } from '#utils/path';
 import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
 import { getFrameworkFilePackageRoot } from './framework-file-root';
-import { capabilityDiscoveryExtensions } from './generated/file-extensions';
 import { getGeneratedLeafSolutionBuildConfigPath } from './generated/paths';
-import { isInsideNodeModules } from './source-projects';
 import type {
   FrameworkCapabilityDescriptor,
   GovernedSourceUnit,
@@ -170,26 +166,18 @@ export function createGovernedSourceUnit(options: {
   project: SourceProject;
   projectConfigCache?: CheckerProjectConfigCache;
 }): GovernedSourceUnit {
-  const discoveryExtensions = normalizeExtensions([
-    ...capabilityDiscoveryExtensions,
-    ...options.project.context.extensions,
-  ]);
   const parsed = parseCheckerProjectConfigForContext({
     allowNoInputDiagnostics: true,
     cache: options.projectConfigCache,
     configPath: options.project.configPath,
     context: {
       checkerPresets: [...options.project.context.checkerPresets],
-      extensions: discoveryExtensions,
+      extensions: [...options.project.context.extensions],
       vueSemanticIdentity: options.project.context.vueSemanticIdentity,
     },
     projectRootDir: options.config.rootDir,
   });
-  const ownedFileNames = uniqueSortedStrings(
-    parsed.fileNames
-      .map(normalizeAbsolutePath)
-      .filter((fileName) => !isInsideNodeModules(fileName)),
-  );
+  const ownedFileNames = uniqueSortedStrings(options.project.ownedFileNames);
   const frameworkCapabilities = createFrameworkCapabilities({
     activatedRegions: options.activatedRegions,
     fileNames: ownedFileNames,
@@ -219,7 +207,7 @@ export function createGovernedSourceUnit(options: {
     configPath: options.project.configPath,
     context: {
       checkerPresets: [...options.project.context.checkerPresets],
-      extensions: [...parsed.extensions],
+      extensions: [...options.project.context.extensions],
       vueSemanticIdentity: options.project.context.vueSemanticIdentity,
     },
     declarationFileNames,

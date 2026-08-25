@@ -3,16 +3,15 @@ import type {
   ResolvedLiminaConfig,
 } from '#config/runner';
 import { compareCodeUnits } from '#utils/collections';
+import { toRelativePath } from '#utils/path';
 import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
 import {
   addFrameworkOutputProblems,
   synchronizeProjectionSolutionReferences,
 } from './build-projections';
-import { addCrossCheckerProviderCompatibilityProblems } from './cross-checker-compatibility';
 import {
   addDuplicateCheckerOwnershipProblems,
   addOverlappingCheckerEntryProblems,
-  addUnsupportedSourceConfigExtensionProblems,
 } from './generated/validation';
 import { createCheckerOutputGraph } from './output-graph';
 import type { GeneratedGraphPreparationState } from './prepare-state';
@@ -90,12 +89,40 @@ function addProjectValidationProblems(options: {
     problems: options.state.problems,
     projects: options.allProjects,
   });
-  addUnsupportedSourceConfigExtensionProblems({
-    config: options.config,
-    problems: options.state.problems,
-    projectConfigCache: options.projectConfigCache,
-    projects: options.allPrimaryProjects,
-  });
+}
+
+function addDeclarationCheckerInvariantProblems(options: {
+  config: ResolvedLiminaConfig;
+  state: GeneratedGraphPreparationState;
+}): void {
+  options.state.problems.push(
+    ...options.state.dependencyEdges
+      .filter(isInvalidDeclarationCheckerEdge)
+      .map((edge) => formatDeclarationCheckerInvariant(options.config, edge)),
+  );
+}
+
+function isInvalidDeclarationCheckerEdge(
+  edge: GeneratedGraphPreparationState['dependencyEdges'][number],
+): boolean {
+  return (
+    edge.kind === 'declaration-provider' &&
+    (edge.fromChecker !== edge.toChecker || edge.cacheReuse !== 'reusable')
+  );
+}
+
+function formatDeclarationCheckerInvariant(
+  config: ResolvedLiminaConfig,
+  edge: GeneratedGraphPreparationState['dependencyEdges'][number],
+): string {
+  return [
+    'Build checker ownership invariant failed:',
+    `  consumer: ${edge.fromChecker} (${toRelativePath(config.rootDir, edge.fromConfigPath)})`,
+    `  provider: ${edge.toChecker} (${toRelativePath(config.rootDir, edge.toConfigPath)})`,
+    `  import: ${edge.file} -> ${edge.importedSpecifier}`,
+    '  reason: every internal declaration-provider edge must use one identical build checker and reusable cache domain.',
+    '  fix: align checker ownership or split the declaration boundary.',
+  ].join('\n');
 }
 
 function addInferredReferences(options: {
@@ -242,12 +269,7 @@ export function validateAndCompleteGeneratedGraph(options: {
     allProjects,
   });
   synchronizeBuildProjectionSolutions(options.state);
-  addCrossCheckerProviderCompatibilityProblems({
-    config: options.config,
-    problems: options.state.problems,
-    projects: allProjects,
-    dependencyEdges: options.state.dependencyEdges,
-  });
+  addDeclarationCheckerInvariantProblems(options);
   addCheckerOutputGraphs({ ...options, allProjects });
   options.state.dependencyEdges.sort(compareDependencyEdges);
   if (options.state.problems.length > 0) {

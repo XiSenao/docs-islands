@@ -1,6 +1,5 @@
 import type { ResolvedLiminaConfig } from '#config/runner';
 import { compareCodeUnits } from '#utils/collections';
-import { createManagedOutputDeclarationLookup } from '../import-graph/managed-output-provider';
 import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
 import {
   type GovernedBuildOwner,
@@ -8,10 +7,7 @@ import {
 } from './framework-reference-inference';
 import { addImplicitProjectReferences } from './implicit-references';
 import { resolveBuildGraphImportAnalysis } from './import-analysis-context';
-import {
-  createDtsProjectsBySourcePath,
-  createManagedOutputProjectContexts,
-} from './project-indexes';
+import { createDtsProjectsBySourcePath } from './project-indexes';
 import {
   processProjectReferenceImports,
   type ReferenceImportContext,
@@ -156,9 +152,6 @@ export function inferProjectReferences(options: {
     dtsProjectsBySourcePath: createDtsProjectsBySourcePath(ownerProjects),
     fileOwnerLookup: createOwnerLookup(ownerGovernedSources),
     importAnalysis: resolveBuildGraphImportAnalysis(options),
-    managedOutputLookup: createManagedOutputDeclarationLookup(
-      createManagedOutputProjectContexts(ownerProjects),
-    ),
     problems,
     dependencyEdgesByKey,
     semanticProblemIdentities: new Set(),

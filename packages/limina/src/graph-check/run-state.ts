@@ -21,6 +21,7 @@ import {
 import type { WorkspaceLookupIndex } from '../core/workspace/lookup';
 import { type LiminaPreflightManager, resolvePreflight } from '../preflight';
 import {
+  alignProjectOwnedFilesWithGeneratedGraph,
   createGeneratedGraphPathAliases,
   createGraphCheckManagedOutputProjectContexts,
   createWorkspaceExportsResolutionProfiles,
@@ -93,11 +94,14 @@ export async function createGraphCheckState(
   const graphRoute = await preflight.ensureSourceGraphProjectExtensions();
   const projectPaths = [...graphRoute.projectExtensionsByPath.keys()].sort();
   const workspaceLookup = await preflight.ensureWorkspaceLookupIndex();
-  const projects = await collectProjects({
-    graphRoute,
-    preflight,
-    projectPaths,
-    workspaceLookup,
+  const projects = alignProjectOwnedFilesWithGeneratedGraph({
+    generatedGraph,
+    projects: await collectProjects({
+      graphRoute,
+      preflight,
+      projectPaths,
+      workspaceLookup,
+    }),
   });
   const projectsByPath = new Map(
     projects.map((project) => [project.configPath, project]),

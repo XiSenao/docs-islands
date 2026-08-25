@@ -1,8 +1,11 @@
 import type { CheckerProjectConfigCache } from '#checkers';
-import type { ResolvedLiminaConfig } from '#config/runner';
+import type { CheckerName, ResolvedLiminaConfig } from '#config/runner';
 import { compareCodeUnits } from '#utils/collections';
 import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
-import { createAutoScopeProject } from './auto-checker-project';
+import {
+  createAutoScopeProject,
+  createExplicitScopeProject,
+} from './auto-checker-project';
 import type { AutoCheckerPreset } from './auto-checker-types';
 import { inspectFrameworkIntent } from './framework-intent';
 import { capabilityDiscoveryExtensions } from './generated/file-extensions';
@@ -13,7 +16,10 @@ import {
 } from './source-capabilities';
 import { collectCheckerSourceConfigModules } from './source-config-collection';
 import type { CollectAutoSourceConfigModulesOptions } from './source-config-collection-types';
-import { createEmptySourceConfigCollection } from './source-config-root-collection';
+import {
+  collectCheckerSourceConfigs,
+  createEmptySourceConfigCollection,
+} from './source-config-root-collection';
 import type { AutoScope } from './types';
 
 function setAutoRootConfigPaths(scope: AutoScope): void {
@@ -123,6 +129,57 @@ export function collectAutoScope(options: {
 }): AutoScope | null {
   const scope = createAutoScope(options);
   return scope.collection.projectConfigPaths.size > 0 ? scope : null;
+}
+
+function getExplicitParsing(checkerName: CheckerName): {
+  checkerPreset: CheckerName;
+  discoveryExtensions: string[];
+} {
+  if (checkerName === 'astro') {
+    return { checkerPreset: 'tsc', discoveryExtensions: ['.astro'] };
+  }
+  if (checkerName === 'svelte-check') {
+    return { checkerPreset: 'tsc', discoveryExtensions: ['.svelte'] };
+  }
+  return { checkerPreset: checkerName, discoveryExtensions: [] };
+}
+
+export function collectExplicitScope(options: {
+  activatedRegions: WorkspaceRegionPathIndex;
+  checkerName: CheckerName;
+  config: ResolvedLiminaConfig;
+  entryConfigPath: string;
+  projectConfigCache?: CheckerProjectConfigCache;
+}): AutoScope | null {
+  const parsing = getExplicitParsing(options.checkerName);
+  const collection = collectCheckerSourceConfigs({
+    activatedRegions: options.activatedRegions,
+    checkerName: options.checkerName,
+    checkerPreset: parsing.checkerPreset,
+    config: options.config,
+    discoveryExtensions: parsing.discoveryExtensions,
+    entryConfigPaths: [options.entryConfigPath],
+    projectConfigCache: options.projectConfigCache,
+  });
+  const projects = [...collection.projectConfigPaths]
+    .sort(compareCodeUnits)
+    .map((configPath) =>
+      createExplicitScopeProject({
+        ...options,
+        configPath,
+        packageRootDir: collection.packageRootBySourcePath.get(configPath)!,
+      }),
+    );
+  if (collection.projectConfigPaths.size === 0) {
+    return null;
+  }
+  return {
+    authoritativeChecker: options.checkerName,
+    collection,
+    entryConfigPath: options.entryConfigPath,
+    frameworkEvidence: [],
+    projects,
+  };
 }
 
 export function classifyAutoScope(scope: AutoScope): AutoCheckerPreset {

@@ -77,6 +77,42 @@ function createCore(rootDir: string): TypeEvidenceCore {
 }
 
 describe('TypeScript resource type evidence', () => {
+  it('classifies a resolved TypeScript implementation as checker source', async () => {
+    const fixture = await createFixture({
+      'src/index.ts': "import { value } from './provider';\nvoid value;\n",
+      'src/provider.ts': 'export const value = 1;\n',
+    });
+    const indexPath = path.join(fixture.rootDir, 'src/index.ts');
+    const providerPath = path.join(fixture.rootDir, 'src/provider.ts');
+    const core = createCore(fixture.rootDir);
+    const project = createProject({
+      fileNames: [indexPath, providerPath],
+      rootDir: fixture.rootDir,
+    });
+
+    try {
+      const [importRecord] = createImportAnalysisContext({
+        projectRootDir: fixture.rootDir,
+      }).collectImportsFromFile(indexPath, fixture.rootDir);
+
+      expect(
+        core.resolveImportEvidence({
+          checkerName: 'tsc',
+          importRecord: importRecord!,
+          project,
+        }).type,
+      ).toEqual({
+        filePath: toPortablePath(providerPath),
+        kind: 'checker-source',
+      });
+      expect(core.cache.typeEvidenceProviderCache.size).toBe(0);
+      expect(core.cache.programCache.size).toBe(0);
+    } finally {
+      core.dispose();
+      await fixture.cleanup();
+    }
+  });
+
   it('finds local ambient evidence and reuses one Program for duplicate imports', async () => {
     const fixture = await createFixture({
       'src/assets.d.ts': [

@@ -8,7 +8,6 @@ import type {
   TypeConfigOwnershipState,
 } from './checker-ownership-types';
 import { createGeneratedGraphStructuredError } from './problems';
-import type { AutoScope } from './types';
 
 function formatLocalConflict(options: {
   config: ResolvedLiminaConfig;
@@ -47,6 +46,37 @@ function addEvidenceIfMissing(
   if (!exists) state.evidence.push({ ...evidence });
 }
 
+function addAuthoritativeCheckerRequirement(options: {
+  checker: CheckerName;
+  config: ResolvedLiminaConfig;
+  detail: string;
+  evidenceConfigPath: string;
+  state: TypeConfigOwnershipState;
+}): string | null {
+  const current = options.state.authoritativeOwner;
+  if (current !== undefined && current !== options.checker) {
+    return [
+      'Checker ownership conflict:',
+      `  config: ${toRelativePath(options.config.rootDir, options.state.configPath)}`,
+      `  authoritative checker: ${current}`,
+      `  incompatible authoritative checker: ${options.checker}`,
+      `  evidence: ${options.detail}`,
+      '  reason: overlapping explicit checker domains require one identical owner.',
+    ].join('\n');
+  }
+  options.state.authoritativeOwner = options.checker;
+  return addLocalCheckerRequirement({
+    config: options.config,
+    evidence: {
+      checker: options.checker,
+      configPath: options.evidenceConfigPath,
+      detail: options.detail,
+      source: 'explicit',
+    },
+    state: options.state,
+  });
+}
+
 export function addLocalCheckerRequirement(options: {
   config: ResolvedLiminaConfig;
   evidence: CheckerEvidence;
@@ -65,7 +95,7 @@ export function addLocalCheckerRequirement(options: {
   return formatLocalConflict({ ...options, current: current.checker });
 }
 
-function addSolutionRequirement(options: {
+export function addSolutionRequirement(options: {
   checker: CheckerName;
   config: ResolvedLiminaConfig;
   detail: string;
@@ -85,7 +115,7 @@ function addSolutionRequirement(options: {
   ].join('\n');
 }
 
-function problemArray(problem: string | null): string[] {
+export function problemArray(problem: string | null): string[] {
   return problem === null ? [] : [problem];
 }
 
@@ -103,18 +133,30 @@ function applyExplicitRequirement(options: {
       detail: 'explicit named checker include',
       solution,
     });
-    return problemArray(problem);
+    return [
+      ...problemArray(problem),
+      ...solution.leafConfigPaths.flatMap((leafConfigPath) => {
+        const state = options.plan.typeConfigs.get(leafConfigPath);
+        if (state === undefined) return [];
+        return problemArray(
+          addAuthoritativeCheckerRequirement({
+            checker: options.checker,
+            config: options.config,
+            detail: `explicit solution ${toRelativePath(options.config.rootDir, options.entryPath)} owns this terminal leaf`,
+            evidenceConfigPath: options.entryPath,
+            state,
+          }),
+        );
+      }),
+    ];
   }
   const state = options.plan.typeConfigs.get(options.entryPath);
   if (state === undefined) return [];
-  const problem = addLocalCheckerRequirement({
+  const problem = addAuthoritativeCheckerRequirement({
+    checker: options.checker,
     config: options.config,
-    evidence: {
-      checker: options.checker,
-      configPath: options.entryPath,
-      detail: 'explicit named checker include',
-      source: 'explicit',
-    },
+    detail: 'explicit named checker include',
+    evidenceConfigPath: options.entryPath,
     state,
   });
   return problemArray(problem);
@@ -127,67 +169,6 @@ export function applyExplicitRequirements(options: {
 }): string[] {
   return [...options.explicitOwnerByEntryPath].flatMap(([entryPath, checker]) =>
     applyExplicitRequirement({ ...options, checker, entryPath }),
-  );
-}
-
-function familyChecker(family: 'astro' | 'svelte' | 'vue'): CheckerName {
-  if (family === 'svelte') return 'svelte-check';
-  return family === 'vue' ? 'vue-tsc' : 'astro';
-}
-
-function applyConfigHint(options: {
-  config: ResolvedLiminaConfig;
-  configPath: string;
-  hint: AutoScope['frameworkEvidence'][number]['intentHints'][number];
-  plan: CheckerOwnershipPlan;
-}): string[] {
-  const checker = familyChecker(options.hint.family);
-  const detail = `${options.hint.kind}: ${options.hint.value}`;
-  const solution = options.plan.solutions.get(options.configPath);
-  if (solution !== undefined) {
-    const problem = addSolutionRequirement({
-      checker,
-      config: options.config,
-      detail,
-      solution,
-    });
-    return problemArray(problem);
-  }
-  const state = options.plan.typeConfigs.get(options.configPath);
-  if (state === undefined) return [];
-  const problem = addLocalCheckerRequirement({
-    config: options.config,
-    evidence: {
-      checker,
-      configPath: options.configPath,
-      detail,
-      source: 'config',
-    },
-    state,
-  });
-  return problemArray(problem);
-}
-
-export function applyConfigEvidence(options: {
-  config: ResolvedLiminaConfig;
-  plan: CheckerOwnershipPlan;
-  scopes: readonly AutoScope[];
-}): string[] {
-  const seen = new Set<string>();
-  return options.scopes.flatMap((scope) =>
-    scope.frameworkEvidence.flatMap((frameworkEvidence) =>
-      frameworkEvidence.intentHints.flatMap((hint) => {
-        const checker = familyChecker(hint.family);
-        const identity = `${frameworkEvidence.configPath}\0${checker}\0${hint.kind}\0${hint.value}`;
-        if (seen.has(identity)) return [];
-        seen.add(identity);
-        return applyConfigHint({
-          ...options,
-          configPath: frameworkEvidence.configPath,
-          hint,
-        });
-      }),
-    ),
   );
 }
 
@@ -246,6 +227,7 @@ export function applyRootFileEvidence(options: {
 }): string[] {
   return [...options.projectByConfigPath.values()].flatMap((project) => {
     const state = options.plan.typeConfigs.get(project.configPath)!;
+    if (state.authoritativeOwner !== undefined) return [];
     return collectRootRequirements(project).flatMap((requirement) =>
       applyRootRequirement({ ...options, project, requirement, state }),
     );

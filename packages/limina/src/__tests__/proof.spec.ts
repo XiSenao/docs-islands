@@ -1,6 +1,7 @@
 import type { ResolvedLiminaConfig } from '#config/runner';
 import type { GeneratedTsconfigGraphResult } from '#core/build-graph/runner';
 import { normalizeAbsolutePath } from '#utils/path';
+import { existsSync, readFileSync } from 'node:fs';
 import {
   mkdir,
   mkdtemp,
@@ -34,6 +35,28 @@ import { prepareAndMaterializeGeneratedTsconfigGraph } from './helpers/generated
 import { toPortablePath } from './helpers/path';
 
 const requireFromTest = createRequire(import.meta.url);
+
+function resolveInstalledPackageRoot(
+  installedName: string,
+  packageName: string,
+): string {
+  let directory = path.dirname(requireFromTest.resolve(installedName));
+
+  while (true) {
+    const manifestPath = path.join(directory, 'package.json');
+    if (existsSync(manifestPath)) {
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+        name?: string;
+      };
+      if (manifest.name === packageName) return directory;
+    }
+    const parent = path.dirname(directory);
+    if (parent === directory) {
+      throw new Error(`Unable to find the ${packageName} package root.`);
+    }
+    directory = parent;
+  }
+}
 
 async function writeText(filePath: string, text: string): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
@@ -1949,6 +1972,80 @@ describe('runProofCheck dts config semantics', () => {
       expect(issueFiles).not.toContain('packages/pkg/fixtures/ignored.vue');
     } finally {
       errorSpy.mockRestore();
+      await fixture.cleanup();
+    }
+  });
+
+  it('reports Vue and Svelte files outside an explicit Astro owner observation set', async () => {
+    const fixture = await createFixture({
+      'packages/app/src/component.svelte': '<h1>Svelte</h1>\n',
+      'packages/app/src/component.vue': '<template><h1>Vue</h1></template>\n',
+      'packages/app/src/index.ts': 'export const value = 1;\n',
+      'packages/app/src/page.astro': '<h1>Astro</h1>\n',
+      'packages/app/.astro/types.d.ts': 'declare module "astro:content" {}\n',
+      'packages/app/package.json': JSON.stringify({
+        devDependencies: {
+          '@astrojs/check': '0.9.10',
+          astro: '7.2.0',
+          typescript: '6.0.3',
+        },
+        name: '@fixture/app',
+        private: true,
+      }),
+      'packages/app/tsconfig.json': JSON.stringify({
+        include: ['src/**/*'],
+      }),
+    });
+
+    try {
+      for (const [installedName, packageName] of [
+        ['astro-v7-current', 'astro'],
+        ['@astrojs/check', '@astrojs/check'],
+        ['typescript', 'typescript'],
+      ] as const) {
+        const targetPath = path.join(
+          fixture.rootDir,
+          'packages/app/node_modules',
+          packageName,
+        );
+        await mkdir(path.dirname(targetPath), { recursive: true });
+        await symlink(
+          resolveInstalledPackageRoot(installedName, packageName),
+          targetPath,
+          'junction',
+        );
+      }
+      const config: ResolvedLiminaConfig = {
+        ...fixture.config,
+        config: {
+          checkers: {
+            astro: {
+              include: ['packages/app/tsconfig.json'],
+            },
+          },
+          source: {
+            include: ['packages/app/src/**/*'],
+          },
+        },
+      };
+      const graph = await prepareAndMaterializeGeneratedTsconfigGraph(config);
+      expect(
+        [...(graph.governedSources.get('astro')?.values() ?? [])].flatMap(
+          (source) =>
+            source.ownedFileNames.map((filePath) => path.basename(filePath)),
+        ),
+      ).toEqual(['index.ts', 'page.astro']);
+      const result = await collectProofIssues(config);
+      const uncoveredFiles = collectUncoveredSourceIssueFiles(result.issues);
+
+      expect(result.passed).toBe(false);
+      expect(uncoveredFiles).toEqual([
+        'packages/app/src/component.svelte',
+        'packages/app/src/component.vue',
+      ]);
+      expect(uncoveredFiles).not.toContain('packages/app/src/index.ts');
+      expect(uncoveredFiles).not.toContain('packages/app/src/page.astro');
+    } finally {
       await fixture.cleanup();
     }
   });

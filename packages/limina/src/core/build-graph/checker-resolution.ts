@@ -3,6 +3,7 @@ import type {
   ResolvedLiminaConfig,
 } from '#config/runner';
 import { collectRawWorkspacePackages } from '#core/workspace/actions';
+import { VueSemanticContextManager } from '../vue-semantic/context';
 import {
   collectValidatedWorkspaceContext,
   WorkspaceRegionPathIndex,
@@ -45,18 +46,70 @@ export async function resolveGeneratedGraphCheckers(
     | 'workspacePathIndex'
   > = {},
 ): Promise<ResolvedCheckerConfig[]> {
-  const workspaceContext =
-    options.workspaceContext ??
-    (await collectValidatedWorkspaceContext({
-      config,
-      rawPackages: await collectRawWorkspacePackages(config),
-    }));
-  const resolution = await resolveGeneratedGraphCheckerSelections({
+  const workspaceContext = await resolveCheckerWorkspaceContext({
+    config,
+    workspaceContext: options.workspaceContext,
+  });
+  const ownedImportAnalysis = createOwnedImportAnalysis({
     config,
     importAnalysisContext: options.importAnalysisContext,
-    projectConfigCache: options.projectConfigCache,
-    workspaceContext,
-    workspacePathIndex: options.workspacePathIndex,
   });
-  return resolution.selections.map(({ checker }) => checker);
+  try {
+    const resolution = await resolveGeneratedGraphCheckerSelections({
+      config,
+      importAnalysisContext: ownedImportAnalysis.context,
+      projectConfigCache: options.projectConfigCache,
+      workspaceContext,
+      workspacePathIndex: options.workspacePathIndex,
+    });
+    return resolution.selections.map(({ checker }) => checker);
+  } finally {
+    disposeOwnedImportAnalysis(ownedImportAnalysis);
+  }
+}
+
+async function resolveCheckerWorkspaceContext(options: {
+  config: ResolvedLiminaConfig;
+  workspaceContext: PrepareGeneratedTsconfigGraphOptions['workspaceContext'];
+}): Promise<
+  NonNullable<PrepareGeneratedTsconfigGraphOptions['workspaceContext']>
+> {
+  if (options.workspaceContext !== undefined) {
+    return options.workspaceContext;
+  }
+  return collectValidatedWorkspaceContext({
+    config: options.config,
+    rawPackages: await collectRawWorkspacePackages(options.config),
+  });
+}
+
+function createOwnedImportAnalysis(options: {
+  config: ResolvedLiminaConfig;
+  importAnalysisContext: PrepareGeneratedTsconfigGraphOptions['importAnalysisContext'];
+}): {
+  context: NonNullable<
+    PrepareGeneratedTsconfigGraphOptions['importAnalysisContext']
+  >;
+  dispose?: () => void;
+} {
+  if (options.importAnalysisContext !== undefined) {
+    return {
+      context: options.importAnalysisContext,
+    };
+  }
+
+  const vueSemanticContexts = new VueSemanticContextManager();
+  return {
+    context: resolveBuildGraphImportAnalysis({
+      config: options.config,
+      vueSemanticContexts,
+    }),
+    dispose: () => vueSemanticContexts.dispose(),
+  };
+}
+
+function disposeOwnedImportAnalysis(options: { dispose?: () => void }): void {
+  if (options.dispose) {
+    options.dispose();
+  }
 }

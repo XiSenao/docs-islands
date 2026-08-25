@@ -160,24 +160,6 @@ export function addMissingOwnedDeclarationProviderProblem(
   );
 }
 
-function resolveDeclarationTarget(options: {
-  base: ReferenceImportOptions;
-  resolvedFilePath: string;
-}): ReferenceTarget | null {
-  const attribution = options.base.context.managedOutputLookup.resolve(
-    options.resolvedFilePath,
-    options.base.project.checkerName,
-  );
-  if (!attribution) {
-    return null;
-  }
-  return {
-    providerSourceFilePath: attribution.mappedSourceFilePath,
-    resolvedFilePath: options.resolvedFilePath,
-    targetSourceConfigPath: attribution.sourceConfigPath,
-  };
-}
-
 function resolveSourceTarget(options: {
   base: ReferenceImportOptions;
   provider: Extract<ResolvedProvider, { kind: 'source' }>;
@@ -199,13 +181,10 @@ function resolveSourceTarget(options: {
 
 function resolveProviderTarget(options: {
   base: ReferenceImportOptions;
-  provider: ResolvedProvider;
+  provider: Extract<ResolvedProvider, { kind: 'source' }>;
 }): ReferenceTarget | null {
   const resolvedFilePath =
     options.provider.typeScriptResolution.resolvedFileName;
-  if (options.provider.kind === 'declaration') {
-    return resolveDeclarationTarget({ base: options.base, resolvedFilePath });
-  }
   return resolveSourceTarget({
     base: options.base,
     provider: options.provider,
@@ -217,6 +196,7 @@ export function createReferenceTarget(options: {
   base: ReferenceImportOptions;
   provider: ResolvedProvider;
 }): ReferenceTarget | null {
+  if (options.provider.kind === 'declaration') return null;
   const resolvedFilePath =
     options.provider.typeScriptResolution.resolvedFileName;
   if (
@@ -237,7 +217,10 @@ export function createReferenceTarget(options: {
     );
     return null;
   }
-  return resolveProviderTarget(options);
+  return resolveProviderTarget({
+    base: options.base,
+    provider: options.provider,
+  });
 }
 
 export function isValidReferenceTarget(

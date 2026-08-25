@@ -158,7 +158,10 @@ function getCheckerParsingOptions(
   if (isBuildCapablePreset(checkerName)) {
     return { checkerPreset: checkerName };
   }
-  return { checkerPreset: 'tsc', discoveryExtensions: ['.astro', '.svelte'] };
+  return {
+    checkerPreset: 'tsc',
+    discoveryExtensions: checkerName === 'astro' ? ['.astro'] : ['.svelte'],
+  };
 }
 
 function createGraphSolutions(options: {
@@ -209,6 +212,7 @@ export function prepareCheckerGraph(options: {
         checkerName: options.selection.checker.name,
         checkerPreset: parsing.checkerPreset,
         config: options.config,
+        discoveryExtensions: parsing.discoveryExtensions,
         packageRootDir: getPackageRootDir({
           activatedRegions: options.activatedRegions,
           sourceConfigPath,

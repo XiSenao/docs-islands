@@ -56,7 +56,7 @@ export function resolveImportPair(options: {
 function resolveCheckerSourceEvidence(
   resolution: ResolvedImportPair['typeScriptResolution'],
 ): TypeEvidence | null {
-  return resolution?.resolvedBy === 'checker-source'
+  return resolution !== null && !isDeclarationFile(resolution.resolvedFileName)
     ? {
         filePath: resolution.resolvedFileName,
         kind: 'checker-source',

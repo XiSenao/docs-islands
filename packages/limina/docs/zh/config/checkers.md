@@ -71,7 +71,7 @@ export default defineConfig({
 });
 ```
 
-`useTsgo` 只改变完成 framework analysis 后仍属于普通 TypeScript 的 config 的最终 fallback。Vue promotion 只沿 `consumer -> provider` dependency edge，从 Vue provider 向 pending consumer 反向传播；它不会遍历无向 component，也不会覆盖已经 resolved 的 owner。
+`useTsgo` 只改变 framework analysis 后仍未染色的 build component 的 fallback。在生成 checker 路径之前，Limina 会合并必须共享声明缓存的 build-capable leaf：同一 solution 的 leaf，以及被有效源码 import 或 `liminaOptions.implicitRefs` 连接的 config。component 中只有一个已知 `tsc`、`tsgo` 或 `vue-tsc` identity 时，它会染色整个 component；没有颜色时使用 fallback；存在两个不同 identity 时 graph prepare 失败。
 
 Vue 能力由检查器实际解析出的文件集合确认，不能只看 `vueCompilerOptions`。Limina 会先遍历入口、solution、被引用 leaf 和有效 `extends`，再让 Vue parser 解析真实扩展名和文件。只有确实存在匹配文件时，自定义 Vue 扩展才会切到 `vue-tsc`；只有配置提示而没有实际模块时，不会改变归属。
 
@@ -94,17 +94,17 @@ interface CheckerScope {
 
 Limina 区分 solution config 与 terminal type config。Solution 只组织 references，本身不是 Astro、Svelte 或 Vue execution target。Limina 会递归展开 nested solution，用规范化路径对 terminal type config 去重，并对每个 leaf 执行一次选定 checker。
 
-Solution 上的 named checker 是 declared constraint，不会提前改写每个 pending leaf 的 local owner。Constraint 在 solution/leaf 二部图上跨 overlapping solution 与 shared pending leaf 传播至 fixed point。Pending leaf 仍继续参加 root-file 与 dependency analysis；如果后续 local evidence 要求另一个 checker，prepare 会报告 checker ownership conflict，而不是隐藏证据。
+Named checker 对完整 terminal-leaf closure 具有权威性。Config hint、effective root file、dependency requirement 与 Vue promotion 都不会改写这个域。相同 checker 的 overlapping named scope 会合并 evidence；不同 checker identity 覆盖同一 terminal leaf 时 graph prepare 失败。
 
-所有 evidence 与 fallback 完成后，一个 solution 的所有 leaf 必须拥有相同 final owner。不同 standalone config 拥有不同 owner 仍然合法；typed dependency edge 会保留它们的执行顺序。
+Default solution 可以直接引用 named terminal config，例如 `tsconfig.json -> tsconfig.node.json`。Nested solution 自身必须使用默认名称，例如 `tsconfig.json -> packages/lib/tsconfig.json -> packages/lib/tsconfig.lib.json`。声明 references 的 named config 不能作为中间 solution。
 
 `tsconfig.lib.json`、`tsconfig.test.json` 等非入口配置，只有被已选 `tsconfig.json` 入口引用时才会进入治理图。生成配置都位于 Limina 的 `.limina` namespace；用户配置和诊断继续使用源码配置路径。
 
 ## Framework ownership 与 dependency boundary
 
-Config selector、checker-aware effective root file、missing-type dependency evidence 与 directed Vue promotion 都可以形成 local ownership evidence。一个 type config 可以同时包含 TS/JS 与一个 framework family；两个 framework root family、两个 explicit owner，或 resolved owner 与不兼容 requirement 都会 fail closed。
+在自动 scope 中，checker-aware effective root file、dependency evidence 与 Vue promotion 可以解析 pending owner。显式 scope 会跳过这些隐式 owner 推断，但仍参与依赖构图。一个 type config 可以同时包含 TS/JS 与一个 framework family；冲突的自动 framework evidence 会 fail closed。
 
-Dependency analysis 会扫描所有 managed type config，包括 local owner 已经 resolved 的 config。Limina 会先完整收集一个 config 的全部 import requirement，再统一归约。Pending config 即使收到 solution constraint，也始终使用 neutral TypeScript semantic context；Astro/Svelte-owned config 中的 TS/JS import 同样使用 neutral TypeScript evidence，因为这些 external checker 目前不是 TypeEvidence provider。
+显式 Astro owner 观测 TypeScript 文件与 `.astro`；显式 Svelte owner 观测 TypeScript 文件与 `.svelte`；显式 `vue-tsc` owner 观测 TypeScript 与 checker 实际解析出的 Vue 扩展。一个 framework 名称不会顺带加入其他 framework 扩展。位于 proof source boundary 内、但 final owner 无法观测的文件，不会仅因存在就阻断 graph prepare；`proof check` 会以 `LIMINA_PROOF_UNCOVERED_SOURCE_FILE` 报告。
 
 `ambient`、`concrete-declaration` 与 `checker-source` evidence 会建立 TypeScript domain boundary。只有 `missing` 才继续 physical resolution；`unsupported-checker` 会 fail closed。Physical target 只有实际属于唯一 managed file set 时才能传播 framework requirement。目录接近、nearest package、nearest tsconfig 与 excluded file 都不能证明 ownership。Side-effect import 与消费 export 的 import 使用相同规则。
 
@@ -153,14 +153,14 @@ TypeScript peer range 是 `>=5.4.0 <5.10.0 || >=6.0.0 <6.1.0`。Astro `7.0.0` �
 
 semantic resolver 只确认 target；runtime classification、源码 ownership、provider 选择、scheduling 与 graph policy 仍由 Limina 决定：
 
-| Astro 源码 target | 图策略                                                                          |
-| ----------------- | ------------------------------------------------------------------------------- |
-| `.astro`          | framework scheduling                                                            |
-| `.svelte`         | framework scheduling                                                            |
-| `.vue`            | Astro 确认物理 target，再进入现有 Vue-owned declaration/checker provider policy |
-| `.ts` / `.tsx`    | TypeScript declaration-provider policy                                          |
+| Astro 源码 target | 图策略                                                            |
+| ----------------- | ----------------------------------------------------------------- |
+| `.astro`          | framework scheduling                                              |
+| `.svelte`         | framework scheduling                                              |
+| `.vue`            | Astro 确认物理 target，再记录到 Vue owner 的 framework scheduling |
+| `.ts` / `.tsx`    | 到 target build owner 的 framework scheduling                     |
 
-对于 `A.astro -> B.vue -> C.ts`，`A -> B` 始终由 Astro pipeline 负责。只有独立分析 `B.vue` 源码时才使用 Vue semantic resolution，因此 Vue 不会重新解释写在 `A.astro` 中的 import。`.astro` 与 `.svelte` 仍不会进入生成声明的 `files`；这不影响它们的真实 import 形成合法 scheduling 或 declaration-provider relationship。
+对于 `A.astro -> B.vue -> C.ts`，`A -> B` 始终由 Astro pipeline 负责。只有独立分析 `B.vue` 源码时才使用 Vue semantic resolution，因此 Vue 不会重新解释写在 `A.astro` 中的 import。`.astro` 与 `.svelte` 仍不会进入生成声明的 `files`；它们真实的跨 owner import 仍可形成 framework scheduling，而 declaration-provider edge 始终位于同一个 build-checker identity 内。
 
 ## Vue 源码与语义 import 分析
 
@@ -187,7 +187,7 @@ Vue import 收集不再提供配置字段。Limina 始终从 inline `<script>`�
 
 Limina 不再提供 compiler-sfc 专属的 duplicate script block 或 `<script setup src>` 结构诊断；SFC 是否有效由 Vue checker 与 editor tooling 负责。Limina 只在自身分析边界内报告源码 provenance、resolution 与 graph failure。
 
-## 跨检查器依赖与缓存复用
+## 声明依赖与检查器 identity
 
 Limina 会区分声明依赖和框架调度依赖：
 
@@ -196,15 +196,7 @@ Limina 会区分声明依赖和框架调度依赖：
 
 provider 会先于 consumer 运行。纯 framework-scheduling cycle 会作为一个调度 component 执行；declaration cycle 仍然失败。
 
-缓存复用是有方向的：
-
-| Consumer              | Provider      | 可以复用缓存 |
-| --------------------- | ------------- | ------------ |
-| 相同 checker identity | 相同 identity | 是           |
-| `vue-tsc`             | `tsc`         | 是           |
-| 其他跨 identity 组合  | 不同 identity | 否           |
-
-如果 consumer 能编译 provider 的完整 declaration closure，Limina 会保留 reference。无法复用缓存时，会在首个 build target 启动前警告：底层工具可能重复构建或造成 cache churn。如果 consumer 不能处理 provider closure，图准备会直接失败。例如，`tsc` 或 `tsgo` consumer 不能依赖包含 `.vue` 或自定义 Vue 扩展的 provider closure。
+每条成功生成的 `declaration-provider` edge 两端都具有完全相同的 `tsc`、`tsgo` 或 `vue-tsc` identity，并在 manifest version 5 中记录 `cacheReuse: "reusable"`。因此 canonical declaration relation 会在生成 config 与 target 物化前染色整个 build component。component 已包含不同 build identity 时，graph prepare 会失败，不再保留跨 checker reference，也不再发出 cache-churn warning。`framework-schedule` 不是 compiler project reference，因此仍可跨 checker identity。
 
 ## 从 alias 与 `preset` 迁移
 

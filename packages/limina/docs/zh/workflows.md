@@ -88,6 +88,8 @@ Limina 会使用当前检查器解析每个可达配置。解析后的有效文�
 
 `checker build` 会运行 final build owner，也就是 `tsc -b`、`tsgo -b` 和 `vue-tsc -b`。`tsgo` 由 Microsoft 的 `@typescript/native-preview` package 提供。`checker typecheck` 会对 final owner 为 Astro 或 Svelte 的 config 按 leaf 执行一次；solution closure 由 Limina 自己展开，共享 leaf 会去重。
 
+Named checker entry 会锁定完整 terminal-leaf closure；自动 evidence 只处理仍为 pending 的 config。创建 target 前，solution leaf 与有效 declaration relation 会按 component 统一染色，因此每条内部 declaration-provider relationship 都使用完全相同的 build-checker identity。
+
 ### 为什么包检查需要先构建？
 
 ::: warning
@@ -96,11 +98,11 @@ Limina 会使用当前检查器解析每个可达配置。解析后的有效文�
 
 ### 工作区导出可以指向 dist 吗？
 
-可以。工作区包导出可以指向源码入口，也可以指向构建产物。Limina 会先要求当前解析配置能解析每个公开导出。只有实际导入的入口解析到声明项目管辖的文件时，生成图才要求对应引用；真实存在但静态导入无法证明的动态或虚拟边，可以用 `liminaOptions.implicitRefs` 补充。`dist/*.d.ts` 这类构建声明不要求项目引用。当某个导入实际解析到 `dist` 时，Limina 会在导入方 `tsconfig` 的条件域内报告产物边。这条边可用于审查和诊断，但不是任务编排保证。
+可以。工作区包导出可以指向源码入口，也可以指向构建产物。Limina 会先要求当前解析配置能解析每个公开导出。只有实际导入的入口解析到声明项目管辖的源码时，生成图才要求对应引用；真实存在但静态导入无法证明的动态或虚拟边，可以用 `liminaOptions.implicitRefs` 补充。`dist/*.d.ts` 这类构建声明属于产物边界：它们不会创建 manifest `declaration-provider` edge、生成项目引用或 output-build 引用。Limina 可以为了类型证据或诊断把 managed declaration 反向归因到源码，但这类归因不是构建依赖，也不提供任务编排保证。
 
 ### Vue 或 Svelte 文件应该放进 TypeScript 图吗？
 
-包含 Vue root 的 type config 由 `vue-tsc` 负责；包含 Astro 或 Svelte root 的 config 由对应 framework checker 负责。Astro/Svelte-owned config 不生成声明，需要 emit declaration 的 TypeScript 必须拆到独立 `tsc`、`tsgo` 或 `vue-tsc` boundary。
+在自动 scope 中，包含 Vue root 的 type config 由 `vue-tsc` 负责；包含 Astro 或 Svelte root 的 config 由对应 framework checker 负责。显式 owner 则具有权威性：Astro 只在 TypeScript 基础上增加 `.astro` 观测，Svelte 只增加 `.svelte`；其他已配置源码扩展会成为 proof 覆盖缺口。Astro/Svelte-owned config 不生成声明，需要 emit declaration 的 TypeScript 必须拆到独立 `tsc`、`tsgo` 或 `vue-tsc` boundary。
 
 ### `--mode` 有什么用途？
 

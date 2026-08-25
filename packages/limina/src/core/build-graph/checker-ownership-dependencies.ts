@@ -114,6 +114,9 @@ function applyStateRequirements(options: {
   plan: CheckerOwnershipPlan;
   state: TypeConfigOwnershipState;
 }): DependencyRequirementPass {
+  if (options.state.authoritativeOwner !== undefined) {
+    return { changed: false, problems: [] };
+  }
   const requirements = collectRequirementsForConsumer(options);
   const applied = applyConsumerRequirements({
     ...options,

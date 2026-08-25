@@ -1582,7 +1582,7 @@ packages:
     }
   });
 
-  it('accepts prepared refs for managed output declaration package providers', async () => {
+  it('does not reverse-map managed declarations into project references', async () => {
     const fixture = await createFixture(
       createManagedOutputWorkspacePackageFiles(),
     );
@@ -1595,7 +1595,26 @@ packages:
         '@example/internal',
       );
 
-      await expect(runGraphCheck(fixture.config)).resolves.toBe(true);
+      const generatedGraph = await prepareGeneratedTsconfigGraph(
+        fixture.config,
+      );
+      const appGeneratedConfig = JSON.parse(
+        await readFile(
+          path.join(
+            fixture.rootDir,
+            '.limina/tsconfig/checkers/tsc/projects/packages/app/tsconfig.lib.dts.json',
+          ),
+          'utf8',
+        ),
+      ) as { references: { path: string }[] };
+
+      expect(generatedGraph.manifest.dependencyEdges).toEqual([]);
+      expect(appGeneratedConfig.references).toEqual([]);
+      await expect(
+        runGraphCheck(fixture.config, {
+          generatedGraphProvider: async () => generatedGraph,
+        }),
+      ).resolves.toBe(true);
     } finally {
       await fixture.cleanup();
     }
@@ -2200,7 +2219,7 @@ packages:
     }
   });
 
-  it('accepts capability-compatible cross-checker provider edges', async () => {
+  it('rejects cross-checker declaration-provider components', async () => {
     const fixture = await createFixture(
       {
         'packages/app/src/index.ts':
@@ -2224,6 +2243,41 @@ packages:
         },
         tsgo: {
           include: ['packages/theme/tsconfig.json'],
+        },
+      },
+    );
+
+    try {
+      await expect(runGraphCheck(fixture.config)).rejects.toThrow(
+        'Build checker ownership conflict',
+      );
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it('does not analyze an Astro file outside an explicit tsc owner observation set', async () => {
+    const fixture = await createFixture(
+      {
+        'app/package.json': stringifyConfig({
+          name: '@fixture/app',
+          private: true,
+        }),
+        'app/src/index.ts': 'export const value = 1;\n',
+        'app/src/Page.astro': [
+          '---',
+          "import { value } from './index.ts';",
+          'void value;',
+          '---',
+          '<h1>Astro</h1>',
+          '',
+        ].join('\n'),
+        'app/tsconfig.json': typecheckConfig(['src/**/*']),
+      },
+      undefined,
+      {
+        tsc: {
+          include: ['app/tsconfig.json'],
         },
       },
     );

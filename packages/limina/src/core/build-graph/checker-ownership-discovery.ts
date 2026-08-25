@@ -14,10 +14,8 @@ import {
 } from '../checkers/entry-selection';
 import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
 import type { AutoScopeProject } from './auto-checker-types';
-import {
-  applyConfigEvidence,
-  applyExplicitRequirements,
-} from './checker-ownership-evidence';
+import { applyConfigEvidence } from './checker-ownership-config-evidence';
+import { applyExplicitRequirements } from './checker-ownership-evidence';
 import {
   collectOwnershipScopes,
   createDirectSolutionReferences,
@@ -197,6 +195,7 @@ export async function discoverCheckerOwnership(options: {
     activatedRegions: options.activatedRegions,
     config: options.config,
     entryConfigPaths: activeEntryPaths,
+    explicitOwnerByEntryPath,
     projectConfigCache: options.projectConfigCache,
   });
   const projectByConfigPath = createProjectByConfigPath(scopes);

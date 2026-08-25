@@ -10,6 +10,7 @@ export type CheckerEvidenceSource =
   | 'config'
   | 'root-file'
   | 'dependency'
+  | 'build-closure'
   | 'vue-promotion'
   | 'solution-constraint'
   | 'fallback';
@@ -22,6 +23,7 @@ export interface CheckerEvidence {
 }
 
 export interface TypeConfigOwnershipState {
+  authoritativeOwner?: CheckerName;
   configPath: string;
   constraintCandidates: Map<CheckerName, CheckerEvidence[]>;
   evidence: CheckerEvidence[];

@@ -1,8 +1,8 @@
 import type { CheckerProjectConfigCache } from '#checkers';
-import type { ResolvedLiminaConfig } from '#config/runner';
+import type { CheckerName, ResolvedLiminaConfig } from '#config/runner';
 import { compareCodeUnits } from '#utils/collections';
 import type { WorkspaceRegionPathIndex } from '../workspace/validated-context';
-import { collectAutoScope } from './auto-checker-scope';
+import { collectAutoScope, collectExplicitScope } from './auto-checker-scope';
 import type { AutoScopeProject } from './auto-checker-types';
 import type {
   CheckerOwnershipPlan,
@@ -15,10 +15,20 @@ export function collectOwnershipScopes(options: {
   activatedRegions: WorkspaceRegionPathIndex;
   config: ResolvedLiminaConfig;
   entryConfigPaths: readonly string[];
+  explicitOwnerByEntryPath: ReadonlyMap<string, CheckerName>;
   projectConfigCache?: CheckerProjectConfigCache;
 }): AutoScope[] {
   return options.entryConfigPaths.flatMap((entryConfigPath) => {
-    const scope = collectAutoScope({ ...options, entryConfigPath });
+    const explicitChecker =
+      options.explicitOwnerByEntryPath.get(entryConfigPath);
+    const scope =
+      explicitChecker === undefined
+        ? collectAutoScope({ ...options, entryConfigPath })
+        : collectExplicitScope({
+            ...options,
+            checkerName: explicitChecker,
+            entryConfigPath,
+          });
     return scope === null ? [] : [scope];
   });
 }
@@ -39,11 +49,65 @@ export function createProjectByConfigPath(
   scopes: readonly AutoScope[],
 ): Map<string, AutoScopeProject> {
   const projects = new Map<string, AutoScopeProject>();
-  for (const project of scopes.flatMap((scope) => scope.projects)) {
-    assertConsistentProjectShape(projects.get(project.configPath), project);
-    projects.set(project.configPath, project);
+  const authoritativePaths = collectAuthoritativeConfigPaths(scopes);
+  for (const scope of [...scopes].sort(compareScopeAuthority)) {
+    addScopeProjects({ authoritativePaths, projects, scope });
   }
   return projects;
+}
+
+function addScopeProjects(options: {
+  authoritativePaths: ReadonlySet<string>;
+  projects: Map<string, AutoScopeProject>;
+  scope: AutoScope;
+}): void {
+  for (const project of options.scope.projects) {
+    const current = options.projects.get(project.configPath);
+    if (
+      shouldKeepAuthoritativeProject(
+        current,
+        project,
+        options.authoritativePaths,
+      )
+    )
+      continue;
+    assertConsistentProjectShape(current, project);
+    options.projects.set(project.configPath, project);
+  }
+}
+
+function shouldKeepAuthoritativeProject(
+  current: AutoScopeProject | undefined,
+  incoming: AutoScopeProject,
+  authoritativePaths: ReadonlySet<string>,
+): boolean {
+  return current !== undefined && authoritativePaths.has(incoming.configPath);
+}
+
+function compareScopeAuthority(left: AutoScope, right: AutoScope): number {
+  return (
+    Number(right.authoritativeChecker !== undefined) -
+    Number(left.authoritativeChecker !== undefined)
+  );
+}
+
+function collectScopeConfigPaths(scope: AutoScope): string[] {
+  return [
+    ...scope.collection.projectConfigPaths,
+    ...scope.collection.solutionConfigPaths,
+  ];
+}
+
+function collectAuthoritativeConfigPaths(
+  scopes: readonly AutoScope[],
+): Set<string> {
+  return new Set(
+    scopes.flatMap((scope) =>
+      scope.authoritativeChecker === undefined
+        ? []
+        : collectScopeConfigPaths(scope),
+    ),
+  );
 }
 
 function assertConsistentProjectShape(
@@ -73,17 +137,45 @@ export function createDirectSolutionReferences(
   scopes: readonly AutoScope[],
 ): Map<string, string[]> {
   const references = new Map<string, Set<string>>();
-  for (const scope of scopes) {
-    for (const [solutionPath, targetPaths] of scope.collection
-      .solutionReferencesBySourcePath) {
-      addSolutionReferences(references, solutionPath, targetPaths);
-    }
+  const authoritativePaths = collectAuthoritativeConfigPaths(scopes);
+  for (const scope of [...scopes].sort(compareScopeAuthority)) {
+    addScopeSolutionReferences({ authoritativePaths, references, scope });
   }
   return new Map(
     [...references].map(([solutionPath, targetPaths]) => [
       solutionPath,
       [...targetPaths].sort(compareCodeUnits),
     ]),
+  );
+}
+
+function addScopeSolutionReferences(options: {
+  authoritativePaths: ReadonlySet<string>;
+  references: Map<string, Set<string>>;
+  scope: AutoScope;
+}): void {
+  for (const [solutionPath, targetPaths] of options.scope.collection
+    .solutionReferencesBySourcePath) {
+    if (
+      shouldSkipAutoSolution(
+        options.scope,
+        solutionPath,
+        options.authoritativePaths,
+      )
+    )
+      continue;
+    addSolutionReferences(options.references, solutionPath, targetPaths);
+  }
+}
+
+function shouldSkipAutoSolution(
+  scope: AutoScope,
+  solutionPath: string,
+  authoritativePaths: ReadonlySet<string>,
+): boolean {
+  return (
+    scope.authoritativeChecker === undefined &&
+    authoritativePaths.has(solutionPath)
   );
 }
 
