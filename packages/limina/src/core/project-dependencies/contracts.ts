@@ -1,7 +1,6 @@
 import type {
   AstroSemanticProject,
   VueProjectSemanticIdentity,
-  VueSourceProfile,
 } from '#checkers';
 import type {
   ImportAnalysisContext,
@@ -9,7 +8,10 @@ import type {
 } from '#core/import-analysis/runner';
 import type ts from 'typescript';
 import type { LockedSemanticAuthority } from '../build-graph/checker-ownership-types';
+import type { PreparedDependencyFact } from '../framework-semantic/contracts';
+import type { ManagedOutputDeclarationLookup } from '../import-graph/managed-output-provider';
 import type { SvelteSemanticProject } from '../svelte-semantic/types';
+import type { TypeEvidence } from '../type-evidence/cache';
 
 export interface ProjectSemanticContext {
   astroSemanticProject?: AstroSemanticProject;
@@ -32,8 +34,8 @@ interface ProjectDependencyBase {
   resolutionMode: string;
   resolvedFilePath: string;
   semanticSpecifier: string;
-  sourceSpecifier: string;
   targetKind: 'declaration' | 'source';
+  typeEvidence: TypeEvidence;
 }
 
 export interface DirectSourceDependency extends ProjectDependencyBase {
@@ -42,8 +44,7 @@ export interface DirectSourceDependency extends ProjectDependencyBase {
 
 export interface MappedSourceDependency extends ProjectDependencyBase {
   framework: 'astro' | 'svelte' | 'vue';
-  profile?: VueSourceProfile;
-  provenance: 'mapped-source';
+  provenance: 'strict-source-map';
 }
 
 export type ProjectDependency = DirectSourceDependency | MappedSourceDependency;
@@ -52,10 +53,15 @@ export type ProjectDependencyObservation =
   | {
       importRecord: ImportRecord;
       kind: 'missing';
+      typeEvidence?: Extract<TypeEvidence, { kind: 'missing' }>;
     }
   | {
       importRecord: ImportRecord;
       kind: 'resource';
+      typeEvidence?: Exclude<
+        TypeEvidence,
+        { kind: 'missing' | 'unsupported-checker' }
+      >;
     }
   | {
       generatedFilePath: string;
@@ -90,10 +96,11 @@ export interface ProjectDependencyCollection {
 }
 
 export interface ProjectDependencyPreparation {
+  directSourceRecords: ImportRecord[];
+  facts: PreparedDependencyFact[];
   failures: ProjectDependencyFailure[];
   observations: ProjectDependencyObservation[];
   ready: boolean;
-  sourceRecords: ImportRecord[];
 }
 
 export interface SourceEvidence {
@@ -106,6 +113,7 @@ export interface ProjectDependencyRequest {
   caches?: ProjectDependencyCaches;
   context: ProjectSemanticContext;
   importAnalysis: ImportAnalysisContext;
+  managedOutputLookup?: ManagedOutputDeclarationLookup;
   resolveWorkspaceTypeScriptExport?: (specifier: string) => string | null;
 }
 

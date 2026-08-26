@@ -49,6 +49,7 @@ describe('limina published package smoke', () => {
           packageManifest.peerDependenciesMeta,
         ]) {
           expect(section?.['oxc-parser']).toBeUndefined();
+          expect(section?.['@astrojs/compiler']).toBeUndefined();
         }
         for (const section of [
           packageManifest.dependencies,

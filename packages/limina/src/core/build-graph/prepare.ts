@@ -10,7 +10,6 @@ import {
 } from '../workspace/validated-context';
 import { resolveGeneratedGraphCheckerSelections } from './checker-resolution';
 import { finalizeGeneratedGraph } from './finalize-generated-graph';
-import { prewarmGeneratedFrameworkImports } from './framework-import-prewarm';
 import { prepareGeneratedKnipPackageConfigs } from './generated-knip';
 import { validateAndCompleteGeneratedGraph } from './graph-validation';
 import { resolveBuildGraphImportAnalysis } from './import-analysis-context';
@@ -156,12 +155,6 @@ export async function prepareGeneratedTsconfigGraph(
     for (const preparedChecker of preparedCheckers) {
       registerPreparedChecker({ preparedChecker, state });
     }
-    await prewarmGeneratedFrameworkImports({
-      activatedRegions,
-      config,
-      importAnalysis: importAnalysisContext,
-      state,
-    });
     validateAndCompleteGeneratedGraph({
       activatedRegions,
       checkers,

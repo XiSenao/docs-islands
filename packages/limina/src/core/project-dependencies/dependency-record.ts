@@ -1,88 +1,28 @@
 import { normalizeAbsolutePath } from '#utils/path';
-import { getFrameworkSemanticFailureIdentity } from '../framework-semantic/contracts';
-import type { CanonicalImportResolutionEvidence } from '../import-analysis/runner';
+import type { PreparedDependencyFact } from '../framework-semantic/contracts';
+import { cloneTypeEvidence } from '../framework-semantic/prepared-dependency';
 import { isDeclarationFile } from '../import-graph/declaration-classifier';
+import type { TypeEvidence } from '../type-evidence/cache';
 import type {
-  DirectSourceDependency,
   MappedSourceDependency,
-  ProjectDependency,
   ProjectDependencyCollection,
   ProjectDependencyRequest,
 } from './contracts';
-import { createProjectDependencyFailure, mapFailureStage } from './failure';
+import { createProjectDependencyFailure } from './failure';
 import { isTypeScriptSemanticSource } from './source-evidence';
 
-type CheckerImportEvidence = CanonicalImportResolutionEvidence;
+export { collectProjectDependencyRecord } from './direct-dependency-record';
 
-interface CollectRecordOptions {
+interface CollectFactOptions {
   collection: ProjectDependencyCollection;
-  importRecord: DirectSourceDependency['importRecord'];
+  fact: PreparedDependencyFact;
   request: ProjectDependencyRequest;
-}
-
-function getResolutionMode(evidence: CheckerImportEvidence): string {
-  return evidence.semanticEvidence?.resolutionMode ?? 'default';
-}
-
-function getSemanticSpecifier(options: {
-  evidence: CheckerImportEvidence;
-  importRecord: DirectSourceDependency['importRecord'];
-}): string {
-  return (
-    options.evidence.semanticEvidence?.semanticSpecifier ??
-    options.importRecord.specifier
-  );
 }
 
 function getTargetKind(
   resolvedFilePath: string,
-): DirectSourceDependency['targetKind'] {
+): MappedSourceDependency['targetKind'] {
   return isDeclarationFile(resolvedFilePath) ? 'declaration' : 'source';
-}
-
-function createDirectDependency(options: {
-  evidence: CheckerImportEvidence;
-  importRecord: DirectSourceDependency['importRecord'];
-  resolvedFilePath: string;
-}): DirectSourceDependency {
-  return {
-    importRecord: options.importRecord,
-    provenance: 'direct-source',
-    resolutionMode: getResolutionMode(options.evidence),
-    resolvedFilePath: normalizeAbsolutePath(options.resolvedFilePath),
-    semanticSpecifier: getSemanticSpecifier(options),
-    sourceSpecifier: options.importRecord.specifier,
-    targetKind: getTargetKind(options.resolvedFilePath),
-  };
-}
-
-function createMappedDependency(options: {
-  evidence: CheckerImportEvidence;
-  importRecord: MappedSourceDependency['importRecord'];
-  resolvedFilePath: string;
-}): MappedSourceDependency {
-  const semantic = options.evidence.semanticEvidence!;
-  return {
-    framework: semantic.framework,
-    importRecord: options.importRecord,
-    profile: semantic.profile as MappedSourceDependency['profile'],
-    provenance: 'mapped-source',
-    resolutionMode: semantic.resolutionMode,
-    resolvedFilePath: normalizeAbsolutePath(options.resolvedFilePath),
-    semanticSpecifier: semantic.semanticSpecifier,
-    sourceSpecifier: semantic.sourceSpecifier,
-    targetKind: getTargetKind(options.resolvedFilePath),
-  };
-}
-
-function createDependency(options: {
-  evidence: CheckerImportEvidence;
-  importRecord: DirectSourceDependency['importRecord'];
-  resolvedFilePath: string;
-}): ProjectDependency {
-  return options.evidence.semanticEvidence?.provenance === 'strict-source-map'
-    ? createMappedDependency(options)
-    : createDirectDependency(options);
 }
 
 function isNativeProjectDependencyTarget(resolvedFilePath: string): boolean {
@@ -92,197 +32,156 @@ function isNativeProjectDependencyTarget(resolvedFilePath: string): boolean {
   );
 }
 
-function hasSemanticExtensionTarget(options: {
-  evidence: CheckerImportEvidence;
+function isFrameworkProjectTarget(options: {
+  fact: PreparedDependencyFact;
   request: ProjectDependencyRequest;
-  resolvedFilePath: string;
 }): boolean {
-  if (options.evidence.semanticEvidence === undefined) return false;
-  const normalized = options.resolvedFilePath.toLowerCase();
+  const target = options.fact.target;
+  if (target === null) return false;
+  return isResolvedFrameworkTarget(options, target);
+}
+
+function isResolvedFrameworkTarget(
+  options: {
+    fact: PreparedDependencyFact;
+    request: ProjectDependencyRequest;
+  },
+  target: NonNullable<PreparedDependencyFact['target']>,
+): boolean {
+  if (isNativeProjectDependencyTarget(target.resolvedFileName)) return true;
+  if (target.resolvedBy === 'checker-source') return true;
+  return hasFrameworkExtension(options);
+}
+
+function hasFrameworkExtension(options: {
+  fact: PreparedDependencyFact;
+  request: ProjectDependencyRequest;
+}): boolean {
+  const target = options.fact.target!;
+  const normalized = target.resolvedFileName.toLowerCase();
   return options.request.context.extensions.some((extension) =>
     normalized.endsWith(extension.toLowerCase()),
   );
 }
 
-function getSemanticResolvedBy(
-  evidence: CheckerImportEvidence,
-): string | undefined {
-  const semantic = evidence.semanticEvidence;
-  if (semantic === undefined) return undefined;
-  return semantic.target?.resolvedBy;
+function getEvidenceTargetPath(evidence: TypeEvidence): string | null {
+  if (evidence.kind === 'checker-source') return evidence.filePath;
+  if (evidence.kind === 'concrete-declaration') return evidence.filePath;
+  return null;
 }
 
-function getTypeScriptResolvedBy(
-  evidence: CheckerImportEvidence,
-): string | undefined {
-  return evidence.typeScriptResolution?.resolvedBy;
+function evidenceMatchesTarget(fact: PreparedDependencyFact): boolean {
+  const target = fact.target;
+  const evidence = fact.typeEvidence;
+  if (target === null) {
+    return ['ambient', 'missing'].includes(evidence.kind);
+  }
+  const evidencePath = getEvidenceTargetPath(evidence);
+  if (evidencePath === null) return false;
+  return (
+    normalizeAbsolutePath(evidencePath) ===
+    normalizeAbsolutePath(target.resolvedFileName)
+  );
 }
 
-function hasCheckerSourceTarget(evidence: CheckerImportEvidence): boolean {
-  return [
-    getSemanticResolvedBy(evidence),
-    getTypeScriptResolvedBy(evidence),
-  ].includes('checker-source');
-}
-
-function isProjectDependencyTarget(options: {
-  evidence: CheckerImportEvidence;
-  request: ProjectDependencyRequest;
-  resolvedFilePath: string;
-}): boolean {
-  if (isNativeProjectDependencyTarget(options.resolvedFilePath)) return true;
-  if (hasSemanticExtensionTarget(options)) return true;
-  return hasCheckerSourceTarget(options.evidence);
-}
-
-function resolveWorkspaceTypeScriptExport(
-  options: CollectRecordOptions,
-): string | undefined {
-  if (!usesTypeScriptAuthority(options.request)) return undefined;
-  const resolve = options.request.resolveWorkspaceTypeScriptExport;
-  if (resolve === undefined) return undefined;
-  return normalizeWorkspaceResolution(resolve(options.importRecord.specifier));
-}
-
-function usesTypeScriptAuthority(request: ProjectDependencyRequest): boolean {
-  return request.context.semanticAuthority.family === 'typescript';
-}
-
-function normalizeWorkspaceResolution(
-  resolvedFilePath: string | null,
-): string | undefined {
-  return resolvedFilePath === null ? undefined : resolvedFilePath;
-}
-
-function getSemanticResolvedFileName(
-  evidence: CheckerImportEvidence,
-): string | undefined {
-  const semantic = evidence.semanticEvidence;
-  if (semantic === undefined) return undefined;
-  return semantic.target?.resolvedFileName;
-}
-
-function getTypeScriptResolvedFileName(
-  evidence: CheckerImportEvidence,
-): string | undefined {
-  return evidence.typeScriptResolution?.resolvedFileName;
-}
-
-function getResolvedFilePath(
-  options: CollectRecordOptions,
-  evidence: CheckerImportEvidence,
-): string | undefined {
-  const checkerResolution = [
-    getSemanticResolvedFileName(evidence),
-    getTypeScriptResolvedFileName(evidence),
-  ].find((value): value is string => value !== undefined);
-  if (checkerResolution !== undefined) return checkerResolution;
-  return resolveWorkspaceTypeScriptExport(options);
-}
-
-function collectSemanticFailure(
-  options: CollectRecordOptions,
-  evidence: CheckerImportEvidence,
-): boolean {
-  const failure = evidence.semanticFailure;
-  if (failure === undefined) return false;
+function addFactFailure(options: CollectFactOptions, reason: string): void {
   options.collection.failures.push(
     createProjectDependencyFailure({
-      identity: getFrameworkSemanticFailureIdentity(failure),
-      importRecord: options.importRecord,
-      reason: failure.reason,
+      identity: JSON.stringify({
+        filePath: options.fact.importRecord.filePath,
+        framework: options.fact.framework,
+        kind: options.fact.importRecord.kind,
+        locator: options.fact.importRecord.locator,
+        stage: 'prepared-fact-classification',
+      }),
+      importRecord: options.fact.importRecord,
+      reason,
       request: options.request,
-      stage: mapFailureStage(failure.stage),
+      stage: 'module-resolution',
     }),
   );
+}
+
+function addMappedDependency(options: CollectFactOptions): void {
+  const target = options.fact.target!;
+  const resolvedFilePath = normalizeAbsolutePath(target.resolvedFileName);
+  const dependency: MappedSourceDependency = {
+    framework: options.fact.framework,
+    importRecord: options.fact.importRecord,
+    provenance: 'strict-source-map',
+    resolutionMode: options.fact.resolutionMode,
+    resolvedFilePath,
+    semanticSpecifier: options.fact.semanticSpecifier,
+    targetKind: getTargetKind(resolvedFilePath),
+    typeEvidence: cloneTypeEvidence(options.fact.typeEvidence),
+  };
+  options.collection.dependencies.push(dependency);
+}
+
+function validatePreparedFact(options: CollectFactOptions): string | null {
+  if (options.fact.typeEvidence.kind === 'unsupported-checker') {
+    return options.fact.typeEvidence.reason;
+  }
+  if (!evidenceMatchesTarget(options.fact)) {
+    return 'Prepared framework dependency target and TypeEvidence do not describe the same semantic result.';
+  }
+  return null;
+}
+
+function addTargetedFact(options: CollectFactOptions): boolean {
+  if (options.fact.target === null) return false;
+  if (isFrameworkProjectTarget(options)) {
+    addMappedDependency(options);
+    return true;
+  }
+  return addTypedTargetObservation(options);
+}
+
+function addTypedTargetObservation(options: CollectFactOptions): boolean {
+  const evidence = options.fact.typeEvidence;
+  if (evidence.kind !== 'checker-source') return false;
+  options.collection.observations.push({
+    importRecord: options.fact.importRecord,
+    kind: 'resource',
+    typeEvidence: { ...evidence },
+  });
   return true;
 }
 
-function addResolvedDependency(options: {
-  base: CollectRecordOptions;
-  evidence: CheckerImportEvidence;
-  resolvedFilePath: string;
-}): void {
-  options.base.collection.dependencies.push(
-    createDependency({
-      evidence: options.evidence,
-      importRecord: options.base.importRecord,
-      resolvedFilePath: options.resolvedFilePath,
-    }),
-  );
-}
-
-function getObservationKind(options: {
-  evidence: CheckerImportEvidence;
-  resolvedFilePath: string | undefined;
-}): 'missing' | 'resource' {
-  if (options.evidence.runtimeEvidence.classification === 'resource') {
-    return 'resource';
-  }
-  return options.resolvedFilePath === undefined ? 'missing' : 'resource';
-}
-
-function addObservation(options: {
-  base: CollectRecordOptions;
-  evidence: CheckerImportEvidence;
-  resolvedFilePath: string | undefined;
-}): void {
-  options.base.collection.observations.push({
-    importRecord: options.base.importRecord,
-    kind: getObservationKind(options),
-  });
-}
-
-function resolveCheckerEvidence(options: CollectRecordOptions) {
-  return options.request.importAnalysis.resolveCheckerImportEvidence(
-    options.importRecord,
-    options.importRecord.filePath,
-    options.request.context.compilerOptions,
-    {
-      astroSemanticProject: options.request.context.astroSemanticProject,
-      checkerPresets: [],
-      configPath: options.request.context.configPath,
-      extensions: [...options.request.context.extensions],
-      resolverConfigPath: options.request.context.resolverConfigPath,
-      semanticFamily: options.request.context.semanticAuthority.family,
-      svelteSemanticProject: options.request.context.svelteSemanticProject,
-      vueSemanticIdentity: options.request.context.vueSemanticIdentity,
-    },
-  );
-}
-
-export function collectProjectDependencyRecord(
-  options: CollectRecordOptions,
-): void {
-  const evidence = resolveCheckerEvidence(options);
-  if (collectSemanticFailure(options, evidence)) return;
-  const resolvedFilePath = getResolvedFilePath(options, evidence);
-  const projectTarget = getResolvedProjectTarget({
-    base: options,
-    evidence,
-    resolvedFilePath,
-  });
-  if (projectTarget !== null) {
-    addResolvedDependency({
-      base: options,
-      evidence,
-      resolvedFilePath: projectTarget,
+function addTargetlessFact(options: CollectFactOptions): void {
+  if (options.fact.typeEvidence.kind === 'ambient') {
+    options.collection.observations.push({
+      importRecord: options.fact.importRecord,
+      kind: 'resource',
+      typeEvidence: cloneTypeEvidence(options.fact.typeEvidence) as Extract<
+        TypeEvidence,
+        { kind: 'ambient' }
+      >,
     });
     return;
   }
-  addObservation({ base: options, evidence, resolvedFilePath });
+  if (options.fact.typeEvidence.kind === 'missing') {
+    options.collection.observations.push({
+      importRecord: options.fact.importRecord,
+      kind: 'missing',
+      typeEvidence: { kind: 'missing' },
+    });
+    return;
+  }
+  addFactFailure(
+    options,
+    'Prepared framework dependency could not be classified without semantic target rescue.',
+  );
 }
 
-function getResolvedProjectTarget(options: {
-  base: CollectRecordOptions;
-  evidence: CheckerImportEvidence;
-  resolvedFilePath: string | undefined;
-}): string | null {
-  if (options.resolvedFilePath === undefined) return null;
-  const isProjectTarget = isProjectDependencyTarget({
-    evidence: options.evidence,
-    request: options.base.request,
-    resolvedFilePath: options.resolvedFilePath,
-  });
-  return isProjectTarget ? options.resolvedFilePath : null;
+export function collectPreparedProjectDependencyFact(
+  options: CollectFactOptions,
+): void {
+  const failure = validatePreparedFact(options);
+  if (failure !== null) {
+    addFactFailure(options, failure);
+    return;
+  }
+  if (addTargetedFact(options)) return;
+  addTargetlessFact(options);
 }

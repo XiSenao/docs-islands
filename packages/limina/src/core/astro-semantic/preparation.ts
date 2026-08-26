@@ -1,257 +1,198 @@
-import type { ImportRecord } from '#core/import-analysis/runner';
 import type ts from 'typescript';
 import type {
+  FrameworkSemanticCandidate,
   FrameworkSemanticDependencyPreparation,
-  FrameworkSemanticUnmappedGeneratedDependency,
 } from '../framework-semantic/contracts';
 import {
-  enumerateGeneratedSemanticDependencies,
-  recordMatchesMappedRanges,
-} from '../framework-semantic/generated-dependencies';
+  mergePreparedDirectSourceRecords,
+  prepareResolvedFrameworkCandidates,
+} from '../framework-semantic/prepared-dependency';
+import type { ImportRecord } from '../import-analysis/records';
+import type { ManagedOutputDeclarationLookup } from '../import-graph/managed-output-provider';
 import type {
   AstroMaterializedServiceScript,
   AstroSemanticContext,
 } from './context';
 import type { AstroSemanticCandidate } from './dependency';
-import { getAstroMappedRangeIdentities } from './dependency';
+import { mapAstroServiceCandidates } from './projection';
+import { createResolvedAstroCandidate } from './resolution-candidate';
 
-export type AstroDependencyPreparation =
-  | (Extract<FrameworkSemanticDependencyPreparation, { kind: 'supported' }> & {
-      candidates: AstroSemanticCandidate[];
-    })
-  | Extract<FrameworkSemanticDependencyPreparation, { kind: 'unsupported' }>;
+type AstroCandidate = FrameworkSemanticCandidate<
+  ts.SourceFile,
+  ts.StringLiteralLike
+>;
 
-interface AstroPreparationState {
-  candidates: AstroSemanticCandidate[];
-  matchedSourceRecords: Set<ImportRecord>;
-  unmapped: FrameworkSemanticUnmappedGeneratedDependency[];
+function createFailure(
+  reason: string,
+  stage: Extract<
+    FrameworkSemanticDependencyPreparation,
+    { kind: 'unsupported' }
+  >['stage'],
+): Extract<FrameworkSemanticDependencyPreparation, { kind: 'unsupported' }> {
+  return { kind: 'unsupported', reason, stage };
 }
 
-type GeneratedDependency = ReturnType<
-  typeof enumerateGeneratedSemanticDependencies
->[number];
+function getSnapshotText(snapshot: ts.IScriptSnapshot): string {
+  return snapshot.getText(0, snapshot.getLength());
+}
+
+type PreparationFailure = Extract<
+  FrameworkSemanticDependencyPreparation,
+  { kind: 'unsupported' }
+>;
+
+function collectServiceCandidates(options: {
+  context: AstroSemanticContext;
+  directSourceRecords: ImportRecord[];
+  filePath: string;
+  services: readonly AstroMaterializedServiceScript[];
+  sourceText: string;
+  unmapped: Extract<
+    FrameworkSemanticDependencyPreparation,
+    { kind: 'supported' }
+  >['unmapped'];
+}): { candidates: AstroCandidate[]; kind: 'supported' } | PreparationFailure {
+  const candidates: AstroCandidate[] = [];
+  for (const service of options.services) {
+    const mapped = mapAstroServiceCandidates({ ...options, service });
+    if (mapped.kind === 'unsupported') return mapped;
+    candidates.push(...mapped.candidates);
+  }
+  return { candidates, kind: 'supported' };
+}
+
+function resolveCandidates(
+  context: AstroSemanticContext,
+  candidates: readonly AstroCandidate[],
+) {
+  const byLiteral = context.resolveModuleNameLiterals(
+    candidates.map((candidate) => candidate.literal),
+  );
+  return candidates.map((candidate) => {
+    const result = createResolvedAstroCandidate({
+      candidate: candidate as AstroSemanticCandidate,
+      context,
+      resolvedByLiteral: byLiteral,
+    });
+    return {
+      candidate,
+      resolutionMode: result.mode,
+      target: result.resolution,
+    };
+  });
+}
+
+function getEvidenceProgram(
+  context: AstroSemanticContext,
+  resolved: ReturnType<typeof resolveCandidates>,
+): ts.Program | undefined {
+  return resolved.some((item) => item.target === null)
+    ? context.program
+    : undefined;
+}
+
+function createSupportedPreparation(options: {
+  directSourceRecords: ImportRecord[];
+  facts: Extract<
+    ReturnType<typeof prepareResolvedFrameworkCandidates>,
+    { kind: 'supported' }
+  >['facts'];
+  unmapped: Extract<
+    FrameworkSemanticDependencyPreparation,
+    { kind: 'supported' }
+  >['unmapped'];
+}): FrameworkSemanticDependencyPreparation {
+  return {
+    directSourceRecords: options.directSourceRecords,
+    facts: options.facts,
+    kind: 'supported',
+    unmapped: options.unmapped,
+  };
+}
+
+function prepareMappedServices(options: {
+  candidates: readonly AstroCandidate[];
+  context: AstroSemanticContext;
+  directSourceRecords: ImportRecord[];
+  managedOutputLookup?: ManagedOutputDeclarationLookup;
+  unmapped: Extract<
+    FrameworkSemanticDependencyPreparation,
+    { kind: 'supported' }
+  >['unmapped'];
+}): FrameworkSemanticDependencyPreparation {
+  const direct = mergePreparedDirectSourceRecords(options.directSourceRecords);
+  if (direct.kind === 'unsupported') return direct;
+  const resolved = resolveCandidates(options.context, options.candidates);
+  const prepared = prepareResolvedFrameworkCandidates({
+    checkerName: 'astro',
+    framework: 'astro',
+    managedOutputLookup: options.managedOutputLookup,
+    program: getEvidenceProgram(options.context, resolved),
+    resolved,
+    tsModule: options.context.toolchain.tsModule,
+  });
+  if (prepared.kind === 'unsupported') return prepared;
+  return createSupportedPreparation({
+    directSourceRecords: direct.records,
+    facts: prepared.facts,
+    unmapped: options.unmapped,
+  });
+}
+
+function prepareUnchecked(options: {
+  context: AstroSemanticContext;
+  filePath: string;
+  managedOutputLookup?: ManagedOutputDeclarationLookup;
+}): FrameworkSemanticDependencyPreparation {
+  const services = options.context.getServiceScripts(options.filePath);
+  if (services.length === 0) {
+    return createFailure(
+      'Astro semantic context did not materialize a primary or extra TypeScript service script.',
+      'service-script-materialization',
+    );
+  }
+  const sourceText = getSnapshotText(services[0]!.sourceScript.snapshot);
+  const directSourceRecords: Extract<
+    FrameworkSemanticDependencyPreparation,
+    { kind: 'supported' }
+  >['directSourceRecords'] = [];
+  const unmapped: Extract<
+    FrameworkSemanticDependencyPreparation,
+    { kind: 'supported' }
+  >['unmapped'] = [];
+  const mapped = collectServiceCandidates({
+    ...options,
+    directSourceRecords,
+    services,
+    sourceText,
+    unmapped,
+  });
+  if (mapped.kind === 'unsupported') return mapped;
+  return prepareMappedServices({
+    candidates: mapped.candidates,
+    context: options.context,
+    directSourceRecords,
+    managedOutputLookup: options.managedOutputLookup,
+    unmapped,
+  });
+}
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function createPreparationFailure(options: {
-  reason: string;
-  stage:
-    | 'service-script-materialization'
-    | 'source-map-ambiguity'
-    | 'source-map-mismatch';
-}): Extract<AstroDependencyPreparation, { kind: 'unsupported' }> {
-  return { kind: 'unsupported', ...options };
-}
-
-function createAstroPreparationState(): AstroPreparationState {
-  return {
-    candidates: [],
-    matchedSourceRecords: new Set(),
-    unmapped: [],
-  };
-}
-
-function getPreparationServices(options: {
-  context: AstroSemanticContext;
-  filePath: string;
-}):
-  | { kind: 'supported'; services: AstroMaterializedServiceScript[] }
-  | Extract<AstroDependencyPreparation, { kind: 'unsupported' }> {
-  try {
-    const services = options.context.getServiceScripts(options.filePath);
-    if (services.length > 0) return { kind: 'supported', services };
-    return createPreparationFailure({
-      reason:
-        'Astro semantic context did not materialize a primary or extra TypeScript service script.',
-      stage: 'service-script-materialization',
-    });
-  } catch (error) {
-    return createPreparationFailure({
-      reason: `Astro semantic service-script materialization failed: ${formatError(error)}`,
-      stage: 'service-script-materialization',
-    });
-  }
-}
-
-function createServiceMappedRanges(options: {
-  context: AstroSemanticContext;
-  service: AstroMaterializedServiceScript;
-  sourceRecords: readonly ImportRecord[];
-}): ReadonlyMap<ImportRecord, ReadonlySet<string>> {
-  return new Map(
-    options.sourceRecords.map(
-      (sourceRecord) =>
-        [
-          sourceRecord,
-          getAstroMappedRangeIdentities({
-            context: options.context,
-            importRecord: sourceRecord,
-            service: options.service,
-          }),
-        ] as const,
-    ),
-  );
-}
-
-function getMatchingSourceRecords(options: {
-  dependency: GeneratedDependency;
-  mappedRanges: ReadonlyMap<ImportRecord, ReadonlySet<string>>;
-  sourceRecords: readonly ImportRecord[];
-}): ImportRecord[] {
-  return options.sourceRecords.filter((sourceRecord) =>
-    recordMatchesMappedRanges({
-      mappedRanges: options.mappedRanges.get(sourceRecord)!,
-      record: options.dependency.record,
-    }),
-  );
-}
-
-function addUnmappedGeneratedDependency(options: {
-  dependency: GeneratedDependency;
-  state: AstroPreparationState;
-}): void {
-  options.state.unmapped.push({
-    generatedFilePath: options.dependency.generatedFilePath,
-    semanticSpecifier: options.dependency.record.specifier,
-  });
-}
-
-function addMappedAstroCandidate(options: {
-  context: AstroSemanticContext;
-  dependency: GeneratedDependency & { literal: ts.StringLiteralLike };
-  sourceRecord: ImportRecord;
-  state: AstroPreparationState;
-}): void {
-  options.state.matchedSourceRecords.add(options.sourceRecord);
-  options.state.candidates.push({
-    containingSourceFile: options.dependency.sourceFile,
-    framework: 'astro',
-    identityId: options.context.identity,
-    literal: options.dependency.literal,
-    provenance: 'strict-source-map',
-    semanticSpecifier: options.dependency.record.specifier,
-    sourceRecord: options.sourceRecord,
-    sourceSpecifier: options.sourceRecord.specifier,
-  });
-}
-
-function isMappedDependency(options: {
-  dependency: GeneratedDependency;
-  sourceRecord: ImportRecord | undefined;
-}): options is typeof options & {
-  dependency: GeneratedDependency & { literal: ts.StringLiteralLike };
-  sourceRecord: ImportRecord;
-} {
-  return (
-    options.sourceRecord !== undefined && options.dependency.literal !== null
-  );
-}
-
-function processAstroGeneratedDependency(options: {
-  context: AstroSemanticContext;
-  dependency: GeneratedDependency;
-  mappedRanges: ReadonlyMap<ImportRecord, ReadonlySet<string>>;
-  sourceRecords: readonly ImportRecord[];
-  state: AstroPreparationState;
-}): Extract<AstroDependencyPreparation, { kind: 'unsupported' }> | null {
-  const matches = getMatchingSourceRecords(options);
-  if (matches.length > 1) {
-    return createPreparationFailure({
-      reason:
-        'Astro generated dependency reverse-mapped to multiple source dependencies.',
-      stage: 'source-map-ambiguity',
-    });
-  }
-  const mapped = { dependency: options.dependency, sourceRecord: matches[0] };
-  if (!isMappedDependency(mapped)) {
-    addUnmappedGeneratedDependency(options);
-    return null;
-  }
-  addMappedAstroCandidate({
-    context: options.context,
-    dependency: mapped.dependency,
-    sourceRecord: mapped.sourceRecord,
-    state: options.state,
-  });
-  return null;
-}
-
-function processAstroService(options: {
-  context: AstroSemanticContext;
-  service: AstroMaterializedServiceScript;
-  sourceRecords: readonly ImportRecord[];
-  state: AstroPreparationState;
-}): Extract<AstroDependencyPreparation, { kind: 'unsupported' }> | null {
-  const generated = enumerateGeneratedSemanticDependencies({
-    generatedFilePath: options.service.sourceFile.fileName,
-    sourceFile: options.service.sourceFile,
-    tsModule: options.context.toolchain.tsModule,
-  });
-  const mappedRanges = createServiceMappedRanges(options);
-  for (const dependency of generated) {
-    const failure = processAstroGeneratedDependency({
-      ...options,
-      dependency,
-      mappedRanges,
-    });
-    if (failure !== null) return failure;
-  }
-  return null;
-}
-
-function processAstroServices(options: {
-  context: AstroSemanticContext;
-  services: readonly AstroMaterializedServiceScript[];
-  sourceRecords: readonly ImportRecord[];
-  state: AstroPreparationState;
-}): Extract<AstroDependencyPreparation, { kind: 'unsupported' }> | null {
-  for (const service of options.services) {
-    const failure = processAstroService({ ...options, service });
-    if (failure !== null) return failure;
-  }
-  return null;
-}
-
-function finishAstroPreparation(options: {
-  sourceRecords: readonly ImportRecord[];
-  state: AstroPreparationState;
-}): AstroDependencyPreparation {
-  const missing = options.sourceRecords.find(
-    (sourceRecord) => !options.state.matchedSourceRecords.has(sourceRecord),
-  );
-  if (missing !== undefined) {
-    return createPreparationFailure({
-      reason: `Astro source dependency did not map to a generated TypeScript dependency: ${missing.specifier}`,
-      stage: 'source-map-mismatch',
-    });
-  }
-  return {
-    candidates: options.state.candidates,
-    kind: 'supported',
-    sourceRecords: [...options.sourceRecords],
-    unmapped: options.state.unmapped,
-  };
-}
-
 export function prepareAstroSemanticDependencies(options: {
   context: AstroSemanticContext;
   filePath: string;
-  sourceRecords: readonly ImportRecord[];
-}): AstroDependencyPreparation {
-  options.context.assertActive();
-  const services = getPreparationServices(options);
-  if (services.kind === 'unsupported') return services;
-  const state = createAstroPreparationState();
-  const failure = processAstroServices({
-    ...options,
-    services: services.services,
-    state,
-  });
-  if (failure !== null) return failure;
-  return finishAstroPreparation({
-    sourceRecords: options.sourceRecords,
-    state,
-  });
+  managedOutputLookup?: ManagedOutputDeclarationLookup;
+}): FrameworkSemanticDependencyPreparation {
+  try {
+    options.context.assertActive();
+    return prepareUnchecked(options);
+  } catch (error) {
+    return createFailure(
+      `Astro semantic service-script preparation failed: ${formatError(error)}`,
+      'service-script-materialization',
+    );
+  }
 }

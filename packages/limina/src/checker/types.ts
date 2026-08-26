@@ -74,6 +74,7 @@ export interface CheckerModuleResolveOptions {
   metrics?: CheckerModuleResolutionMetricsRecorder;
   moduleResolutionCache?: ts.ModuleResolutionCache;
   specifier: string;
+  tsModule?: typeof ts;
 }
 
 export interface ResolvedCheckerModuleName {

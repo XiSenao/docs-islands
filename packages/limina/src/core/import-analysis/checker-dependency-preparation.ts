@@ -106,7 +106,7 @@ function runVuePreparation(
     return prepareVueSemanticDependencies({
       context: options.manager.acquire(options.identity),
       filePath: options.filePath,
-      sourceRecords: options.sourceRecords,
+      managedOutputLookup: options.managedOutputLookup,
     });
   } catch (error) {
     return {
@@ -163,7 +163,7 @@ function runAstroPreparation(
     return prepareAstroSemanticDependencies({
       context: options.manager.acquire(options.project),
       filePath: options.filePath,
-      sourceRecords: options.sourceRecords,
+      managedOutputLookup: options.managedOutputLookup,
     });
   } catch (error) {
     return {
@@ -219,7 +219,9 @@ function runSveltePreparation(
   },
 ): FrameworkSemanticDependencyPreparation {
   try {
-    return options.manager.acquire(options.project).prepare(options.filePath);
+    return options.manager
+      .acquire(options.project)
+      .prepare(options.filePath, options.managedOutputLookup);
   } catch (error) {
     return {
       kind: 'unsupported',
@@ -237,12 +239,11 @@ function prepareSvelte(
   return runSveltePreparation({ ...options, ...context });
 }
 
-function prepareTypeScript(
-  options: PreparationOptions,
-): FrameworkSemanticDependencyPreparation {
+function prepareTypeScript(): FrameworkSemanticDependencyPreparation {
   return {
+    directSourceRecords: [],
+    facts: [],
     kind: 'supported',
-    sourceRecords: [...options.sourceRecords],
     unmapped: [],
   };
 }

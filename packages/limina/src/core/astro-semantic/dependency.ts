@@ -110,7 +110,6 @@ function createCandidates(options: {
     provenance: 'strict-source-map',
     semanticSpecifier: literal.text,
     sourceRecord: options.importRecord,
-    sourceSpecifier: options.importRecord.specifier,
   }));
 }
 

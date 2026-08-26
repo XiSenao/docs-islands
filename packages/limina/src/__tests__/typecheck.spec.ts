@@ -193,6 +193,11 @@ async function createFixture(files: Record<string, string>): Promise<{
         packageName: 'svelte2tsx',
         rootDir,
       }),
+      linkInstalledPackage({
+        installedName: 'typescript',
+        packageName: 'typescript',
+        rootDir,
+      }),
     ]);
   }
 

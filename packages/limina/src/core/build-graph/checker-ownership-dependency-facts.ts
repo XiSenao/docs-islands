@@ -6,10 +6,7 @@ import { createProjectDependencyCaches } from '../project-dependencies/runner';
 import { TypeEvidenceCore } from '../type-evidence';
 import type { AutoScopeProject } from './auto-checker-types';
 import type { CheckerOwnershipDiscovery } from './checker-ownership-discovery';
-import {
-  collectLockedProjectFacts,
-  prewarmLockedFrameworkSources,
-} from './checker-ownership-locked-facts';
+import { collectLockedProjectFacts } from './checker-ownership-locked-facts';
 import { createActualMembershipIndex } from './checker-ownership-membership';
 import { collectPendingOwnershipEvidence } from './checker-ownership-pending-facts';
 import type {
@@ -86,8 +83,6 @@ export async function collectCheckerDependencyFacts(options: {
   importAnalysis: ImportAnalysisContext;
   projectConfigCache?: CheckerProjectConfigCache;
 }): Promise<string[]> {
-  const prewarmProblems = await prewarmLockedFrameworkSources(options);
-  if (prewarmProblems.length > 0) return prewarmProblems;
   const core = new TypeEvidenceCore({
     generation: getGeneration(options.projectConfigCache),
     importAnalysis: options.importAnalysis,

@@ -61,21 +61,22 @@ Limina 的自动引用图生成，就是为了把这些判断放到一个可重�
 
 第一步只收集源码里可以静态识别的模块标识符，例如静态导入、再导出、类型导入、动态导入中的模块字符串，以及部分可以静态识别的 `CommonJS` 形式。这个阶段只记录源码事实，例如哪个文件、哪种导入形式、哪个模块标识符。到这里还不会判断是否合法，也不会判断是否需要生成 `references`。
 
-对于归属于 Vue project 的源码，Limina 还会从 inline script、`<script src>` 和 `generic` attribute 的 `import()` 表达式收集轻量证据。当 project toolchain 位于受支持的 adapter matrix 内时，Limina 会先把每条源码记录映射为 checker semantic literal，再交给 TypeScript 做声明解析。映射可以修正 specifier，例如源码 `<script src="./entry.ts">` 可能映射成 virtual `./entry.js` literal；但没有源码记录的 service-script synthetic import 不会被纳入。这项分析不替代 `vue-tsc` 的类型检查。
+对于 locked Vue、Astro 与 Svelte 源码，第一步基于官方 generated TypeScript representation，而不是 lightweight framework collector。Limina 使用所属 toolchain 的 TypeScript 实例枚举 generated dependency，通过严格 reverse mapping 证明源码 provenance，并记录 generated semantic spelling。例如源码 `<script src="./entry.ts">` 可能报告为 `./entry.js`；文件与行号仍指向原始 framework source。没有 source projection 的 synthetic dependency 只形成 non-edge observation。
 
-第二步会在当前检查器和 `tsconfig` 上下文中，让 `TypeScript` 判断这条导入的类型入口。Vue semantic record 使用映射后的 literal 与 Volar-aware checker host；普通源码记录使用 direct TypeScript path。这里的结果可以粗略分成几类：
+第二步针对已经枚举出的 generated literal 同时取得 checker/toolchain module target 与同一 Program/TypeChecker 的现有 `TypeEvidence`。这不是再次执行 source-to-generated resolution。Prepared pair 按下表分类：
 
-| `TypeScript` 类型解析结果      | Limina 的理解            | 是否生成声明项目引用 |
-| ------------------------------ | ------------------------ | -------------------- |
-| `.d.ts` / `.d.cts` / `.d.mts`  | 已有声明文件             | 不生成               |
-| 当前范围内的源码文件           | 当前范围自己负责         | 不生成               |
-| 其他 Limina 源码范围的源码文件 | 需要其他范围产生声明输出 | 生成                 |
-| 外部库声明或外部包入口         | 外部依赖                 | 不生成               |
-| 无法解析                       | 无法确认声明提供者       | 不生成，并进入诊断   |
+| `TypeScript` 类型解析结果         | Limina 的理解                               | 是否生成声明项目引用 |
+| --------------------------------- | ------------------------------------------- | -------------------- |
+| `.d.ts` / `.d.cts` / `.d.mts`     | 已有声明文件                                | 不生成               |
+| 当前范围内的源码文件              | 当前范围自己负责                            | 不生成               |
+| 其他 Limina 源码范围的源码文件    | 需要其他范围产生声明输出                    | 生成                 |
+| 外部库声明或外部包入口            | 外部依赖                                    | 不生成               |
+| target 为空但有 ambient evidence  | typed non-source resource 或 virtual module | 不生成               |
+| target 为空且 evidence 为 missing | genuine missing dependency                  | 不生成，并进入诊断   |
 
 第三步才进入 Limina 的生成图。如果声明提供者是另一个受管源码范围，Limina 会把目标源码 `tsconfig` 映射到对应的生成 `.dts.json`，再把这个 `.dts.json` 加入当前生成声明配置的 `references`。
 
-这也是 Limina 和普通模块解析器的区别。`Oxc` 可以帮助 Limina 收集导入，也可以为诊断提供运行时解析线索，但 `.limina` 下生成的声明 `references` 不由 `Oxc` 的解析结果决定。决定引用图的是当前检查器和 `tsconfig` 下的 `TypeScript` 声明提供者判断。
+这也是 Limina 和普通模块解析器的区别。Framework authority 一旦 locked，checker miss 不得由 Oxc、workspace export resolution、文件存在性、resource 扩展名启发或 virtual-module allowlist rescue。Classification 可以继续消费 checker/type evidence，但 resolution 不能补出新 target。Oxc 只保留在 missing-only pending-ownership bootstrap 中。
 
 ## 自动生成引用图需要考虑的具体场景
 

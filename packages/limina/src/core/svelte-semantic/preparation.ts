@@ -1,100 +1,20 @@
 import { normalizeAbsolutePath } from '#utils/path';
-import { TraceMap } from '@jridgewell/trace-mapping';
-import path from 'node:path';
-import ts from 'typescript';
-import { findLiteralAtRecord } from '../framework-semantic/generated-dependencies';
-import { buildLineStarts } from '../import-analysis/records';
-import type { ImportRecord } from '../import-analysis/runner';
-import { collectTypeScriptSourceTextImports } from '../import-analysis/typescript-imports';
-import type {
-  SvelteDependencyPreparation,
-  SvelteSemanticCandidate,
-  SvelteUnmappedGeneratedDependency,
-} from './dependency';
+import type ts from 'typescript';
+import type { FrameworkSemanticDependencyPreparation } from '../framework-semantic/contracts';
+import { enumerateGeneratedSemanticDependencies } from '../framework-semantic/generated-dependencies';
 import {
-  getSvelteSourceMappingFailure,
-  mapGeneratedRange,
-  selectSvelteSourceMapping,
-} from './source-mapping';
+  mergePreparedDirectSourceRecords,
+  prepareResolvedFrameworkCandidates,
+} from '../framework-semantic/prepared-dependency';
+import type { ManagedOutputDeclarationLookup } from '../import-graph/managed-output-provider';
 import {
-  collectSvelteSemanticSourceRecords,
-  getSvelteScriptKind,
-} from './source-records';
+  createBoundedProgram,
+  createGeneratedSemanticScript,
+} from './generated-script';
+import { collectSvelteMappedCandidates } from './projection';
+import { isSvelteTypeScriptSource } from './source-records';
 import type { SvelteSemanticToolchain } from './toolchain';
 import type { SvelteSemanticProject } from './types';
-
-interface GeneratedSemanticScript {
-  filePath: string;
-  lineStarts: readonly number[];
-  records: ImportRecord[];
-  sourceFile: ts.SourceFile;
-  trace: TraceMap;
-}
-
-interface SveltePreparationState {
-  candidates: SvelteSemanticCandidate[];
-  matchedSourceRecords: Set<ImportRecord>;
-  unmapped: SvelteUnmappedGeneratedDependency[];
-}
-
-interface PreparationContext {
-  generated: GeneratedSemanticScript;
-  identity: string;
-  sourceFilePath: string;
-  sourceLineStarts: readonly number[];
-  sourceRecords: ImportRecord[];
-  state: SveltePreparationState;
-}
-
-function createGeneratedFilePath(filePath: string): string {
-  return `${filePath}.tsx`;
-}
-
-function createGeneratedSemanticScript(options: {
-  filePath: string;
-  generated: ReturnType<SvelteSemanticToolchain['transform']>;
-}): GeneratedSemanticScript {
-  const filePath = createGeneratedFilePath(options.filePath);
-  const sourceFile = ts.createSourceFile(
-    filePath,
-    options.generated.code,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TSX,
-  );
-  return {
-    filePath,
-    lineStarts: buildLineStarts(options.generated.code),
-    records: collectTypeScriptSourceTextImports({
-      filePath,
-      scriptKind: ts.ScriptKind.TSX,
-      sourceText: options.generated.code,
-    }),
-    sourceFile,
-    trace: new TraceMap(
-      { ...options.generated.map, version: 3 as const },
-      path.dirname(options.filePath),
-    ),
-  };
-}
-
-function createCandidate(options: {
-  generatedRecord: ImportRecord;
-  identity: string;
-  literal: ts.StringLiteralLike;
-  sourceRecord: ImportRecord;
-}): SvelteSemanticCandidate {
-  return {
-    containingSourceFile: options.literal.getSourceFile(),
-    framework: 'svelte',
-    identityId: options.identity,
-    literal: options.literal,
-    provenance: 'strict-source-map',
-    semanticSpecifier: options.generatedRecord.specifier,
-    sourceRecord: options.sourceRecord,
-    sourceSpecifier: options.sourceRecord.specifier,
-  };
-}
 
 function createIdentity(options: {
   project: SvelteSemanticProject;
@@ -108,159 +28,125 @@ function createIdentity(options: {
     generation: options.project.generation,
     transformPath: options.toolchain.transformPath,
     transformVersion: options.toolchain.transformVersion,
+    typeScriptPath: options.toolchain.typeScriptPath,
+    typeScriptVersion: options.toolchain.typeScriptVersion,
   });
 }
 
-function createPreparationContext(options: {
-  filePath: string;
-  generated: ReturnType<SvelteSemanticToolchain['transform']>;
+function createFailure(
+  reason: string,
+  stage: Extract<
+    FrameworkSemanticDependencyPreparation,
+    { kind: 'unsupported' }
+  >['stage'],
+): FrameworkSemanticDependencyPreparation {
+  return { kind: 'unsupported', reason, stage };
+}
+
+function getEvidenceProgram(options: {
+  generated: Parameters<typeof createBoundedProgram>[0]['generated'];
   project: SvelteSemanticProject;
-  sourceRecords: ImportRecord[];
-  sourceText: string;
+  resolved: Extract<
+    ReturnType<typeof collectSvelteMappedCandidates>,
+    { kind: 'supported' }
+  >['resolved'];
   toolchain: SvelteSemanticToolchain;
-}): PreparationContext {
+}): ts.Program | undefined {
+  return options.resolved.some((item) => item.target === null)
+    ? createBoundedProgram(options)
+    : undefined;
+}
+
+function prepareProjectedCandidates(options: {
+  directSourceRecords: Extract<
+    FrameworkSemanticDependencyPreparation,
+    { kind: 'supported' }
+  >['directSourceRecords'];
+  generated: Parameters<typeof createBoundedProgram>[0]['generated'];
+  managedOutputLookup?: ManagedOutputDeclarationLookup;
+  project: SvelteSemanticProject;
+  resolved: Extract<
+    ReturnType<typeof collectSvelteMappedCandidates>,
+    { kind: 'supported' }
+  >['resolved'];
+  toolchain: SvelteSemanticToolchain;
+  unmapped: Extract<
+    FrameworkSemanticDependencyPreparation,
+    { kind: 'supported' }
+  >['unmapped'];
+}): FrameworkSemanticDependencyPreparation {
+  const direct = mergePreparedDirectSourceRecords(options.directSourceRecords);
+  if (direct.kind === 'unsupported') return direct;
+  const prepared = prepareResolvedFrameworkCandidates({
+    checkerName: 'svelte-check',
+    framework: 'svelte',
+    managedOutputLookup: options.managedOutputLookup,
+    program: getEvidenceProgram(options),
+    resolved: options.resolved,
+    tsModule: options.toolchain.tsModule,
+  });
+  if (prepared.kind === 'unsupported') return prepared;
   return {
-    generated: createGeneratedSemanticScript(options),
-    identity: createIdentity(options),
-    sourceFilePath: options.filePath,
-    sourceLineStarts: buildLineStarts(options.sourceText),
-    sourceRecords: options.sourceRecords,
-    state: {
-      candidates: [],
-      matchedSourceRecords: new Set(),
-      unmapped: [],
-    },
-  };
-}
-
-function addUnmappedDependency(
-  context: PreparationContext,
-  generatedRecord: ImportRecord,
-): void {
-  context.state.unmapped.push({
-    generatedFilePath: context.generated.filePath,
-    semanticSpecifier: generatedRecord.specifier,
-  });
-}
-
-function addMappedCandidate(options: {
-  context: PreparationContext;
-  generatedRecord: ImportRecord;
-  literal: ts.StringLiteralLike;
-  sourceRecord: ImportRecord;
-}): void {
-  options.context.state.matchedSourceRecords.add(options.sourceRecord);
-  options.context.state.candidates.push(
-    createCandidate({
-      generatedRecord: options.generatedRecord,
-      identity: options.context.identity,
-      literal: options.literal,
-      sourceRecord: options.sourceRecord,
-    }),
-  );
-}
-
-function processGeneratedRecord(
-  context: PreparationContext,
-  generatedRecord: ImportRecord,
-): Extract<SvelteDependencyPreparation, { kind: 'unsupported' }> | null {
-  const range = mapGeneratedRange({
-    generatedLineStarts: context.generated.lineStarts,
-    generatedRecord,
-    sourceFilePath: context.sourceFilePath,
-    sourceLineStarts: context.sourceLineStarts,
-    trace: context.generated.trace,
-  });
-  const mapping = selectSvelteSourceMapping({
-    range,
-    sourceRecords: context.sourceRecords,
-  });
-  const failure = getSvelteSourceMappingFailure(mapping);
-  if (failure !== null) return failure;
-  const literal = findLiteralAtRecord({
-    record: generatedRecord,
-    sourceFile: context.generated.sourceFile,
-    tsModule: ts,
-  });
-  const mapped = getMappedSourceLiteral(mapping, literal);
-  if (mapped === null) {
-    addUnmappedDependency(context, generatedRecord);
-    return null;
-  }
-  addMappedCandidate({
-    context,
-    generatedRecord,
-    literal: mapped.literal,
-    sourceRecord: mapped.sourceRecord,
-  });
-  return null;
-}
-
-function getMappedSourceLiteral(
-  mapping: ReturnType<typeof selectSvelteSourceMapping>,
-  literal: ts.StringLiteralLike | null,
-): { literal: ts.StringLiteralLike; sourceRecord: ImportRecord } | null {
-  if (mapping.kind !== 'selected') return null;
-  if (literal === null) return null;
-  return { literal, sourceRecord: mapping.sourceRecord };
-}
-
-function processGeneratedRecords(
-  context: PreparationContext,
-): Extract<SvelteDependencyPreparation, { kind: 'unsupported' }> | null {
-  for (const generatedRecord of context.generated.records) {
-    const failure = processGeneratedRecord(context, generatedRecord);
-    if (failure !== null) return failure;
-  }
-  return null;
-}
-
-function finishPreparation(
-  context: PreparationContext,
-): SvelteDependencyPreparation {
-  const missing = context.sourceRecords.find(
-    (record) => !context.state.matchedSourceRecords.has(record),
-  );
-  if (missing !== undefined) {
-    return {
-      kind: 'unsupported',
-      reason: `Svelte source dependency did not map to a generated TypeScript dependency: ${missing.specifier}`,
-      stage: 'source-map-mismatch',
-    };
-  }
-  return {
-    candidates: context.state.candidates,
+    directSourceRecords: direct.records,
+    facts: prepared.facts,
     kind: 'supported',
-    sourceRecords: context.sourceRecords,
-    unmapped: context.state.unmapped,
+    unmapped: options.unmapped,
   };
 }
 
 function prepareUnchecked(options: {
   filePath: string;
+  managedOutputLookup?: ManagedOutputDeclarationLookup;
   project: SvelteSemanticProject;
   sourceText: string;
   toolchain: SvelteSemanticToolchain;
-}): SvelteDependencyPreparation {
+}): FrameworkSemanticDependencyPreparation {
   const filePath = normalizeAbsolutePath(options.filePath);
-  const sourceRecords = collectSvelteSemanticSourceRecords({
-    ...options,
-    filePath,
-  });
-  const generated = options.toolchain.transform(options.sourceText, {
+  const generatedOutput = options.toolchain.transform(options.sourceText, {
     filename: filePath,
-    isTsFile: getSvelteScriptKind(options.sourceText) === ts.ScriptKind.TS,
+    isTsFile: isSvelteTypeScriptSource(options.sourceText),
     parse: options.toolchain.compiler.parse as never,
     version: options.toolchain.compilerVersion,
   });
-  const context = createPreparationContext({
-    ...options,
+  const generated = createGeneratedSemanticScript({
     filePath,
-    generated,
-    sourceRecords,
+    generated: generatedOutput,
+    toolchain: options.toolchain,
   });
-  const failure = processGeneratedRecords(context);
-  return failure ?? finishPreparation(context);
+  const dependencies = enumerateGeneratedSemanticDependencies({
+    generatedFilePath: generated.filePath,
+    sourceFile: generated.sourceFile,
+    tsModule: options.toolchain.tsModule,
+  });
+  const directSourceRecords: Extract<
+    FrameworkSemanticDependencyPreparation,
+    { kind: 'supported' }
+  >['directSourceRecords'] = [];
+  const unmapped: Extract<
+    FrameworkSemanticDependencyPreparation,
+    { kind: 'supported' }
+  >['unmapped'] = [];
+  const projected = collectSvelteMappedCandidates({
+    dependencies,
+    directSourceRecords,
+    generated,
+    identity: createIdentity(options),
+    project: options.project,
+    sourceFilePath: filePath,
+    sourceText: options.sourceText,
+    toolchain: options.toolchain,
+    unmapped,
+  });
+  if (projected.kind === 'unsupported') return projected;
+  return prepareProjectedCandidates({
+    directSourceRecords,
+    generated,
+    managedOutputLookup: options.managedOutputLookup,
+    project: options.project,
+    resolved: projected.resolved,
+    toolchain: options.toolchain,
+    unmapped,
+  });
 }
 
 function formatError(error: unknown): string {
@@ -269,17 +155,17 @@ function formatError(error: unknown): string {
 
 export function prepareSvelteSemanticDependencies(options: {
   filePath: string;
+  managedOutputLookup?: ManagedOutputDeclarationLookup;
   project: SvelteSemanticProject;
   sourceText: string;
   toolchain: SvelteSemanticToolchain;
-}): SvelteDependencyPreparation {
+}): FrameworkSemanticDependencyPreparation {
   try {
     return prepareUnchecked(options);
   } catch (error) {
-    return {
-      kind: 'unsupported',
-      reason: `Svelte semantic service-script materialization failed: ${formatError(error)}`,
-      stage: 'service-script-materialization',
-    };
+    return createFailure(
+      `Svelte semantic service-script materialization failed: ${formatError(error)}`,
+      'service-script-materialization',
+    );
   }
 }

@@ -1,252 +1,223 @@
-import type { VueSourceProfile } from '#checkers';
-import type { ImportRecord } from '#core/import-analysis/runner';
-import { normalizeAbsolutePath } from '#utils/path';
 import type {
-  FrameworkSemanticDependencyPreparation,
-  FrameworkSemanticUnmappedGeneratedDependency,
-} from '../framework-semantic/contracts';
+  ResolvedCheckerModuleName,
+  VueProjectSemanticIdentity,
+} from '#checkers';
+import { normalizeAbsolutePath } from '#utils/path';
+import type ts from 'typescript';
+import type { FrameworkSemanticDependencyPreparation } from '../framework-semantic/contracts';
 import {
-  enumerateGeneratedSemanticDependencies,
-  recordMatchesMappedRanges,
-} from '../framework-semantic/generated-dependencies';
+  mergePreparedDirectSourceRecords,
+  prepareResolvedFrameworkCandidates,
+} from '../framework-semantic/prepared-dependency';
+import type { ImportRecord } from '../import-analysis/records';
+import type { ManagedOutputDeclarationLookup } from '../import-graph/managed-output-provider';
 import type { VueSemanticContext } from './context';
-import type { SemanticDependencyEvidence } from './dependency';
-import {
-  createVueEvidence,
-  getVueMappedRangeIdentities,
-  getVueServiceScript,
-} from './dependency';
+import { getVueServiceScript } from './dependency';
+import { collectVueMappedCandidates, type VueCandidate } from './projection';
 
-export type VueDependencyPreparation =
-  | (Extract<FrameworkSemanticDependencyPreparation, { kind: 'supported' }> & {
-      candidates: SemanticDependencyEvidence[];
-    })
-  | Extract<FrameworkSemanticDependencyPreparation, { kind: 'unsupported' }>;
-
-interface VuePreparationState {
-  candidates: SemanticDependencyEvidence[];
-  matchedSourceRecords: Set<ImportRecord>;
-  unmapped: FrameworkSemanticUnmappedGeneratedDependency[];
+interface ResolvedVueCandidate {
+  candidate: VueCandidate;
+  resolutionMode: string;
+  target: ResolvedCheckerModuleName | null;
 }
 
-const TYPESCRIPT_SUB_SEMANTIC_KINDS = new Set<ImportRecord['kind']>([
-  'environment-pragma',
-  'jsx-import-source',
-  'triple-slash-path',
-  'triple-slash-types',
-]);
-
-function createPreparationFailure(options: {
-  reason: string;
-  stage:
-    | 'service-script-materialization'
-    | 'source-map-ambiguity'
-    | 'source-map-mismatch';
-}): Extract<VueDependencyPreparation, { kind: 'unsupported' }> {
-  return { kind: 'unsupported', ...options };
+function createFailure(
+  reason: string,
+  stage: Extract<
+    FrameworkSemanticDependencyPreparation,
+    { kind: 'unsupported' }
+  >['stage'],
+): Extract<FrameworkSemanticDependencyPreparation, { kind: 'unsupported' }> {
+  return { kind: 'unsupported', reason, stage };
 }
 
-function getVuePreparationContext(options: {
+function getSnapshotText(snapshot: ts.IScriptSnapshot | undefined): string {
+  if (snapshot === undefined) {
+    throw new Error('Vue source script does not expose its source snapshot.');
+  }
+  return snapshot.getText(0, snapshot.getLength());
+}
+
+function isCheckerSource(options: {
+  fileName: string;
+  identity: VueProjectSemanticIdentity;
+}): boolean {
+  return options.identity.profilesByFileName.has(
+    normalizeAbsolutePath(options.fileName),
+  );
+}
+
+function createTarget(options: {
   context: VueSemanticContext;
-  filePath: string;
-}):
-  | {
-      kind: 'supported';
-      profile: VueSourceProfile;
-      sourceFile: NonNullable<
-        ReturnType<VueSemanticContext['getSemanticSourceFile']>
-      >;
-    }
-  | Extract<VueDependencyPreparation, { kind: 'unsupported' }> {
-  const normalized = normalizeAbsolutePath(options.filePath);
-  const profile = options.context.identity.profilesByFileName.get(normalized);
-  if (profile === undefined) {
-    return createPreparationFailure({
-      reason:
-        'Vue semantic project does not classify the framework source with a Vue source profile.',
-      stage: 'service-script-materialization',
-    });
-  }
-  const materialized = getMaterializedVueSource(options);
-  if (materialized === null) {
-    return createPreparationFailure({
-      reason:
-        'Vue semantic context did not materialize a TypeScript service script for the framework source.',
-      stage: 'service-script-materialization',
-    });
-  }
+  resolvedModule: ts.ResolvedModuleFull | undefined;
+}): ResolvedCheckerModuleName | null {
+  if (options.resolvedModule === undefined) return null;
+  const resolvedFileName = normalizeAbsolutePath(
+    options.resolvedModule.resolvedFileName,
+  );
   return {
-    kind: 'supported',
-    profile,
-    sourceFile: materialized.sourceFile,
+    isExternalLibraryImport:
+      options.resolvedModule.isExternalLibraryImport === true,
+    resolvedBy: isCheckerSource({
+      fileName: resolvedFileName,
+      identity: options.context.identity,
+    })
+      ? 'checker-source'
+      : 'typescript',
+    resolvedFileName,
   };
 }
 
-function getMaterializedVueSource(options: {
+function getResolutionMode(options: {
+  candidate: VueCandidate;
+  context: VueSemanticContext;
+}): string {
+  const api = options.context.tsModule as typeof ts & {
+    getModeForUsageLocation?: (
+      sourceFile: ts.SourceFile,
+      literal: ts.StringLiteralLike,
+      compilerOptions: ts.CompilerOptions,
+    ) => unknown;
+  };
+  return api.getModeForUsageLocation === undefined
+    ? 'default'
+    : String(
+        api.getModeForUsageLocation(
+          options.candidate.containingSourceFile,
+          options.candidate.literal,
+          options.context.identity.options,
+        ),
+      );
+}
+
+function resolveCandidates(options: {
+  candidates: readonly VueCandidate[];
+  context: VueSemanticContext;
+}): ResolvedVueCandidate[] {
+  const byLiteral = options.context.resolveModuleNameLiterals(
+    options.candidates.map((candidate) => candidate.literal),
+  );
+  return options.candidates.map((candidate) => ({
+    candidate,
+    resolutionMode: getResolutionMode({ candidate, context: options.context }),
+    target: createTarget({
+      context: options.context,
+      resolvedModule: byLiteral.get(candidate.literal)?.resolvedModule,
+    }),
+  }));
+}
+
+function getEvidenceProgram(
+  context: VueSemanticContext,
+  resolved: readonly ResolvedVueCandidate[],
+): ts.Program | undefined {
+  return resolved.some((item) => item.target === null)
+    ? context.program
+    : undefined;
+}
+
+function prepareMappedCandidates(options: {
+  candidates: readonly VueCandidate[];
+  context: VueSemanticContext;
+  directSourceRecords: ImportRecord[];
+  managedOutputLookup?: ManagedOutputDeclarationLookup;
+  unmapped: Extract<
+    FrameworkSemanticDependencyPreparation,
+    { kind: 'supported' }
+  >['unmapped'];
+}): FrameworkSemanticDependencyPreparation {
+  const direct = mergePreparedDirectSourceRecords(options.directSourceRecords);
+  if (direct.kind === 'unsupported') return direct;
+  const resolved = resolveCandidates(options);
+  const prepared = prepareResolvedFrameworkCandidates({
+    checkerName: 'vue-tsc',
+    framework: 'vue',
+    managedOutputLookup: options.managedOutputLookup,
+    program: getEvidenceProgram(options.context, resolved),
+    resolved,
+    tsModule: options.context.tsModule,
+  });
+  if (prepared.kind === 'unsupported') return prepared;
+  return {
+    directSourceRecords: direct.records,
+    facts: prepared.facts,
+    kind: 'supported',
+    unmapped: options.unmapped,
+  };
+}
+
+function getMaterializedService(options: {
   context: VueSemanticContext;
   filePath: string;
-}): {
-  sourceFile: NonNullable<
-    ReturnType<VueSemanticContext['getSemanticSourceFile']>
-  >;
-} | null {
-  const normalized = normalizeAbsolutePath(options.filePath);
+}) {
+  const filePath = normalizeAbsolutePath(options.filePath);
   const service = getVueServiceScript({
     context: options.context,
-    fileName: normalized,
+    fileName: filePath,
   });
-  const sourceFile = options.context.getSemanticSourceFile(normalized);
-  if (service === null || sourceFile === undefined) return null;
-  return { sourceFile };
+  if (service === null) return null;
+  const sourceFile = options.context.getSemanticSourceFile(filePath);
+  if (sourceFile === undefined) return null;
+  return { filePath, service, sourceFile };
 }
 
-function createMappedRanges(options: {
+function prepareUnchecked(options: {
   context: VueSemanticContext;
-  sourceRecords: readonly ImportRecord[];
-}): ReadonlyMap<ImportRecord, ReadonlySet<string> | null> {
-  return new Map(
-    options.sourceRecords.map(
-      (sourceRecord) =>
-        [
-          sourceRecord,
-          TYPESCRIPT_SUB_SEMANTIC_KINDS.has(sourceRecord.kind)
-            ? null
-            : getVueMappedRangeIdentities({
-                context: options.context,
-                importRecord: sourceRecord,
-              }),
-        ] as const,
-    ),
-  );
-}
-
-function getMatchingSourceRecords(options: {
-  dependency: ReturnType<typeof enumerateGeneratedSemanticDependencies>[number];
-  mappedRanges: ReadonlyMap<ImportRecord, ReadonlySet<string> | null>;
-  sourceRecords: readonly ImportRecord[];
-}): ImportRecord[] {
-  return options.sourceRecords.filter((sourceRecord) => {
-    const ranges = options.mappedRanges.get(sourceRecord);
-    if (ranges === null || ranges === undefined) return false;
-    return recordMatchesMappedRanges({
-      mappedRanges: ranges,
-      record: options.dependency.record,
-    });
+  filePath: string;
+  managedOutputLookup?: ManagedOutputDeclarationLookup;
+}): FrameworkSemanticDependencyPreparation {
+  const materialized = getMaterializedService(options);
+  if (materialized === null) {
+    return createFailure(
+      'Vue semantic context did not materialize a TypeScript service script for the framework source.',
+      'service-script-materialization',
+    );
+  }
+  const { filePath, service, sourceFile } = materialized;
+  const sourceText = getSnapshotText(service.sourceScript.snapshot);
+  const directSourceRecords: Extract<
+    FrameworkSemanticDependencyPreparation,
+    { kind: 'supported' }
+  >['directSourceRecords'] = [];
+  const unmapped: Extract<
+    FrameworkSemanticDependencyPreparation,
+    { kind: 'supported' }
+  >['unmapped'] = [];
+  const projected = collectVueMappedCandidates({
+    context: options.context,
+    directSourceRecords,
+    filePath,
+    service,
+    sourceFile,
+    sourceText,
+    unmapped,
+  });
+  if (projected.kind === 'unsupported') return projected;
+  return prepareMappedCandidates({
+    candidates: projected.candidates,
+    context: options.context,
+    directSourceRecords,
+    managedOutputLookup: options.managedOutputLookup,
+    unmapped,
   });
 }
 
-function processGeneratedDependency(options: {
-  context: VueSemanticContext;
-  dependency: ReturnType<typeof enumerateGeneratedSemanticDependencies>[number];
-  mappedRanges: ReadonlyMap<ImportRecord, ReadonlySet<string> | null>;
-  profile: VueSourceProfile;
-  sourceRecords: readonly ImportRecord[];
-  state: VuePreparationState;
-}): Extract<VueDependencyPreparation, { kind: 'unsupported' }> | null {
-  const matches = getMatchingSourceRecords(options);
-  if (matches.length > 1) {
-    return createPreparationFailure({
-      reason:
-        'Vue generated dependency reverse-mapped to multiple source dependencies.',
-      stage: 'source-map-ambiguity',
-    });
-  }
-  const mapped = getMappedVueDependency(options.dependency, matches[0]);
-  if (mapped === null) {
-    options.state.unmapped.push({
-      generatedFilePath: options.dependency.generatedFilePath,
-      semanticSpecifier: options.dependency.record.specifier,
-    });
-    return null;
-  }
-  options.state.matchedSourceRecords.add(mapped.sourceRecord);
-  options.state.candidates.push(
-    ...createVueEvidence({
-      context: options.context,
-      importRecord: mapped.sourceRecord,
-      literals: [mapped.literal],
-      profile: options.profile,
-      provenance: 'strict-source-map',
-    }),
-  );
-  return null;
-}
-
-function getMappedVueDependency(
-  dependency: ReturnType<typeof enumerateGeneratedSemanticDependencies>[number],
-  sourceRecord: ImportRecord | undefined,
-): {
-  literal: NonNullable<typeof dependency.literal>;
-  sourceRecord: ImportRecord;
-} | null {
-  if (sourceRecord === undefined) return null;
-  if (dependency.literal === null) return null;
-  return { literal: dependency.literal, sourceRecord };
-}
-
-function processGeneratedDependencies(options: {
-  context: VueSemanticContext;
-  generated: ReturnType<typeof enumerateGeneratedSemanticDependencies>;
-  mappedRanges: ReadonlyMap<ImportRecord, ReadonlySet<string> | null>;
-  profile: VueSourceProfile;
-  sourceRecords: readonly ImportRecord[];
-  state: VuePreparationState;
-}): Extract<VueDependencyPreparation, { kind: 'unsupported' }> | null {
-  for (const dependency of options.generated) {
-    const failure = processGeneratedDependency({ ...options, dependency });
-    if (failure !== null) return failure;
-  }
-  return null;
-}
-
-function finishVuePreparation(options: {
-  sourceRecords: readonly ImportRecord[];
-  state: VuePreparationState;
-}): VueDependencyPreparation {
-  const missing = options.sourceRecords.find(
-    (sourceRecord) =>
-      !TYPESCRIPT_SUB_SEMANTIC_KINDS.has(sourceRecord.kind) &&
-      !options.state.matchedSourceRecords.has(sourceRecord),
-  );
-  if (missing !== undefined) {
-    return createPreparationFailure({
-      reason: `Vue source dependency did not map to a generated TypeScript dependency: ${missing.specifier}`,
-      stage: 'source-map-mismatch',
-    });
-  }
-  return {
-    candidates: options.state.candidates,
-    kind: 'supported',
-    sourceRecords: [...options.sourceRecords],
-    unmapped: options.state.unmapped,
-  };
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function prepareVueSemanticDependencies(options: {
   context: VueSemanticContext;
   filePath: string;
-  sourceRecords: readonly ImportRecord[];
-}): VueDependencyPreparation {
-  options.context.assertActive();
-  const prepared = getVuePreparationContext(options);
-  if (prepared.kind === 'unsupported') return prepared;
-  const generated = enumerateGeneratedSemanticDependencies({
-    generatedFilePath: prepared.sourceFile.fileName,
-    sourceFile: prepared.sourceFile,
-    tsModule: options.context.tsModule,
-  });
-  const state: VuePreparationState = {
-    candidates: [],
-    matchedSourceRecords: new Set(),
-    unmapped: [],
-  };
-  const failure = processGeneratedDependencies({
-    ...options,
-    generated,
-    mappedRanges: createMappedRanges(options),
-    profile: prepared.profile,
-    state,
-  });
-  if (failure !== null) return failure;
-  return finishVuePreparation({ sourceRecords: options.sourceRecords, state });
+  managedOutputLookup?: ManagedOutputDeclarationLookup;
+}): FrameworkSemanticDependencyPreparation {
+  try {
+    options.context.assertActive();
+    return prepareUnchecked(options);
+  } catch (error) {
+    return createFailure(
+      `Vue semantic service-script preparation failed: ${formatError(error)}`,
+      'service-script-materialization',
+    );
+  }
 }

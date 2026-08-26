@@ -47,7 +47,7 @@ function createLiteralEvidence(options: {
     .getSymbolAtLocation(options.literal);
   if (symbol === undefined) return { kind: 'missing' };
   return options.cache.getOrCreateAmbientSymbolEvidence(symbol, () =>
-    createAmbientTypeEvidence(symbol),
+    createAmbientTypeEvidence(symbol, options.context.tsModule),
   );
 }
 

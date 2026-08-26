@@ -63,7 +63,6 @@ export function createImportAnalysisContext(
       disposeOwnedManager(svelte);
       disposeOwnedManager(vue);
     },
-    prewarmImportsFromFile: source.prewarmImportsFromFile,
     ...resolution,
   };
 }

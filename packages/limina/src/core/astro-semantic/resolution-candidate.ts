@@ -9,7 +9,7 @@ import type { AstroSemanticContextManager } from './context';
 import type { AstroSemanticCandidate } from './dependency';
 import type { AstroSemanticResolution } from './resolution-types';
 
-interface ResolvedCandidate {
+export interface ResolvedCandidate {
   candidate: AstroSemanticCandidate;
   mode: string;
   resolution: ResolvedCheckerModuleName | null;
@@ -71,7 +71,6 @@ function getCandidateResolutionIdentity(
 
 function canonicalCandidate(candidate: ResolvedCandidate): string {
   return JSON.stringify([
-    candidate.candidate.sourceSpecifier,
     candidate.candidate.semanticSpecifier,
     candidate.mode,
     ...getCandidateResolutionIdentity(candidate.resolution),
@@ -96,7 +95,7 @@ export function selectCanonicalAstroCandidate(
     return {
       kind: 'unsupported',
       reason:
-        'Astro source-map candidates did not agree on source specifier, semantic specifier, resolution mode, and canonical target.',
+        'Astro source-map candidates did not agree on semantic specifier, resolution mode, and canonical target.',
       stage: 'source-map-mismatch',
     };
   }

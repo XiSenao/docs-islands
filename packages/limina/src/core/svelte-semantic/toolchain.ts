@@ -2,13 +2,21 @@ import { normalizeAbsolutePath } from '#utils/path';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import type { svelte2tsx } from 'svelte2tsx';
+import type ts from 'typescript';
 import {
-  checkerToolchainDependencyContracts,
   isSupportedDependencyVersion,
-  LiminaDependencyError,
   readResolvedPackageVersion,
 } from '../../dependency-contract';
 import { isResolvedFromLeafInstalledPackage } from '../packages/leaf-package-resolution';
+import {
+  createMissingCompilerError,
+  createMissingTransformError,
+  createMissingTypeScriptError,
+  createUnsupportedTransformError,
+  createUnsupportedTypeScriptError,
+  svelte2tsxContract,
+  typeScriptContract,
+} from './toolchain-errors';
 
 type SvelteTransform = typeof svelte2tsx;
 
@@ -28,6 +36,9 @@ export interface SvelteSemanticToolchain {
   transform: SvelteTransform;
   transformPath: string;
   transformVersion: string;
+  tsModule: typeof ts;
+  typeScriptPath: string;
+  typeScriptVersion: string;
 }
 
 function hasErrorCode(error: unknown): error is { code: unknown } {
@@ -36,61 +47,6 @@ function hasErrorCode(error: unknown): error is { code: unknown } {
 
 function isModuleNotFoundError(error: unknown): boolean {
   return hasErrorCode(error) && error.code === 'MODULE_NOT_FOUND';
-}
-
-function createMissingCompilerError(packageRootDir: string): Error {
-  return new Error(
-    [
-      'Unable to load the Svelte semantic toolchain:',
-      '  package: svelte/compiler',
-      `  leaf package root: ${packageRootDir}`,
-      '  dependency category: analysis runtime',
-      '  reason: the Svelte compiler is not installed in the source config leaf dependency scope.',
-      `  fix: install svelte in ${packageRootDir}`,
-    ].join('\n'),
-  );
-}
-
-const svelte2tsxContract = checkerToolchainDependencyContracts.svelte2tsx;
-
-function createMissingTransformError(packageRootDir: string): Error {
-  return new LiminaDependencyError({
-    failureKind: 'missing',
-    message: [
-      'Unable to load the Svelte semantic toolchain:',
-      '  package: svelte2tsx',
-      `  leaf package root: ${packageRootDir}`,
-      '  dependency category: checker toolchain',
-      '  reason: svelte2tsx is not installed in the source config leaf dependency scope.',
-      `  fix: install svelte2tsx@${svelte2tsxContract.supportedRange} alongside svelte-check in ${packageRootDir}`,
-    ].join('\n'),
-    ownership: svelte2tsxContract.ownership,
-    packageName: svelte2tsxContract.packageName,
-    scope: packageRootDir,
-  });
-}
-
-function createUnsupportedTransformError(options: {
-  packageRootDir: string;
-  version: string | undefined;
-}): Error {
-  const installedVersion = options.version ?? 'unknown';
-  return new LiminaDependencyError({
-    failureKind: 'unsupported',
-    message: [
-      'Unable to load the Svelte semantic toolchain:',
-      '  package: svelte2tsx',
-      `  leaf package root: ${options.packageRootDir}`,
-      '  dependency category: checker toolchain',
-      `  installed version: ${installedVersion}`,
-      `  supported range: ${svelte2tsxContract.supportedRange}`,
-      `  fix: install svelte2tsx@${svelte2tsxContract.supportedRange} alongside svelte-check in ${options.packageRootDir}`,
-    ].join('\n'),
-    ownership: svelte2tsxContract.ownership,
-    packageName: svelte2tsxContract.packageName,
-    scope: options.packageRootDir,
-    version: options.version,
-  });
 }
 
 function resolvePackageSpecifier(options: {
@@ -221,6 +177,44 @@ function loadLeafTransform(options: {
   };
 }
 
+function loadLeafTypeScript(options: {
+  packageRootDir: string;
+  requireFromLeaf: ReturnType<typeof createRequire>;
+}): {
+  tsModule: typeof ts;
+  typeScriptPath: string;
+  typeScriptVersion: string;
+} {
+  const typeScriptPath = resolveLeafPackageEntry({
+    missingError: () => createMissingTypeScriptError(options.packageRootDir),
+    packageName: 'typescript',
+    packageRootDir: options.packageRootDir,
+    requireFromLeaf: options.requireFromLeaf,
+    specifier: 'typescript',
+  });
+  const typeScriptVersion = readResolvedPackageVersion({
+    packageName: 'typescript',
+    resolvedPath: typeScriptPath,
+  });
+  if (
+    typeScriptVersion === undefined ||
+    !isSupportedDependencyVersion({
+      contract: typeScriptContract,
+      version: typeScriptVersion,
+    })
+  ) {
+    throw createUnsupportedTypeScriptError({
+      packageRootDir: options.packageRootDir,
+      version: typeScriptVersion,
+    });
+  }
+  return {
+    tsModule: options.requireFromLeaf(typeScriptPath) as typeof ts,
+    typeScriptPath,
+    typeScriptVersion,
+  };
+}
+
 export function resolveSvelteSemanticToolchain(
   packageRootDir: string,
 ): SvelteSemanticToolchain {
@@ -232,10 +226,12 @@ export function resolveSvelteSemanticToolchain(
     requireFromLeaf,
   });
   const transform = loadLeafTransform({ packageRootDir, requireFromLeaf });
+  const typeScript = loadLeafTypeScript({ packageRootDir, requireFromLeaf });
   return {
     compiler,
     compilerPath,
     compilerVersion: getCompilerVersion({ compiler, compilerPath }),
     ...transform,
+    ...typeScript,
   };
 }

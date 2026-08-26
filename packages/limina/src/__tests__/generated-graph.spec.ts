@@ -24,7 +24,6 @@ import { promisify } from 'node:util';
 import { describe, expect, it, vi } from 'vitest';
 import { LiminaStructuredError } from '../check-reporting/errors';
 import { createManagedOutputDeclarationLookup } from '../core/import-graph/managed-output-provider';
-import { LiminaDependencyError } from '../dependency-contract';
 import { prepareAndMaterializeGeneratedTsconfigGraph as prepareGeneratedTsconfigGraph } from './helpers/generated-graph';
 import { toPortablePath } from './helpers/path';
 
@@ -178,6 +177,13 @@ async function createFixture(
     await writeText(path.join(rootDir, relativePath), text);
   }
   await linkVueToolchain(rootDir);
+  if (hasSvelte && !hasAstro) {
+    await linkInstalledPackage({
+      installedName: 'typescript',
+      packageName: 'typescript',
+      rootDir,
+    });
+  }
   if (options.svelteCompiler !== false && hasSvelte) {
     await linkInstalledPackage({
       installedName: 'svelte-v4-min',
@@ -1843,7 +1849,7 @@ describe('prepareGeneratedTsconfigGraph', () => {
       extension: 'svelte',
     },
   ] as const)(
-    'keeps a resolved $checker consumer when dependency evidence requires the same owner',
+    'keeps an explicit $checker owner without manufacturing raw framework target evidence',
     async ({ checker, extension }) => {
       const fixture = await createFixture({
         'packages/consumer/src/index.ts': `import '../../provider/src/Component.${extension}';\nexport const value = true;\n`,
@@ -1874,17 +1880,7 @@ describe('prepareGeneratedTsconfigGraph', () => {
             }),
           ]),
         );
-        expect(result.ownershipPlan.dependencyFacts).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({
-              consumerConfigPath: normalizeAbsolutePath(
-                path.join(fixture.rootDir, 'packages/consumer/tsconfig.json'),
-              ),
-              physicalTargetProvenance: 'checker-source',
-              typeEvidenceKind: 'checker-source',
-            }),
-          ]),
-        );
+        expect(result.ownershipPlan.dependencyFacts).toEqual([]);
       } finally {
         await fixture.cleanup();
       }
@@ -3111,93 +3107,6 @@ describe('prepareGeneratedTsconfigGraph', () => {
     }
   });
 
-  it('aggregates one missing Astro runtime root cause across multiple files', async () => {
-    const fixture = await createFixture(
-      {
-        'packages/app/src/App.astro': '<h1>Astro</h1>\n',
-        'packages/app/src/Page.astro': '<h1>Page</h1>\n',
-        'packages/app/tsconfig.json': json({
-          compilerOptions: managedOutputCompilerOptions(),
-          include: ['src/**/*'],
-        }),
-      },
-      { astroToolchain: false },
-    );
-    const importAnalysis = createImportAnalysisContext();
-    const missingRuntime = new LiminaDependencyError({
-      failureKind: 'missing',
-      message:
-        'Missing Limina runtime dependency:\n  package: @astrojs/compiler',
-      ownership: 'limina-runtime',
-      packageName: '@astrojs/compiler',
-      scope: 'limina-install',
-    });
-
-    try {
-      let thrown: unknown;
-      try {
-        await prepareGeneratedTsconfigGraph(
-          { ...fixture.config, config: { checkers: { auto: {} } } },
-          {
-            importAnalysisContext: {
-              ...importAnalysis,
-              prewarmImportsFromFile: async () => {
-                throw missingRuntime;
-              },
-            },
-          },
-        );
-      } catch (error) {
-        thrown = error;
-      }
-
-      expect(thrown).toBeInstanceOf(LiminaStructuredError);
-      expect(String(thrown)).toContain('Missing Limina runtime dependency');
-      expect((thrown as LiminaStructuredError).issues).toMatchObject([
-        { code: 'LIMINA_GRAPH_PREPARE_FAILED' },
-      ]);
-      expect((thrown as LiminaStructuredError).issues).toHaveLength(1);
-    } finally {
-      await fixture.cleanup();
-    }
-  });
-
-  it('preserves independent file-local framework parse failures', async () => {
-    const fixture = await createFixture({
-      'packages/app/src/App.astro': '<h1>Astro</h1>\n',
-      'packages/app/src/Page.astro': '<h1>Page</h1>\n',
-      'packages/app/tsconfig.json': json({
-        compilerOptions: managedOutputCompilerOptions(),
-        include: ['src/**/*'],
-      }),
-    });
-    const importAnalysis = createImportAnalysisContext();
-
-    try {
-      let thrown: unknown;
-      try {
-        await prepareGeneratedTsconfigGraph(
-          { ...fixture.config, config: { checkers: { auto: {} } } },
-          {
-            importAnalysisContext: {
-              ...importAnalysis,
-              prewarmImportsFromFile: async (filePath) => {
-                throw new Error(`Unable to parse framework file ${filePath}`);
-              },
-            },
-          },
-        );
-      } catch (error) {
-        thrown = error;
-      }
-
-      expect(thrown).toBeInstanceOf(LiminaStructuredError);
-      expect((thrown as LiminaStructuredError).issues).toHaveLength(2);
-    } finally {
-      await fixture.cleanup();
-    }
-  });
-
   it('deduplicates one Astro semantic root cause across records and consumers', async () => {
     const fixture = await createFixture(
       {
@@ -3247,6 +3156,11 @@ describe('prepareGeneratedTsconfigGraph', () => {
         '',
       ].join('\n'),
       'packages/a/src/index.ts': 'export const app = true;\n',
+      'packages/a/src/framework-modules.d.ts': [
+        "declare module '$app/environment';",
+        "declare module '*.css?inline';",
+        '',
+      ].join('\n'),
       'packages/a/tsconfig.json': json({
         compilerOptions: managedOutputCompilerOptions(),
         include: ['src/**/*'],
@@ -3399,7 +3313,7 @@ describe('prepareGeneratedTsconfigGraph', () => {
     },
   );
 
-  it('colors a pending TypeScript consumer from an untyped Svelte dependency', async () => {
+  it('uses an untyped Svelte import for pending ownership without admitting the Oxc bootstrap as a final edge', async () => {
     const fixture = await createFixture({
       'packages/a/src/index.ts':
         "import '../../b/src/App.svelte';\nexport const value = 1;\n",
@@ -3429,16 +3343,7 @@ describe('prepareGeneratedTsconfigGraph', () => {
           name: 'svelte-check',
         },
       ]);
-      expect(result.dependencyEdges).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            fromChecker: 'svelte-check',
-            importedSpecifier: '../../b/src/App.svelte',
-            kind: 'framework-schedule',
-            toChecker: 'svelte-check',
-          }),
-        ]),
-      );
+      expect(result.dependencyEdges).toEqual([]);
       expect(analysis.resolveOxcImport).toHaveBeenCalledTimes(1);
     } finally {
       await fixture.cleanup();

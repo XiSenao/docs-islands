@@ -154,10 +154,12 @@ function assertLiminaDependencyContract(testCase, installed) {
     'peerDependencies',
     'peerDependenciesMeta',
   ]) {
-    if (manifest[sectionName]?.['oxc-parser'] === undefined) continue;
-    throw new Error(
-      `[vue-semantic-matrix] ${testCase.name} installed Limina still declares oxc-parser in ${sectionName}.`,
-    );
+    for (const packageName of ['oxc-parser', '@astrojs/compiler']) {
+      if (manifest[sectionName]?.[packageName] === undefined) continue;
+      throw new Error(
+        `[vue-semantic-matrix] ${testCase.name} installed Limina still declares ${packageName} in ${sectionName}.`,
+      );
+    }
   }
   if (typeof manifest.dependencies?.['oxc-resolver'] !== 'string') {
     throw new Error(

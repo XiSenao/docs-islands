@@ -63,6 +63,7 @@ export function enumerateGeneratedSemanticDependencies(options: {
   return collectTypeScriptSourceFileImports({
     filePath: options.generatedFilePath,
     sourceFile: options.sourceFile,
+    tsModule: options.tsModule,
   }).map((record) => ({
     generatedFilePath: options.generatedFilePath,
     literal: findLiteralAtRecord({ ...options, record }),

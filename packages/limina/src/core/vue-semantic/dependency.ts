@@ -30,7 +30,7 @@ type VueServiceScript = NonNullable<
   ReturnType<VueTypeScriptProvider['getServiceScript']>
 >;
 
-interface VueServiceScriptPair {
+export interface VueServiceScriptPair {
   serviceScript: VueServiceScript;
   sourceScript: VolarSourceScript;
 }
@@ -149,7 +149,6 @@ export function createVueEvidence(options: {
     provenance: options.provenance,
     semanticSpecifier: literal.text,
     sourceRecord: options.importRecord,
-    sourceSpecifier: options.importRecord.specifier,
   }));
 }
 

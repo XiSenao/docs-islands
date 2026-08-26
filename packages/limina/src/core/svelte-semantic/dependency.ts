@@ -1,36 +1,11 @@
-import type ts from 'typescript';
-import type { FrameworkSemanticCandidate } from '../framework-semantic/contracts';
-import type { ImportRecord } from '../import-analysis/runner';
-
-export type SvelteSemanticCandidate = FrameworkSemanticCandidate<
-  ts.SourceFile,
-  ts.StringLiteralLike
->;
-
-export interface SvelteUnmappedGeneratedDependency {
-  generatedFilePath: string;
-  semanticSpecifier: string;
-}
+import type { FrameworkSemanticDependencyPreparation } from '../framework-semantic/contracts';
 
 export type SvelteDependencyPreparation =
-  | {
-      candidates: SvelteSemanticCandidate[];
-      kind: 'supported';
-      sourceRecords: ImportRecord[];
-      unmapped: SvelteUnmappedGeneratedDependency[];
-    }
-  | {
-      kind: 'unsupported';
-      reason: string;
-      stage:
-        | 'service-script-materialization'
-        | 'source-map-ambiguity'
-        | 'source-map-mismatch';
-    };
+  FrameworkSemanticDependencyPreparation;
 
 export { prepareSvelteSemanticDependencies } from './preparation';
+export { mapGeneratedRange } from './source-mapping';
 export {
-  getSvelteSourceMappingFailure,
-  selectSvelteSourceMapping,
-} from './source-mapping';
-export { collectSvelteSemanticSourceRecords } from './source-records';
+  getSvelteScriptKind,
+  isSvelteTypeScriptSource,
+} from './source-records';

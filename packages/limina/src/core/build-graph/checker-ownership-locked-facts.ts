@@ -1,6 +1,5 @@
 import type { ResolvedLiminaConfig } from '#config/runner';
 import { toRelativePath } from '#utils/path';
-import { getLiminaDependencyIssueIdentity } from '../../dependency-contract';
 import type { ImportAnalysisContext } from '../import-analysis/runner';
 import { shouldInferDeclarationReferenceFromImportRecord } from '../import-graph/declaration-reference-evidence';
 import {
@@ -10,18 +9,11 @@ import {
   type ProjectDependency,
   type ProjectDependencyFailure,
 } from '../project-dependencies/runner';
-import { getAutoScopeFilePackageRoot } from './auto-checker-file-roots';
 import type { AutoScopeProject } from './auto-checker-types';
-import type { CheckerOwnershipDiscovery } from './checker-ownership-discovery';
 import type {
   CheckerDependencyFact,
   TypeConfigOwnershipState,
 } from './checker-ownership-types';
-
-interface PrewarmRequest {
-  fileName: string;
-  packageRootDir: string;
-}
 
 function formatProjectDependencyFailure(options: {
   config: ResolvedLiminaConfig;
@@ -97,82 +89,4 @@ export function collectLockedProjectFacts(options: {
     facts.push(createLockedDependencyFact(options.project, dependency));
   }
   return { facts, problems };
-}
-
-function isLockedAstroProject(state: TypeConfigOwnershipState): boolean {
-  return (
-    state.semanticAuthority.kind === 'locked' &&
-    state.semanticAuthority.family === 'astro'
-  );
-}
-
-function getProjectPrewarmRequests(options: {
-  discovery: CheckerOwnershipDiscovery;
-  project: AutoScopeProject;
-}): PrewarmRequest[] {
-  const state = options.discovery.plan.typeConfigs.get(
-    options.project.configPath,
-  )!;
-  if (!isLockedAstroProject(state)) return [];
-  return options.project.filePartition.astroFiles.map((fileName) => ({
-    fileName,
-    packageRootDir: getAutoScopeFilePackageRoot(options.project, fileName),
-  }));
-}
-
-function collectPrewarmRequests(
-  discovery: CheckerOwnershipDiscovery,
-): PrewarmRequest[] {
-  return [...discovery.projectByConfigPath.values()].flatMap((project) =>
-    getProjectPrewarmRequests({ discovery, project }),
-  );
-}
-
-function getPrewarmFailureReason(reason: unknown): string {
-  return reason instanceof Error ? reason.message : String(reason);
-}
-
-function getPrewarmFailureIdentity(
-  request: PrewarmRequest,
-  reason: unknown,
-): string {
-  return (
-    getLiminaDependencyIssueIdentity(reason) ??
-    `astro-prewarm:${request.fileName}`
-  );
-}
-
-function addPrewarmResult(options: {
-  problemsByIdentity: Map<string, string>;
-  request: PrewarmRequest;
-  result: PromiseSettledResult<void>;
-}): void {
-  if (options.result.status === 'fulfilled') return;
-  options.problemsByIdentity.set(
-    getPrewarmFailureIdentity(options.request, options.result.reason),
-    getPrewarmFailureReason(options.result.reason),
-  );
-}
-
-export async function prewarmLockedFrameworkSources(options: {
-  discovery: CheckerOwnershipDiscovery;
-  importAnalysis: ImportAnalysisContext;
-}): Promise<string[]> {
-  const prewarm = options.importAnalysis.prewarmImportsFromFile;
-  if (prewarm === undefined) return [];
-  const requests = collectPrewarmRequests(options.discovery);
-  const results = await Promise.allSettled(
-    requests.map(({ fileName, packageRootDir }) =>
-      prewarm(fileName, packageRootDir),
-    ),
-  );
-  const problemsByIdentity = new Map<string, string>();
-  for (const [index, result] of results.entries()) {
-    addPrewarmResult({
-      problemsByIdentity,
-      request: requests[index]!,
-      result,
-    });
-  }
-  return [...problemsByIdentity.values()];
 }

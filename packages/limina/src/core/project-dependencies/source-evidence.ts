@@ -2,8 +2,6 @@ import type { VueSourceProfile } from '#checkers';
 import type { ImportAnalysisContext } from '#core/import-analysis/runner';
 import { readFileSync } from 'node:fs';
 import { collectTypeScriptSourceTextImports } from '../import-analysis/typescript-imports';
-import { collectSvelteSemanticSourceRecords } from '../svelte-semantic/dependency';
-import { resolveSvelteSemanticToolchain } from '../svelte-semantic/toolchain';
 import { cloneSourceEvidence } from './cache';
 import type { SourceEvidence } from './contracts';
 
@@ -81,25 +79,6 @@ function storeSourceEvidence(options: {
   return options.evidence;
 }
 
-function isSvelteSemanticSource(
-  options: CollectSourceEvidenceOptions,
-): boolean {
-  return (
-    options.semanticFamily === 'svelte' &&
-    options.filePath.toLowerCase().endsWith('.svelte')
-  );
-}
-
-function collectSvelteRecords(
-  options: CollectSourceEvidenceOptions,
-): SourceEvidence['records'] {
-  return collectSvelteSemanticSourceRecords({
-    filePath: options.filePath,
-    sourceText: readFileSync(options.filePath, 'utf8'),
-    toolchain: resolveSvelteSemanticToolchain(options.packageRootDir),
-  });
-}
-
 function collectTypeScriptRecords(
   options: CollectSourceEvidenceOptions,
 ): SourceEvidence['records'] {
@@ -115,7 +94,6 @@ function collectRecords(
   if (isTypeScriptSemanticSource(options.filePath)) {
     return collectTypeScriptRecords(options);
   }
-  if (isSvelteSemanticSource(options)) return collectSvelteRecords(options);
   return options.importAnalysis.collectImportsFromFile(
     options.filePath,
     options.packageRootDir,

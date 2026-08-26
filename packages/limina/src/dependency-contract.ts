@@ -24,7 +24,6 @@ export type CheckerToolchainPackageName = 'svelte2tsx';
 
 export type LiminaRuntimePackageName =
   | '@arethetypeswrong/core'
-  | '@astrojs/compiler'
   | 'knip'
   | 'npm-package-json-lint'
   | 'publint'
@@ -39,12 +38,6 @@ export const liminaRuntimeDependencyContracts: Readonly<
     ownership: 'limina-runtime',
     packageName: '@arethetypeswrong/core',
     supportedRange: '^0.18.0',
-  },
-  '@astrojs/compiler': {
-    optional: true,
-    ownership: 'limina-runtime',
-    packageName: '@astrojs/compiler',
-    supportedRange: '>=2.0.0 <5.0.0',
   },
   knip: {
     optional: true,

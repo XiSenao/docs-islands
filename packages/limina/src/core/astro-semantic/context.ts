@@ -43,6 +43,8 @@ export class AstroSemanticContext {
   readonly #scriptRegistry = new Map<AstroUri, AstroSourceScript>();
   readonly #snapshots = new Map<string, SnapshotEntry>();
   readonly #uriByFileName = new Map<string, AstroUri>();
+  #languageService: ts.LanguageService | undefined;
+  #program: ts.Program | undefined;
   #disposed = false;
 
   constructor(options: {
@@ -70,6 +72,17 @@ export class AstroSemanticContext {
       host,
     );
     this.languageServiceHost = host;
+  }
+
+  get program(): ts.Program {
+    this.assertActive();
+    if (this.#program !== undefined) return this.#program;
+    const program = this.#getLanguageService().getProgram();
+    if (program === undefined) {
+      throw new Error('Astro Language Service did not create a Program.');
+    }
+    this.#program = program;
+    return program;
   }
 
   asUri(fileName: string): AstroUri {
@@ -119,12 +132,32 @@ export class AstroSemanticContext {
   dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
-    for (const uri of this.#uriByFileName.values()) {
-      this.language.scripts.delete(uri);
-    }
+    this.#disposeLanguageService();
+    this.#program = undefined;
+    this.#deleteRegisteredScripts();
     this.#snapshots.clear();
     this.#scriptRegistry.clear();
     this.#uriByFileName.clear();
+  }
+
+  #deleteRegisteredScripts(): void {
+    for (const uri of this.#uriByFileName.values()) {
+      this.language.scripts.delete(uri);
+    }
+  }
+
+  #disposeLanguageService(): void {
+    this.#languageService?.dispose();
+    this.#languageService = undefined;
+  }
+
+  #getLanguageService(): ts.LanguageService {
+    if (this.#languageService === undefined) {
+      this.#languageService = this.toolchain.tsModule.createLanguageService(
+        this.languageServiceHost,
+      );
+    }
+    return this.#languageService;
   }
 
   #deleteScript(id: AstroUri, fileName: string): void {

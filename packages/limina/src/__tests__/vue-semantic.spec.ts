@@ -1,5 +1,4 @@
 import { parseCheckerProjectConfigForContext } from '#checkers';
-import { createImportAnalysisContext } from '#core/import-analysis/runner';
 import {
   mkdir,
   mkdtemp,
@@ -17,9 +16,7 @@ import {
   resolveVueSemanticAdapter,
 } from '../checker/vue-semantic-toolchain';
 import { VueSemanticContextManager } from '../core/vue-semantic/context';
-import { collectSemanticDependencyEvidence } from '../core/vue-semantic/dependency';
 import { prepareVueSemanticDependencies } from '../core/vue-semantic/preparation';
-import { resolveVueSemanticImport } from '../core/vue-semantic/resolution';
 import { createProfilingMetricsRecorder } from '../profiling/metrics';
 import { createFixturePathResolver, toPortablePath } from './helpers/path';
 
@@ -323,36 +320,15 @@ describe('Vue semantic architecture', () => {
     try {
       const identity = parseIdentity({ rootDir: fixture.rootDir });
       const filePath = fixture.path('src/App.vue');
-      const importAnalysis = createImportAnalysisContext({
-        projectRootDir: fixture.rootDir,
-      });
-      const appImports = importAnalysis.collectImportsFromFile(
-        filePath,
-        fixture.rootDir,
-        'vue-sfc',
-      );
-      const genericImports = importAnalysis.collectImportsFromFile(
-        fixture.path('src/Generic.vue'),
-        fixture.rootDir,
-        'vue-sfc',
-      );
-      const imports = [...appImports, ...genericImports];
       const context = manager.acquire(identity);
-
-      expect(imports.map((record) => record.kind)).toEqual([
-        'vue-script-src',
-        'vue-generic-type',
-      ]);
       const prepared = [
         prepareVueSemanticDependencies({
           context,
           filePath,
-          sourceRecords: appImports,
         }),
         prepareVueSemanticDependencies({
           context,
           filePath: fixture.path('src/Generic.vue'),
-          sourceRecords: genericImports,
         }),
       ];
       expect(prepared.every((result) => result.kind === 'supported')).toBe(
@@ -361,57 +337,22 @@ describe('Vue semantic architecture', () => {
       expect(
         prepared.flatMap((result) =>
           result.kind === 'supported'
-            ? result.candidates.map((candidate) => [
-                candidate.sourceSpecifier,
-                candidate.semanticSpecifier,
+            ? result.facts.map((fact) => [
+                fact.importRecord.filePath,
+                fact.importRecord.specifier,
+                fact.semanticSpecifier,
+                fact.target?.resolvedFileName,
               ])
             : [],
         ),
       ).toEqual([
-        ['./entry.ts', './entry.js'],
-        ['./types', './types'],
-      ]);
-      expect(
-        prepareVueSemanticDependencies({
-          context,
-          filePath,
-          sourceRecords: [appImports[0]!, { ...appImports[0]! }],
-        }),
-      ).toMatchObject({
-        kind: 'unsupported',
-        stage: 'source-map-ambiguity',
-      });
-      const mapped = imports.map((importRecord) =>
-        collectSemanticDependencyEvidence({ context, importRecord }),
-      );
-      expect(mapped.every((result) => result.kind === 'supported')).toBe(true);
-      expect(
-        mapped.flatMap((result) =>
-          result.kind === 'supported'
-            ? result.candidates.map((candidate) => [
-                candidate.sourceSpecifier,
-                candidate.semanticSpecifier,
-                candidate.provenance,
-              ])
-            : [],
-        ),
-      ).toEqual([
-        ['./entry.ts', './entry.js', 'strict-source-map'],
-        ['./types', './types', 'strict-source-map'],
-      ]);
-      expect(
-        imports.map((importRecord) =>
-          resolveVueSemanticImport({ identity, importRecord, manager }),
-        ),
-      ).toMatchObject([
-        {
-          kind: 'resolved',
-          resolution: { resolvedFileName: fixture.path('src/entry.ts') },
-        },
-        {
-          kind: 'resolved',
-          resolution: { resolvedFileName: fixture.path('src/types.ts') },
-        },
+        [filePath, './entry.js', './entry.js', fixture.path('src/entry.ts')],
+        [
+          fixture.path('src/Generic.vue'),
+          './types',
+          './types',
+          fixture.path('src/types.ts'),
+        ],
       ]);
       expect(
         metrics
@@ -419,13 +360,53 @@ describe('Vue semantic architecture', () => {
           .filter((metric) => metric.name === 'vue-program-create')
           .reduce((total, metric) => total + metric.count, 0),
       ).toBe(0);
-      expect(context.program.getSourceFiles().length).toBeGreaterThan(0);
+    } finally {
+      manager.dispose();
+      await fixture.cleanup();
+    }
+  });
+
+  it('preserves official Vue source projection across ASCII tag boundaries, closing whitespace, CR, and UTF-16 text', async () => {
+    const sourceText = [
+      '<template>🧭</template>\r',
+      '<script setup lang="ts">\r',
+      "import first from './first';\r",
+      '</script >\r',
+      "<scripté>import ignored from './ignored'</scripté>\r",
+      '<script lang="ts">\r',
+      "import second from './second';\r",
+      '</script\r>',
+    ].join('');
+    const fixture = await createFixture({
+      'src/App.vue': sourceText,
+      'src/first.ts': 'export default {}\n',
+      'src/second.ts': 'export default {}\n',
+      'tsconfig.json': config(),
+    });
+    const manager = new VueSemanticContextManager();
+
+    try {
+      const prepared = prepareVueSemanticDependencies({
+        context: manager.acquire(parseIdentity({ rootDir: fixture.rootDir })),
+        filePath: fixture.path('src/App.vue'),
+      });
+
+      expect(prepared.kind).toBe('supported');
       expect(
-        metrics
-          .snapshot()
-          .filter((metric) => metric.name === 'vue-program-create')
-          .reduce((total, metric) => total + metric.count, 0),
-      ).toBe(1);
+        prepared.kind === 'supported'
+          ? prepared.facts.map((fact) => ({
+              line: fact.importRecord.line,
+              sourceText: sourceText.slice(
+                fact.importRecord.locator.sourceStart,
+                fact.importRecord.locator.sourceEnd,
+              ),
+              specifier: fact.semanticSpecifier,
+            }))
+          : [],
+      ).toEqual([
+        { line: 3, sourceText: "'./first'", specifier: './first' },
+        { line: 7, sourceText: "'./second'", specifier: './second' },
+      ]);
     } finally {
       manager.dispose();
       await fixture.cleanup();
@@ -448,26 +429,21 @@ describe('Vue semantic architecture', () => {
 
     try {
       const identity = parseIdentity({ rootDir: fixture.rootDir });
-      const [importRecord] = createImportAnalysisContext({
-        projectRootDir: fixture.rootDir,
-      }).collectImportsFromFile(
-        fixture.path('src/App.vue'),
-        fixture.rootDir,
-        'vue-sfc',
-      );
-
       expect(
-        resolveVueSemanticImport({
-          identity,
-          importRecord: importRecord!,
-          manager,
+        prepareVueSemanticDependencies({
+          context: manager.acquire(identity),
+          filePath: fixture.path('src/App.vue'),
         }),
       ).toMatchObject({
-        kind: 'resolved',
-        resolution: {
-          resolvedBy: 'checker-source',
-          resolvedFileName: fixture.path('src/Component.vue'),
-        },
+        facts: [
+          {
+            target: {
+              resolvedBy: 'checker-source',
+              resolvedFileName: fixture.path('src/Component.vue'),
+            },
+          },
+        ],
+        kind: 'supported',
       });
     } finally {
       manager.dispose();
@@ -475,7 +451,7 @@ describe('Vue semantic architecture', () => {
     }
   });
 
-  it('reuses one identity, disposes on project switches, and fails closed on an unmapped locator', async () => {
+  it('reuses one identity and disposes on project switches', async () => {
     const fixture = await createFixture({
       'src/App.vue': '<script setup lang="ts">import \'./dep\'</script>\n',
       'src/dep.ts': 'export {}\n',
@@ -487,22 +463,6 @@ describe('Vue semantic architecture', () => {
       const identity = parseIdentity({ rootDir: fixture.rootDir });
       const first = manager.acquire(identity);
       expect(manager.acquire(identity)).toBe(first);
-      const [record] = createImportAnalysisContext({
-        projectRootDir: fixture.rootDir,
-      }).collectImportsFromFile(
-        fixture.path('src/App.vue'),
-        fixture.rootDir,
-        'vue-sfc',
-      );
-      const unsupported = collectSemanticDependencyEvidence({
-        context: first,
-        importRecord: {
-          ...record!,
-          locator: { occurrence: 0, sourceEnd: 1, sourceStart: 0 },
-        },
-      });
-      expect(unsupported).toMatchObject({ kind: 'unsupported' });
-
       const second = manager.acquire({
         ...identity,
         generation: identity.generation + 1,

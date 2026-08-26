@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 import { TypeEvidenceCore } from '../core/type-evidence';
 import { isSupportedVueTypeEvidenceVersionTuple } from '../core/type-evidence/vue-provider';
 import { VueSemanticContextManager } from '../core/vue-semantic/context';
+import { prepareVueSemanticDependencies } from '../core/vue-semantic/preparation';
 import {
   type AnalysisMetricAggregate,
   createProfilingMetricsRecorder,
@@ -242,63 +243,34 @@ describe('Vue resource type evidence', () => {
       'src/style.css': '.root {}\n',
       'tsconfig.json': tsconfig(['vite/client']),
     });
-    let core: TypeEvidenceCore | undefined;
-
     try {
       await linkVueToolchain(fixture.rootDir);
       const project = createVueProject(fixture.rootDir);
       const filePath = path.join(fixture.rootDir, 'src/App.vue');
       const metrics = createProfilingMetricsRecorder();
       const contexts = new VueSemanticContextManager(metrics);
-      const importAnalysis = createImportAnalysisContext({
-        metrics,
-        projectRootDir: fixture.rootDir,
-        vueSemanticContexts: contexts,
-      });
-      const imports = importAnalysis.collectImportsFromFile(
+      const preparation = prepareVueSemanticDependencies({
+        context: contexts.acquire(project.vueSemanticIdentity!),
         filePath,
-        fixture.rootDir,
-      );
-      core = new TypeEvidenceCore({
-        generation: 0,
-        importAnalysis,
-        metrics,
-        vueSemanticContexts: contexts,
       });
-      const evidence = imports.map((importRecord) =>
-        core!.resolveImportEvidence({
-          checkerName: 'vue-tsc',
-          importRecord,
-          project,
-        }),
-      );
+      expect(preparation.kind).toBe('supported');
+      if (preparation.kind === 'unsupported') return;
+      const evidence = preparation.facts.map((fact) => fact.typeEvidence);
 
-      expect(evidence.map((item) => item.type.kind)).toEqual([
+      expect(evidence.map((item) => item.kind)).toEqual([
         'ambient',
         'ambient',
         'ambient',
       ]);
       expect(
         evidence.map((item) =>
-          item.type.kind === 'ambient' ? item.type.modulePattern : null,
+          item.kind === 'ambient' ? item.modulePattern : null,
         ),
       ).toEqual(['*.css', '*.css', '*?raw']);
-      expect(core.cache.typeEvidenceProviderCache.size).toBe(1);
-      expect(core.cache.programCache.size).toBe(0);
-      expect(core.cache.importTypeEvidenceCache.size).toBe(3);
       const metricSnapshot = metrics.snapshot();
       expect(metricCount(metricSnapshot, 'vue-program-create')).toBe(1);
       expect(metricCount(metricSnapshot, 'typescript-program-create')).toBe(0);
-      expect(metricCount(metricSnapshot, 'type-evidence-provider-create')).toBe(
-        1,
-      );
-      expect(metricCount(metricSnapshot, 'type-evidence-provider-hit')).toBe(2);
-      expect(metricCount(metricSnapshot, 'resource-import-count')).toBe(3);
-      expect(metricCount(metricSnapshot, 'affected-source-config-count')).toBe(
-        1,
-      );
     } finally {
-      core?.dispose();
       await fixture.cleanup();
     }
   });
@@ -316,36 +288,20 @@ describe('Vue resource type evidence', () => {
       'src/style.css': '.root {}\n',
       'tsconfig.json': tsconfig(),
     });
-    let core: TypeEvidenceCore | undefined;
-
     try {
       await linkVueToolchain(fixture.rootDir);
       const project = createVueProject(fixture.rootDir);
       const filePath = path.join(fixture.rootDir, 'src/App.vue');
       const contexts = new VueSemanticContextManager();
-      const importAnalysis = createImportAnalysisContext({
-        projectRootDir: fixture.rootDir,
-        vueSemanticContexts: contexts,
-      });
-      const [importRecord] = importAnalysis.collectImportsFromFile(
+      const preparation = prepareVueSemanticDependencies({
+        context: contexts.acquire(project.vueSemanticIdentity!),
         filePath,
-        fixture.rootDir,
-      );
-      core = new TypeEvidenceCore({
-        generation: 0,
-        importAnalysis,
-        vueSemanticContexts: contexts,
       });
-
-      expect(
-        core.resolveImportEvidence({
-          checkerName: 'vue-tsc',
-          importRecord: importRecord!,
-          project,
-        }).type.kind,
-      ).toBe('ambient');
+      expect(preparation).toMatchObject({
+        facts: [{ typeEvidence: { kind: 'ambient', modulePattern: '*.css' } }],
+        kind: 'supported',
+      });
     } finally {
-      core?.dispose();
       await fixture.cleanup();
     }
   });
@@ -398,7 +354,7 @@ describe('Vue resource type evidence', () => {
     }
   });
 
-  it('returns unsupported-checker without a plain Program when vue-tsc is unavailable', async () => {
+  it('rejects standalone Vue evidence lookup before any plain Program fallback', async () => {
     const fixture = await createFixture({
       'src/App.vue':
         '<script setup lang="ts">import \'./style.css\';</script>\n',
@@ -409,30 +365,13 @@ describe('Vue resource type evidence', () => {
     const importAnalysis = createImportAnalysisContext({
       projectRootDir: fixture.rootDir,
     });
-    const [importRecord] = importAnalysis.collectImportsFromFile(
-      filePath,
-      fixture.rootDir,
-    );
-    const core = new TypeEvidenceCore({ generation: 0, importAnalysis });
-
     try {
-      const evidence = core.resolveImportEvidence({
-        checkerName: 'vue-tsc',
-        importRecord: importRecord!,
-        project: {
-          checkerPresets: ['vue-tsc'],
-          configPath: path.join(fixture.rootDir, 'tsconfig.json'),
-          extensions: ['.ts', '.vue'],
-          fileNames: [filePath],
-          options: {},
-          resolverConfigPath: path.join(fixture.rootDir, 'tsconfig.json'),
-        },
-      });
-
-      expect(evidence.type).toMatchObject({ kind: 'unsupported-checker' });
-      expect(core.cache.programCache.size).toBe(0);
+      expect(() =>
+        importAnalysis.collectImportsFromFile(filePath, fixture.rootDir),
+      ).toThrow(
+        'Framework source requires project/checker context; use getResolvedImports(file, project).',
+      );
     } finally {
-      core.dispose();
       await fixture.cleanup();
     }
   });

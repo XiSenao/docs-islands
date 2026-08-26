@@ -12,6 +12,7 @@ import type {
   FrameworkSemanticEvidence,
   FrameworkSemanticFailure,
 } from '../framework-semantic/contracts';
+import type { ManagedOutputDeclarationLookup } from '../import-graph/managed-output-provider';
 import type { SvelteSemanticContextManager } from '../svelte-semantic/context';
 import type { SvelteSemanticProject } from '../svelte-semantic/types';
 import type { VueSemanticContextManager } from '../vue-semantic/context';
@@ -79,15 +80,10 @@ export interface ImportAnalysisContext {
     sourceProfile?: VueSourceProfile,
   ) => ImportRecord[];
   dispose?: () => void;
-  prewarmImportsFromFile?: (
-    filePath: string,
-    packageRootDir: string,
-    sourceProfile?: VueSourceProfile,
-  ) => Promise<void>;
   prepareCheckerSemanticDependencies: (options: {
     context: ImportResolveContextFields;
     filePath: string;
-    sourceRecords: readonly ImportRecord[];
+    managedOutputLookup?: ManagedOutputDeclarationLookup;
   }) => FrameworkSemanticDependencyPreparation;
   resolveCheckerImportEvidence: (
     ...args: ImportRecordResolutionArguments
@@ -192,28 +188,4 @@ export interface ImportAnalysisCaches {
   resolverCache: Map<string, ResolverFactory>;
   sourceTextCache: Map<string, string>;
   typeScriptModuleResolutionCache: Map<string, ts.ModuleResolutionCache>;
-}
-
-export interface FrameworkImportCollectionOptions {
-  filePath: string;
-  packageRootDir: string;
-  sourceText: string;
-  sourceProfile?: VueSourceProfile;
-}
-
-export interface FrameworkImportParserIdentity {
-  kind: string;
-  mode: string;
-  version: string;
-}
-
-export interface FrameworkImportProvider {
-  collectionMode: 'async' | 'sync';
-  collectImports(
-    options: FrameworkImportCollectionOptions,
-  ): ImportRecord[] | Promise<ImportRecord[]>;
-  extension: string;
-  getParserIdentity(options: {
-    packageRootDir: string;
-  }): FrameworkImportParserIdentity;
 }

@@ -17,28 +17,13 @@ import {
   type ImportRecord,
   type ImportResolveContextFields,
 } from '#core/import-analysis/runner';
-import {
-  mkdir,
-  mkdtemp,
-  realpath,
-  rm,
-  symlink,
-  writeFile,
-} from 'node:fs/promises';
-import { createRequire } from 'node:module';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import semver from 'semver';
 import ts from 'typescript';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AstroSemanticContextManager } from '../core/astro-semantic/context';
-import { prepareAstroSemanticDependencies } from '../core/astro-semantic/preparation';
-import {
-  loadAstroCompiler,
-  resolveAstroParser,
-} from '../core/import-analysis/astro-compiler';
-import { collectPositionedAstroImports } from '../core/import-analysis/astro-positioned-imports';
 import { selectCanonicalImportFilePath } from '../core/import-analysis/canonical-resolution';
 import { LiminaDependencyError } from '../dependency-contract';
 import { createFixturePathResolver } from './helpers/path';
@@ -57,11 +42,6 @@ interface FakeToolchainState {
 }
 
 const cleanupTasks: (() => Promise<void>)[] = [];
-const requireFromTest = createRequire(import.meta.url);
-const liminaPackageRoot = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '../..',
-);
 
 afterEach(async () => {
   await Promise.all(cleanupTasks.splice(0).map((cleanup) => cleanup()));
@@ -88,62 +68,6 @@ async function writeText(filePath: string, text: string): Promise<void> {
   await writeFile(filePath, text);
 }
 
-async function linkInstalledPackage(options: {
-  installedName: string;
-  packageName: string;
-  rootDir: string;
-}): Promise<void> {
-  const segments = options.packageName.split('/');
-  const packageBaseName = segments.pop()!;
-  const nodeModulesDir = path.join(
-    options.rootDir,
-    'node_modules',
-    ...segments,
-  );
-  await mkdir(nodeModulesDir, { recursive: true });
-  await symlink(
-    path.join(
-      liminaPackageRoot,
-      'node_modules',
-      ...options.installedName.split('/'),
-    ),
-    path.join(nodeModulesDir, packageBaseName),
-    'junction',
-  );
-}
-
-async function linkRealAstroToolchain(rootDir: string): Promise<void> {
-  await writeText(
-    path.join(rootDir, 'package.json'),
-    `${JSON.stringify({
-      dependencies: {
-        '@astrojs/check': '0.9.10',
-        astro: '7.2.0',
-        typescript: '6.0.3',
-      },
-      name: 'real-astro-semantic-fixture',
-      private: true,
-    })}\n`,
-  );
-  await Promise.all([
-    linkInstalledPackage({
-      installedName: '@astrojs/check',
-      packageName: '@astrojs/check',
-      rootDir,
-    }),
-    linkInstalledPackage({
-      installedName: 'astro-v7-current',
-      packageName: 'astro',
-      rootDir,
-    }),
-    linkInstalledPackage({
-      installedName: 'typescript',
-      packageName: 'typescript',
-      rootDir,
-    }),
-  ]);
-}
-
 function maskAstroSource(source: string): string {
   const masked = source.replaceAll('---', '   ');
   return `${masked}\nimport './synthetic-helper';\n`;
@@ -166,6 +90,17 @@ function createFakeLanguage(options: {
         return {
           *toGeneratedRange(start, end) {
             if (!options.mismatch && generatedBySource.has(source)) {
+              yield [start, end, {}, {}] as const;
+            }
+          },
+          *toSourceRange(start, end) {
+            const sourceLength = source.snapshot.getLength();
+            if (
+              !options.mismatch &&
+              generatedBySource.has(source) &&
+              start >= 0 &&
+              end <= sourceLength
+            ) {
               yield [start, end, {}, {}] as const;
             }
           },
@@ -510,6 +445,7 @@ describe('Astro bounded semantic resolution', () => {
       writeText(sourceFile, source),
       writeText(targetFile, 'export {};\n'),
     ]);
+    harness.state.resolvedBySpecifier.set('./target.ts', targetFile);
     const project = createTestAstroSemanticProject({
       analysisGeneration: 1,
       compilerOptions: {
@@ -519,8 +455,6 @@ describe('Astro bounded semantic resolution', () => {
       fileNames: [sourceFile, targetFile],
       packageRootDir: harness.fixture.rootDir,
     });
-    const record = createRecord(sourceFile, source, './target.ts');
-
     const preparation = harness.context.prepareCheckerSemanticDependencies({
       context: {
         astroSemanticProject: project,
@@ -531,12 +465,16 @@ describe('Astro bounded semantic resolution', () => {
         semanticFamily: 'astro',
       },
       filePath: sourceFile,
-      sourceRecords: [record],
     });
 
     expect(preparation).toMatchObject({
       kind: 'supported',
-      sourceRecords: [record],
+      facts: [
+        {
+          importRecord: { filePath: sourceFile, specifier: './target.ts' },
+          semanticSpecifier: './target.ts',
+        },
+      ],
       unmapped: [
         {
           semanticSpecifier: './synthetic-helper',
@@ -544,124 +482,6 @@ describe('Astro bounded semantic resolution', () => {
       ],
     });
   });
-
-  it.each([
-    ['@astrojs/compiler-v2', '2.0.0'],
-    ['@astrojs/compiler-v3', '3.0.1'],
-    ['@astrojs/compiler', '4.0.0'],
-  ])(
-    'strictly aligns %s ImportRecord offsets with the LS-owned semantic compiler',
-    async (compilerPackage, expectedVersion) => {
-      const fixture = await createFixture();
-      await linkRealAstroToolchain(fixture.rootDir);
-      const source = [
-        '---',
-        'import Component from "./Component.astro";',
-        'import data from "./data.json";',
-        'void data;',
-        '---',
-        '<Component />',
-        '<script>',
-        '  import "./client.ts";',
-        '</script>',
-        '',
-      ].join('\n');
-      const sourceFile = fixture.path('src', 'Page.astro');
-      const componentFile = fixture.path('src', 'Component.astro');
-      const clientFile = fixture.path('src', 'client.ts');
-      const dataFile = fixture.path('src', 'data.json');
-      await Promise.all([
-        writeText(sourceFile, source),
-        writeText(componentFile, '<h1>Component</h1>\n'),
-        writeText(clientFile, 'export {};\n'),
-        writeText(dataFile, '{"value":true}\n'),
-      ]);
-      const parser = resolveAstroParser({
-        packageRootDir: liminaPackageRoot,
-        resolveCompilerEntry: () => requireFromTest.resolve(compilerPackage),
-      });
-      const compiler = await loadAstroCompiler({
-        packageRootDir: liminaPackageRoot,
-        resolvedPath: parser.resolvedPath,
-      });
-      const parsed = await compiler.parse(source, { position: true });
-      const records = collectPositionedAstroImports({
-        filePath: sourceFile,
-        packageRootDir: fixture.rootDir,
-        root: parsed.ast,
-        sourceText: source,
-      });
-      const manager = new AstroSemanticContextManager();
-      cleanupTasks.push(async () => manager.dispose());
-      const context = createImportAnalysisContext({
-        astroSemanticContexts: manager,
-      });
-      const compilerOptions = {
-        moduleResolution: ts.ModuleResolutionKind.Bundler,
-        resolveJsonModule: true,
-      };
-      const project = createTestAstroSemanticProject({
-        analysisGeneration: 1,
-        compilerOptions,
-        configPath: fixture.path('tsconfig.json'),
-        fileNames: [sourceFile, componentFile, clientFile, dataFile],
-        packageRootDir: fixture.rootDir,
-      });
-
-      expect(parser.version).toBe(expectedVersion);
-      expect(records.map((record) => record.domain)).toEqual([
-        'astro-frontmatter',
-        'astro-frontmatter',
-        'astro-client-script',
-      ]);
-      const prepared = prepareAstroSemanticDependencies({
-        context: manager.acquire(project),
-        filePath: sourceFile,
-        sourceRecords: records,
-      });
-      expect(prepared).toMatchObject({
-        kind: 'supported',
-        sourceRecords: records,
-      });
-      expect(
-        prepared.kind === 'supported'
-          ? prepared.candidates.map((candidate) => [
-              candidate.sourceRecord.domain,
-              candidate.sourceSpecifier,
-              candidate.semanticSpecifier,
-            ])
-          : [],
-      ).toEqual([
-        ['astro-frontmatter', './Component.astro', './Component.astro'],
-        ['astro-frontmatter', './data.json', './data.json'],
-        ['astro-client-script', './client.ts', './client.ts'],
-      ]);
-      expect(
-        records.map((record) =>
-          context.resolveImportEvidence(record, sourceFile, compilerOptions, {
-            astroSemanticProject: project,
-            checkerPresets: ['tsc'],
-            configPath: project.seed.configPath,
-            extensions: ['.astro'],
-            resolverConfigPath: project.seed.configPath,
-          }),
-        ),
-      ).toMatchObject([
-        {
-          semanticEvidence: { framework: 'astro' },
-          typeScriptResolution: { resolvedFileName: componentFile },
-        },
-        {
-          semanticEvidence: { framework: 'astro' },
-          typeScriptResolution: { resolvedFileName: dataFile },
-        },
-        {
-          semanticEvidence: { framework: 'astro' },
-          typeScriptResolution: { resolvedFileName: clientFile },
-        },
-      ]);
-    },
-  );
 
   it.each([
     ['./target.astro', 'checker-source'],

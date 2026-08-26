@@ -54,6 +54,11 @@ interface VolarMapper {
     end: number,
     fallbackToAnyMatch: boolean,
   ): Iterable<readonly [number, number, unknown, unknown]>;
+  toSourceRange(
+    start: number,
+    end: number,
+    fallbackToAnyMatch: boolean,
+  ): Iterable<readonly [number, number, unknown, unknown]>;
 }
 
 export interface VolarLanguage {

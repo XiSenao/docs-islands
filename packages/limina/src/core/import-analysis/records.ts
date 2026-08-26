@@ -19,8 +19,6 @@ export type ImportDomain =
   | 'vue-script'
   | 'vue-script-attribute'
   | 'vue-generic-attribute'
-  | 'svelte-instance-script'
-  | 'svelte-module-script'
   | 'astro-frontmatter'
   | 'astro-client-script';
 
@@ -74,13 +72,22 @@ export function finalizeImportRecords(
     });
 }
 
+function getLineTerminatorLength(sourceText: string, index: number): number {
+  const codePoint = sourceText.codePointAt(index);
+  if (codePoint === 10) return 1;
+  if (codePoint === 13)
+    return 1 + Number(sourceText.codePointAt(index + 1) === 10);
+  return 0;
+}
+
 export function buildLineStarts(sourceText: string): number[] {
   const starts = [0];
 
   for (let index = 0; index < sourceText.length; index += 1) {
-    if (sourceText.codePointAt(index) === 10) {
-      starts.push(index + 1);
-    }
+    const length = getLineTerminatorLength(sourceText, index);
+    if (length === 0) continue;
+    index += length - 1;
+    starts.push(index + 1);
   }
 
   return starts;

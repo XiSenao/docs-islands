@@ -1,5 +1,6 @@
 import type { ResolvedCheckerModuleName } from '#checkers';
 import type { ImportRecord } from '#core/import-analysis/runner';
+import type { TypeEvidence } from '../type-evidence/cache';
 
 export type FrameworkSemanticKind = 'astro' | 'svelte' | 'vue';
 
@@ -18,7 +19,6 @@ export interface FrameworkSemanticCandidate<
   provenance: FrameworkSemanticProvenance;
   semanticSpecifier: string;
   sourceRecord: ImportRecord;
-  sourceSpecifier: string;
 }
 
 export interface FrameworkSemanticEvidence<Profile = unknown> {
@@ -29,8 +29,17 @@ export interface FrameworkSemanticEvidence<Profile = unknown> {
   resolutionMode: string;
   semanticSpecifier: string;
   sourceRecord: ImportRecord;
-  sourceSpecifier: string;
   target: ResolvedCheckerModuleName | null;
+}
+
+export interface PreparedDependencyFact {
+  framework: FrameworkSemanticKind;
+  importRecord: ImportRecord;
+  provenance: 'strict-source-map';
+  resolutionMode: string;
+  semanticSpecifier: string;
+  target: ResolvedCheckerModuleName | null;
+  typeEvidence: TypeEvidence;
 }
 
 export interface FrameworkSemanticUnmappedGeneratedDependency {
@@ -40,8 +49,9 @@ export interface FrameworkSemanticUnmappedGeneratedDependency {
 
 export type FrameworkSemanticDependencyPreparation =
   | {
+      directSourceRecords: ImportRecord[];
+      facts: PreparedDependencyFact[];
       kind: 'supported';
-      sourceRecords: ImportRecord[];
       unmapped: FrameworkSemanticUnmappedGeneratedDependency[];
     }
   | {
@@ -100,7 +110,6 @@ export function createFrameworkSemanticEvidence<Profile>(options: {
       ...options.candidate.sourceRecord,
       locator: { ...options.candidate.sourceRecord.locator },
     },
-    sourceSpecifier: options.candidate.sourceSpecifier,
     target: options.target === null ? null : { ...options.target },
   };
 }

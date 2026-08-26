@@ -51,7 +51,6 @@ const REQUIRED_DIST_FILES = [
 const EXPECTED_PEER_RANGES = {
   '@arethetypeswrong/core': '^0.18.0',
   '@astrojs/check': '0.9.10',
-  '@astrojs/compiler': '>=2.0.0 <5.0.0',
   '@typescript/native-preview': '>=7.0.0-dev.20260421.2 <7.0.0',
   knip: '>=6.0.0 <7.0.0',
   'npm-package-json-lint': '>=9.1.0 <10.0.0',
@@ -618,7 +617,6 @@ export async function installConsumerDependencies(options: {
       options.tarballPath,
       `typescript@${typescriptRange}`,
       `knip@${knipRange}`,
-      ...(options.astroSemanticFixture ? ['@astrojs/compiler@4.0.0'] : []),
     ],
     {
       cwd: options.fixtureDir,

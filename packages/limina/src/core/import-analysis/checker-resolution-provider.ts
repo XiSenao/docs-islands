@@ -1,13 +1,10 @@
-import {
-  createFrameworkSemanticFailure,
-  type FrameworkSemanticFailure,
-} from '../framework-semantic/contracts';
+import { createFrameworkSemanticFailure } from '../framework-semantic/contracts';
 import { resolveSvelteSemanticImport } from '../svelte-semantic/resolution';
 import { resolveAstroSemanticPair } from './astro-pair-resolution';
+import { cloneCheckerResolutionEvidence } from './checker-resolution-clone';
 import type { ImportRecord } from './records';
 import type { ProviderDependencies } from './resolution-provider-types';
 import { resolveTypeScriptResult } from './resolution-results';
-import { cloneTypeScriptResolution } from './resolver-caches';
 import { classifyImportRuntimeEvidence } from './runtime-evidence';
 import { classifyAstroSemanticEligibility } from './semantic-eligibility';
 import type {
@@ -38,43 +35,6 @@ function createCacheKey(options: {
     semanticFamily: options.request.context.semanticFamily ?? 'typescript',
     specifier: options.importRecord.specifier,
   });
-}
-
-function cloneFailure(
-  failure: FrameworkSemanticFailure | undefined,
-): FrameworkSemanticFailure | undefined {
-  return failure === undefined ? undefined : { ...failure };
-}
-
-function cloneEvidence(
-  evidence: CanonicalImportResolutionEvidence,
-): CanonicalImportResolutionEvidence {
-  return {
-    eligibility: { ...evidence.eligibility },
-    oxcResolvedFilePath: null,
-    runtimeEvidence: {
-      ...evidence.runtimeEvidence,
-      runtime: { ...evidence.runtimeEvidence.runtime },
-    },
-    semanticEvidence:
-      evidence.semanticEvidence === undefined
-        ? undefined
-        : {
-            ...evidence.semanticEvidence,
-            sourceRecord: {
-              ...evidence.semanticEvidence.sourceRecord,
-              locator: { ...evidence.semanticEvidence.sourceRecord.locator },
-            },
-            target:
-              evidence.semanticEvidence.target === null
-                ? null
-                : { ...evidence.semanticEvidence.target },
-          },
-    semanticFailure: cloneFailure(evidence.semanticFailure),
-    typeScriptResolution: cloneTypeScriptResolution(
-      evidence.typeScriptResolution,
-    ),
-  };
 }
 
 function resolveTypeScriptPair(options: {
@@ -137,6 +97,9 @@ function resolveAstroPair(options: {
   importRecord: ImportRecord;
   request: NormalizedModuleResolutionRequest;
 }): ModuleResolutionPair {
+  if (TYPESCRIPT_SUB_SEMANTIC_KINDS.has(options.importRecord.kind)) {
+    return resolveTypeScriptPair(options);
+  }
   const project = options.request.context.astroSemanticProject;
   if (project === undefined) {
     return createMissingContextPair({
@@ -145,6 +108,15 @@ function resolveAstroPair(options: {
       request: options.request,
     });
   }
+  return resolveMaterializedAstroPair(options);
+}
+
+function resolveMaterializedAstroPair(options: {
+  dependencies: ProviderDependencies;
+  importRecord: ImportRecord;
+  request: NormalizedModuleResolutionRequest;
+}): ModuleResolutionPair {
+  const project = options.request.context.astroSemanticProject!;
   const eligibility = classifyAstroSemanticEligibility({
     checkerExtensions: options.request.context.extensions,
     importRecord: options.importRecord,
@@ -202,22 +174,30 @@ function createSveltePair(options: {
     oxc: null,
     semanticEvidence: {
       framework: 'svelte',
-      identityId: semantic.candidate.identityId,
-      provenance: semantic.candidate.provenance,
-      resolutionMode: semantic.resolutionMode,
-      semanticSpecifier: semantic.candidate.semanticSpecifier,
-      sourceRecord: semantic.candidate.sourceRecord,
-      sourceSpecifier: semantic.candidate.sourceSpecifier,
-      target: semantic.resolution,
+      identityId: options.project.configPath,
+      provenance: semantic.fact.provenance,
+      resolutionMode: semantic.fact.resolutionMode,
+      semanticSpecifier: semantic.fact.semanticSpecifier,
+      sourceRecord: semantic.fact.importRecord,
+      target: semantic.fact.target,
     },
-    typescript: semantic.resolution,
+    typescript: semantic.fact.target,
   };
 }
 
 function resolveSveltePair(options: SveltePairOptions): ModuleResolutionPair {
+  if (TYPESCRIPT_SUB_SEMANTIC_KINDS.has(options.importRecord.kind)) {
+    return resolveTypeScriptPair(options);
+  }
   if (!options.importRecord.filePath.toLowerCase().endsWith('.svelte')) {
     return resolveTypeScriptPair(options);
   }
+  return resolveMaterializedSveltePair(options);
+}
+
+function resolveMaterializedSveltePair(
+  options: SveltePairOptions,
+): ModuleResolutionPair {
   const context = getSvelteSemanticContext(options);
   if (context === null) {
     return createMissingContextPair({
@@ -290,9 +270,9 @@ export function createCheckerSemanticResolver(
     );
     const cacheKey = createCacheKey({ importRecord, request });
     const cached = dependencies.caches.checkerResolutionIndex.get(cacheKey);
-    if (cached !== undefined) return cloneEvidence(cached);
+    if (cached !== undefined) return cloneCheckerResolutionEvidence(cached);
     const evidence = createEvidence({ dependencies, importRecord, request });
     dependencies.caches.checkerResolutionIndex.set(cacheKey, evidence);
-    return cloneEvidence(evidence);
+    return cloneCheckerResolutionEvidence(evidence);
   };
 }

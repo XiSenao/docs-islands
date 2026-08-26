@@ -97,12 +97,9 @@
     "string-width": "catalog:dev",
     "@arethetypeswrong/core": "catalog:lint",
     "@astrojs/check": "catalog:dev",
-    "@astrojs/compiler": "catalog:dev",
     "svelte2tsx": "catalog:dev",
     "astro-v7-current": "catalog:test",
     "astro-v7-min": "catalog:test",
-    "@astrojs/compiler-v2": "catalog:test",
-    "@astrojs/compiler-v3": "catalog:test",
     "svelte-check-v4-min": "catalog:test",
     "svelte-v4-min": "catalog:test",
     "typescript": "catalog:dev",
@@ -119,7 +116,6 @@
     "@typescript/native-preview": ">=7.0.0-dev.20260421.2 <7.0.0",
     "vue-tsc": ">=2.2.0 <=2.2.12 || >=3.2.0 <=3.2.4",
     "@astrojs/check": "0.9.10",
-    "@astrojs/compiler": ">=2.0.0 <5.0.0",
     "svelte-check": ">=4.0.0 <5.0.0",
     "svelte2tsx": "^0.7.61"
   },
@@ -128,9 +124,6 @@
       "optional": true
     },
     "@astrojs/check": {
-      "optional": true
-    },
-    "@astrojs/compiler": {
       "optional": true
     },
     "@typescript/native-preview": {

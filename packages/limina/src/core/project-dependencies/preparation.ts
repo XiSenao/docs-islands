@@ -3,8 +3,15 @@ import {
   cloneProjectDependencyPreparation,
   createProjectSemanticCacheIdentity,
 } from './cache';
-import type { ProjectDependencyPreparation, SourceEvidence } from './contracts';
-import { collectProjectDependencyRecord } from './dependency-record';
+import type {
+  ProjectDependencyPreparation,
+  ProjectDependencyRequest,
+  SourceEvidence,
+} from './contracts';
+import {
+  collectPreparedProjectDependencyFact,
+  collectProjectDependencyRecord,
+} from './dependency-record';
 import {
   createPreparationFailureIdentity,
   createProjectDependencyFailure,
@@ -36,18 +43,20 @@ function getCachedPreparation(options: {
 function finishPreparation(options: {
   base: FilePreparationOptions;
   cacheKey: string;
+  directSourceRecords: ProjectDependencyPreparation['directSourceRecords'];
   failureStart: number;
   observationStart: number;
+  facts: ProjectDependencyPreparation['facts'];
   ready: boolean;
-  sourceRecords: ProjectDependencyPreparation['sourceRecords'];
 }): ProjectDependencyPreparation {
   const preparation = {
+    directSourceRecords: options.directSourceRecords,
     failures: options.base.collection.failures.slice(options.failureStart),
+    facts: options.facts,
     observations: options.base.collection.observations.slice(
       options.observationStart,
     ),
     ready: options.ready,
-    sourceRecords: options.sourceRecords,
   };
   options.base.request.caches?.projectDependencyPreparationCache.set(
     options.cacheKey,
@@ -58,7 +67,8 @@ function finishPreparation(options: {
 
 type PreparationFinisher = (
   ready: boolean,
-  sourceRecords: ProjectDependencyPreparation['sourceRecords'],
+  directSourceRecords: ProjectDependencyPreparation['directSourceRecords'],
+  facts?: ProjectDependencyPreparation['facts'],
 ) => ProjectDependencyPreparation;
 
 function createPreparationFinisher(options: {
@@ -67,28 +77,15 @@ function createPreparationFinisher(options: {
   failureStart: number;
   observationStart: number;
 }): PreparationFinisher {
-  return (ready, sourceRecords) =>
-    finishPreparation({ ...options, ready, sourceRecords });
-}
-
-function isSvelteFrameworkSource(options: {
-  requiresGeneratedPreparation: boolean;
-  request: FilePreparationOptions['request'];
-}): boolean {
-  return (
-    options.requiresGeneratedPreparation &&
-    options.request.context.semanticAuthority.family === 'svelte'
-  );
+  return (ready, directSourceRecords, facts = []) =>
+    finishPreparation({ ...options, directSourceRecords, facts, ready });
 }
 
 function getPreparationSource(options: {
   base: FilePreparationOptions;
   requiresGeneratedPreparation: boolean;
 }): SourceEvidence | undefined {
-  return isSvelteFrameworkSource({
-    ...options,
-    request: options.base.request,
-  })
+  return options.requiresGeneratedPreparation
     ? undefined
     : collectFileSourceEvidence(options.base);
 }
@@ -118,7 +115,7 @@ function prepareGeneratedSource(options: {
     return options.finish(false, []);
   }
   addGeneratedObservations(options.base, semantic.unmapped);
-  return options.finish(true, semantic.sourceRecords);
+  return options.finish(true, semantic.directSourceRecords, semantic.facts);
 }
 
 function prepareGeneratedSemanticDependencies(options: {
@@ -139,7 +136,7 @@ function prepareGeneratedSemanticDependencies(options: {
         vueSemanticIdentity: options.base.request.context.vueSemanticIdentity,
       },
       filePath: options.base.fileName,
-      sourceRecords: options.source?.records ?? [],
+      managedOutputLookup: options.base.request.managedOutputLookup,
     },
   );
 }
@@ -228,7 +225,34 @@ export function collectProjectDependencyFile(
   const request = createFileRequest(options.request, options.fileName);
   const preparation = prepareProjectFile({ ...options, request });
   if (!preparation.ready) return;
-  for (const importRecord of preparation.sourceRecords) {
-    collectProjectDependencyRecord({ ...options, importRecord, request });
+  collectDirectRecords({ options, preparation, request });
+  collectPreparedFacts({ options, preparation, request });
+}
+
+function collectDirectRecords(options: {
+  options: FilePreparationOptions;
+  preparation: ProjectDependencyPreparation;
+  request: ProjectDependencyRequest;
+}): void {
+  for (const importRecord of options.preparation.directSourceRecords) {
+    collectProjectDependencyRecord({
+      ...options.options,
+      importRecord,
+      request: options.request,
+    });
+  }
+}
+
+function collectPreparedFacts(options: {
+  options: FilePreparationOptions;
+  preparation: ProjectDependencyPreparation;
+  request: ProjectDependencyRequest;
+}): void {
+  for (const fact of options.preparation.facts) {
+    collectPreparedProjectDependencyFact({
+      ...options.options,
+      fact,
+      request: options.request,
+    });
   }
 }

@@ -1,12 +1,15 @@
+import { cloneTypeEvidence } from '../framework-semantic/prepared-dependency';
+import type { ImportRecord } from '../import-analysis/records';
 import type {
   ProjectDependencyCaches,
   ProjectDependencyCollection,
+  ProjectDependencyObservation,
   ProjectDependencyPreparation,
   ProjectSemanticContext,
   SourceEvidence,
 } from './contracts';
 
-export const PROJECT_DEPENDENCY_ADAPTER_VERSION = 'semantic-script-v1';
+export const PROJECT_DEPENDENCY_ADAPTER_VERSION = 'service-script-facts-v2';
 
 export function createProjectDependencyCaches(): ProjectDependencyCaches {
   return {
@@ -64,6 +67,7 @@ export function cloneProjectDependencyCollection(
         ...dependency.importRecord,
         locator: { ...dependency.importRecord.locator },
       },
+      typeEvidence: cloneTypeEvidence(dependency.typeEvidence),
     })),
     failures: collection.failures.map((failure) => ({
       ...failure,
@@ -75,17 +79,7 @@ export function cloneProjectDependencyCollection(
               locator: { ...failure.importRecord.locator },
             },
     })),
-    observations: collection.observations.map((observation) =>
-      observation.kind === 'unmapped-generated'
-        ? { ...observation }
-        : {
-            ...observation,
-            importRecord: {
-              ...observation.importRecord,
-              locator: { ...observation.importRecord.locator },
-            },
-          },
-    ),
+    observations: collection.observations.map(cloneObservation),
   };
 }
 
@@ -93,6 +87,19 @@ export function cloneProjectDependencyPreparation(
   preparation: ProjectDependencyPreparation,
 ): ProjectDependencyPreparation {
   return {
+    directSourceRecords: preparation.directSourceRecords.map((record) => ({
+      ...record,
+      locator: { ...record.locator },
+    })),
+    facts: preparation.facts.map((fact) => ({
+      ...fact,
+      importRecord: {
+        ...fact.importRecord,
+        locator: { ...fact.importRecord.locator },
+      },
+      target: fact.target === null ? null : { ...fact.target },
+      typeEvidence: cloneTypeEvidence(fact.typeEvidence),
+    })),
     failures: preparation.failures.map((failure) => ({
       ...failure,
       importRecord:
@@ -103,23 +110,60 @@ export function cloneProjectDependencyPreparation(
               locator: { ...failure.importRecord.locator },
             },
     })),
-    observations: preparation.observations.map((observation) =>
-      observation.kind === 'unmapped-generated'
-        ? { ...observation }
-        : {
-            ...observation,
-            importRecord: {
-              ...observation.importRecord,
-              locator: { ...observation.importRecord.locator },
-            },
-          },
-    ),
+    observations: preparation.observations.map(cloneObservation),
     ready: preparation.ready,
-    sourceRecords: preparation.sourceRecords.map((record) => ({
-      ...record,
-      locator: { ...record.locator },
-    })),
   };
+}
+
+function cloneObservation(
+  observation: ProjectDependencyObservation,
+): ProjectDependencyObservation {
+  if (observation.kind === 'unmapped-generated') return { ...observation };
+  return cloneMappedObservation(observation);
+}
+
+function cloneMissingObservation(
+  observation: Extract<ProjectDependencyObservation, { kind: 'missing' }>,
+  importRecord: ImportRecord,
+): ProjectDependencyObservation {
+  return {
+    importRecord,
+    kind: 'missing',
+    typeEvidence:
+      observation.typeEvidence === undefined ? undefined : { kind: 'missing' },
+  };
+}
+
+function cloneResourceObservation(
+  observation: Extract<ProjectDependencyObservation, { kind: 'resource' }>,
+  importRecord: ImportRecord,
+): ProjectDependencyObservation {
+  return {
+    importRecord,
+    kind: 'resource',
+    typeEvidence:
+      observation.typeEvidence === undefined
+        ? undefined
+        : (cloneTypeEvidence(observation.typeEvidence) as NonNullable<
+            typeof observation.typeEvidence
+          >),
+  };
+}
+
+function cloneMappedObservation(
+  observation: Exclude<
+    ProjectDependencyObservation,
+    { kind: 'unmapped-generated' }
+  >,
+): ProjectDependencyObservation {
+  const importRecord = {
+    ...observation.importRecord,
+    locator: { ...observation.importRecord.locator },
+  };
+  if (observation.kind === 'missing') {
+    return cloneMissingObservation(observation, importRecord);
+  }
+  return cloneResourceObservation(observation, importRecord);
 }
 
 export function cloneSourceEvidence(evidence: SourceEvidence): SourceEvidence {

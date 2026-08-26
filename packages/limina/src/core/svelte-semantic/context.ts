@@ -1,5 +1,6 @@
 import { normalizeAbsolutePath } from '#utils/path';
 import { readFileSync } from 'node:fs';
+import type { ManagedOutputDeclarationLookup } from '../import-graph/managed-output-provider';
 import type { SvelteDependencyPreparation } from './dependency';
 import { prepareSvelteSemanticDependencies } from './dependency';
 import {
@@ -27,6 +28,10 @@ export class SvelteSemanticContext {
   readonly project: SvelteSemanticProject;
   readonly toolchain: SvelteSemanticToolchain;
   readonly #preparedByFileName = new Map<string, PreparedFile>();
+  readonly #preparedByLookup = new WeakMap<
+    ManagedOutputDeclarationLookup,
+    Map<string, PreparedFile>
+  >();
   #disposed = false;
 
   constructor(options: {
@@ -37,20 +42,36 @@ export class SvelteSemanticContext {
     this.toolchain = options.toolchain;
   }
 
-  prepare(fileName: string): SvelteDependencyPreparation {
+  prepare(
+    fileName: string,
+    managedOutputLookup?: ManagedOutputDeclarationLookup,
+  ): SvelteDependencyPreparation {
     this.assertActive();
     const normalized = normalizeAbsolutePath(fileName);
     const sourceText = readFileSync(normalized, 'utf8');
-    const cached = this.#preparedByFileName.get(normalized);
+    const cache = this.#getPreparationCache(managedOutputLookup);
+    const cached = cache.get(normalized);
     if (cached?.sourceText === sourceText) return cached.preparation;
     const preparation = prepareSvelteSemanticDependencies({
       filePath: normalized,
+      managedOutputLookup,
       project: this.project,
       sourceText,
       toolchain: this.toolchain,
     });
-    this.#preparedByFileName.set(normalized, { preparation, sourceText });
+    cache.set(normalized, { preparation, sourceText });
     return preparation;
+  }
+
+  #getPreparationCache(
+    managedOutputLookup: ManagedOutputDeclarationLookup | undefined,
+  ): Map<string, PreparedFile> {
+    if (managedOutputLookup === undefined) return this.#preparedByFileName;
+    const cached = this.#preparedByLookup.get(managedOutputLookup);
+    if (cached !== undefined) return cached;
+    const created = new Map<string, PreparedFile>();
+    this.#preparedByLookup.set(managedOutputLookup, created);
+    return created;
   }
 
   assertActive(): void {

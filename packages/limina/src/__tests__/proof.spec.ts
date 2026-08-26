@@ -163,11 +163,24 @@ async function linkSvelteSemanticToolchain(rootDir: string): Promise<void> {
     'svelte2tsx/package.json',
     'svelte2tsx',
   );
+  const typeScriptRoot = resolveInstalledPackageRoot(
+    'typescript/package.json',
+    'typescript',
+  );
   const nodeModulesDir = path.join(rootDir, 'node_modules');
   await mkdir(nodeModulesDir, { recursive: true });
+  await rm(path.join(nodeModulesDir, 'typescript'), {
+    force: true,
+    recursive: true,
+  });
   await Promise.all([
     symlink(compilerRoot, path.join(nodeModulesDir, 'svelte'), 'junction'),
     symlink(transformRoot, path.join(nodeModulesDir, 'svelte2tsx'), 'junction'),
+    symlink(
+      typeScriptRoot,
+      path.join(nodeModulesDir, 'typescript'),
+      'junction',
+    ),
   ]);
 }
 
@@ -1994,7 +2007,6 @@ describe('runProofCheck dts config semantics', () => {
       for (const [installedName, packageName] of [
         ['astro-v7-current', 'astro'],
         ['@astrojs/check', '@astrojs/check'],
-        ['typescript', 'typescript'],
       ] as const) {
         const targetPath = path.join(
           fixture.rootDir,
