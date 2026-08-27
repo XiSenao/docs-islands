@@ -125,6 +125,8 @@ The Vue semantic adapter accepts only the explicitly tested families: `vue-tsc`/
 
 Svelte graph semantics use a bounded public adapter: owning-leaf `svelte2tsx`, `svelte/compiler`, and TypeScript. Limina keeps `svelte2tsx` as development metadata plus an optional peer and bundles only its dev-only `@jridgewell/trace-mapping` implementation, not the framework adapter. Decoded Source Map v3 segments must explicitly cover every UTF-16 offset of a generated dependency and map to the current source monotonically and continuously; sparse, partial, cross-source, backward, or jumping mappings fail closed. The adapter does not load `svelte.config.js`, execute preprocess/defaultLanguages, import checker private subpaths, or recreate the checker lifecycle. A minimal explicit `lang="ts"`/`lang="typescript"` detector supplies `isTsFile` but never enumerates dependencies. The bounded Program overlay queries ambient evidence only and is not a second Svelte resolver.
 
+The supported `svelte2tsx` tuple emits absolute source paths in its source map. Limina therefore constructs the trace without a map URL: rebasing an already-absolute `C:/...` source against its containing directory duplicates the Windows drive path and invalidates strict provenance.
+
 Generated declaration references currently come from two explicit evidence paths:
 
 - `liminaOptions.implicitRefs`, which must resolve to an ordinary source config owned by the same checker scope
@@ -170,6 +172,8 @@ Limina separates validation into distinct domains rather than treating every fai
 `graph:check` validates generated project architecture, references, import-derived provider relationships, configured graph rules, condition domains, and relevant workspace export/type-entry relationships.
 
 `source:check` validates source ownership and source-owner boundaries, package import authority, workspace dependency declarations, ambient declaration policy, resource declaration availability, and Knip-backed unused module and dependency findings when Knip analysis is enabled.
+
+Physical resource paths retained in source findings are normalized to Limina's portable absolute-path form before they enter structured facts and locations. Native paths remain local filesystem inputs only.
 
 `proof:check` compares the configured source boundary with checker and graph coverage. Every source file in the proof boundary must be covered by a checker entry or an explicit allowlist entry. Allowlist entries require a reason and are themselves validated against existing coverage and source-boundary membership. Ownership proof additionally verifies unique config ownership, solution consistency, framework leaf target coverage and executability, declaration projection consistency, and typed dependency-edge integrity.
 
