@@ -275,7 +275,7 @@ describe('project dependency authority', () => {
     expect(analysis.resolveOxcImport).not.toHaveBeenCalled();
   });
 
-  it('fails closed when a prepared target and TypeEvidence disagree', () => {
+  it('fails closed when prepared target and TypeEvidence paths disagree', () => {
     const rootDir = '/virtual/mismatch-vue';
     const sourceFile = path.join(rootDir, 'App.vue');
     const fact = createFact({
@@ -298,6 +298,62 @@ describe('project dependency authority', () => {
     });
 
     expect(collection.dependencies).toEqual([]);
+    expect(collection.failures).toMatchObject([
+      { framework: 'vue', stage: 'module-resolution' },
+    ]);
+    expect(analysis.resolveCheckerImportEvidence).not.toHaveBeenCalled();
+    expect(analysis.resolveOxcImport).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      evidence: {
+        filePath: '/virtual/mismatch-kind-vue/target.ts',
+        kind: 'concrete-declaration' as const,
+      },
+      name: 'source target with declaration evidence',
+      target: createTarget('/virtual/mismatch-kind-vue/target.ts'),
+    },
+    {
+      evidence: {
+        filePath: '/virtual/mismatch-kind-vue/target.d.ts',
+        kind: 'checker-source' as const,
+      },
+      name: 'declaration target with source evidence',
+      target: createTarget('/virtual/mismatch-kind-vue/target.d.ts'),
+    },
+    {
+      evidence: {
+        filePath: '/virtual/mismatch-kind-vue/target.d.mts',
+        kind: 'checker-source' as const,
+      },
+      name: '.d.mts target with source evidence',
+      target: createTarget(
+        '/virtual/mismatch-kind-vue/target.d.mts',
+        'typescript',
+      ),
+    },
+  ])('fails closed for $name at the same path', ({ evidence, target }) => {
+    const rootDir = '/virtual/mismatch-kind-vue';
+    const sourceFile = `${rootDir}/App.vue`;
+    const fact = createFact({
+      record: createRecord(sourceFile, './target'),
+      target,
+      typeEvidence: evidence,
+    });
+    const analysis = withPreparedFact(fact);
+
+    const collection = collectProjectDependencies({
+      context: createSemanticContext({
+        family: 'vue',
+        fileName: sourceFile,
+        rootDir,
+      }),
+      importAnalysis: analysis.context,
+    });
+
+    expect(collection.dependencies).toEqual([]);
+    expect(collection.observations).toEqual([]);
     expect(collection.failures).toMatchObject([
       { framework: 'vue', stage: 'module-resolution' },
     ]);

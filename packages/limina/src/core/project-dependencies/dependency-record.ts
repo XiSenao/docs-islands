@@ -70,18 +70,33 @@ function getEvidenceTargetPath(evidence: TypeEvidence): string | null {
   return null;
 }
 
+function evidenceKindMatchesTarget(
+  evidence: TypeEvidence,
+  targetPath: string,
+): boolean {
+  return isDeclarationFile(targetPath)
+    ? evidence.kind === 'concrete-declaration'
+    : evidence.kind === 'checker-source';
+}
+
+function physicalEvidenceMatchesTarget(
+  evidence: TypeEvidence,
+  target: NonNullable<PreparedDependencyFact['target']>,
+): boolean {
+  const evidencePath = getEvidenceTargetPath(evidence);
+  if (evidencePath === null) return false;
+  const targetPath = normalizeAbsolutePath(target.resolvedFileName);
+  if (normalizeAbsolutePath(evidencePath) !== targetPath) return false;
+  return evidenceKindMatchesTarget(evidence, targetPath);
+}
+
 function evidenceMatchesTarget(fact: PreparedDependencyFact): boolean {
   const target = fact.target;
   const evidence = fact.typeEvidence;
   if (target === null) {
     return ['ambient', 'missing'].includes(evidence.kind);
   }
-  const evidencePath = getEvidenceTargetPath(evidence);
-  if (evidencePath === null) return false;
-  return (
-    normalizeAbsolutePath(evidencePath) ===
-    normalizeAbsolutePath(target.resolvedFileName)
-  );
+  return physicalEvidenceMatchesTarget(evidence, target);
 }
 
 function addFactFailure(options: CollectFactOptions, reason: string): void {
