@@ -255,7 +255,7 @@ export default defineConfig({
         command: 'tsgo',
         args: [
           '-b',
-          '.limina/tsconfig/checkers/typescript/tsconfig.build.json',
+          '.limina/tsconfig/checkers/tsgo/tsconfig.build.json',
           '--pretty',
           'false',
         ],

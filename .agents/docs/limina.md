@@ -67,7 +67,7 @@ The configuration export may be a configuration object, a promise, or a function
 4. `checker:build`
 5. `checker:typecheck`
 
-Configured pipelines can compose built-in tasks and command steps. Pipeline execution does not make the exported dependency graph a task scheduler.
+Configured pipelines can compose built-in tasks and command steps. Pipeline execution does not make the exported dependency graph a task scheduler. The repository root `lib` pipeline prepares the graph and builds its `tsgo` checker entry; `integration/tests/root-config.spec.ts` checks the actual root configuration against the generated plan. Default check execution does not select this named pipeline.
 
 A check run creates one preflight context, an execution plan, structured issue collection, and run-summary metadata. The implementation can reuse preflight results within the run and disposes the preflight context when execution completes.
 
@@ -173,6 +173,8 @@ Limina separates validation into distinct domains rather than treating every fai
 
 `source:check` validates source ownership and source-owner boundaries, package import authority, workspace dependency declarations, ambient declaration policy, resource declaration availability, and Knip-backed unused module and dependency findings when Knip analysis is enabled.
 
+Resource physical lookup preserves a complete `package.json#imports` identity, including embedded `?` and additional `#`, while relative resource query/fragment imports retain filesystem-base checks. Physical existence, type evidence, and package import authority remain independent requirements. `source.spec.ts` covers wildcard imports with concrete companions and missing-resource/type controls; `resource-module-findings.spec.ts` exercises exact Node mapping keys through the resource producer.
+
 Physical resource paths retained in source findings are normalized to Limina's portable absolute-path form before they enter structured facts and locations. Native paths remain local filesystem inputs only.
 
 `proof:check` compares the configured source boundary with checker and graph coverage. Every source file in the proof boundary must be covered by a checker entry or an explicit allowlist entry. Allowlist entries require a reason and are themselves validated against existing coverage and source-boundary membership. Ownership proof additionally verifies unique config ownership, solution consistency, framework leaf target coverage and executability, declaration projection consistency, and typed dependency-edge integrity.
@@ -194,6 +196,8 @@ A failure means that a configured detector, rule, checker, or execution step did
 - `artifact`
 
 Each edge records the importing file, module specifier, and resolved path used as evidence.
+
+The graph-export runner disposes its internally created default preflight on success and failure. Caller-supplied preflight managers and custom providers retain their caller-owned lifetime. This boundary releases Vue process-wide context owners after repeated exports of the same identity; `vue-semantic.spec.ts` covers owned success/failure and continued borrowed reuse. Other preflight allocation sites retain their existing lifecycle.
 
 The exported document describes dependency facts observed by Limina. Its schema does not encode task definitions, task cache policy, execution resources, or a build schedule.
 
@@ -257,6 +261,8 @@ Cross-platform tests must represent Limina-owned absolute paths in their canonic
 Cross-process materialization tests must release deliberately paused children through an already-open process channel rather than polling a filesystem sentinel. This keeps the lease contention under test while removing filesystem polling and scheduler timing from the synchronization barrier; child-result assertions should include captured process output when an exit is unsuccessful.
 
 Isolated package fixtures that project pnpm dependencies into a temporary `node_modules` tree must keep scoped namespace directories physical and junction each package below them individually. Junctioning the namespace directory itself adds a nested reparse-point boundary that can make scoped ESM packages unreachable on Windows before the fixture reaches its intended dependency-resolution boundary.
+
+Detector fixtures isolate HOME, npm cache, and XDG cache, but retain the host Corepack tool cache resolved before that isolation. CI activates the root-pinned pnpm there with `corepack prepare --activate`; losing that cache lets fixtures without `packageManager` select an unrelated registry version before ATTW can run. `integration/helpers/detector-environment.ts` preserves this toolchain boundary, disables latest-version discovery, and reserves both Corepack settings against fixture overrides. `integration/tests/detector-harness.spec.ts` covers explicit, XDG, LOCALAPPDATA, and home-based cache locations; fixture package-manager pins remain authoritative.
 
 ## Human direction requiring confirmation
 
